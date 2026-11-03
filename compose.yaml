@@ -1,0 +1,63 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+
+    container_name: fyag_backend
+
+    command: python manage.py runserver 0.0.0.0:8000
+
+    volumes:
+      - ./backend:/app
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - .env
+
+    depends_on:
+      - postgres
+      - mongodb
+
+
+  postgres:
+    image: postgres:18
+
+    container_name: fyag_postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "${POSTGRES_HOST_PORT}:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+
+  mongodb:
+    image: mongo:8.0
+
+    container_name: fyag_mongodb
+
+    restart: unless-stopped
+
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+
+    ports:
+      - "${MONGO_HOST_PORT}:27017"
+
+    volumes:
+      - mongodb_data:/data/db
+
+
+volumes:
+  postgres_data:
+  mongodb_data:
