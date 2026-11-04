@@ -1,0 +1,7 @@
+.fyag-top { background: var(--fyag-primary); color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px; min-height: 60px; }
+.fyag-top .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.fyag-top .top-right { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.fyag-body { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.fyag-side { flex: 0 0 232px; background: #fff; border-right: 1px solid var(--fyag-line); padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; min-height: calc(100vh - 60px); }
+.fyag-content { flex: 1 1 640px; min-width: 0; padding: 24px 28px 90px; }
+@media (max-width: 880px) { .fyag-side { flex: 1 1 100%; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--fyag-line); padding: 8px 12px; } .fyag-content { padding: 20px 16px 90px; } }

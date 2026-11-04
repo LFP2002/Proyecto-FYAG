@@ -1,0 +1,11 @@
+body { margin: 0; font-variant-numeric: tabular-nums; }
+*, *::before, *::after { box-sizing: border-box; }
+.app-root { font-family: var(--bs-body-font-family); color: var(--fyag-text); background: var(--fyag-bg); min-height: 100vh; font-size: 14px; line-height: 1.45; }
+:focus-visible { outline: 3px solid #6aa5e0; outline-offset: 2px; }
+
+.btn-fyag-primary { background: var(--fyag-primary-light); border-color: var(--fyag-primary-light); color: #fff; }
+.btn-fyag-primary:hover { background: var(--fyag-primary-dark); border-color: var(--fyag-primary-dark); color: #fff; }
+.btn-fyag-danger { color: var(--fyag-red-dark); border-color: #e3b3af; }
+.btn-fyag-danger:hover { background: #fbe6e4; color: var(--fyag-red-dark); }
+.btn-fyag-white { background: transparent; color: #fff; border-color: #5a7a9c; }
+.btn-fyag-white:hover { background: #1f4064; color: #fff; }

@@ -1,0 +1,7 @@
+.ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.chip.gray { background: #e9edf2; color: #3b4856; }
+.chip.amber { background: #fdf0d9; color: #8a4b00; }
+.chip.blue { background: #e2edf8; color: #1b3f63; }
+.chip.green { background: #e3f4ec; color: #0f5f3b; }
+.chip.red { background: #fbe6e4; color: #8f1d17; }

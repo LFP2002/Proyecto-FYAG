@@ -1,0 +1,81 @@
+.tec-bg { 
+  min-height: 100vh; 
+  background: #dfe7f0; 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  padding-bottom: 24px; 
+}
+
+.protobar { 
+  width: 100%; 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 10px; 
+  align-items: center; 
+  justify-content: space-between; /* Cambiado para separar el selector del botón */
+  padding: 10px 24px; 
+  background: var(--fyag-primary); 
+  color: #fff; 
+}
+
+.phone { 
+  width: 100%; 
+  max-width: 480px; 
+  min-height: calc(100vh - 60px); 
+  background: #f6f9fc; 
+  display: flex; 
+  flex-direction: column; 
+  margin-top: 16px; 
+  border-radius: 24px 24px 0 0; 
+  overflow: hidden; 
+  border: 1px solid #c3cfdb; 
+  box-shadow: 0 16px 40px rgba(23,50,79,.18); 
+}
+
+/* En celulares, el "phone" ocupa toda la pantalla sin bordes ni márgenes */
+@media (max-width: 600px) { 
+  .phone { 
+    margin-top: 0; 
+    border-radius: 0; 
+    border: 0; 
+    max-width: 100%;
+    min-height: calc(100vh - 60px); 
+  } 
+  .protobar { padding: 10px 16px; }
+}
+
+.tec-top { background: var(--fyag-primary); color: #fff; padding: 18px 20px; }
+.tec-eyebrow { font-size: 12px; opacity: .85; }
+.tec-name { font-size: 20px; font-weight: 700; }
+.tec-note { display: flex; gap: 8px; align-items: flex-start; margin: 14px 16px 0; padding: 10px 12px; background: #e2edf8; color: #1b3f63; border-radius: 10px; font-size: 13px; }
+.tec-body { flex: 1; padding: 16px; }
+.tec-body h2 { margin: 0 0 10px; font-size: 16px; color: var(--fyag-primary); }
+
+.obra-card { 
+  display: block; width: 100%; text-align: left; background: #fff; 
+  border: 1px solid var(--fyag-line); border-radius: 14px; 
+  padding: 14px 16px; margin-bottom: 12px; min-height: 44px; 
+  color: var(--fyag-text); cursor: pointer; 
+}
+.obra-card .oc-t { font-weight: 700; color: var(--fyag-primary); display: block; }
+.obra-card .oc-s { color: var(--fyag-muted); font-size: 13px; margin-bottom: 8px; display: block; }
+
+.tec-nav { 
+  display: flex; border-top: 1px solid var(--fyag-line); 
+  background: #fff; position: sticky; bottom: 0;
+}
+.tec-nav button { 
+  flex: 1; min-height: 60px; border: 0; background: #fff; 
+  font-weight: 600; color: var(--fyag-muted); 
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; 
+  cursor: pointer; 
+}
+.tec-nav button.on { 
+  color: var(--fyag-primary); 
+  box-shadow: inset 0 3px 0 var(--fyag-primary-light); 
+}
+
+.bit { background: #fff; border: 1px solid var(--fyag-line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.avrow { display: flex; gap: 8px; margin: 8px 0 4px; }
+.avrow .btn { flex: 1; }
