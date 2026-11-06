@@ -4,6 +4,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class LoginSerializer(TokenObtainPairSerializer):
 
+    def validate_email(self, value):
+        return value.strip().lower()
+
     def validate(self, attrs):
         try:
             data = super().validate(attrs)
