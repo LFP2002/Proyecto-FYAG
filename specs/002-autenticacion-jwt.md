@@ -36,6 +36,19 @@ Además de los atributos propios de Django, deberá incorporar:
 
 El campo `rol` solo podrá contener uno de los roles definidos por el sistema.
 
+El email constituye el único identificador utilizado para autenticación.
+El campo `username` se conserva exclusivamente como alias o nombre corto visible
+del usuario dentro de la aplicación. El sistema no permite autenticación mediante
+`username`.
+
+- `email`: autenticación / identidad de acceso, único y normalizado a minúsculas.
+- `username`: alias visible obligatorio, heredado de `AbstractUser`.
+- `first_name` + `last_name`: nombre real/completo del trabajador.
+- `rol`: autorización y control de acceso.
+
+Se mantienen `USERNAME_FIELD = "email"` y `REQUIRED_FIELDS = ["username"]`,
+así como las restricciones de PostgreSQL de email no vacío, normalizado y rol válido.
+
 ## Inicio de sesión
 
 ### Endpoint
@@ -46,12 +59,17 @@ POST `/api/auth/login/`
 
 ```json
 {
-  "username": "usuario",
+  "email": "usuario@dominio.cl",
   "password": "contraseña"
 }
 ```
 
-Los campos `username` y `password` son obligatorios.
+Los campos `email` y `password` son obligatorios. El email recibido se normaliza
+eliminando espacios exteriores y convirtiéndolo a minúsculas. Enviar únicamente
+`username` y `password` devuelve `400 Bad Request` por falta de `email`.
+
+Antes del login, obtener el token CSRF mediante `GET /api/auth/csrf/` y enviarlo
+en `X-CSRFToken`, junto con la cookie CSRF. Login, refresh y logout requieren CSRF.
 
 ## Respuesta exitosa
 
@@ -64,12 +82,31 @@ Ejemplo:
 ```json
 {
   "access": "token_de_acceso",
-  "refresh": "token_de_actualizacion",
   "user": {
     "id": 1,
-    "username": "usuario",
+    "username": "Lucas",
+    "email": "usuario@dominio.cl",
     "role": "GERENCIA"
-  }
+  },
+  "csrfToken": "token_csrf_rotado"
+}
+```
+
+El refresh token se entrega exclusivamente mediante la cookie `fyag_refresh`,
+HttpOnly, SameSite=Strict, Secure en producción y con path `/api/auth/`.
+No aparece en el JSON. El login rota el token CSRF; las siguientes solicitudes
+deben utilizar el nuevo `csrfToken`.
+
+## Perfil actual
+
+`GET /api/auth/me/`, con `Authorization: Bearer <access>`, devuelve:
+
+```json
+{
+  "id": 1,
+  "username": "Lucas",
+  "email": "usuario@dominio.cl",
+  "role": "GERENCIA"
 }
 ```
 
@@ -87,7 +124,7 @@ Respuesta:
 }
 ```
 
-El sistema no deberá indicar si el error corresponde específicamente al nombre de usuario o a la contraseña.
+El sistema no deberá indicar si el error corresponde específicamente al email o a la contraseña.
 
 ## Usuario inactivo
 
@@ -106,14 +143,17 @@ POST `/api/auth/refresh/`
 ### Entrada
 
 ```json
-{
-  "refresh": "token_de_actualizacion"
-}
+{}
 ```
 
 ### Resultado
 
-Si el refresh token es válido, el sistema entregará un nuevo access token.
+El refresh token se lee exclusivamente desde la cookie HttpOnly. Si es válido,
+el sistema entrega `{"access": "token_de_acceso"}`, rota la cookie de refresh
+e incluye el refresh anterior en blacklist. No devuelve refresh en JSON.
+
+`POST /api/auth/logout/` revoca el refresh actual, elimina su cookie y devuelve
+`204 No Content`.
 
 ## Seguridad
 
@@ -125,6 +165,9 @@ Si el refresh token es válido, el sistema entregará un nuevo access token.
 - Los endpoints protegidos deberán rechazar solicitudes sin un token válido.
 - Las credenciales incorrectas no deberán revelar qué dato fue incorrecto.
 - Las claves y configuración sensible deberán mantenerse mediante variables de entorno.
+- La clave `JWT_SIGNING_KEY` es independiente de `DJANGO_SECRET_KEY`.
+- Se mantienen CSRF, rate limiting, rotación y blacklist de refresh tokens.
+- Los JWT expirados o manipulados son rechazados.
 
 ## Criterios de aceptación
 
@@ -133,14 +176,15 @@ La especificación se considera implementada cuando:
 1. Existe un modelo de usuario con rol.
 2. Se encuentran disponibles los cuatro roles definidos.
 3. Un usuario activo con credenciales correctas puede iniciar sesión.
-4. El login devuelve access token y refresh token.
-5. La respuesta incluye información básica del usuario y su rol.
+4. El login devuelve access token en JSON y refresh token exclusivamente en cookie HttpOnly.
+5. Login y perfil incluyen `id`, `username`, `email` y `role`.
 6. Una contraseña incorrecta genera `401 Unauthorized`.
 7. Un usuario inexistente genera `401 Unauthorized`.
 8. Un usuario inactivo no puede iniciar sesión.
 9. Un refresh token válido permite obtener un nuevo access token.
 10. Django valida correctamente los JWT utilizados en endpoints protegidos.
 11. Existen pruebas automatizadas para los principales casos de autenticación.
+12. El login solo admite email como identificador; username no permite autenticarse.
 
 ## Fuera de alcance
 
@@ -168,3 +212,19 @@ Esta especificación no implementará todavía:
 ## Resultado esperado
 
 Al finalizar esta especificación, el backend deberá disponer de una autenticación JWT funcional que pueda ser utilizada posteriormente por React y por los módulos protegidos del sistema FYAG.
+
+## Estado de implementación
+
+Implementada y validada.
+
+Resultados:
+
+- Autenticación por email y contraseña: OK.
+- Generación de access token y refresh token: OK.
+- Renovación de access token: OK.
+- Endpoint protegido con JWT: OK.
+- Rechazo de solicitudes sin JWT: OK.
+- Rechazo de credenciales incorrectas: OK.
+- Rechazo de usuarios inactivos: OK.
+- Pruebas automatizadas de autenticación, sesión e integridad: ejecutar
+  `python manage.py test apps.usuarios` y `python manage.py test`.
