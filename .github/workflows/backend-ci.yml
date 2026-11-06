@@ -1,0 +1,91 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'compose.yaml'
+      - '.env.example'
+      - '.github/workflows/backend-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'compose.yaml'
+      - '.env.example'
+      - '.github/workflows/backend-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Django / PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # Valores públicos exclusivos de CI; nunca usar en producción.
+    env:
+      DJANGO_SECRET_KEY: 'fyag-ci-only-django-key-not-for-production-0123456789'
+      DJANGO_DEBUG: 'False'
+      DJANGO_ALLOWED_HOSTS: 'localhost,127.0.0.1'
+      POSTGRES_DB: fyag_ci
+      POSTGRES_USER: fyag_ci
+      POSTGRES_PASSWORD: fyag_ci_password
+      POSTGRES_HOST: '127.0.0.1'
+      POSTGRES_PORT: '5432'
+      JWT_SIGNING_KEY: 'fyag-ci-only-jwt-signing-key-independent-9876543210'
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: fyag_ci
+          POSTGRES_USER: fyag_ci
+          POSTGRES_PASSWORD: fyag_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fyag_ci -d fyag_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.18'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Comprobar Django
+        working-directory: backend
+        run: python manage.py check
+
+      - name: Verificar migraciones pendientes
+        working-directory: backend
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Aplicar migraciones sobre PostgreSQL limpio
+        working-directory: backend
+        run: python manage.py migrate --noinput
+
+      - name: Ejecutar suite completa
+        working-directory: backend
+        run: python manage.py test
