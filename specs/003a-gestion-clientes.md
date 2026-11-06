@@ -20,16 +20,20 @@ Cliente será la raíz del dominio comercial en `backend/apps/comercial/`.
 
 ### Alcance de esta etapa SDD
 
-Esta etapa define el dominio e implementa únicamente validadores de RUT y sus
-pruebas unitarias. El modelo, migraciones, serializers, permisos, servicios,
-views, URLs, API e integración con presupuestos quedan para etapas posteriores.
-Todos los campos y reglas de persistencia siguientes son planificados.
+Esta etapa implementa los validadores de RUT, el modelo persistente `Cliente`,
+sus invariantes Python/PostgreSQL y sus pruebas. La migración inicial es
+`comercial/0001_initial.py`, generada por Django.
+La migración `0002_remove_cliente_cliente_identificacion_coherente_and_more`
+refuerza el tipo documental extranjero como `Upper(Trim(...))`, conservando
+la unicidad condicional y las demás ramas de identificación.
+Serializers, permisos, servicios, views, URLs, API e integración con presupuestos
+quedan para etapas posteriores. La API no está implementada.
 
 No se permitirá eliminación física de clientes desde la API.
 
 ## Entidad Cliente
 
-La entidad deberá almacenar:
+La entidad almacena:
 
 - id
 - tipo_cliente
@@ -48,6 +52,26 @@ La entidad deberá almacenar:
 ### id
 
 Clave primaria generada por Django mediante `BigAutoField`.
+
+### Tipos de campos implementados
+
+| Campo | Tipo y opciones |
+| --- | --- |
+| `id` | `BigAutoField`, clave primaria implícita. |
+| `tipo_cliente` | `CharField(7)`, obligatorio, `TipoCliente.choices`. |
+| `tipo_identificacion` | `CharField(20)`, obligatorio, `TipoIdentificacion.choices`. |
+| `numero_identificacion` | `CharField(100)`, `null=True`, `blank=True`. |
+| `pais_identificacion` | `CharField(2)`, `null=True`, `blank=True`. |
+| `tipo_documento_extranjero` | `CharField(50)`, `null=True`, `blank=True`. |
+| `nombre_legal` | `CharField(200)`, obligatorio, sin unicidad. |
+| `nombre_contacto` | `CharField(200)`, `blank=True`, default `""`, no nullable. |
+| `correo` | `EmailField(254)`, `blank=True`, default `""`, no nullable. |
+| `telefono` | `CharField(50)`, `blank=True`, default `""`, no nullable. |
+| `activo` | `BooleanField`, default `True`. |
+| `creado_en` | `DateTimeField(auto_now_add=True)`. |
+| `actualizado_en` | `DateTimeField(auto_now=True)`. |
+
+`__str__` devuelve únicamente `nombre_legal`.
 
 ## Tipo de cliente
 
@@ -82,6 +106,10 @@ Cuando `tipo_identificacion = RUT`:
 - se almacenará sin puntos y con guion;
 - el dígito verificador K se almacenará en mayúscula;
 - el RUT normalizado deberá ser único.
+
+`pais_identificacion` y `tipo_documento_extranjero` deben ser `None`.
+Se rechazan datos extranjeros contradictorios, incluso strings vacíos;
+no se borran silenciosamente para convertir la combinación en válida.
 
 Se rechazarán cuerpos vacíos, no numéricos o compuestos únicamente por ceros,
 DV vacío o distinto de `0-9`/`K`, múltiples guiones, caracteres arbitrarios y
@@ -134,6 +162,13 @@ Cuando `tipo_identificacion = DOCUMENTO_EXTRANJERO`:
 No se asumirá que todos los países utilizan el mismo formato documental.
 No se aplicará módulo 11 ni una regex restrictiva basada en documentos chilenos.
 Las validaciones específicas por país quedan fuera de esta etapa.
+
+El país se normaliza con `strip().upper()` y debe tener exactamente dos letras
+ASCII mayúsculas. No se comprueba su existencia en ISO 3166.
+`tipo_documento_extranjero` representa una categoría documental y se normaliza
+con `strip().upper()`: `" dni "` pasa a `"DNI"` y `" pasaporte "` a `"PASAPORTE"`.
+El número extranjero se normaliza solo con `strip`, preservando su case en esta
+etapa, sin asumir reglas universales por país.
 
 ### Sin identificación
 
@@ -251,6 +286,56 @@ Antes de persistir:
 
 La validación no dependerá exclusivamente del frontend.
 
+### Validación del modelo y persistencia
+
+`_normalizar()` comparte el tratamiento de strings entre `clean_fields()` y
+`clean()`. La normalización precede a las validaciones de longitud y email.
+`clean()` valida nombre legal, contacto e identificación, asocia los errores a
+campos y ejecuta `validar_rut()` para almacenar el RUT canónico. Los campos
+nullable no convierten strings vacíos en `None`: los datos contradictorios se
+rechazan, especialmente en `SIN_IDENTIFICACION`.
+
+`save()` ejecuta `full_clean(validate_unique=False, validate_constraints=False)`:
+valida campos y reglas de dominio, y deja la resolución final de constraints y
+unicidad a PostgreSQL, también ante concurrencia. Un `full_clean()` explícito
+con sus parámetros por defecto comprueba además los constraints de Django.
+No se añade manager de borrado lógico ni operaciones de presupuestos.
+
+### Constraints implementados en PostgreSQL
+
+| Nombre | Invariante |
+| --- | --- |
+| `cliente_tipo_valido` | Solo `PERSONA` o `EMPRESA`. |
+| `cliente_identificacion_valida` | Solo las tres identificaciones definidas. |
+| `cliente_nombre_normalizado` | Nombre no vacío e igual a `Trim(nombre_legal)`. |
+| `cliente_contacto_obligatorio` | Correo o teléfono no vacío. |
+| `cliente_contacto_normalizado` | Correo igual a `Lower(Trim(correo))`; teléfono y contacto iguales a su `Trim`. |
+| `cliente_identificacion_coherente` | Combinación de campos según el tipo de identificación. |
+| `cliente_rut_unico` | Unicidad de número condicionada a `tipo_identificacion = RUT`. |
+| `cliente_documento_unico` | Unicidad de país + tipo documental + número condicionada a documento extranjero. |
+
+El check de coherencia exige para RUT número no NULL y formato
+`^[1-9][0-9]*-[0-9K]$`, con ambos campos extranjeros NULL. Para documento
+extranjero exige los tres campos no NULL, número y tipo no vacíos, número igual
+a su `Trim`, tipo igual a `Upper(Trim(tipo_documento_extranjero))` y país con
+formato `^[A-Z]{2}$`. Para `SIN_IDENTIFICACION` exige
+los tres campos exactamente NULL. Las comprobaciones explícitas de NULL evitan
+que el valor SQL UNKNOWN permita combinaciones incompletas.
+
+No hay unicidad de nombre ni de clientes sin identificación. La unicidad
+documental conserva la distinción de mayúsculas/minúsculas del número, pero
+las categorías `DNI`, `dni` y `Dni` convergen a `DNI` antes de persistir por
+la vía normal. Se mantiene la unicidad por país + tipo + número. No se inventan
+reglas de equivalencia específicas por país.
+
+`bulk_create()` y `QuerySet.update()` omiten validación Python, pero mantienen
+los constraints de PostgreSQL. La validación matemática de módulo 11 y el
+formato de email permanecen en Python; no se implementan en SQL. `Trim` de
+PostgreSQL elimina espacios ordinarios, mientras que `strip()` de Python cubre
+también otros blancos: las operaciones directas deben respetar la normalización
+de aplicación. Las pruebas de base de datos usan `IntegrityError` dentro de
+`transaction.atomic()` y comprueban los constraints reales.
+
 ## Permisos
 
 ### GERENCIA
@@ -348,8 +433,12 @@ También debe pasar la suite completa existente, sin cambios en autenticación.
 ```bash
 python manage.py check
 python manage.py test apps.comercial.tests.test_cliente_validators
+python manage.py test apps.comercial.tests.test_cliente_model
+python manage.py test apps.comercial.tests
 python manage.py test
 python manage.py makemigrations --check --dry-run
 ```
 
-No deben generarse migraciones en esta etapa.
+La migración inicial se genera con `python manage.py makemigrations comercial`
+y se aplica con `python manage.py migrate`. Después, la comprobación con
+`makemigrations --check --dry-run` debe indicar que no hay cambios pendientes.
