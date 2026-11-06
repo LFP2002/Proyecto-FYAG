@@ -30,8 +30,10 @@ La migración `0003_remove_cliente_cliente_identificacion_coherente_and_more`
 extiende la representación `Upper(Trim(...))` al número extranjero, manteniendo
 el constraint de unicidad documental. Ambas migraciones fueron generadas por
 Django sin editar las migraciones anteriores.
-Serializers, permisos, servicios, views, URLs, API e integración con presupuestos
-quedan para etapas posteriores. La API no está implementada.
+Modelo, persistencia, serializer, permisos, servicios y API REST están
+implementados. La API reutiliza el sistema JWT existente. La integración con
+presupuestos permanece fuera de alcance. Esta etapa REST no cambia el modelo
+ni requiere nuevas migraciones.
 
 No se permitirá eliminación física de clientes desde la API.
 
@@ -390,7 +392,95 @@ de sus obras asignadas.
 
 Ningún rol podrá eliminar físicamente clientes desde la API.
 
-## Arquitectura futura
+## API REST implementada
+
+Todas las rutas requieren `Authorization: Bearer <access>` con un JWT válido.
+Se reutiliza `JWTAuthentication` de la configuración existente, sin un segundo
+sistema de autenticación. `PuedeGestionarClientes` utiliza exclusivamente
+`request.user.rol` y las constantes de `Usuario.Rol`.
+
+GERENCIA y ADMINISTRATIVO_FINANZAS tienen acceso a todas las operaciones;
+SUPERVISOR_OBRAS y TECNICO reciben 403. Roles enviados en body, query params o
+headers personalizados no conceden permisos.
+
+| Método | Ruta | Resultado exitoso |
+| --- | --- | --- |
+| GET | `/api/clientes/` | 200, listado ordenado por `nombre_legal`, `id`. |
+| POST | `/api/clientes/` | 201, cliente creado. |
+| GET | `/api/clientes/{id}/` | 200, recurso. |
+| PATCH | `/api/clientes/{id}/` | 200, recurso actualizado. |
+| POST | `/api/clientes/{id}/activar/` | 200, recurso con `activo=true`. |
+| POST | `/api/clientes/{id}/desactivar/` | 200, recurso con `activo=false`. |
+
+PUT y DELETE responden 405 para usuarios autorizados; no hay operación de
+eliminación física. Se admiten HEAD y OPTIONS estándar de DRF, también protegidos.
+Los clientes inactivos siguen incluidos en listado y detalle, pueden modificarse
+y reactivarse. El listado devuelve un array de recursos, sin filtrado por estado.
+
+Errores: 400 para entrada inválida o identidad duplicada; 401 sin credenciales o
+con token inválido/expirado; 403 para roles sin acceso; 404 para un recurso
+inexistente solicitado por un usuario autorizado; 405 para métodos no permitidos.
+
+### Contrato del serializer y PATCH
+
+`ClienteSerializer` expone explícitamente los 13 campos del modelo documentados
+en esta SPEC. `id`, `activo`, `creado_en` y `actualizado_en` son read-only.
+La presencia explícita de `activo` en POST o PATCH se rechaza con 400 y un mensaje
+que remite a activar/desactivar. ID y timestamps recibidos se ignoran y nunca
+alteran la PK ni las fechas administradas por Django.
+
+Los campos que no forman parte del serializer se rechazan con 400 y un error
+asociado a cada campo desconocido, tanto en JSON como en formularios HTTP.
+`activo` conserva su mensaje específico de activación/desactivación; no se
+considera un campo desconocido.
+
+Se construye un candidato con el estado completo, incluyendo los campos
+existentes que PATCH no envía. El modelo valida y normaliza ese estado con
+`full_clean(validate_unique=False, validate_constraints=False)`; no se duplican
+algoritmos RUT ni reglas cruzadas en el serializer. Los errores Django se
+transforman en errores DRF por campo. Las longitudes y el formato de correo se
+validan en el modelo después de normalizar.
+
+PATCH de RUT a SIN_IDENTIFICACION sin limpiar explícitamente el número devuelve
+400. Para una transición válida se debe enviar, según corresponda:
+
+```json
+{
+  "tipo_identificacion": "SIN_IDENTIFICACION",
+  "numero_identificacion": null,
+  "pais_identificacion": null,
+  "tipo_documento_extranjero": null
+}
+```
+
+No se borran datos contradictorios silenciosamente. La transición inversa a RUT
+exige enviar su número válido en el mismo PATCH.
+
+### Transacciones, duplicados y operaciones de estado
+
+`guardar_cliente()` realiza una comprobación previa amigable de duplicados y
+persiste dentro de `transaction.atomic()`. En actualización obtiene la fila con
+`select_for_update()`, aplica solo los campos recibidos y revalida el estado
+actual completo, evitando sobrescribir campos ajenos con una copia obsoleta.
+
+PostgreSQL sigue siendo la autoridad final. Solo se traducen los `IntegrityError`
+de `cliente_rut_unico` y `cliente_documento_unico`, después del rollback del bloque
+atómico, a 400 con mensajes públicos:
+
+- «Ya existe un cliente con este RUT.»
+- «Ya existe un cliente con esta identificación extranjera.»
+
+Los errores de integridad inesperados se propagan como errores reales del sistema,
+sin disfrazarlos de duplicados. Los errores de validación/duplicados no exponen
+trazas, nombres de constraints ni detalles PostgreSQL. La salida del recurso no
+incluye usuarios, contraseñas ni hashes.
+
+`activar_cliente()` y `desactivar_cliente()` usan transacción y bloqueo de fila.
+Son idempotentes: repetir la operación devuelve 200 con el estado final, sin error
+por coincidir con el estado solicitado. Solo guardan estado y fecha de actualización
+cuando hay un cambio efectivo. Las views se limitan al transporte HTTP.
+
+## Arquitectura implementada
 
 | Archivo | Responsabilidad |
 | --- | --- |
@@ -405,7 +495,7 @@ Ningún rol podrá eliminar físicamente clientes desde la API.
 
 ## Seguridad e integridad
 
-- Todas las rutas futuras de clientes requerirán JWT.
+- Todas las rutas de clientes requieren JWT.
 - Django validará siempre la autorización; React no determina permisos reales.
 - Nunca se confiará en un rol enviado por el frontend ni en validaciones exclusivamente visuales.
 - No habrá eliminación física desde la API.
@@ -414,6 +504,9 @@ Ningún rol podrá eliminar físicamente clientes desde la API.
 - Los errores API no deberán revelar trazas internas.
 
 ## Relación futura con Presupuesto
+
+Quedan fuera de esta etapa Presupuesto y sus reglas de uso de clientes,
+integración React y auditoría global futura.
 
 Presupuesto tendrá una relación real con Cliente mediante ForeignKey.
 Solo clientes activos podrán seleccionarse al crear nuevos presupuestos.
@@ -448,6 +541,7 @@ También debe pasar la suite completa existente, sin cambios en autenticación.
 python manage.py check
 python manage.py test apps.comercial.tests.test_cliente_validators
 python manage.py test apps.comercial.tests.test_cliente_model
+python manage.py test apps.comercial.tests.test_cliente_api
 python manage.py test apps.comercial.tests
 python manage.py test
 python manage.py makemigrations --check --dry-run
