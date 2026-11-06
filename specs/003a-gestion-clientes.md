@@ -26,6 +26,10 @@ sus invariantes Python/PostgreSQL y sus pruebas. La migración inicial es
 La migración `0002_remove_cliente_cliente_identificacion_coherente_and_more`
 refuerza el tipo documental extranjero como `Upper(Trim(...))`, conservando
 la unicidad condicional y las demás ramas de identificación.
+La migración `0003_remove_cliente_cliente_identificacion_coherente_and_more`
+extiende la representación `Upper(Trim(...))` al número extranjero, manteniendo
+el constraint de unicidad documental. Ambas migraciones fueron generadas por
+Django sin editar las migraciones anteriores.
 Serializers, permisos, servicios, views, URLs, API e integración con presupuestos
 quedan para etapas posteriores. La API no está implementada.
 
@@ -167,8 +171,16 @@ El país se normaliza con `strip().upper()` y debe tener exactamente dos letras
 ASCII mayúsculas. No se comprueba su existencia en ISO 3166.
 `tipo_documento_extranjero` representa una categoría documental y se normaliza
 con `strip().upper()`: `" dni "` pasa a `"DNI"` y `" pasaporte "` a `"PASAPORTE"`.
-El número extranjero se normaliza solo con `strip`, preservando su case en esta
-etapa, sin asumir reglas universales por país.
+El número extranjero también se normaliza con `strip().upper()`. Los separadores
+internos (guiones, puntos, barras y otros admitidos) se conservan: `ab-123/45`
+se almacena como `AB-123/45`. En resumen, país, tipo documental y número usan
+trim + uppercase exclusivamente en la identificación extranjera.
+La comparación de esta identidad es case-insensitive mediante representación
+canónica. Es una decisión de dominio de FYAG para reducir duplicados y simplificar
+la gestión administrativa, no una regla universal de documentos extranjeros.
+No se implementan formatos específicos por país en el MVP ni se valida la
+existencia real del código de país. RUT mantiene su validador y normalización
+propios; `SIN_IDENTIFICACION` mantiene sus tres campos NULL.
 
 ### Sin identificación
 
@@ -317,16 +329,18 @@ No se añade manager de borrado lógico ni operaciones de presupuestos.
 El check de coherencia exige para RUT número no NULL y formato
 `^[1-9][0-9]*-[0-9K]$`, con ambos campos extranjeros NULL. Para documento
 extranjero exige los tres campos no NULL, número y tipo no vacíos, número igual
-a su `Trim`, tipo igual a `Upper(Trim(tipo_documento_extranjero))` y país con
+a `Upper(Trim(numero_identificacion))`, tipo igual a
+`Upper(Trim(tipo_documento_extranjero))` y país con
 formato `^[A-Z]{2}$`. Para `SIN_IDENTIFICACION` exige
 los tres campos exactamente NULL. Las comprobaciones explícitas de NULL evitan
 que el valor SQL UNKNOWN permita combinaciones incompletas.
 
 No hay unicidad de nombre ni de clientes sin identificación. La unicidad
-documental conserva la distinción de mayúsculas/minúsculas del número, pero
-las categorías `DNI`, `dni` y `Dni` convergen a `DNI` antes de persistir por
-la vía normal. Se mantiene la unicidad por país + tipo + número. No se inventan
-reglas de equivalencia específicas por país.
+documental utiliza país, tipo y número normalizados en mayúsculas. Así,
+`AR + DNI + ab-123` y `ar + dni + AB-123` convergen a la misma identidad por
+la vía normal. Se mantiene `cliente_documento_unico` por país + tipo + número.
+PostgreSQL rechaza números extranjeros no canónicos incluso mediante
+`bulk_create()`, sin modificar la semántica de RUT ni de SIN_IDENTIFICACION.
 
 `bulk_create()` y `QuerySet.update()` omiten validación Python, pero mantienen
 los constraints de PostgreSQL. La validación matemática de módulo 11 y el

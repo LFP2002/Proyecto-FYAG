@@ -81,8 +81,8 @@ class Cliente(models.Model):
                             pais_identificacion__isnull=False,
                             pais_identificacion__regex=r"^[A-Z]{2}$",
                             tipo_documento_extranjero__isnull=False,
-                            numero_identificacion=Trim(
-                                "numero_identificacion"
+                            numero_identificacion=Upper(
+                                Trim("numero_identificacion")
                             ),
                             tipo_documento_extranjero=Upper(
                                 Trim("tipo_documento_extranjero")
@@ -130,6 +130,12 @@ class Cliente(models.Model):
                     valor = valor.lower()
                 elif campo in (
                     "pais_identificacion", "tipo_documento_extranjero",
+                ):
+                    valor = valor.upper()
+                elif (
+                    campo == "numero_identificacion"
+                    and self.tipo_identificacion
+                    == self.TipoIdentificacion.DOCUMENTO_EXTRANJERO
                 ):
                     valor = valor.upper()
                 setattr(self, campo, valor)

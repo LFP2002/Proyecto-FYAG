@@ -85,15 +85,28 @@ class ClienteValidacionTests(TestCase):
                 cliente.refresh_from_db()
                 self.assertEqual(cliente.tipo_documento_extranjero, esperado)
 
-    def test_numero_extranjero_conserva_case(self):
-        for numero in (" AbC123 ", " ABC123 "):
-            with self.subTest(numero=numero):
+    def test_numero_extranjero_se_persiste_en_mayusculas(self):
+        cliente = Cliente.objects.create(**datos_extranjero(
+            pais_identificacion=" ar ",
+            tipo_documento_extranjero=" dni ",
+            numero_identificacion=" ab-123x ",
+        ))
+        cliente.refresh_from_db()
+        self.assertEqual(cliente.pais_identificacion, "AR")
+        self.assertEqual(cliente.tipo_documento_extranjero, "DNI")
+        self.assertEqual(cliente.numero_identificacion, "AB-123X")
+
+    def test_numero_extranjero_conserva_separadores(self):
+        for entrada, esperado in (
+            ("ab-123/45", "AB-123/45"),
+            (" ab.123/45-6 ", "AB.123/45-6"),
+        ):
+            with self.subTest(entrada=entrada):
                 cliente = Cliente.objects.create(**datos_extranjero(
-                    numero_identificacion=numero,
+                    numero_identificacion=entrada,
                 ))
                 cliente.refresh_from_db()
-                self.assertEqual(cliente.numero_identificacion, numero.strip())
-        self.assertEqual(Cliente.objects.count(), 2)
+                self.assertEqual(cliente.numero_identificacion, esperado)
 
     def test_save_rechaza_rut_invalido(self):
         with self.assertRaises(ValidationError):
@@ -320,6 +333,30 @@ class ClienteConstraintsTests(TestCase):
         Cliente.objects.create(**datos_extranjero())
         self.assert_rechazado_por_bd(
             datos_extranjero(), "cliente_documento_unico"
+        )
+
+    def test_numero_extranjero_no_canonico_rechazado_por_bd(self):
+        for numero in ("ab-123", "Ab-123", " AB-123 "):
+            with self.subTest(numero=numero):
+                self.assert_rechazado_por_bd(
+                    datos_extranjero(numero_identificacion=numero),
+                    "cliente_identificacion_coherente",
+                )
+
+    def test_unicidad_documental_case_insensitive(self):
+        Cliente.objects.create(**datos_extranjero(
+            numero_identificacion="ab-123",
+        ))
+        with self.assertRaises(IntegrityError) as error:
+            with transaction.atomic():
+                Cliente.objects.create(**datos_extranjero(
+                    pais_identificacion="ar",
+                    tipo_documento_extranjero="dni",
+                    numero_identificacion="AB-123",
+                ))
+        self.assertEqual(
+            error.exception.__cause__.diag.constraint_name,
+            "cliente_documento_unico",
         )
 
     def test_tipo_documental_no_canonico_rechazado_por_bd(self):
