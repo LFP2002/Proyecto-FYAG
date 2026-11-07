@@ -2,11 +2,11 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: especificación; implementación pendiente.** Este documento no implica
-que existan modelos, migraciones ni endpoints de Presupuestos.
+**Estado: implementada en el backend y cubierta por pruebas automatizadas.**
+Este documento describe el contrato actual de Gestión de Presupuestos.
 
 - Proyecto: FYAG, pyme chilena de servicios de frío y agroindustria.
-- Módulo futuro: `backend/apps/comercial/`.
+- Módulo: `backend/apps/comercial/`.
 - Persistencia: PostgreSQL, usando la infraestructura Django/DRF existente.
 - Dependencias: SPEC-002/002A (JWT y usuarios), SPEC-003A (Cliente), Backend CI.
 - Objetivo: mantener la relación confiable **presupuesto aprobado → obra →
@@ -20,14 +20,13 @@ vale `true`; no se recibe en POST/PATCH. La política configurable futura no se
 implementa en este MVP, ni se introducen márgenes o reglas financieras.
 
 Las decisiones de precisión, errores HTTP, revisión y anulación que se detallan
-a continuación forman parte del contrato a implementar; no deben improvisarse
-durante la codificación.
+a continuación forman parte del contrato implementado actualmente.
 
 ## 2. Modelos conceptuales
 
 ### 2.1 Presupuesto
 
-| Campo | Definición prevista |
+| Campo | Definición |
 | --- | --- |
 | `id` | `BigAutoField`, PK generada por Django. |
 | `cliente` | FK obligatoria a `Cliente`, `on_delete=PROTECT`. |
@@ -55,7 +54,7 @@ tributario ni una copia de nombres en esta etapa.
 
 ### 2.2 PresupuestoItem
 
-| Campo | Definición prevista |
+| Campo | Definición |
 | --- | --- |
 | `id` | `BigAutoField`. |
 | `presupuesto` | FK obligatoria a Presupuesto, `on_delete=PROTECT`; la fija la ruta, no el body. |
@@ -79,7 +78,7 @@ Los ítems se consultan ordenados por `(orden, id)`.
 
 ### 2.3 PresupuestoEvento
 
-| Campo | Definición prevista |
+| Campo | Definición |
 | --- | --- |
 | `id` | `BigAutoField`. |
 | `presupuesto` | FK obligatoria a Presupuesto, `on_delete=PROTECT`. |
@@ -253,8 +252,8 @@ crea otra revisión (201); no se infiere idempotencia. La FK solo se establece a
 crear un nuevo registro desde un origen existente, impidiendo ciclos por la vía
 de aplicación; además se prohíbe autoreferencia estructural.
 
-Puede implementarse tras las operaciones fundamentales, pero su contrato queda
-definido aquí y no debe declararse disponible hasta tener sus pruebas.
+`crear-revision` forma parte de la implementación actual y está cubierta por
+pruebas automatizadas.
 
 ## 7. Anulación y relación futura con Obras
 
@@ -464,10 +463,10 @@ conflictos conocidos (p. ej. orden) para mensajes amigables y mapear únicamente
 No disfrazar errores inesperados como errores de usuario. Evitar `bulk_update`
 o `QuerySet.update` en rutas de escritura que eludan servicios de congelación.
 
-## 11. Integridad PostgreSQL propuesta
+## 11. Integridad PostgreSQL
 
-Los nombres definitivos podrán ajustarse a límites de Django/PostgreSQL al crear
-migraciones; las invariantes siguientes son obligatorias.
+Las constraints y migraciones del módulo implementan las siguientes invariantes
+obligatorias en PostgreSQL.
 
 ### Presupuesto
 
@@ -518,7 +517,7 @@ PresupuestoEvento es trazabilidad de estados comercial. No registra cada cambio
 de línea ni sustituye la futura auditoría global de `apps.auditoria`. No duplicar
 un segundo sistema general de auditoría ni exponer historial editable.
 
-## 13. Pruebas previstas y criterios de aceptación
+## 13. Pruebas y criterios de aceptación
 
 Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
 
@@ -574,9 +573,10 @@ Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
 14. **Regresión:** todas las pruebas existentes de Clientes y Auth deben continuar
     pasando, incluidas rutas de autenticación y constraints de identificación.
 
-## 14. CI y secuencia de implementación futura
+## 14. CI y validación
 
-Backend CI ya existe en `main`. Toda implementación deberá superar, en orden:
+Backend CI existe en `main`. La validación del módulo antes de mergear requiere
+superar, en orden:
 
 ```bash
 python manage.py check
@@ -585,14 +585,14 @@ python manage.py migrate --noinput
 python manage.py test
 ```
 
-No mergear el PR si Backend CI falla. Las migraciones futuras deben reconstruir
+No mergear el PR si Backend CI falla. Las migraciones del módulo deben reconstruir
 una base PostgreSQL limpia sin edición del historial previo. El filtro actual
 del workflow no ejecuta CI por un cambio exclusivamente en `specs/`; eso no
-exime a la implementación posterior con cambios backend de superar los checks.
+exime a los cambios backend de superar los checks.
 
-Orden recomendado: modelos/cálculo/constraints y tests → servicios/estados y
-concurrencia → permisos/serializer/API → revisiones si se entregan en un segundo
-incremento. Declarar implementadas solo las operaciones realmente verificadas.
+La implementación actual incluye modelos, cálculos, constraints, servicios,
+estados, permisos, serializers, API y revisiones, con pruebas automatizadas
+que incluyen concurrencia. Los cambios deben mantener esta validación.
 
 ## 15. Compatibilidad y diferencias frente al mock
 
@@ -616,7 +616,7 @@ cotización; la obligación tributaria se resolverá en Finanzas. Los permisos d
 Clientes no se copian automáticamente: Gerencia gestiona Clientes, pero en
 Presupuestos únicamente consulta y decide la aprobación de Gerencia.
 
-No se modifica frontend ni ninguna especificación anterior en esta entrega.
+La implementación backend actual no modifica frontend ni especificaciones anteriores.
 
 ## 16. Fuera de alcance
 
@@ -627,5 +627,5 @@ No se modifica frontend ni ninguna especificación anterior en esta entrega.
 - Portal de cliente y autenticación de clientes externos.
 - Auditoría global y reglas tributarias de identificación.
 
-Esta entrega crea exclusivamente la especificación. No implementa modelos,
-migraciones, serializers, servicios, permisos, views ni rutas.
+La implementación actual cubre Gestión de Presupuestos según SPEC-003B.
+Los elementos enumerados en esta sección continúan fuera del alcance del módulo.
