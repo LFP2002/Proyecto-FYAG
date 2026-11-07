@@ -1,4 +1,4 @@
-# SPEC-002A — Hardening de autenticación y gestión de sesión
+# SPEC-002B — Hardening de autenticación y gestión de sesión
 
 ## Referencia
 
