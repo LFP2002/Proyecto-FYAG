@@ -15,6 +15,7 @@ from .exceptions import (
     MotivoObligatorio,
     OrdenDuplicado,
     RecursoNoEncontrado,
+    PresupuestoUtilizado,
 )
 from .models import Presupuesto, PresupuestoItem
 from .permissions import PuedeOperarPresupuestos
@@ -40,7 +41,7 @@ class ConflictoPresupuesto(APIException):
 
 def traducir_error_presupuesto(error):
     """Traduce errores conocidos sin ocultar fallos internos."""
-    if isinstance(error, EstadoIncompatible):
+    if isinstance(error, (EstadoIncompatible, PresupuestoUtilizado)):
         return ConflictoPresupuesto(error)
     if isinstance(error, RecursoNoEncontrado):
         return NotFound(str(error))

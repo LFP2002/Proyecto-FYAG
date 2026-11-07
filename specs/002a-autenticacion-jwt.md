@@ -1,4 +1,4 @@
-# SPEC-002 — Autenticación e inicio de sesión
+# SPEC-002A — Autenticación e inicio de sesión
 
 ## Referencia
 

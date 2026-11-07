@@ -14,6 +14,11 @@ class EstadoIncompatible(ErrorPresupuesto):
     mensaje = "La operación no es válida en el estado actual del presupuesto."
 
 
+class PresupuestoUtilizado(ErrorPresupuesto):
+    codigo = "presupuesto_utilizado"
+    mensaje = "No se puede anular un presupuesto con obra asociada."
+
+
 class DatosInvalidos(ErrorPresupuesto):
     codigo = "datos_invalidos"
     mensaje = "Los datos del presupuesto no son válidos."

@@ -3,12 +3,15 @@
 ## 1. Estado, contexto y alcance
 
 **Estado: implementada en el backend y cubierta por pruebas automatizadas.**
-Este documento describe el contrato actual de Gestión de Presupuestos.
+Este documento describe el contrato actual de Gestión de Presupuestos, incluida
+la protección contra anular presupuestos vinculados a Obras 004A. La integración
+se encuentra en la rama `feature/backend-obras`, validada en pruebas locales;
+su incorporación a `main` depende del Pull Request y de Backend CI.
 
 - Proyecto: FYAG, pyme chilena de servicios de frío y agroindustria.
 - Módulo: `backend/apps/comercial/`.
 - Persistencia: PostgreSQL, usando la infraestructura Django/DRF existente.
-- Dependencias: SPEC-002/002A (JWT y usuarios), SPEC-003A (Cliente), Backend CI.
+- Dependencias: SPEC-002A (autenticación JWT y usuarios) y SPEC-002B (hardening), SPEC-003A (Cliente), Backend CI.
 - Objetivo: mantener la relación confiable **presupuesto aprobado → obra →
   costos reales → rentabilidad**.
 
@@ -174,7 +177,7 @@ AF = `ADMINISTRATIVO_FINANZAS`; G = `GERENCIA`.
 | enviar-cliente | APROBADO_GERENCIA | ENVIADO_CLIENTE | AF | Únicamente tras aprobación de Gerencia. |
 | registrar-aprobacion-cliente | ENVIADO_CLIENTE | APROBADO_CLIENTE | AF | Decisión comunicada por el cliente. |
 | registrar-rechazo-cliente | ENVIADO_CLIENTE | RECHAZADO_CLIENTE | AF | Motivo obligatorio. |
-| anular | BORRADOR, PENDIENTE_GERENCIA, APROBADO_GERENCIA, ENVIADO_CLIENTE o APROBADO_CLIENTE | ANULADO | AF | Motivo obligatorio y no utilización operativa según integración futura. |
+| anular | BORRADOR, PENDIENTE_GERENCIA, APROBADO_GERENCIA, ENVIADO_CLIENTE o APROBADO_CLIENTE | ANULADO | AF | Motivo obligatorio; sin Obra asociada de ningún estado (SPEC-004/004A). |
 
 No existe ninguna otra transición. No se omiten etapas, no se vuelve a BORRADOR
 y no se cambia `estado` mediante POST/PATCH genérico. Finanzas no puede cambiar
@@ -255,30 +258,54 @@ de aplicación; además se prohíbe autoreferencia estructural.
 `crear-revision` forma parte de la implementación actual y está cubierta por
 pruebas automatizadas.
 
-## 7. Anulación y relación futura con Obras
+## 7. Anulación y relación implementada con Obras 004A
 
 No existe DELETE físico de Presupuesto. Anular conserva cabecera, ítems e historial
-y agrega el evento con motivo. No existe una acción alternativa para borrar.
+y agrega un evento con el motivo. La anulación solo está disponible en los estados
+indicados en §4 y para `ADMINISTRATIVO_FINANZAS`.
 
-Un presupuesto ANULADO puede ser origen de una revisión que crea un nuevo
-BORRADOR; su estado y contenido permanecen inmutables. Esto no habilita anular
-presupuestos con utilización operativa: se mantiene el bloqueo futuro por Obras,
-salvo operación compensatoria definida explícitamente en una SPEC posterior.
+**Regla vigente en la rama de 004A:** un presupuesto que tenga asociada una
+`Obra` no puede anularse, independientemente del estado de esa obra, incluido
+`PLANIFICADA`, `EN_PROCESO`, `SUSPENDIDA` o los estados terminales futuros
+`FINALIZADA` y `CANCELADA`. El servicio comercial verifica la existencia real
+mediante `Obra.objects.filter(presupuesto_id=...).exists()`; no depende de
+flags enviados desde React ni de un campo de simulación.
 
-La condición «sin utilización operativa» deberá comprobar la asociación real con
-Obras cuando esa SPEC exista. En este MVP todavía no existe tal relación: no se
-crea un campo ficticio, string o booleano enviado por React para simularla.
-Antes de habilitar la creación de Obras deberá integrarse el bloqueo de anulación
-si ya hay una obra asociada. No se autoriza operación compensatoria implícita.
+Si existe una Obra, `anular_presupuesto` responde al consumidor con **HTTP 409**
+y código público **`presupuesto_utilizado`**. No modifica el presupuesto ni crea
+`PresupuestoEvento` por ese intento rechazado. Cancelar una Obra en el futuro
+**no liberará el presupuesto** ni habilitará crear una segunda Obra sobre él.
+No se implementa una operación compensatoria implícita.
 
-Solo `APROBADO_CLIENTE` habilitará crear una Obra. La SPEC de Obras determinará
-la cardinalidad, sin asumir aquí una relación uno-a-uno ni varias obras por
-presupuesto. También deberá coordinar creación de obra/anulación bloqueando el
-mismo presupuesto para evitar carreras.
+Un presupuesto ANULADO sin uso operativo puede ser origen de una revisión que
+crea un nuevo BORRADOR, según §6. Su estado y contenido siguen inmutables.
+La creación de una Obra requiere que el presupuesto esté persistido en
+`APROBADO_CLIENTE` y aún no tenga Obra asociada. SPEC-004 adopta una relación
+**uno a cero o una** (`OneToOneField`, con FK protegida): una Obra pertenece a un
+único Presupuesto y una misma propuesta aprobada no se utiliza dos veces.
+Múltiples visitas técnicas pueden pertenecer a esa Obra, sin duplicar ingresos.
 
-El monto neto aprobado será referencia comercial para comparar con costos reales
-y calcular rentabilidad. No usar IVA como ingreso. No implementar ahora obras,
-costos, horas reales, fórmulas operativas ni contabilidad.
+**Atomicidad y concurrencia:** `crear_obra` (Obras) y `anular_presupuesto`
+(Comercial) bloquean primero la **misma fila de Presupuesto** con
+`select_for_update()` dentro de `transaction.atomic()`. Luego verifican el
+estado persistido y la existencia de Obra:
+
+1. Si anular confirma primero, el presupuesto queda ANULADO y crear falla
+   por estado incompatible, sin crear una Obra.
+2. Si crear confirma primero, anular detecta la Obra y falla con 409
+   `presupuesto_utilizado`, sin evento comercial adicional.
+3. Dos creaciones concurrentes desde el mismo presupuesto dejan una sola Obra;
+   la segunda falla por presupuesto utilizado, con unicidad respaldada por DB.
+
+La integración se implementó junto con la creación de Obras; las carreras
+anteriores se comprueban en las pruebas PostgreSQL de `apps.obras`. No se altera
+la política de aprobación ni las rutas comerciales previas.
+
+El neto aprobado sigue siendo la referencia comercial futura para comparar con
+costos reales y calcular rentabilidad. No utilizar IVA como ingreso. **Costos,
+horas, facturación, cobranza y cierre comercial no se implementan en esta SPEC.**
+La finalización operativa con costos completos pertenece al incremento 004B;
+la cancelación de Obras necesitará reglas financieras específicas posteriores.
 
 ## 8. Matriz de permisos
 
@@ -298,8 +325,10 @@ Usar los enums existentes de `Usuario.Rol`, sin duplicar una taxonomía de roles
 Gerencia no crea ni modifica contenido comercial, aunque sea superusuario: no
 hay bypass de rol en esta API. La autorización no se limita al creador: AF puede
 gestionar los presupuestos comerciales según estado y G consultar todos.
-La futura SPEC de Obras podrá mostrar a supervisores/técnicos únicamente la
-información necesaria en sus recursos autorizados, sin abrir este módulo general.
+SPEC-004 expone proyecciones operativas acotadas dentro de sus propios endpoints:
+el Supervisor consulta presupuestos disponibles sin importes; el Técnico solo
+consulta obras asignadas. Ninguno recibe acceso general al módulo comercial.
+La consulta operativa mínima de Finanzas tampoco cambia los permisos de esta API.
 
 ## 9. Contrato HTTP conceptual
 
@@ -321,7 +350,7 @@ información necesaria en sus recursos autorizados, sin abrir este módulo gener
 | POST `/api/presupuestos/{id}/enviar-cliente/` | Acción de dominio. | 200 |
 | POST `/api/presupuestos/{id}/registrar-aprobacion-cliente/` | Registrar decisión comunicada. | 200 |
 | POST `/api/presupuestos/{id}/registrar-rechazo-cliente/` | Registrar decisión con motivo. | 200 |
-| POST `/api/presupuestos/{id}/anular/` | Anular con motivo. | 200 |
+| POST `/api/presupuestos/{id}/anular/` | Anular con motivo si no hay Obra asociada; conflicto `presupuesto_utilizado` si existe. | 200 / 409 |
 | POST `/api/presupuestos/{id}/crear-revision/` | Crear otro BORRADOR desde RECHAZADO_GERENCIA, RECHAZADO_CLIENTE o ANULADO y copiar líneas; no modifica el origen. | 201 |
 
 No PUT en estos recursos ni DELETE de presupuesto. No endpoints para crear,
@@ -396,8 +425,8 @@ determina desde el origen, sin overrides hasta el PATCH del nuevo BORRADOR.
   error de entrada 400 asociado a `cliente`. Página inexistente: 404 estándar DRF.
 - 405: método no implementado en ruta existente para usuario autorizado.
 - 409: estado actual incompatible, intento de editar contenido congelado,
-  salto de aprobación o repetición de una transición;
-  en el futuro, también anulación impedida por obra asociada.
+  salto de aprobación o repetición de una transición; también al intentar anular
+  un presupuesto utilizado por Obras (código `presupuesto_utilizado`, sin evento).
 
 Evaluar autenticación, permiso, existencia y luego estado/reglas. Una acción con
 rol no autorizado no se convierte en 409 ni 404 por el estado del recurso.
@@ -453,9 +482,13 @@ Ejemplo B: registrar-aprobacion-cliente y anular concurrentes desde ENVIADO_CLIE
   posterior responde 409.
 - Si la aprobación confirma primero (`ENVIADO_CLIENTE → APROBADO_CLIENTE`),
   anular puede ejecutar `APROBADO_CLIENTE → ANULADO` si sigue cumpliendo las
-  reglas de dominio, incluida la futura restricción de utilización operativa.
+  reglas de dominio, incluida la restricción vigente por Obra asociada.
   Ambas operaciones pueden tener éxito secuencialmente; cada evento refleja su
   estado anterior real. Esto es serialización válida, no una carrera incorrecta.
+
+La anulación se coordina con la creación de Obras bloqueando primero el mismo
+Presupuesto. Ambos órdenes concurrentes se prueban: crear primero impide anular;
+anular primero impide crear; dos creaciones compiten por una única Obra.
 
 PostgreSQL es autoridad final para constraints/uniquidad. Detectar previamente
 conflictos conocidos (p. ej. orden) para mensajes amigables y mapear únicamente
@@ -566,6 +599,9 @@ Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
     APROBADO_CLIENTE si se cumplen las reglas. En este segundo orden comprobar
     ambos éxitos y los eventos ENVIADO_CLIENTE → APROBADO_CLIENTE → ANULADO,
     sin exigir artificialmente que falle una transición todavía válida.
+    Añadir regresión de integración Obras: crear/anular en ambos órdenes y dos
+    creaciones concurrentes; tras crear, anular debe rechazar con
+    `presupuesto_utilizado` sin modificar estado ni historial.
 13. **HTTP:** 404 para inexistentes e ítems de otro presupuesto; rutas inválidas;
     PUT/DELETE de presupuesto 405; DELETE ítem solo en BORRADOR; campos desconocidos
     y administrados por servidor rechazados; PATCH parcial valida estado completo;
@@ -607,8 +643,9 @@ Revisión realizada de `frontend/src/data/constants.js`,
 - El mock genera códigos contando registros y modifica estados localmente;
   aquí el código deriva de PK estable y las acciones del backend gobiernan estados.
 - Los aliases de roles del mock no son permisos reales; se usan enums de Usuario.
-- El mock contiene una referencia singular a obra; no se traslada esa cardinalidad
-  a esta SPEC. La decidirá explícitamente la SPEC de Obras.
+- El mock contiene una referencia singular a obra. SPEC-004/004A adopta
+  explícitamente una Obra por Presupuesto como decisión del equipo, no como
+  requisito deducido del mock. Comercial solo hace cumplir el guard de uso.
 
 SPEC-003A es compatible con cliente activo al crear y con SIN_IDENTIFICACION para
 cotizar. Esta SPEC cierra la decisión de no exigir identificación tributaria en
@@ -616,16 +653,19 @@ cotización; la obligación tributaria se resolverá en Finanzas. Los permisos d
 Clientes no se copian automáticamente: Gerencia gestiona Clientes, pero en
 Presupuestos únicamente consulta y decide la aprobación de Gerencia.
 
-La implementación backend actual no modifica frontend ni especificaciones anteriores.
+La integración backend de 004A no modifica el frontend ni amplía los permisos del módulo comercial.
 
 ## 16. Fuera de alcance
 
-- Obras y su cardinalidad/operaciones compensatorias.
+- Gestión operativa de Obras dentro del módulo Comercial: implementada de forma
+  independiente en `apps.obras` según SPEC-004/004A.
+- Operaciones compensatorias y cancelación de Obras, todavía no especificadas.
 - Costos y horas reales, pagos, facturación e IVA tributario.
 - Alertas e integración React.
 - PDF, envío real de correo y firma electrónica.
 - Portal de cliente y autenticación de clientes externos.
 - Auditoría global y reglas tributarias de identificación.
 
-La implementación actual cubre Gestión de Presupuestos según SPEC-003B.
-Los elementos enumerados en esta sección continúan fuera del alcance del módulo.
+La implementación de Comercial cubre SPEC-003B y el guard de anulación usado por
+SPEC-004/004A. Los demás elementos enumerados siguen fuera del alcance de
+Comercial y no se consideran completados por esta integración.

@@ -8,8 +8,8 @@ from apps.comercial.tests.test_presupuesto_model import DatosPresupuestoMixin
 class AprobacionObligatoriaMigracionTests(DatosPresupuestoMixin, TransactionTestCase):
     def test_normaliza_datos_historicos_sin_perder_contenido(self):
         anterior = ('comercial', '0004_presupuesto_presupuestoevento_presupuestoitem_and_more')
-        nueva = ('comercial', '0005_remove_presupuesto_presupuesto_gerencia_coherente_and_more')
         executor = MigrationExecutor(connection)
+        migraciones_originales = executor.loader.graph.leaf_nodes()
         executor.migrate([anterior])
         try:
             apps = executor.loader.project_state([anterior]).apps
@@ -26,7 +26,7 @@ class AprobacionObligatoriaMigracionTests(DatosPresupuestoMixin, TransactionTest
             items = list(Item.objects.values())
             eventos = list(Evento.objects.values())
         finally:
-            MigrationExecutor(connection).migrate([nueva])
+            MigrationExecutor(connection).migrate(migraciones_originales)
         cabecera['requiere_aprobacion_gerencia'] = True
         self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), cabecera)
         self.assertEqual(list(Item.objects.values()), items)

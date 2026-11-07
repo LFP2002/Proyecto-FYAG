@@ -19,6 +19,7 @@ from .exceptions import (
     MotivoObligatorio,
     OrdenDuplicado,
     RecursoNoEncontrado,
+    PresupuestoUtilizado,
 )
 from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem
 
@@ -250,6 +251,12 @@ def _transicionar(
     anterior = actual.estado
     if anterior not in origenes:
         raise EstadoIncompatible()
+    if destino == Estado.ANULADO:
+        # Ambos flujos bloquean primero el mismo presupuesto persistido.
+        # Importación local para evitar acoplar la carga inicial de Comercial.
+        from apps.obras.models import Obra
+        if Obra.objects.filter(presupuesto_id=actual.pk).exists():
+            raise PresupuestoUtilizado()
     motivo = _motivo_normalizado(motivo, motivo_obligatorio)
     if anterior == Estado.BORRADOR and destino != Estado.ANULADO:
         _validar_salida(actual)
