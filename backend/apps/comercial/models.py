@@ -265,7 +265,7 @@ class Presupuesto(_ModeloPresupuestoValidado):
     estado = models.CharField(
         max_length=20, choices=Estado.choices, default=Estado.BORRADOR
     )
-    requiere_aprobacion_gerencia = models.BooleanField()
+    requiere_aprobacion_gerencia = models.BooleanField(default=True, editable=False)
     presupuesto_origen = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True,
         related_name="revisiones",
@@ -294,14 +294,8 @@ class Presupuesto(_ModeloPresupuestoValidado):
                 name="presupuesto_descripcion_valida",
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(requiere_aprobacion_gerencia=True)
-                    | ~models.Q(estado__in=[
-                        "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
-                        "RECHAZADO_GERENCIA",
-                    ])
-                ),
-                name="presupuesto_gerencia_coherente",
+                condition=models.Q(requiere_aprobacion_gerencia=True),
+                name="presupuesto_aprobacion_gerencia_obligatoria",
             ),
             models.CheckConstraint(
                 condition=(
@@ -315,9 +309,9 @@ class Presupuesto(_ModeloPresupuestoValidado):
     def _preparar_campos(self, exclude=None):
         super()._preparar_campos(exclude)
         if "requiere_aprobacion_gerencia" not in (exclude or ()):
-            if not isinstance(self.requiere_aprobacion_gerencia, bool):
+            if self.requiere_aprobacion_gerencia is not True:
                 raise ValidationError({
-                    "requiere_aprobacion_gerencia": "Debe ser un booleano.",
+                    "requiere_aprobacion_gerencia": "Debe ser True en este MVP.",
                 })
 
     @property

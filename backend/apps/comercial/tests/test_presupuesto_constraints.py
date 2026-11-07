@@ -34,15 +34,24 @@ class PresupuestoConstraintsTests(DatosPresupuestoMixin, TestCase):
                     "presupuesto_descripcion_valida",
                 )
 
-    def test_booleano_y_estados_gerencia(self):
-        for estado in (
-            "PENDIENTE_GERENCIA", "APROBADO_GERENCIA", "RECHAZADO_GERENCIA",
-        ):
+    def test_aprobacion_obligatoria_bulk_create_todos_estados(self):
+        for estado in Presupuesto.Estado:
             with self.subTest(estado=estado):
                 self.assert_rechazo_bd(
-                    self.nuevo_presupuesto(estado=estado),
-                    "presupuesto_gerencia_coherente",
+                    self.nuevo_presupuesto(
+                        estado=estado, requiere_aprobacion_gerencia=False
+                    ),
+                    "presupuesto_aprobacion_gerencia_obligatoria",
                 )
+
+    def test_aprobacion_obligatoria_update(self):
+        with self.assertRaises(IntegrityError) as error:
+            with transaction.atomic():
+                Presupuesto.objects.filter(pk=self.presupuesto.pk).update(
+                    requiere_aprobacion_gerencia=False
+                )
+        self.assertEqual(error.exception.__cause__.diag.constraint_name,
+                         "presupuesto_aprobacion_gerencia_obligatoria")
 
     def test_autoreferencia_por_update(self):
         with self.assertRaises(IntegrityError):

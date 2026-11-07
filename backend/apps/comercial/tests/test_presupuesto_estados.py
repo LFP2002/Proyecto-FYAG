@@ -9,7 +9,6 @@ from apps.comercial.exceptions import (
     DatosInvalidos,
     EstadoIncompatible,
     MotivoObligatorio,
-    TransicionNoPermitida,
 )
 from apps.comercial.models import Presupuesto
 from apps.comercial.services import desactivar_cliente
@@ -20,7 +19,7 @@ from apps.comercial.tests.test_presupuesto_services import (
 
 
 class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
-    def test_matriz_completa_estados_acciones_y_booleanos(self):
+    def test_matriz_completa_estados_acciones(self):
         acciones = (
             (servicios.enviar_gerencia, "PENDIENTE_GERENCIA", {"BORRADOR"}),
             (servicios.aprobar_gerencia, "APROBADO_GERENCIA",
@@ -28,7 +27,7 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
             (servicios.rechazar_gerencia, "RECHAZADO_GERENCIA",
              {"PENDIENTE_GERENCIA"}),
             (servicios.enviar_cliente, "ENVIADO_CLIENTE",
-             {"BORRADOR", "APROBADO_GERENCIA"}),
+             {"APROBADO_GERENCIA"}),
             (servicios.registrar_aprobacion_cliente, "APROBADO_CLIENTE",
              {"ENVIADO_CLIENTE"}),
             (servicios.registrar_rechazo_cliente, "RECHAZADO_CLIENTE",
@@ -38,52 +37,30 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
                 "ENVIADO_CLIENTE", "APROBADO_CLIENTE",
             }),
         )
-        estados_gerencia = {
-            "PENDIENTE_GERENCIA", "APROBADO_GERENCIA", "RECHAZADO_GERENCIA",
-        }
-        for requiere in (False, True):
-            for origen in Presupuesto.Estado:
-                if not requiere and origen in estados_gerencia:
-                    continue  # Combinaciones imposibles por constraint.
-                for accion, destino, origenes in acciones:
-                    with self.subTest(
-                        requiere=requiere, origen=origen,
-                        accion=accion.__name__,
-                    ):
-                        presupuesto = self.preparar(origen, requiere)
-                        permitido = origen in origenes
-                        if accion in (
-                            servicios.enviar_gerencia,
-                            servicios.aprobar_gerencia,
-                            servicios.rechazar_gerencia,
-                        ):
-                            permitido = permitido and requiere
-                        if accion == servicios.enviar_cliente:
-                            permitido = (
-                                origen == "BORRADOR" and not requiere
-                            ) or (origen == "APROBADO_GERENCIA" and requiere)
-                        if permitido:
-                            resultado = accion(
-                                presupuesto, self.usuario, "  Decisión  "
-                            )
-                            self.assertEqual(resultado.estado, destino)
-                            evento = resultado.eventos.last()
-                            self.assertEqual(evento.estado_anterior, origen)
-                            self.assertEqual(evento.estado_nuevo, destino)
-                            self.assertEqual(
-                                evento.registrado_por, self.usuario
-                            )
-                            self.assertEqual(evento.motivo, "Decisión")
-                            self.assertEqual(resultado.eventos.count(), 2)
-                        else:
-                            with self.assertRaises(EstadoIncompatible):
-                                accion(presupuesto, self.usuario, "Decisión")
-                            presupuesto.refresh_from_db()
-                            self.assertEqual(presupuesto.estado, origen)
-                            self.assertEqual(presupuesto.eventos.count(), 1)
+        for origen in Presupuesto.Estado:
+            for accion, destino, origenes in acciones:
+                with self.subTest(origen=origen, accion=accion.__name__):
+                    presupuesto = self.preparar(origen)
+                    if origen in origenes:
+                        resultado = accion(
+                            presupuesto, self.usuario, "  Decisión  "
+                        )
+                        self.assertEqual(resultado.estado, destino)
+                        evento = resultado.eventos.last()
+                        self.assertEqual(evento.estado_anterior, origen)
+                        self.assertEqual(evento.estado_nuevo, destino)
+                        self.assertEqual(evento.registrado_por, self.usuario)
+                        self.assertEqual(evento.motivo, "Decisión")
+                        self.assertEqual(resultado.eventos.count(), 2)
+                    else:
+                        with self.assertRaises(EstadoIncompatible):
+                            accion(presupuesto, self.usuario, "Decisión")
+                        presupuesto.refresh_from_db()
+                        self.assertEqual(presupuesto.estado, origen)
+                        self.assertEqual(presupuesto.eventos.count(), 1)
 
     def test_flujo_completo_con_gerencia(self):
-        presupuesto = self.crear(requiere_aprobacion_gerencia=True)
+        presupuesto = self.crear()
         servicios.crear_item(presupuesto, datos_item())
         for accion in (
             servicios.enviar_gerencia, servicios.aprobar_gerencia,
@@ -97,33 +74,29 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
         )), ["BORRADOR", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
              "ENVIADO_CLIENTE", "APROBADO_CLIENTE"])
 
-    def test_ruta_por_booleano_no_por_monto(self):
-        for requiere, accion in (
-            (True, servicios.enviar_cliente),
-            (False, servicios.enviar_gerencia),
-        ):
-            with self.subTest(requiere=requiere):
-                presupuesto = self.crear(
-                    requiere_aprobacion_gerencia=requiere
-                )
+    def test_gerencia_obligatoria_sin_dependencia_del_monto(self):
+        for precio in ("1", "9000000"):
+            with self.subTest(precio=precio):
+                presupuesto = self.crear()
                 servicios.crear_item(presupuesto, datos_item(
-                    precio_unitario=Decimal("9000000"),
+                    precio_unitario=Decimal(precio),
                 ))
-                with self.assertRaises(TransicionNoPermitida):
+                with self.assertRaises(EstadoIncompatible):
+                    servicios.enviar_cliente(presupuesto, self.usuario)
+                self.assertEqual(presupuesto.eventos.count(), 1)
+                for accion in (servicios.enviar_gerencia,
+                               servicios.aprobar_gerencia,
+                               servicios.enviar_cliente):
                     accion(presupuesto, self.usuario)
+                presupuesto.refresh_from_db()
+                self.assertEqual(presupuesto.estado, "ENVIADO_CLIENTE")
+                self.assertIs(presupuesto.requiere_aprobacion_gerencia, True)
 
     def test_salida_sin_items(self):
-        for requiere, accion in (
-            (True, servicios.enviar_gerencia),
-            (False, servicios.enviar_cliente),
-        ):
-            with self.subTest(requiere=requiere):
-                presupuesto = self.crear(
-                    requiere_aprobacion_gerencia=requiere
-                )
-                with self.assertRaises(DatosInvalidos):
-                    accion(presupuesto, self.usuario)
-                self.assertEqual(presupuesto.eventos.count(), 1)
+        presupuesto = self.crear()
+        with self.assertRaises(DatosInvalidos):
+            servicios.enviar_gerencia(presupuesto, self.usuario)
+        self.assertEqual(presupuesto.eventos.count(), 1)
 
     def test_salida_total_cero_o_redondeado_a_cero(self):
         for precio in (Decimal("0"), Decimal("0.01")):
@@ -133,7 +106,7 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
                     cantidad=Decimal("0.001"), precio_unitario=precio,
                 ))
                 with self.assertRaises(DatosInvalidos):
-                    servicios.enviar_cliente(presupuesto, self.usuario)
+                    servicios.enviar_gerencia(presupuesto, self.usuario)
                 presupuesto.refresh_from_db()
                 self.assertEqual(presupuesto.estado, "BORRADOR")
 
@@ -143,8 +116,8 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
             precio_unitario=Decimal("0"),
         ))
         servicios.crear_item(presupuesto, datos_item(orden=4))
-        resultado = servicios.enviar_cliente(presupuesto, self.usuario)
-        self.assertEqual(resultado.estado, "ENVIADO_CLIENTE")
+        resultado = servicios.enviar_gerencia(presupuesto, self.usuario)
+        self.assertEqual(resultado.estado, "PENDIENTE_GERENCIA")
         self.assertEqual(resultado.monto_neto, Decimal("250.63"))
 
     def test_cliente_inactivo_impide_salida(self):
@@ -152,7 +125,7 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
         servicios.crear_item(presupuesto, datos_item())
         desactivar_cliente(self.cliente)
         with self.assertRaises(ClienteInactivo):
-            servicios.enviar_cliente(presupuesto, self.usuario)
+            servicios.enviar_gerencia(presupuesto, self.usuario)
         presupuesto.refresh_from_db()
         self.assertEqual(presupuesto.estado, "BORRADOR")
 

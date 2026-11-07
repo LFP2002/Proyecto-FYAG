@@ -19,14 +19,13 @@ from .exceptions import (
     MotivoObligatorio,
     OrdenDuplicado,
     RecursoNoEncontrado,
-    TransicionNoPermitida,
 )
 from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem
 
 
 Estado = Presupuesto.Estado
 CAMPOS_CABECERA = frozenset({
-    "cliente", "descripcion", "requiere_aprobacion_gerencia",
+    "cliente", "descripcion",
 })
 CAMPOS_ITEM = frozenset({
     "descripcion", "cantidad", "unidad", "precio_unitario", "orden",
@@ -127,13 +126,11 @@ def _evento(presupuesto, anterior, usuario, motivo=""):
 
 
 @_operacion
-def crear_presupuesto(
-    *, cliente, descripcion, requiere_aprobacion_gerencia, usuario,
-):
+def crear_presupuesto(*, cliente, descripcion, usuario):
     cliente = _cliente_activo_bloqueado(cliente)
     presupuesto = Presupuesto.objects.create(
         cliente=cliente, descripcion=descripcion,
-        requiere_aprobacion_gerencia=requiere_aprobacion_gerencia,
+        requiere_aprobacion_gerencia=True,
         creado_por=_usuario_interno(usuario),
     )
     _evento(presupuesto, None, usuario)
@@ -247,24 +244,12 @@ def _motivo_normalizado(motivo, obligatorio):
 @_operacion
 def _transicionar(
     presupuesto, usuario, motivo, *, origenes, destino,
-    requiere_gerencia=None, motivo_obligatorio=False, envio_cliente=False,
+    motivo_obligatorio=False,
 ):
     actual = _presupuesto_bloqueado(presupuesto)
     anterior = actual.estado
     if anterior not in origenes:
         raise EstadoIncompatible()
-    if requiere_gerencia is not None and (
-        actual.requiere_aprobacion_gerencia != requiere_gerencia
-    ):
-        raise TransicionNoPermitida()
-    if envio_cliente and (
-        (anterior == Estado.BORRADOR and actual.requiere_aprobacion_gerencia)
-        or (
-            anterior == Estado.APROBADO_GERENCIA
-            and not actual.requiere_aprobacion_gerencia
-        )
-    ):
-        raise TransicionNoPermitida()
     motivo = _motivo_normalizado(motivo, motivo_obligatorio)
     if anterior == Estado.BORRADOR and destino != Estado.ANULADO:
         _validar_salida(actual)
@@ -277,21 +262,21 @@ def _transicionar(
 def enviar_gerencia(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={Estado.BORRADOR},
-        destino=Estado.PENDIENTE_GERENCIA, requiere_gerencia=True,
+        destino=Estado.PENDIENTE_GERENCIA,
     )
 
 
 def aprobar_gerencia(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={Estado.PENDIENTE_GERENCIA},
-        destino=Estado.APROBADO_GERENCIA, requiere_gerencia=True,
+        destino=Estado.APROBADO_GERENCIA,
     )
 
 
 def rechazar_gerencia(presupuesto, usuario, motivo):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={Estado.PENDIENTE_GERENCIA},
-        destino=Estado.RECHAZADO_GERENCIA, requiere_gerencia=True,
+        destino=Estado.RECHAZADO_GERENCIA,
         motivo_obligatorio=True,
     )
 
@@ -299,8 +284,8 @@ def rechazar_gerencia(presupuesto, usuario, motivo):
 def enviar_cliente(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo,
-        origenes={Estado.BORRADOR, Estado.APROBADO_GERENCIA},
-        destino=Estado.ENVIADO_CLIENTE, envio_cliente=True,
+        origenes={Estado.APROBADO_GERENCIA},
+        destino=Estado.ENVIADO_CLIENTE,
     )
 
 
@@ -338,7 +323,7 @@ def crear_revision(presupuesto, usuario):
     cliente = _cliente_activo_bloqueado(origen.cliente_id)
     revision = Presupuesto.objects.create(
         cliente=cliente, descripcion=origen.descripcion,
-        requiere_aprobacion_gerencia=origen.requiere_aprobacion_gerencia,
+        requiere_aprobacion_gerencia=True,
         presupuesto_origen=origen, creado_por=_usuario_interno(usuario),
     )
     for linea in PresupuestoItem.objects.filter(presupuesto=origen):

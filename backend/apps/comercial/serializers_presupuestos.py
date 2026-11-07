@@ -14,6 +14,7 @@ class ContratoPresupuestoSerializer(serializers.Serializer):
         "id", "codigo", "estado", "presupuesto_origen", "creado_por",
         "creado_en", "actualizado_en", "moneda", "monto_neto", "subtotal",
         "presupuesto", "presupuesto_id", "registrado_por",
+        "requiere_aprobacion_gerencia",
     })
 
     def to_internal_value(self, data):
@@ -45,13 +46,6 @@ class EnteroEstrictoField(serializers.IntegerField):
         return super().to_internal_value(data)
 
 
-class BooleanoEstrictoField(serializers.BooleanField):
-    def to_internal_value(self, data):
-        if type(data) is not bool:
-            self.fail("invalid", input=data)
-        return data
-
-
 class DecimalTextoField(serializers.DecimalField):
     default_error_messages = {
         "formato": "Envíe un string decimal con dígitos y punto opcional.",
@@ -70,7 +64,6 @@ class DecimalTextoField(serializers.DecimalField):
 class PresupuestoEscrituraSerializer(ContratoPresupuestoSerializer):
     cliente = EnteroEstrictoField(min_value=1, max_value=9223372036854775807)
     descripcion = StringEstrictoField(max_length=2000)
-    requiere_aprobacion_gerencia = BooleanoEstrictoField()
 
 
 class PresupuestoItemEscrituraSerializer(ContratoPresupuestoSerializer):

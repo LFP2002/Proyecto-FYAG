@@ -59,10 +59,10 @@ class PresupuestoAPIBase(APITestCase):
         token = AccessToken.for_user(self.usuarios[rol])
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
-    def preparar(self, estado="BORRADOR", requiere=True, con_item=True):
+    def preparar(self, estado="BORRADOR", con_item=True):
         presupuesto = servicios.crear_presupuesto(
             cliente=self.cliente, descripcion="Servicio de frío",
-            requiere_aprobacion_gerencia=requiere, usuario=self.usuarios[AF],
+            usuario=self.usuarios[AF],
         )
         if con_item:
             datos = datos_item()
@@ -82,7 +82,6 @@ class PresupuestoAPIBase(APITestCase):
     def cabecera(self, **cambios):
         datos = {
             "cliente": self.cliente.pk, "descripcion": " Servicio propuesto ",
-            "requiere_aprobacion_gerencia": False,
         }
         datos.update(cambios)
         return datos
@@ -131,17 +130,17 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
             ("patch", item_url, {"cantidad": "3"}, {AF}, 200),
             ("delete", item_url, {}, {AF}, 204),
         ]
-        for accion, estado, requiere, rol, esperado in (
-            ("enviar-gerencia", "BORRADOR", True, AF, 200),
-            ("aprobar-gerencia", "PENDIENTE_GERENCIA", True, G, 200),
-            ("rechazar-gerencia", "PENDIENTE_GERENCIA", True, G, 200),
-            ("enviar-cliente", "BORRADOR", False, AF, 200),
-            ("registrar-aprobacion-cliente", "ENVIADO_CLIENTE", True, AF, 200),
-            ("registrar-rechazo-cliente", "ENVIADO_CLIENTE", True, AF, 200),
-            ("anular", "BORRADOR", True, AF, 200),
-            ("crear-revision", "ANULADO", True, AF, 201),
+        for accion, estado, rol, esperado in (
+            ("enviar-gerencia", "BORRADOR", AF, 200),
+            ("aprobar-gerencia", "PENDIENTE_GERENCIA", G, 200),
+            ("rechazar-gerencia", "PENDIENTE_GERENCIA", G, 200),
+            ("enviar-cliente", "APROBADO_GERENCIA", AF, 200),
+            ("registrar-aprobacion-cliente", "ENVIADO_CLIENTE", AF, 200),
+            ("registrar-rechazo-cliente", "ENVIADO_CLIENTE", AF, 200),
+            ("anular", "BORRADOR", AF, 200),
+            ("crear-revision", "ANULADO", AF, 201),
         ):
-            presupuesto = self.preparar(estado, requiere)
+            presupuesto = self.preparar(estado)
             datos = (
                 {} if accion == "crear-revision" else {"motivo": "Decisión"}
             )
@@ -211,9 +210,23 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
 
 
 class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
+    def test_booleano_server_managed_post_y_patch(self):
+        for valor in (True, False):
+            for metodo, ruta, datos in (
+                ("post", self.url, self.cabecera(
+                    requiere_aprobacion_gerencia=valor)),
+                ("patch", self.detalle(), {"requiere_aprobacion_gerencia": valor}),
+            ):
+                with self.subTest(metodo=metodo, valor=valor):
+                    respuesta = getattr(self.client, metodo)(ruta, datos, format="json")
+                    self.assertEqual(respuesta.status_code, 400)
+                    self.assertIn("requiere_aprobacion_gerencia", respuesta.data)
+        self.assertEqual(Presupuesto.objects.count(), 1)
+
     def test_creacion_cliente_real_sin_identificacion(self):
         respuesta = self.client.post(self.url, self.cabecera(), format="json")
         self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], True)
         presupuesto = Presupuesto.objects.get(pk=respuesta.data["id"])
         self.assertEqual(presupuesto.cliente_id, self.cliente.pk)
         self.assertEqual(presupuesto.creado_por_id, self.usuarios[AF].pk)
@@ -237,7 +250,6 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
     def test_tipos_http_estrictos(self):
         for campo, valores in (
             ("cliente", [True, False, 1.0, "1", 0, -1, None]),
-            ("requiere_aprobacion_gerencia", [0, 1, "true", "False", None]),
             ("descripcion", [123, True, None, "  "]),
         ):
             for valor in valores:
@@ -476,8 +488,8 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
             "registrado_por", "motivo", "creado_en",
         })
 
-    def test_flujo_sin_gerencia(self):
-        presupuesto = self.preparar(requiere=False)
+    def test_envio_desde_aprobado_gerencia(self):
+        presupuesto = self.preparar("APROBADO_GERENCIA")
         self.assertEqual(
             self.accion("enviar-cliente", presupuesto).status_code, 200
         )
@@ -485,12 +497,11 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data["estado"], "APROBADO_CLIENTE")
 
-    def test_atrajos_prohibidos_por_booleano(self):
+    def test_atajos_prohibidos_sin_evento(self):
         respuesta = self.accion("enviar-cliente")
         self.assertEqual(respuesta.status_code, 409)
-        self.assertEqual(respuesta.data["code"], "transicion_no_permitida")
-        otro = self.preparar(requiere=False)
-        self.assertEqual(self.accion("enviar-gerencia", otro).status_code, 409)
+        self.assertEqual(respuesta.data["code"], "estado_incompatible")
+        self.assertEqual(self.presupuesto.eventos.count(), 1)
         self.autenticar(G)
         self.assertEqual(self.accion("aprobar-gerencia").status_code, 409)
 
@@ -537,9 +548,9 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
             self.assertEqual(presupuesto.eventos.last().motivo, "Cambio")
 
     def test_salida_sin_items_y_total_cero(self):
-        presupuesto = self.preparar(requiere=False, con_item=False)
+        presupuesto = self.preparar(con_item=False)
         self.assertEqual(
-            self.accion("enviar-cliente", presupuesto).status_code, 400
+            self.accion("enviar-gerencia", presupuesto).status_code, 400
         )
         respuesta = self.client.post(
             self.detalle(presupuesto) + "items/",
@@ -548,7 +559,7 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
         )
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(
-            self.accion("enviar-cliente", presupuesto).status_code, 400
+            self.accion("enviar-gerencia", presupuesto).status_code, 400
         )
 
 
@@ -561,6 +572,7 @@ class PresupuestoRevisionAPITests(PresupuestoAPIBase):
                 respuesta = self.accion("crear-revision", origen)
                 self.assertEqual(respuesta.status_code, 201, respuesta.data)
                 self.assertEqual(respuesta.data["estado"], "BORRADOR")
+                self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], True)
                 self.assertEqual(
                     respuesta.data["presupuesto_origen"], origen.pk
                 )
@@ -622,7 +634,7 @@ class PresupuestoLecturaRutasAPITests(PresupuestoAPIBase):
             # Fixture volumétrica; servicios prueba las secuencias reales.
             PresupuestoEvento.objects.create(
                 presupuesto=self.presupuesto, registrado_por=self.usuarios[AF],
-                estado_anterior="BORRADOR", estado_nuevo="ENVIADO_CLIENTE",
+                estado_anterior="BORRADOR", estado_nuevo="PENDIENTE_GERENCIA",
             )
         ruta = self.detalle() + "historial/"
         respuesta = self.client.get(ruta)

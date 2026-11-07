@@ -32,13 +32,13 @@ class ServiciosPresupuestoMixin(DatosPresupuestoMixin):
     def crear(self, **cambios):
         datos = {
             "cliente": self.cliente, "descripcion": " Servicio de frío ",
-            "requiere_aprobacion_gerencia": False, "usuario": self.usuario,
+            "usuario": self.usuario,
         }
         datos.update(cambios)
         return servicios.crear_presupuesto(**datos)
 
-    def preparar(self, estado, requiere=True):
-        presupuesto = self.crear(requiere_aprobacion_gerencia=requiere)
+    def preparar(self, estado):
+        presupuesto = self.crear()
         servicios.crear_item(presupuesto, datos_item())
         # Estado de partida de la prueba, no una transición del servicio.
         presupuesto.estado = estado
@@ -47,8 +47,14 @@ class ServiciosPresupuestoMixin(DatosPresupuestoMixin):
 
 
 class PresupuestoCreacionServiciosTests(ServiciosPresupuestoMixin, TestCase):
+    def test_creacion_no_acepta_booleano(self):
+        for valor in (True, False):
+            with self.assertRaises(TypeError):
+                self.crear(requiere_aprobacion_gerencia=valor)
+
     def test_creacion_cabecera_y_evento_inicial(self):
         presupuesto = self.crear()
+        self.assertIs(presupuesto.requiere_aprobacion_gerencia, True)
         self.assertEqual(presupuesto.descripcion, "Servicio de frío")
         self.assertEqual(presupuesto.estado, "BORRADOR")
         self.assertEqual(presupuesto.creado_por, self.usuario)
@@ -99,16 +105,23 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
         })
         self.assertEqual(actualizado.descripcion, "Nueva propuesta")
         self.assertEqual(actualizado.cliente_id, presupuesto.cliente_id)
-        self.assertFalse(actualizado.requiere_aprobacion_gerencia)
+        self.assertTrue(actualizado.requiere_aprobacion_gerencia)
         self.assertEqual(actualizado.eventos.count(), 1)
 
     def test_no_sobrescribe_instancia_obsoleta(self):
         presupuesto = self.crear()
         servicios.modificar_presupuesto(presupuesto, {"descripcion": "Actual"})
         actualizado = servicios.modificar_presupuesto(presupuesto, {
-            "requiere_aprobacion_gerencia": True,
+            "cliente": self.cliente.pk,
         })
         self.assertEqual(actualizado.descripcion, "Actual")
+
+    def test_booleano_no_editable(self):
+        for valor in (True, False):
+            with self.assertRaises(DatosInvalidos):
+                servicios.modificar_presupuesto(self.presupuesto, {
+                    "requiere_aprobacion_gerencia": valor,
+                })
 
     def test_campos_administrados_rechazados(self):
         for campo in (
