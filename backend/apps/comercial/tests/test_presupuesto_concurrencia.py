@@ -152,7 +152,7 @@ class PresupuestoConcurrenciaTests(
             lambda: servicios.modificar_item(presupuesto, item, {
                 "precio_unitario": Decimal("0"),
             }),
-            lambda: servicios.enviar_cliente(presupuesto, self.usuario),
+            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
             presupuesto,
         )
         self.assertEqual(uno.precio_unitario, Decimal("0.00"))
@@ -166,12 +166,12 @@ class PresupuestoConcurrenciaTests(
         presupuesto = self.crear()
         item = servicios.crear_item(presupuesto, datos_item())
         uno, dos = self.ejecutar_en_orden(
-            lambda: servicios.enviar_cliente(presupuesto, self.usuario),
+            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
             lambda: servicios.modificar_item(presupuesto, item, {
                 "precio_unitario": Decimal("0"),
             }), presupuesto,
         )
-        self.assertEqual(uno.estado, "ENVIADO_CLIENTE")
+        self.assertEqual(uno.estado, "PENDIENTE_GERENCIA")
         self.assertIsInstance(dos, EstadoIncompatible)
         item.refresh_from_db()
         self.assertEqual(item.precio_unitario, Decimal("100.25"))
@@ -192,7 +192,7 @@ class PresupuestoConcurrenciaTests(
         servicios.crear_item(presupuesto, datos_item())
         uno, dos = self.ejecutar_en_orden(
             lambda: desactivar_cliente(self.cliente),
-            lambda: servicios.enviar_cliente(presupuesto, self.usuario),
+            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
             self.cliente,
         )
         self.assertIsInstance(uno, Cliente)

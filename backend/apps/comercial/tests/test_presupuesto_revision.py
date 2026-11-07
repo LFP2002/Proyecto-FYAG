@@ -37,8 +37,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
                 self.assertEqual(revision.creado_por, actor)
                 self.assertEqual(revision.cliente, origen.cliente)
                 self.assertEqual(revision.descripcion, origen.descripcion)
-                self.assertEqual(revision.requiere_aprobacion_gerencia,
-                                 origen.requiere_aprobacion_gerencia)
+                self.assertIs(revision.requiere_aprobacion_gerencia, True)
                 self.assertNotEqual(revision.creado_en, origen.creado_en)
                 for anterior, copia in zip(origen.items.all(),
                                            revision.items.all(), strict=True):
@@ -69,7 +68,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
                 self.assertFalse(origen.revisiones.exists())
 
     def test_aceptado_anulado_revision_no_reactiva_origen(self):
-        origen = self.preparar("APROBADO_CLIENTE", requiere=False)
+        origen = self.preparar("APROBADO_CLIENTE")
         servicios.anular_presupuesto(
             origen, self.usuario, "Cliente pide cambio"
         )
@@ -77,7 +76,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
         origen.refresh_from_db()
         self.assertEqual(origen.estado, "ANULADO")
         self.assertEqual(revision.estado, "BORRADOR")
-        self.assertFalse(revision.requiere_aprobacion_gerencia)
+        self.assertIs(revision.requiere_aprobacion_gerencia, True)
 
     def test_multiples_revisiones(self):
         origen = self.preparar("RECHAZADO_CLIENTE")

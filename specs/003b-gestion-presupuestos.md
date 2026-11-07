@@ -12,9 +12,12 @@ que existan modelos, migraciones ni endpoints de Presupuestos.
 - Objetivo: mantener la relación confiable **presupuesto aprobado → obra →
   costos reales → rentabilidad**.
 
-El backend es la fuente de verdad. No existe un umbral monetario que determine
-aprobación de Gerencia. `requiere_aprobacion_gerencia` se configura explícitamente
-por presupuesto; nunca se calcula desde el monto ni desde una regla del mock.
+El backend es la fuente de verdad. En este MVP todos los presupuestos requieren
+aprobación de Gerencia, sin umbral monetario ni dependencia del monto.
+`requiere_aprobacion_gerencia` se conserva como extensión futura para una política
+delegada configurable, pero hoy lo administra exclusivamente el backend y siempre
+vale `true`; no se recibe en POST/PATCH. La política configurable futura no se
+implementa en este MVP, ni se introducen márgenes o reglas financieras.
 
 Las decisiones de precisión, errores HTTP, revisión y anulación que se detallan
 a continuación forman parte del contrato a implementar; no deben improvisarse
@@ -30,7 +33,7 @@ durante la codificación.
 | `cliente` | FK obligatoria a `Cliente`, `on_delete=PROTECT`. |
 | `descripcion` | `CharField(max_length=2000)`, obligatorio, string con `strip`, no vacío. |
 | `estado` | `CharField(max_length=20)`, choices oficiales, default `BORRADOR`; administrado por servicios. |
-| `requiere_aprobacion_gerencia` | `BooleanField`, no nullable, elección explícita obligatoria al crear; sin derivación por monto ni default implícito en la entrada HTTP. |
+| `requiere_aprobacion_gerencia` | `BooleanField`, no nullable, administrado por backend, default `true` y constraint que impide persistir `false`. |
 | `presupuesto_origen` | FK a sí mismo, nullable/blank, `on_delete=PROTECT`; solo la acción de revisión puede establecerla. |
 | `creado_por` | FK obligatoria a `settings.AUTH_USER_MODEL`, `on_delete=PROTECT`; siempre el usuario autenticado que crea el registro. |
 | `creado_en` | `DateTimeField(auto_now_add=True)`. |
@@ -151,19 +154,12 @@ Choices exactos, sin alias:
 - `RECHAZADO_CLIENTE`
 - `ANULADO`
 
-Flujo con aprobación requerida:
+Flujo comercial único obligatorio:
 
 ```text
 BORRADOR → PENDIENTE_GERENCIA → APROBADO_GERENCIA → ENVIADO_CLIENTE
                          └→ RECHAZADO_GERENCIA         ├→ APROBADO_CLIENTE
                                                       └→ RECHAZADO_CLIENTE
-```
-
-Flujo sin aprobación requerida:
-
-```text
-BORRADOR → ENVIADO_CLIENTE → APROBADO_CLIENTE
-                         └→ RECHAZADO_CLIENTE
 ```
 
 ### Tabla exhaustiva de transiciones
@@ -173,18 +169,17 @@ AF = `ADMINISTRATIVO_FINANZAS`; G = `GERENCIA`.
 | Acción | Origen | Destino | Rol | Condiciones adicionales |
 | --- | --- | --- | --- | --- |
 | Crear | No existe | BORRADOR | AF | Cliente activo y cabecera válida; evento inicial. |
-| enviar-gerencia | BORRADOR | PENDIENTE_GERENCIA | AF | Booleano true; requisitos de salida de BORRADOR. |
-| aprobar-gerencia | PENDIENTE_GERENCIA | APROBADO_GERENCIA | G | Booleano true. |
-| rechazar-gerencia | PENDIENTE_GERENCIA | RECHAZADO_GERENCIA | G | Booleano true; motivo obligatorio. |
-| enviar-cliente | BORRADOR | ENVIADO_CLIENTE | AF | Booleano false; requisitos de salida de BORRADOR. |
-| enviar-cliente | APROBADO_GERENCIA | ENVIADO_CLIENTE | AF | Booleano true. |
+| enviar-gerencia | BORRADOR | PENDIENTE_GERENCIA | AF | Requisitos de salida de BORRADOR. |
+| aprobar-gerencia | PENDIENTE_GERENCIA | APROBADO_GERENCIA | G | — |
+| rechazar-gerencia | PENDIENTE_GERENCIA | RECHAZADO_GERENCIA | G | Motivo obligatorio. |
+| enviar-cliente | APROBADO_GERENCIA | ENVIADO_CLIENTE | AF | Únicamente tras aprobación de Gerencia. |
 | registrar-aprobacion-cliente | ENVIADO_CLIENTE | APROBADO_CLIENTE | AF | Decisión comunicada por el cliente. |
 | registrar-rechazo-cliente | ENVIADO_CLIENTE | RECHAZADO_CLIENTE | AF | Motivo obligatorio. |
 | anular | BORRADOR, PENDIENTE_GERENCIA, APROBADO_GERENCIA, ENVIADO_CLIENTE o APROBADO_CLIENTE | ANULADO | AF | Motivo obligatorio y no utilización operativa según integración futura. |
 
 No existe ninguna otra transición. No se omiten etapas, no se vuelve a BORRADOR
-y no se cambia `estado` mediante POST/PATCH genérico. Un presupuesto con booleano
-false nunca puede tener un estado de Gerencia.
+y no se cambia `estado` mediante POST/PATCH genérico. Finanzas no puede cambiar
+el booleano, ni siquiera enviando `true`; se rechaza en POST/PATCH.
 
 **Decisión de cierre de anulación:** los rechazos son terminales para esa fila,
 preservando explícitamente el resultado rechazado; no se anulan después. Una
@@ -201,8 +196,8 @@ resultado cuando el consumidor perdió la primera respuesta.
 
 ## 5. Edición, cliente y condiciones de salida
 
-Solo BORRADOR permite cambiar `cliente`, `descripcion`,
-`requiere_aprobacion_gerencia` e ítems. `presupuesto_origen`, autor, ID y fechas
+Solo BORRADOR permite cambiar `cliente`, `descripcion` e ítems.
+`requiere_aprobacion_gerencia` no es editable. `presupuesto_origen`, autor, ID y fechas
 no se editan. Fuera de BORRADOR solo pueden cambiar estado y fecha por las
 acciones autorizadas; el contenido comercial queda congelado incluso en rechazo.
 
@@ -219,7 +214,7 @@ Reglas de cliente:
   el presupuesto ni bloquea las transiciones restantes por ese solo motivo.
 - No cambiar el cliente histórico para sortear una desactivación.
 
-Para enviar desde BORRADOR a Gerencia o directamente al cliente, comprobar
+Para enviar desde BORRADOR a Gerencia, comprobar
 dentro de la transacción: cliente activo, descripción válida, al menos un ítem,
 todas las líneas válidas y monto neto recalculado mayor que cero. Se admiten
 líneas gratuitas si el total es positivo. Enviar significa registrar el hito
@@ -241,7 +236,8 @@ Operación atómica:
 
 1. Bloquear presupuesto origen y comprobar rol/estado.
 2. Comprobar que su Cliente sigue activo; si no, rechazar sin crear filas.
-3. Crear un nuevo BORRADOR copiando FK cliente, descripción y booleano.
+3. Crear un nuevo BORRADOR copiando FK cliente y descripción, con booleano `true`
+   fijado por backend, sin copiar el valor del origen.
 4. Copiar ítems con nuevas PK, preservando contenido, precios, cantidades y orden.
 5. Establecer `presupuesto_origen` al presupuesto rechazado o anulado inmediato.
 6. Asignar nuevo ID/código, fechas y `creado_por=request.user` actual.
@@ -249,7 +245,7 @@ Operación atómica:
 
 No copiar historial, estados, autor original ni fechas. El origen queda íntegro.
 No reutilizar su ID ni modificar sus ítems. La revisión vuelve a pasar por todo
-el flujo que corresponda a su booleano y puede editarse por estar en BORRADOR.
+el flujo obligatorio de Gerencia y puede editarse por estar en BORRADOR.
 
 No hay unicidad de `presupuesto_origen`: se permiten varias propuestas revisadas
 a partir de un mismo origen rechazado o anulado, cada una con identidad propia. Repetir la acción
@@ -341,13 +337,13 @@ Crear cabecera requiere exactamente estos campos de negocio:
 ```json
 {
   "cliente": 1,
-  "descripcion": "Instalación de sistema de frío",
-  "requiere_aprobacion_gerencia": true
+  "descripcion": "Instalación de sistema de frío"
 }
 ```
 
 `cliente` es la PK entera positiva de Cliente, nunca un nombre. No acepta
-booleanos como IDs. El booleano de aprobación debe ser JSON true/false. Descripción
+booleanos como IDs. `requiere_aprobacion_gerencia` es solo de salida, siempre `true`.
+Descripción
 y unidad son strings reales, no conversiones automáticas de números a texto.
 
 POST de ítem requiere `descripcion`, `cantidad`, `unidad`, `precio_unitario`,
@@ -382,7 +378,8 @@ no devolver subtotales y total inconsistentes durante edición concurrente.
 
 Rechazar campos desconocidos con 400 por campo. También rechazar explícitamente
 campos administrados por servidor enviados en escrituras: `id`, `codigo`,
-`estado`, `creado_por`, fechas, `presupuesto_origen`, `moneda`, `monto_neto`,
+`estado`, `requiere_aprobacion_gerencia`, `creado_por`, fechas,
+`presupuesto_origen`, `moneda`, `monto_neto`,
 `subtotal` y la FK `presupuesto` del ítem. No cambiar PK por el body.
 
 Acciones de transición aceptan solo `{ "motivo": "..." }` o `{}` si el motivo
@@ -400,7 +397,7 @@ determina desde el origen, sin overrides hasta el PATCH del nuevo BORRADOR.
   error de entrada 400 asociado a `cliente`. Página inexistente: 404 estándar DRF.
 - 405: método no implementado en ruta existente para usuario autorizado.
 - 409: estado actual incompatible, intento de editar contenido congelado,
-  ruta de aprobación incompatible con el booleano o repetición de una transición;
+  salto de aprobación o repetición de una transición;
   en el futuro, también anulación impedida por obra asociada.
 
 Evaluar autenticación, permiso, existencia y luego estado/reglas. Una acción con
@@ -476,8 +473,7 @@ migraciones; las invariantes siguientes son obligatorias.
 
 - `estado` pertenece exactamente a los ocho choices.
 - `descripcion != ""` e igualdad con `Trim(descripcion)`.
-- `requiere_aprobacion_gerencia = True` **o** `estado` no pertenece a
-  PENDIENTE_GERENCIA/APROBADO_GERENCIA/RECHAZADO_GERENCIA.
+- `requiere_aprobacion_gerencia = True`.
 - `presupuesto_origen IS NULL OR presupuesto_origen_id != id`.
 - FK y NOT NULL protegen cliente, autor, estado y booleano; `PROTECT` en Django
   y las FK reales impiden referencias rotas al eliminar relacionados.
@@ -528,8 +524,9 @@ Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
 
 1. **Modelos:** campos, FKs protegidas, autores, timestamps, código estable y sin
    truncamiento; creación de borrador sin líneas; no persistencia de monto manual.
+   Aprobación con default `True`, `editable=False` y rechazo de `False` al guardar.
 2. **Constraints reales:** `IntegrityError` dentro de `transaction.atomic()` usando
-   escrituras que omitan validación Python para choices, trim, coherencia booleano,
+   escrituras que omitan validación Python para choices, trim, aprobación obligatoria,
    autoreferencia, cantidades/precios, NaN, orden único, motivos y evento inicial.
 3. **Decimal:** precisión máxima, exceso de escala, cero, negativos, floats,
    booleanos, NaN/Infinity y formatos inválidos; redondeo HALF_UP por línea, suma
@@ -541,7 +538,9 @@ Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
 6. **Cuatro roles:** matriz completa, incluidas acciones, ítems e historial; G no
    crea/edita ni anula; AF no aprueba/rechaza en Gerencia; rol inyectado no autoriza.
 7. **Máquina completa:** cada transición permitida y cada combinación estado/acción
-   prohibida; ambos valores del booleano; no atajos ni regreso a BORRADOR.
+   prohibida; rechazo de `false` en modelo/DB y de cualquier valor del campo
+   administrado en POST/PATCH; no atajos ni regreso a BORRADOR. Montos bajos y
+   altos siguen el mismo flujo obligatorio sin umbral.
 8. **Congelación:** PATCH de cabecera y CRUD de líneas solo BORRADOR, incluso si el
    presupuesto está rechazado/anulado; cambio directo de estado siempre rechazado.
 9. **Salida:** descripción, cliente activo, al menos un ítem y neto positivo;
@@ -550,7 +549,8 @@ Pruebas sobre PostgreSQL, nunca SQLite. Separar responsabilidades:
     por transición; actor interno correcto; rollback conjunto; historial ordenado;
     no modificación/borrado de eventos ni duplicación por reintento de transición.
 11. **Revisión:** nuevo código/ID, copia profunda de líneas, origen correcto,
-    actor actual, sin historial copiado; original intacto; origen inválido e
+    actor actual, siempre BORRADOR con aprobación requerida `true`, sin historial
+    copiado; original intacto; origen inválido e
     inactivo rechazados; múltiples revisiones permitidas; rollback integral.
     Cubrir los tres orígenes permitidos (RECHAZADO_GERENCIA, RECHAZADO_CLIENTE,
     ANULADO), rechazo de revisión directa desde APROBADO_CLIENTE y flujo
@@ -600,7 +600,7 @@ Revisión realizada de `frontend/src/data/constants.js`,
 `frontend/src/pages/Presupuestos.jsx` y `frontend/src/context/AppContext.jsx`:
 
 - El mock define `UMBRAL = 5000000` y decide el paso por Gerencia por monto.
-  **No es regla de backend**: se sustituye por el booleano explícito.
+  **No es regla de backend**: todos requieren aprobación de Gerencia sin umbral.
 - El mock ingresa `monto` libremente con `Number`; aquí se deriva de ítems Decimal.
 - El mock relaciona clientes por nombre y permite un placeholder «Sin cliente»;
   aquí siempre existe una FK real a Cliente (sin identificación sí, sin cliente no).

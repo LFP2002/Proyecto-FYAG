@@ -14,11 +14,6 @@ class EstadoIncompatible(ErrorPresupuesto):
     mensaje = "La operación no es válida en el estado actual del presupuesto."
 
 
-class TransicionNoPermitida(EstadoIncompatible):
-    codigo = "transicion_no_permitida"
-    mensaje = "La acción no corresponde a la aprobación configurada."
-
-
 class DatosInvalidos(ErrorPresupuesto):
     codigo = "datos_invalidos"
     mensaje = "Los datos del presupuesto no son válidos."

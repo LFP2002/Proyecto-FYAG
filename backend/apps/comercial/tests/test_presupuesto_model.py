@@ -34,7 +34,7 @@ class DatosPresupuestoMixin:
     def nuevo_presupuesto(self, **cambios):
         datos = {
             "cliente": self.cliente, "creado_por": self.usuario,
-            "descripcion": "Servicio", "requiere_aprobacion_gerencia": False,
+            "descripcion": "Servicio",
         }
         datos.update(cambios)
         return Presupuesto(**datos)
@@ -98,8 +98,14 @@ class PresupuestoModelTests(DatosPresupuestoMixin, TestCase):
                 with self.assertRaises(ValidationError):
                     self.nuevo_presupuesto(descripcion=descripcion).save()
 
-    def test_booleano_explicito(self):
-        for valor in (None, 1, "true"):
+    def test_default_true_no_editable(self):
+        self.assertIs(self.nuevo_presupuesto().requiere_aprobacion_gerencia, True)
+        campo = Presupuesto._meta.get_field("requiere_aprobacion_gerencia")
+        self.assertIs(campo.default, True)
+        self.assertFalse(campo.editable)
+
+    def test_solo_true_admitido(self):
+        for valor in (False, None, 1, "true"):
             with self.subTest(valor=valor):
                 with self.assertRaises(ValidationError):
                     self.nuevo_presupuesto(
@@ -114,7 +120,9 @@ class PresupuestoModelTests(DatosPresupuestoMixin, TestCase):
         ):
             with self.subTest(estado=estado):
                 with self.assertRaises(ValidationError):
-                    self.nuevo_presupuesto(estado=estado).save()
+                    self.nuevo_presupuesto(
+                        estado=estado, requiere_aprobacion_gerencia=False
+                    ).save()
                 self.nuevo_presupuesto(
                     estado=estado, requiere_aprobacion_gerencia=True
                 ).save()
@@ -250,7 +258,7 @@ class PresupuestoEventoModelTests(DatosPresupuestoMixin, TestCase):
 
     def test_evento_normal_y_trim(self):
         evento = self.nuevo_evento(
-            estado_anterior="BORRADOR", estado_nuevo="ENVIADO_CLIENTE",
+            estado_anterior="BORRADOR", estado_nuevo="PENDIENTE_GERENCIA",
             motivo="  Envío informado  ",
         )
         evento.save()
