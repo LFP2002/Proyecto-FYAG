@@ -21,7 +21,10 @@ from .exceptions import (
     DatosInvalidos, EstadoIncompatible, PermisoDenegado, PresupuestoUtilizado,
     RecursoNoEncontrado, SinCambios,
 )
-from .models import CategoriaServicio, CategoriaServicioEvento, Obra, ObraEvento
+from .models import (
+    CategoriaServicio, CategoriaServicioEvento, Obra, ObraEvento,
+    ObraParticipante, ObraParticipanteEvento,
+)
 
 
 SUPERVISOR = Usuario.Rol.SUPERVISOR_OBRAS
@@ -174,18 +177,18 @@ def _categoria_elegible(referencia):
     return categoria
 
 
-def _tecnico_elegible(referencia):
+def _tecnico_elegible(referencia, campo="tecnico_responsable"):
     Modelo = get_user_model()
-    pk = _id(referencia, Modelo, "tecnico_responsable")
+    pk = _id(referencia, Modelo, campo)
     try:
         tecnico = Modelo.objects.select_for_update().get(pk=pk)
     except Modelo.DoesNotExist as exc:
         raise DatosInvalidos({
-            "tecnico_responsable": ["No existe el técnico."]
+            campo: ["No existe el técnico."]
         }) from exc
     if not tecnico.is_active or tecnico.rol != TECNICO:
         raise DatosInvalidos({
-            "tecnico_responsable": ["Se requiere un técnico activo."]
+            campo: ["Se requiere un técnico activo."]
         })
     return tecnico
 
@@ -247,6 +250,8 @@ def crear_obra(datos, usuario):
         descripcion=descripcion, tecnico_responsable=tecnico,
         fecha_programada=fecha, creado_por=actor,
     )
+    if tecnico is not None:
+        _activar_participante(obra, tecnico, actor, motivo)
     _evento_obra(
         obra, ObraEvento.Tipo.CREACION, actor, None,
         nuevos=_snapshot(obra), motivo=motivo,
@@ -324,6 +329,14 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
     anterior = obra.tecnico_responsable_id
     obra.tecnico_responsable = nuevo
     obra.save(update_fields=["tecnico_responsable", "actualizado_en"])
+    if anterior is not None:
+        previo = ObraParticipante.objects.select_for_update().get(
+            obra=obra, tecnico_id=anterior,
+        )
+        if previo.activo:
+            _desactivar_participante(previo, actor, motivo)
+    if nuevo is not None:
+        _activar_participante(obra, nuevo, actor, motivo, permitir_activo=True)
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_TECNICO, actor, obra.estado,
         previos={"tecnico_responsable": anterior},
@@ -355,6 +368,100 @@ def iniciar_obra(referencia, usuario, motivo):
         motivo=motivo,
     )
     return obra
+
+
+def _snapshot_participante(participante):
+    return {
+        "tecnico": participante.tecnico_id,
+        "activo": participante.activo,
+        "asignado_por": participante.asignado_por_id,
+        "asignado_en": participante.asignado_en.isoformat() if participante.asignado_en else None,
+        "motivo_asignacion": participante.motivo_asignacion,
+        "desasignado_por": participante.desasignado_por_id,
+        "desasignado_en": participante.desasignado_en.isoformat() if participante.desasignado_en else None,
+        "motivo_desasignacion": participante.motivo_desasignacion,
+        "origen_registro": participante.origen_registro,
+    }
+
+
+def _evento_participante(participante, tipo, actor, motivo, anteriores):
+    ObraParticipanteEvento.objects.create(
+        participante=participante, tipo=tipo, registrado_por=actor, motivo=motivo,
+        datos_anteriores=anteriores, datos_nuevos=_snapshot_participante(participante),
+    )
+
+
+def _activar_participante(obra, tecnico, actor, motivo, *, permitir_activo=False):
+    # Caller ya bloqueó Presupuesto -> Obra -> técnico. La Obra serializa altas.
+    participante = ObraParticipante.objects.select_for_update().filter(
+        obra=obra, tecnico=tecnico,
+    ).first()
+    creado = participante is None
+    if participante and participante.activo:
+        if permitir_activo:
+            return participante, False
+        raise SinCambios("El participante ya está activo.")
+    anteriores = _snapshot_participante(participante) if participante else {}
+    if creado:
+        participante = ObraParticipante(obra=obra, tecnico=tecnico)
+    participante.activo = True
+    participante.asignado_por = actor
+    participante.asignado_en = timezone.now()
+    participante.motivo_asignacion = motivo
+    participante.desasignado_por = None
+    participante.desasignado_en = None
+    participante.motivo_desasignacion = ""
+    participante.save()
+    _evento_participante(
+        participante, "ASIGNACION" if creado else "REACTIVACION", actor, motivo, anteriores,
+    )
+    return participante, creado
+
+
+def _desactivar_participante(participante, actor, motivo):
+    anteriores = _snapshot_participante(participante)
+    participante.activo = False
+    participante.desasignado_por = actor
+    participante.desasignado_en = timezone.now()
+    participante.motivo_desasignacion = motivo
+    participante.save()
+    _evento_participante(participante, "DESASIGNACION", actor, motivo, anteriores)
+    return participante
+
+
+def _participantes_editables(obra):
+    if obra.estado not in {Obra.Estado.PLANIFICADA, Obra.Estado.EN_PROCESO, Obra.Estado.SUSPENDIDA}:
+        raise EstadoIncompatible()
+
+
+@_operacion
+def asignar_participante(referencia, datos, usuario):
+    actor = _actor_autorizado(usuario, SUPERVISOR)
+    obra = _obra_bloqueada(referencia)
+    _campos_validos(datos, {"tecnico", "motivo"}, {"tecnico", "motivo"})
+    _participantes_editables(obra)
+    motivo = _motivo(datos["motivo"], obligatorio=True)
+    tecnico = _tecnico_elegible(datos["tecnico"], campo="tecnico")
+    return _activar_participante(obra, tecnico, actor, motivo)
+
+
+@_operacion
+def desasignar_participante(referencia, participante_id, usuario, motivo):
+    actor = _actor_autorizado(usuario, SUPERVISOR)
+    obra = _obra_bloqueada(referencia)
+    try:
+        participante = ObraParticipante.objects.select_for_update().get(
+            pk=_id(participante_id, ObraParticipante, "participante"), obra=obra,
+        )
+    except ObraParticipante.DoesNotExist as exc:
+        raise RecursoNoEncontrado() from exc
+    motivo = _motivo(motivo, obligatorio=True)
+    _participantes_editables(obra)
+    if participante.tecnico_id == obra.tecnico_responsable_id:
+        raise EstadoIncompatible("Cambie al responsable principal mediante cambiar-tecnico.")
+    if not participante.activo:
+        raise SinCambios("El participante ya está inactivo.")
+    return _desactivar_participante(participante, actor, motivo)
 
 
 @_operacion

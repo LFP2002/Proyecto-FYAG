@@ -2,11 +2,11 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: incremento 004A implementado en `feature/backend-obras` y validado
-localmente con PostgreSQL.** La incorporación a `main` está pendiente de PR y
-de Backend CI. El incremento 004B (costos completos y finalización) sigue sin
-implementar. Las decisiones D1–D9 son del equipo, no una aprobación formal
-externa de FYAG.
+**Estado: incremento 004A implementado e integrado en `main` mediante el PR #8
+(7 de noviembre de 2026), con Backend CI aprobado.** El incremento 004B
+(técnicos participantes, turnos, costos completos y finalización) está especificado
+en `specs/004b-costos-finalizacion.md`, pero todavía no implementado. Las decisiones D1–D9 son del equipo, no una
+aprobación formal externa de FYAG.
 
 - Proyecto: FYAG, Proyecto Beta — Sistema de Gestión de Obras y Presupuestos.
 - Módulo implementado para 004A: `backend/apps/obras/` (modelos, migraciones, servicios y API DRF).
@@ -17,15 +17,17 @@ externa de FYAG.
 
 ### Incrementos definidos
 
-- **004A — Base operativa (implementada en la rama):** categorías, creación de obras,
+- **004A — Base operativa (implementada en `main`):** categorías, creación de obras,
   asignación/reasignación de técnicos, planificación, inicio efectivo, edición
   de fichas, suspensión, reanudación, historial, permisos y bloqueo concurrente
   de anulación de Presupuestos utilizados. Creación y guard en Comercial se
   entregan juntos; no existen acciones `finalizar` ni `cancelar` en su API.
-- **004B — Costos y finalización:** registro de materiales y horas, definición de
-  costos reales, criterio verificable de completitud y habilitación de FINALIZADA
-  solo después de implementar y probar esa validación. Requiere ampliar el contrato
-  de costos antes de codificarlo; esta propuesta no define aún sus modelos ni API.
+- **004B — Participantes, turnos, costos y finalización (especificada, pendiente):**
+  incorpora técnicos participantes sin sustituir al responsable principal, turnos
+  por obra con evidencia textual, materiales/gastos con costos manuales, revisión
+  de completitud y habilitación de FINALIZADA solo tras implementar y probar
+  esos controles. El contrato detallado está en `specs/004b-costos-finalizacion.md`;
+  no debe asumirse implementado hasta contar con código, pruebas y CI.
 - CANCELADA se conserva en el ciclo conceptual; su acción no se incluye en 004A
   ni se habilita automáticamente en 004B. Requiere una especificación posterior
   con reglas financieras reales de cancelación.
@@ -218,8 +220,10 @@ en Django Admin que eluda servicios. No se promete inmutabilidad frente a un DBA
 
 ## 6. Asignación, edición y fechas
 
-**D2 — Decisión del equipo:** técnico opcional solo en PLANIFICADA. Crear no
-inicia ejecución. Ausencia = null, nunca «Sin asignar», nombre o supervisor.
+**D2 — Decisión del equipo (vigente para el principal en 004A):** técnico
+responsable principal opcional solo en PLANIFICADA. Crear no inicia ejecución.
+La SPEC-004B amplía el acceso operativo con técnicos participantes adicionales;
+no elimina el responsable principal ni altera la relación 1:1 Presupuesto–Obra. Ausencia = null, nunca «Sin asignar», nombre o supervisor.
 Un técnico puede ser responsable de varias obras; no inventar cupos ni calendario.
 
 - Asignación/reasignación por SUPERVISOR_OBRAS en PLANIFICADA, EN_PROCESO o
@@ -319,8 +323,8 @@ Dividir incrementos no certifica cumplimiento actual ni aprobación externa.
 ## 8. Presupuesto utilizado y coordinación implementada con Comercial
 
 La integración entre `crear_obra` (Obras) y `anular_presupuesto` (Comercial)
-**está implementada conjuntamente en 004A**, en la rama
-`feature/backend-obras`. Se considera uso operativo la existencia de una Obra
+**está implementada conjuntamente en 004A**, integrada en `main`
+mediante el PR #8. Se considera uso operativo la existencia de una Obra
 desde `PLANIFICADA` y en cualquier estado posterior, incluidos los terminales
 futuros. Una Obra cancelada no libera su Presupuesto.
 
@@ -412,13 +416,14 @@ Rutas del ciclo posterior (no disponibles en 004A):
 
 | Ruta conceptual | Entrega y condición |
 | --- | --- |
-| POST `/api/obras/{id}/finalizar/` | 004B, tras implementar y probar costos completos conforme D8; contrato definitivo pendiente. |
+| POST `/api/obras/{id}/finalizar/` | 004B, tras implementar y probar costos completos conforme D8; contrato especificado en SPEC-004B; implementación y pruebas pendientes. |
 | POST `/api/obras/{id}/cancelar/` | Otra SPEC con reglas financieras; no se habilita automáticamente con 004B. |
 
 En 004A esas rutas no están registradas (404); POST/PATCH de `estado` continúa
 rechazado (400). Tampoco habrá servicio público que permita finalizar sin API.
-004B debe especificar rutas de materiales/horas, permisos y contratos propios;
-no se deducen del POST de ficha ni se agregan campos monetarios a su salida.
+SPEC-004B especifica rutas de participantes, turnos, gastos y costos, así como
+permisos y contratos propios; no están implementados en 004A y no se agregan
+campos monetarios a la salida operativa de Obra.
 
 Sin PUT ni DELETE. HEAD/OPTIONS estándar con los mismos permisos de lectura.
 Activar/desactivar ya en ese valor = 200 sin evento ni cambio de fecha, como
@@ -598,8 +603,8 @@ No editar migraciones históricas, crear obras retroactivas ni fabricar eventos.
 El catálogo inicial se carga por migración de datos con modelos históricos y
 alias de conexión; la reversa evita borrar categorías usadas.
 La ejecución local confirmó `migrate --noinput` y ausencia de drift con
-`makemigrations --check --dry-run`. Backend CI comprobará la reconstrucción
-limpia de PostgreSQL al abrir el Pull Request.
+`makemigrations --check --dry-run`. Backend CI del PR #8 aprobó la integración
+de 004A en `main`. Las migraciones de 004B serán nuevas, posteriores a `0004`.
 
 ## 13. Pruebas automatizadas y criterios de aceptación
 
@@ -678,28 +683,31 @@ Registrar esos movimientos como entidades independientes con actor/fecha y
 correcciones trazables; no como sobrescritura de un total en Obra.
 El responsable actual no reemplaza al técnico que realizó horas históricas.
 Material despachado, utilizado y devuelto no son necesariamente el mismo costo:
-la futura SPEC debe fijar valorización, devoluciones y evitar doble contabilización.
+SPEC-004B define valorización, devoluciones y controles contra doble contabilización;
+su implementación aún está pendiente.
 
 Rentabilidad futura usará neto aprobado CLP de Presupuesto y costos reales
 definidos, con Decimal y política de redondeo explícita; no IVA como ingreso ni
 porcentajes/umbrales del mock. La decisión 1:0..1 evita repetir el neto por obra.
 No mostrar rentabilidad cero cuando no se han cargado costos: ausencia no es cero.
 
-Antes de incorporar costos: definir completitud/cierre y guard de finalizar,
-coordinado con el mismo bloqueo de Obra. Antes de incorporar facturas/pagos:
+Al incorporar costos: implementar la completitud/cierre y el guard de finalizar
+ya especificados en SPEC-004B, coordinados con el bloqueo de Obra. Antes de incorporar facturas/pagos:
 definir bloqueo de cancelar, compensaciones y cierre comercial en Finanzas,
 también bajo ese lock. No introducir ahora tablas financieras, MongoDB, flags
 temporales de integración, mocks productivos ni callbacks que siempre aprueben.
 
-Fuera de 004A, previstos para 004B: materiales, horas y costos reales, criterio
-verificable de completitud y habilitación de finalizar. Antes de 004B deben
-definirse valorización, correcciones, evidencia de completitud y quién la valida;
-no se presume que ausencia de registros significa trabajo sin costo.
+Fuera de 004A, especificados en 004B: participantes técnicos, turnos por Obra,
+evidencia textual y fotos opcionales, materiales y gastos, costos reales,
+revisión del Supervisor, completitud verificable y habilitación de finalizar.
+La SPEC-004B ya define valorización, correcciones, evidencia y quién valida;
+no están implementados y su ausencia no equivale a cero costos.
 
 Fuera de ambos incrementos: inventario y stock,
-facturas/pagos/cobranza, márgenes, auditoría global/MongoDB, adjuntos, avances y
-bitácora móvil, PDF/Excel, dashboard, alertas, notificaciones, multi-técnicos,
-reapertura, sustitución de presupuesto usado y política de aprobación configurable.
+facturas/pagos/cobranza, márgenes, auditoría global/MongoDB, adjuntos generales
+(distintos de las fotos opcionales de turno 004B), avances y bitácora móvil general,
+PDF/Excel, dashboard, alertas, notificaciones, reapertura, sustitución de
+presupuesto usado y política de aprobación configurable.
 Las necesidades del Beta completo se desarrollarán en otras SPEC, no se declaran
 eliminadas por acotar este incremento.
 
@@ -727,14 +735,16 @@ sus ampliaciones no se presentan como requisitos originales.
 | D8 | FINALIZADA exige costos reales registrados y completitud validada en 004B. | Conserva exigencia Anexo B; sin finalizar en 004A ni flags que omitan control. |
 | D9 | Emergencias con flujo aprobado; garantías gratuitas sin presupuestos ficticios. | Priorización futura; circuito sin cobro trazable al origen en otra SPEC. |
 
-Pendientes reales posteriores: valorización, evidencia y responsable de validar
-completitud de costos antes de 004B; reglas financieras/orígenes/rectificación de
-cancelación; circuito gratuito trazable. No son alternativas pendientes a D1–D9
-ni habilitan esas funcionalidades en 004A.
+La SPEC-004B precisa la valorización manual, la evidencia de turnos y la
+validación de completitud con decisiones B1–B8. Su implementación sigue pendiente.
+También quedan fuera la cancelación con compromisos financieros y el circuito
+tributario de gratuidades. No son alternativas pendientes a D1–D9 ni habilitan
+esas funcionalidades en 004A.
 
 ## 16. Estado de entrega y validación para integración
 
-El incremento **004A está implementado en `feature/backend-obras`**. Se realizaron:
+El incremento **004A está implementado e integrado en `main` a través del
+Pull Request #8, con Backend CI verde**. Se realizaron:
 
 1. Modelos, constraints y migraciones de categorías, obras e historiales.
 2. Servicios transaccionales para creación, edición, cambio de técnico, inicio,
@@ -747,14 +757,16 @@ El incremento **004A está implementado en `feature/backend-obras`**. Se realiza
    todas correctas. `manage.py check` y `makemigrations --check --dry-run`
    reportaron cero errores y cero cambios pendientes.
 
-**Pendiente antes de mergear a `main`:** revisar el Pull Request, ejecutar y
-aprobar el workflow Backend CI sobre PostgreSQL limpio, y cerrar cualquier
-hallazgo del code review. Los resultados locales no acreditan CI remoto.
+**Integración confirmada:** PR #8 fusionado el 7 de noviembre de 2026 tras
+Backend CI verde. La cobertura local de referencia para 004A fue de 332 tests.
+La entrega posterior de 004B necesita su propia validación CI; no está incluida
+en esa aprobación histórica.
 
-**Pendiente de incrementos posteriores:** definir e implementar en 004B el
-contrato de materiales, horas, costos reales y completitud verificable antes de
-habilitar `finalizar`. Cancelación con compromisos financieros y garantías
-sin cobro necesitan especificaciones posteriores; ninguna se habilita en 004A.
+**Pendiente de implementación:** aplicar `specs/004b-costos-finalizacion.md`
+por entregas, con migraciones y pruebas para participantes, turnos y evidencias,
+materiales/gastos, completitud y `finalizar`. La gratuidad documentada en 004B
+no equivale a facturación real. Cancelación de Obras y circuito tributario de
+garantías/cortesías requieren especificaciones posteriores.
 
 Comandos de validación utilizados/previstos en Docker:
 
@@ -768,6 +780,6 @@ python manage.py test
 ```
 
 El workflow `.github/workflows/backend-ci.yml` se activa con cambios de backend
-en Pull Requests hacia `main`. No se ha verificado todavía su resultado para
-el futuro PR de 004A. Esta actualización es **solo documental**: no cambia modelos,
-migraciones, servicios, endpoints ni tests.
+en Pull Requests hacia `main`; para 004A ya finalizó en verde en el PR #8.
+Esta actualización es **solo documental**: no cambia modelos, migraciones,
+servicios, endpoints ni tests. 004B requiere nuevas ejecuciones y un PR propio.

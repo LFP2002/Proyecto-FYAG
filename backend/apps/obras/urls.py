@@ -1,4 +1,4 @@
-"""Rutas habilitadas únicamente para el incremento 004A."""
+"""Rutas operativas 004A y participantes 004B-1, sin acciones terminales."""
 
 from rest_framework.routers import SimpleRouter
 

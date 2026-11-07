@@ -4,7 +4,7 @@ from datetime import date
 import re
 
 from django.contrib.auth import get_user_model
-from django.db.models import F
+from django.db.models import Exists, F, OuterRef
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
@@ -22,7 +22,7 @@ from .exceptions import (
     DatosInvalidos, ErrorObras, EstadoIncompatible, PermisoDenegado,
     PresupuestoUtilizado, RecursoNoEncontrado, SinCambios,
 )
-from .models import CategoriaServicio, Obra
+from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteEvento
 from .permissions import PuedeOperarCategorias, PuedeOperarObras
 from .serializers import (
     CambioTecnicoSerializer, CategoriaServicioEventoSerializer,
@@ -32,6 +32,7 @@ from .serializers import (
     ObraFinanzasSerializer, ObraLecturaSerializer,
     PresupuestoDisponibleSerializer, RenombrarCategoriaSerializer,
     TecnicoDisponibleSerializer,
+    ParticipanteAsignarSerializer, ParticipanteSerializer, ParticipanteEventoSerializer,
 )
 
 
@@ -102,7 +103,9 @@ class ObraViewSet(
         )
         # Importante: filtrar ANTES de paginar y antes de buscar detalles.
         if self.request.user.rol == Usuario.Rol.TECNICO:
-            queryset = queryset.filter(tecnico_responsable_id=self.request.user.pk)
+            queryset = queryset.filter(Exists(ObraParticipante.objects.filter(
+                obra_id=OuterRef("pk"), tecnico_id=self.request.user.pk, activo=True,
+            )))
         return queryset.order_by("-creado_en", "-id")
 
     def get_serializer_class(self):
@@ -118,6 +121,12 @@ class ObraViewSet(
             "tecnicos_disponibles": TecnicoDisponibleSerializer,
         }
         accion = getattr(self, "action", None)
+        if accion == "participantes":
+            return ParticipanteAsignarSerializer if self.request.method == "POST" else ParticipanteSerializer
+        if accion == "desasignar_participante":
+            return MotivoObligatorioSerializer
+        if accion == "historial_participantes":
+            return ParticipanteEventoSerializer
         if accion in clases:
             return clases[accion]
         if self.request.user.rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS:
@@ -233,6 +242,44 @@ class ObraViewSet(
             obra__isnull=True,
         ).order_by("-creado_en", "-id")
         return self._paginado(disponibles, PresupuestoDisponibleSerializer)
+
+    @action(detail=False, methods=["get"], url_path="mis-obras")
+    def mis_obras(self, request):
+        return self.list(request)
+
+    @action(detail=True, methods=["get", "post"])
+    def participantes(self, request, pk=None):
+        obra = self.get_object()
+        if request.method == "POST":
+            participante, creado = services.asignar_participante(obra, self._datos(), request.user)
+            return Response(ParticipanteSerializer(participante).data, status=201 if creado else 200)
+        _validar_query_params(request.query_params, {"activo"})
+        queryset = obra.participantes.select_related("obra", "tecnico").order_by("id")
+        if "activo" in request.query_params:
+            activo = request.query_params["activo"]
+            if activo not in {"true", "false"}:
+                raise ValidationError({"activo": ["Use true o false."]})
+            queryset = queryset.filter(activo=activo == "true")
+        return self._paginado(queryset, ParticipanteSerializer)
+
+    @action(detail=True, methods=["post"], url_path=r"participantes/(?P<participante_id>[0-9]+)/desasignar")
+    def desasignar_participante(self, request, pk=None, participante_id=None):
+        obra = self.get_object()
+        identificador = _entero_query(participante_id, "participante")
+        get_object_or_404(obra.participantes, pk=identificador)
+        participante = services.desasignar_participante(
+            obra, identificador, request.user, **self._datos(),
+        )
+        return Response(ParticipanteSerializer(participante).data)
+
+    @action(detail=True, methods=["get"], url_path="participantes/historial")
+    def historial_participantes(self, request, pk=None):
+        obra = self.get_object()
+        _validar_query_params(request.query_params, set())
+        return self._paginado(
+            ObraParticipanteEvento.objects.filter(participante__obra=obra).order_by("creado_en", "id"),
+            ParticipanteEventoSerializer,
+        )
 
     @action(detail=False, methods=["get"], url_path="tecnicos-disponibles")
     def tecnicos_disponibles(self, request):

@@ -24,6 +24,17 @@ class PuedeOperarObras(BasePermission):
         if not usuario.is_authenticated or not usuario.is_active:
             return False
         accion = getattr(view, "action", None)
+        # OPTIONS debe respetar también el ámbito de la subruta.
+        if accion == "metadata":
+            accion = view.action_map.get("get") or view.action_map.get("post")
+        if accion == "mis_obras":
+            return usuario.rol == T
+        if accion == "participantes":
+            return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
+        if accion == "desasignar_participante":
+            return usuario.rol == S
+        if accion == "historial_participantes":
+            return usuario.rol in {G, S}
         if accion in self.acciones_supervisor:
             return usuario.rol == S
         if accion == "historial":

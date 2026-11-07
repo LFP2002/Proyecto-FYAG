@@ -71,6 +71,43 @@ class MotivoObligatorioSerializer(ContratoEstrictoSerializer):
     motivo = TextoEstrictoField(max_length=2000)
 
 
+class ParticipanteAsignarSerializer(MotivoObligatorioSerializer):
+    tecnico = EnteroEstrictoField(**ID)
+
+
+class ParticipanteSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    obra = serializers.IntegerField(source="obra_id", read_only=True)
+    tecnico = serializers.IntegerField(source="tecnico_id", read_only=True)
+    tecnico_nombre = serializers.SerializerMethodField()
+    activo = serializers.BooleanField(read_only=True)
+    es_responsable = serializers.SerializerMethodField()
+    origen_registro = serializers.CharField(read_only=True)
+    asignado_por = serializers.IntegerField(source="asignado_por_id", read_only=True, allow_null=True)
+    asignado_en = serializers.DateTimeField(read_only=True, allow_null=True)
+    motivo_asignacion = serializers.CharField(read_only=True)
+    desasignado_por = serializers.IntegerField(source="desasignado_por_id", read_only=True, allow_null=True)
+    desasignado_en = serializers.DateTimeField(read_only=True, allow_null=True)
+    motivo_desasignacion = serializers.CharField(read_only=True)
+
+    def get_tecnico_nombre(self, obj):
+        return _nombre_usuario(obj.tecnico)
+
+    def get_es_responsable(self, obj):
+        return obj.tecnico_id == obj.obra.tecnico_responsable_id
+
+
+class ParticipanteEventoSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    participante = serializers.IntegerField(source="participante_id", read_only=True)
+    tipo = serializers.CharField(read_only=True)
+    registrado_por = serializers.IntegerField(source="registrado_por_id", read_only=True)
+    motivo = serializers.CharField(read_only=True)
+    datos_anteriores = serializers.JSONField(read_only=True)
+    datos_nuevos = serializers.JSONField(read_only=True)
+    creado_en = serializers.DateTimeField(read_only=True)
+
+
 class NombreCategoriaSerializer(ContratoEstrictoSerializer):
     nombre = TextoEstrictoField(max_length=100)
 
