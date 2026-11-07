@@ -2,24 +2,26 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: decisión técnica del equipo para el MVP, lista para revisión de
-implementación; no implementada.** No implica aprobación formal externa de FYAG
-ni declara disponibles modelos, migraciones o endpoints de Obras.
+**Estado: incremento 004A implementado en `feature/backend-obras` y validado
+localmente con PostgreSQL.** La incorporación a `main` está pendiente de PR y
+de Backend CI. El incremento 004B (costos completos y finalización) sigue sin
+implementar. Las decisiones D1–D9 son del equipo, no una aprobación formal
+externa de FYAG.
 
 - Proyecto: FYAG, Proyecto Beta — Sistema de Gestión de Obras y Presupuestos.
-- Módulo previsto: `backend/apps/obras/`, actualmente un esqueleto Django.
+- Módulo implementado para 004A: `backend/apps/obras/` (modelos, migraciones, servicios y API DRF).
 - Persistencia: PostgreSQL; API: Django REST Framework; autenticación JWT existente.
-- Dependencias: SPEC-001, SPEC-002/002A, SPEC-003A y SPEC-003B implementadas.
+- Dependencias: SPEC-001, SPEC-002A/002B, SPEC-003A y SPEC-003B implementadas.
 - Objetivo: enlazar **presupuesto aceptado → ejecución operativa trazable → futura
   facturación y medición de costos/rentabilidad** sin mezclar sus estados.
 
 ### Incrementos definidos
 
-- **004A — Base operativa:** categorías, creación de obras, asignación/reasignación
-  de técnicos, planificación, inicio efectivo, edición de fichas, suspensión,
-  reanudación, historial, permisos y
-  bloqueo concurrente de anulación de Presupuestos utilizados. Creación y bloqueo
-  en Comercial son una única entrega inseparable. No habilita `finalizar`.
+- **004A — Base operativa (implementada en la rama):** categorías, creación de obras,
+  asignación/reasignación de técnicos, planificación, inicio efectivo, edición
+  de fichas, suspensión, reanudación, historial, permisos y bloqueo concurrente
+  de anulación de Presupuestos utilizados. Creación y guard en Comercial se
+  entregan juntos; no existen acciones `finalizar` ni `cancelar` en su API.
 - **004B — Costos y finalización:** registro de materiales y horas, definición de
   costos reales, criterio verificable de completitud y habilitación de FINALIZADA
   solo después de implementar y probar esa validación. Requiere ampliar el contrato
@@ -55,7 +57,7 @@ Ninguna categoría constituye una excepción a esa regla.
 Documentos de referencia disponibles en la carpeta académica superior al repo
 (no versionados aquí; los títulos y páginas permiten identificar las fuentes):
 
-| Fuente | Evidencia relevante | Tratamiento en esta propuesta |
+| Fuente | Evidencia relevante | Tratamiento en el diseño de 004A |
 | --- | --- | --- |
 | Proyecto 2 [Beta] - Sistema de Gestión de Obras y Presupuestos, pp. 2–4 | Ocho categorías, cuatro estados, ficha, supervisor operativo, técnico solo lectura; listas administrables. | Base funcional; no convertir los ejemplos de reglas en decisiones confirmadas. |
 | Beta, p. 2 y p. 4 | Ejemplo «no cerrar si hay pagos pendientes»; ciclo explícito Obra Finalizada → Factura → Cuenta por cobrar → Pago → Cierre comercial. | Finalización operativa independiente de cobro (§7). |
@@ -143,7 +145,7 @@ no autoriza transiciones ni endpoints terminales en 004A.
 
 ### 5.1 CategoriaServicio
 
-| Campo | Definición propuesta |
+| Campo | Definición del modelo 004A |
 | --- | --- |
 | `id` | BigAutoField. |
 | `nombre` | CharField(100), string obligatorio, trim, no vacío; único sin distinguir mayúsculas mediante `Lower(nombre)`. Acentos se conservan. |
@@ -165,7 +167,7 @@ En la API siempre se asigna el actor. No codificar estas categorías como choice
 
 ### 5.2 Obra
 
-| Campo | Definición propuesta |
+| Campo | Definición del modelo 004A |
 | --- | --- |
 | `id` | BigAutoField. |
 | `presupuesto` | OneToOneField a Presupuesto, no nullable, PROTECT, related_name `obra`. Inmutable por aplicación. |
@@ -189,7 +191,7 @@ saldo, avance, indicadores ficticios ni campos financieros en este modelo.
 
 Historial relacional append-only, distinto de la futura auditoría global.
 
-| Campo de ObraEvento | Definición propuesta |
+| Campo de ObraEvento | Definición del modelo 004A |
 | --- | --- |
 | `id`, `obra` | BigAutoField y FK Obra PROTECT. |
 | `tipo` | CREACION, CAMBIO_ESTADO, CAMBIO_TECNICO, EDICION. |
@@ -314,28 +316,36 @@ completitud validada con criterios verificables por especificar antes de habilit
 la acción. Una suma positiva, checkbox o flag del frontend no sustituyen evidencia.
 Dividir incrementos no certifica cumplimiento actual ni aprobación externa.
 
-## 8. Presupuesto utilizado y coordinación con Comercial
+## 8. Presupuesto utilizado y coordinación implementada con Comercial
 
-Uso operativo = existencia de una Obra desde PLANIFICADA y en CUALQUIER estado,
-incluidas FINALIZADA y CANCELADA. `anular_presupuesto` deberá rechazar con HTTP 409,
-`presupuesto_utilizado`, sin alterar el presupuesto ni generar evento.
-Esta integración es requisito de la futura implementación de Obras, no una
-modificación de código efectuada por esta propuesta documental.
+La integración entre `crear_obra` (Obras) y `anular_presupuesto` (Comercial)
+**está implementada conjuntamente en 004A**, en la rama
+`feature/backend-obras`. Se considera uso operativo la existencia de una Obra
+desde `PLANIFICADA` y en cualquier estado posterior, incluidos los terminales
+futuros. Una Obra cancelada no libera su Presupuesto.
 
-La consulta usa la relación real y `exists()`, no una bandera editable. Antes de
-activar POST Obras, desplegar conjuntamente el bloqueo en Comercial. No cambiar
-los demás estados, permisos ni revisiones de SPEC-003B. Actualizar entonces su
-§7 para describir la integración implementada, manteniendo su contrato restante.
+El servicio `anular_presupuesto` rechaza con **HTTP 409** y código público
+`presupuesto_utilizado` cuando existe una Obra asociada. No altera el estado
+comercial ni crea `PresupuestoEvento` por ese intento. El guard consulta la
+relación persistida mediante `Obra.objects.filter(presupuesto_id=...).exists()`;
+no acepta banderas editables de frontend para simular utilización.
 
-Crear y anular bloquean primero el MISMO Presupuesto con `select_for_update()`:
+Crear y anular bloquean primero el **mismo Presupuesto** mediante
+`select_for_update()` dentro de una transacción. Tras obtener el bloqueo
+revalidan estado y asociación:
 
-1. Si anulación confirma primero, crear relee ANULADO y responde 409.
-2. Si creación confirma primero, anular ve la Obra y responde 409.
-3. Dos creaciones: una 201, otra 409 `presupuesto_utilizado`; unicidad DB respalda.
+1. Si anular confirma primero, crear relee ANULADO y falla sin generar una Obra.
+2. Si crear confirma primero, anular detecta la Obra y responde 409.
+3. Dos creaciones concurrentes dejan exactamente una Obra; la segunda falla
+   con `presupuesto_utilizado`, y la unicidad DB respalda esa decisión.
 
-Prohibido activar la creación y dejar para otro incremento este control. La FK
-protege existencia, no el estado APROBADO_CLIENTE: la invariante cruzada pertenece
-al servicio transaccional. No afirmar que una CHECK con JOIN puede garantizarla.
+Esta coordinación está cubierta por pruebas de concurrencia PostgreSQL de 004A.
+No se cambian los restantes estados, permisos, revisiones ni aprobaciones de
+SPEC-003B. Su §7 documenta ahora la regla efectivamente integrada.
+
+La FK protege la existencia del Presupuesto, pero no garantiza por sí sola que
+esté `APROBADO_CLIENTE`: esta invariante cruzada permanece en el servicio
+transaccional, no en una CHECK con JOIN.
 
 ## 9. Permisos por rol, recurso y campos
 
@@ -372,13 +382,13 @@ Las descripciones operativas se redactan sin información financiera; no copiar
 automáticamente campos libres comerciales que pudieran contener precios.
 Historial restringido a G/S; motivos no son un canal de notas financieras.
 
-## 10. Contrato HTTP propuesto
+## 10. Contrato HTTP implementado para 004A
 
 ### 10.1 Rutas
 
-La tabla corresponde a **004A**, conforme a las decisiones del equipo de §15.
-Las rutas terminales se detallan por separado, no se registran
-en 004A ni se anuncian en su esquema u OPTIONS.
+La tabla corresponde a las rutas **implementadas en 004A**, conforme a las
+decisiones del equipo (§15). Las rutas terminales se detallan por separado:
+no se registran en 004A ni se anuncian en su esquema u OPTIONS.
 
 | Método y ruta | Entrada/función | Éxito |
 | --- | --- | --- |
@@ -545,7 +555,7 @@ No señales para orquestar transiciones. No escrituras vía bulk/update en servi
 que eludan invariantes. Admin futuro solo lectura para obra/eventos salvo acciones
 que invoquen servicios. La DB no implementa por sí sola toda la máquina de estados.
 
-## 12. Integridad PostgreSQL y migraciones previstas
+## 12. Integridad PostgreSQL y migraciones de 004A
 
 - FK reales y PROTECT: presupuesto, categoría, responsable, actores y eventos.
 - Unicidad no condicional de `Obra.presupuesto`, incluso canceladas/finalizadas.
@@ -580,25 +590,36 @@ transacción, no CHECK con JOIN ni con el reloj del servidor. `save()` validará
 estructura mediante full_clean, como Presupuestos; bulk SQL solo tiene garantías
 de constraints. No afirmar que full_clean sustituye locks o permisos.
 
-Generar migraciones con Django y revisarlas; dependencia de última migración de
-Comercial y swappable Usuario. No editar migraciones antiguas, crear obras
-retroactivas, alterar presupuestos existentes ni fabricar eventos históricos.
-El catálogo inicial se inserta con modelos históricos y alias de conexión correcto;
-reversa de datos no borra categorías que puedan estar utilizadas (noop documentado).
-Probar actualización de base existente y reconstrucción limpia PostgreSQL.
+En 004A se generaron y aplicaron localmente las migraciones `obras.0001_initial`,
+`obras.0002_catalogo_inicial`, `obras.0003_alter_*` (validación de JSON vacío)
+y `obras.0004_remove_obraevento_*` (constraint de eventos de creación).
+La dependencia parte de la última migración de Comercial y del Usuario swappable.
+No editar migraciones históricas, crear obras retroactivas ni fabricar eventos.
+El catálogo inicial se carga por migración de datos con modelos históricos y
+alias de conexión; la reversa evita borrar categorías usadas.
+La ejecución local confirmó `migrate --noinput` y ausencia de drift con
+`makemigrations --check --dry-run`. Backend CI comprobará la reconstrucción
+limpia de PostgreSQL al abrir el Pull Request.
 
-## 13. Pruebas previstas y criterios de aceptación
+## 13. Pruebas automatizadas y criterios de aceptación
 
-Sobre PostgreSQL real, nunca SQLite para integridad/concurrencia. Contrato previsto
-conforme a D1–D9 adoptadas por el equipo, sin afirmar validación externa.
+Las pruebas locales se ejecutaron con Django/PostgreSQL, sin sustituir SQLite.
+**Resultado local reportado: 44 pruebas de `apps.obras` y 332 pruebas del backend
+completo, todas `OK`**, con `manage.py check` correcto y sin migraciones
+pendientes. Ese resultado no sustituye el check de GitHub Actions ni constituye
+aprobación formal externa del cliente.
 
-**Distribución de cobertura:** 004A cubre los puntos 1–14 y 16–18 para sus
-operaciones habilitadas; las reglas estructurales terminales pueden probarse con
-fixtures coherentes, sin presentar una transición terminal como disponible.
-Las carreras con finalizar y el punto 15 corresponden a 004B; las que incluyen
-cancelar requieren especificación financiera posterior. En 004A se exige explícitamente:
-ausencia de rutas/servicios de finalización, rechazo de estado inyectado y creación
-inseparable del bloqueo de anulación, probada en ambos órdenes concurrentes.
+**Alcance de la cobertura:** la suite actual incluye modelos, servicios,
+API/roles, integridad de eventos y carreras reales crear/anular en ambos órdenes,
+además de dos creaciones concurrentes. La lista siguiente conserva criterios
+de aceptación del MVP y de regresión, pero **no afirma que cada escenario
+enumerado ya tenga un test independiente**. La validación CI y cualquier
+cobertura adicional se completarán durante revisión del PR.
+
+Las carreras con `finalizar` y el punto 15 pertenecen a 004B; las que involucran
+`cancelar`, a una futura SPEC financiera. En 004A no existen rutas ni servicios
+para esas acciones; se rechaza `estado` inyectado y la creación de Obra y el
+bloqueo de anulación son una única entrega.
 
 1. Modelos: campos/defaults, código estable, fechas, FK protegidas, cliente derivado,
    categorías iniciales, cero duplicación de montos o nombres como claves.
@@ -690,9 +711,9 @@ reales en otra SPEC, sin guard ficticio ni activación automática en 004B.
 
 ## 15. Decisiones de diseño adoptadas para el MVP
 
-D1–D9 son decisiones del equipo listas para revisión de implementación, no acuerdos
-formalmente aprobados por FYAG. Las fuentes se identifican en §2; sus ampliaciones
-no se presentan como requisitos originales.
+D1–D9 son decisiones técnicas del equipo **reflejadas en el 004A implementado**,
+no acuerdos formalmente aprobados por FYAG. Las fuentes se identifican en §2;
+sus ampliaciones no se presentan como requisitos originales.
 
 | ID | Decisión adoptada | Fundamento y alcance |
 | --- | --- | --- |
@@ -711,24 +732,31 @@ completitud de costos antes de 004B; reglas financieras/orígenes/rectificación
 cancelación; circuito gratuito trazable. No son alternativas pendientes a D1–D9
 ni habilitan esas funcionalidades en 004A.
 
-## 16. Secuencia y validación de la futura implementación
+## 16. Estado de entrega y validación para integración
 
-1. Revisar implementación de 004A con las decisiones adoptadas en §15, preservando
-   la distinción entre diseño del equipo y requisitos respaldados por fuentes.
-2. 004A: modelos/constraints, catálogo, servicios/eventos, asignación, edición,
-   planificación/inicio/suspensión/reanudación, proyecciones y permisos por recurso.
-3. Entregar creación de Obra y bloqueo de anulación en Comercial como una única
-   unidad desplegable, con atomicidad y pruebas concurrentes en ambos órdenes.
-   En esta revisión documental no se modifica SPEC-003B ni código de Comercial.
-4. Validar 004A con regresión/CI y pruebas de que finalizar no está expuesto.
-5. Antes de 004B, desarrollar el contrato exigido por D8: materiales/horas, costos reales,
-   completitud verificable, permisos y contratos. Mantener separación de cobranza.
-6. Implementar y probar costos/completitud de 004B antes de habilitar finalizar,
-   sin excepciones ni habilitación implícita en 004A.
-7. Especificar reglas financieras antes de programar cancelación; definir el
-   circuito gratuito trazable en otra SPEC antes de admitir garantías sin cobro.
+El incremento **004A está implementado en `feature/backend-obras`**. Se realizaron:
 
-Comandos previstos dentro del backend Docker del proyecto:
+1. Modelos, constraints y migraciones de categorías, obras e historiales.
+2. Servicios transaccionales para creación, edición, cambio de técnico, inicio,
+   suspensión, reanudación y administración de categorías.
+3. Integración inseparable con el guard de anulación en Comercial, mediante
+   bloqueo común del Presupuesto y pruebas de concurrencia en PostgreSQL.
+4. Serializers de entrada y salida, permisos por rol/recurso, proyección mínima
+   para Finanzas, filtros, paginación y rutas HTTP de 004A.
+5. Pruebas locales: 44 de Obras, 266 de Comercial y 332 del proyecto completo,
+   todas correctas. `manage.py check` y `makemigrations --check --dry-run`
+   reportaron cero errores y cero cambios pendientes.
+
+**Pendiente antes de mergear a `main`:** revisar el Pull Request, ejecutar y
+aprobar el workflow Backend CI sobre PostgreSQL limpio, y cerrar cualquier
+hallazgo del code review. Los resultados locales no acreditan CI remoto.
+
+**Pendiente de incrementos posteriores:** definir e implementar en 004B el
+contrato de materiales, horas, costos reales y completitud verificable antes de
+habilitar `finalizar`. Cancelación con compromisos financieros y garantías
+sin cobro necesitan especificaciones posteriores; ninguna se habilita en 004A.
+
+Comandos de validación utilizados/previstos en Docker:
 
 ```bash
 python manage.py check
@@ -739,6 +767,7 @@ python manage.py test apps.comercial
 python manage.py test
 ```
 
-Revisar el filtro del workflow Backend CI para cubrir cambios en Obras. No cambiar
-settings para sustituir PostgreSQL por SQLite. Esta entrega crea únicamente la
-propuesta documental: no implementa código ni ejecuta migraciones o tests nuevos.
+El workflow `.github/workflows/backend-ci.yml` se activa con cambios de backend
+en Pull Requests hacia `main`. No se ha verificado todavía su resultado para
+el futuro PR de 004A. Esta actualización es **solo documental**: no cambia modelos,
+migraciones, servicios, endpoints ni tests.
