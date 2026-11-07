@@ -5,7 +5,9 @@
 **Estado: incremento 004A implementado e integrado en `main` mediante el PR #8
 (7 de noviembre de 2026), con Backend CI aprobado.** El incremento 004B
 (técnicos participantes, turnos, costos completos y finalización) está especificado
-en `specs/004b-costos-finalizacion.md`, pero todavía no implementado. Las decisiones D1–D9 son del equipo, no una
+en `specs/004b-costos-finalizacion.md`. Su bloque **004B-1 (participantes) ya fue
+integrado en `main` mediante PR #9, con CI aprobado**; turnos, gastos,
+completitud y finalización permanecen pendientes. Las decisiones D1–D9 son del equipo, no una
 aprobación formal externa de FYAG.
 
 - Proyecto: FYAG, Proyecto Beta — Sistema de Gestión de Obras y Presupuestos.
@@ -22,11 +24,11 @@ aprobación formal externa de FYAG.
   de fichas, suspensión, reanudación, historial, permisos y bloqueo concurrente
   de anulación de Presupuestos utilizados. Creación y guard en Comercial se
   entregan juntos; no existen acciones `finalizar` ni `cancelar` en su API.
-- **004B — Participantes, turnos, costos y finalización (especificada, pendiente):**
-  incorpora técnicos participantes sin sustituir al responsable principal, turnos
-  por obra con evidencia textual, materiales/gastos con costos manuales, revisión
-  de completitud y habilitación de FINALIZADA solo tras implementar y probar
-  esos controles. El contrato detallado está en `specs/004b-costos-finalizacion.md`;
+- **004B — Participantes, turnos, costos y finalización (implementación parcial):**
+  el bloque **004B-1 ya incorporó técnicos participantes** sin sustituir al responsable
+  principal. Siguen pendientes los turnos por Obra con evidencia textual,
+  materiales/gastos con costos manuales, revisión de completitud y habilitación
+  de FINALIZADA solo tras implementar y probar esos controles. El contrato detallado está en `specs/004b-costos-finalizacion.md`;
   no debe asumirse implementado hasta contar con código, pruebas y CI.
 - CANCELADA se conserva en el ciclo conceptual; su acción no se incluye en 004A
   ni se habilita automáticamente en 004B. Requiere una especificación posterior
@@ -736,7 +738,8 @@ sus ampliaciones no se presentan como requisitos originales.
 | D9 | Emergencias con flujo aprobado; garantías gratuitas sin presupuestos ficticios. | Priorización futura; circuito sin cobro trazable al origen en otra SPEC. |
 
 La SPEC-004B precisa la valorización manual, la evidencia de turnos y la
-validación de completitud con decisiones B1–B8. Su implementación sigue pendiente.
+validación de completitud con decisiones B1–B8. Solo su primer bloque (participantes)
+está integrado; los demás siguen pendientes.
 También quedan fuera la cancelación con compromisos financieros y el circuito
 tributario de gratuidades. No son alternativas pendientes a D1–D9 ni habilitan
 esas funcionalidades en 004A.
@@ -762,9 +765,12 @@ Backend CI verde. La cobertura local de referencia para 004A fue de 332 tests.
 La entrega posterior de 004B necesita su propia validación CI; no está incluida
 en esa aprobación histórica.
 
-**Pendiente de implementación:** aplicar `specs/004b-costos-finalizacion.md`
-por entregas, con migraciones y pruebas para participantes, turnos y evidencias,
-materiales/gastos, completitud y `finalizar`. La gratuidad documentada en 004B
+**Estado posterior:** 004B-1 añadió participantes, sincronización del responsable,
+historial de membresías, API y permisos por membresía; PR #9 fusionado con
+Backend CI verde. La suite local de referencia alcanzó 347 pruebas (59 de Obras).
+**Pendiente de implementación:** seguir `specs/004b-costos-finalizacion.md`
+con nuevas migraciones y pruebas para turnos/evidencias, materiales/gastos,
+completitud y `finalizar`. La gratuidad documentada en 004B
 no equivale a facturación real. Cancelación de Obras y circuito tributario de
 garantías/cortesías requieren especificaciones posteriores.
 
@@ -780,6 +786,7 @@ python manage.py test
 ```
 
 El workflow `.github/workflows/backend-ci.yml` se activa con cambios de backend
-en Pull Requests hacia `main`; para 004A ya finalizó en verde en el PR #8.
+en Pull Requests hacia `main`; concluyó en verde en PR #8 (004A) y PR #9 (004B-1).
 Esta actualización es **solo documental**: no cambia modelos, migraciones,
-servicios, endpoints ni tests. 004B requiere nuevas ejecuciones y un PR propio.
+servicios, endpoints ni tests. Los siguientes bloques 004B necesitan su propia
+validación y Pull Requests independientes.

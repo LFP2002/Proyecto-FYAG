@@ -2,12 +2,12 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: especificación funcional/técnica para implementación; decisiones de negocio confirmadas por el equipo el 7 de noviembre de 2026. NO implementada.** Es una decisión de diseño para el MVP académico FYAG; no equivale a una aprobación formal externa de la empresa.
+**Estado: implementación parcial. 004B-1 (técnicos participantes) integrado en `main` mediante PR #9, con Backend CI aprobado; 004B-2 a 004B-5 pendientes.** Las decisiones de negocio B1–B8 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
 
 - Proyecto: **FYAG — Sistema de Gestión de Obras y Presupuestos**.
 - Documentos base: `specs/004-gestion-obras.md` (SPEC-004, especialmente D1–D9) y `specs/003b-gestion-presupuestos.md` (SPEC-003B).
 - Base tecnológica: Django REST Framework, PostgreSQL, JWT, `Usuario.Rol`, React como cliente.
-- Estado del repositorio al redactar: el incremento **004A ya fue integrado en `main` mediante el PR #8**, con Backend CI aprobado. El contrato y las migraciones 004A permanecen vigentes.
+- Estado del repositorio: **004A integrado mediante PR #8** y **004B-1 integrado mediante PR #9**, ambos en `main` con Backend CI aprobado. Permanecen las reglas de 004A, ampliadas por las membresías de técnicos participantes incorporadas en 004B-1.
 - Objetivo: registrar **lo que realmente costó ejecutar cada Obra**, incorporar técnicos participantes y turnos individuales con evidencia, validar la completitud y habilitar la transición **`EN_PROCESO → FINALIZADA`**.
 
 **Reglas heredadas que se conservan:** una Obra por Presupuesto; presupuesto de origen inmutable y aprobado por cliente; técnico principal activo obligatorio al iniciar; bloqueo de anulación comercial cuando existe una Obra; finalización operativa distinta de facturación y pago; trazabilidad; permisos por rol sin bypass por superusuario; y prohibición de finalizar sin costos reales registrados y validados.
@@ -71,7 +71,7 @@ Permite **varios técnicos en una misma Obra** sin cambiar la cardinalidad `Pres
 - La gestión de participantes no modifica automáticamente `Obra.tecnico_responsable`. El responsable se cambia únicamente por la acción 004A `cambiar-tecnico`.
 - La lista de obras del técnico se restringe a su membresía vigente (incluye responsable principal). La lectura 004A, antes limitada al principal, se amplía a esos participantes **sin otorgar lectura global**. El filtrado ocurre antes de contar/paginar y `retrieve`; evitar duplicados al hacer JOIN, por ejemplo usando `Exists`/`distinct`.
 - El historial de altas, bajas y reactivaciones debe quedar en un **modelo de eventos de participantes** append-only con actor, motivo, antes/después y timestamp, separado de `ObraEvento` para no reescribir la constraint histórica de transiciones 004A. La migración que reconstruye membresías preexistentes no simula una acción humana.
-- El bloque 004B-1 entrega solamente participantes, sincronización, lectura por membresía y sus pruebas. No crea turnos, tarifas, gastos, fotos ni `finalizar`; la restricción por turno abierto se incorpora y verifica obligatoriamente en 004B-2 antes de habilitar los turnos.
+- El bloque **004B-1 está implementado**: participantes, sincronización, lectura por membresía y pruebas. No creó turnos, tarifas, gastos, fotos ni `finalizar`. El guard por turno abierto se incorpora y verifica obligatoriamente en **004B-2**, antes de permitir iniciar turnos.
 
 ### 3.2 `TurnoObra`: tiempo real por técnico y por obra
 
@@ -84,7 +84,8 @@ Un turno corresponde al tiempo efectivo declarado por **un técnico dentro de un
 | `tecnico` | FK Usuario, `PROTECT`; ejecutor histórico, no reemplazado al cambiar responsable. |
 | `iniciado_en` | `DateTimeField` con hora del servidor, inmutable; no recibida del cliente. |
 | `terminado_en` | Nullable; se fija al finalizar turno con reloj servidor. |
-| `duracion_segundos` | Tiempo efectivo calculado desde los timestamps; nulo mientras está abierto; nunca editable por el técnico. |
+| `duracion_segundos` | Duración original calculada desde timestamps del servidor; nula mientras está abierto; nunca editable por el técnico ni sobrescrita por correcciones. |
+| `duracion_ajustada_segundos` | Entero positivo opcional; solo Supervisor, por rectificación excepcional motivada, sin alterar horas originales. Nulo si no hay corrección. |
 | `descripcion_trabajo` | Texto obligatorio de hasta 2000 caracteres al terminar; trim, no vacío. |
 | `estado_revision` | `ABIERTO`, `PENDIENTE_REVISION`, `OBSERVADO`, `VALIDADO`. |
 | `costo_hora_neto` | Decimal CLP de dos decimales; **lo ingresa manualmente el supervisor**, no el técnico. Nullable hasta valoración. |
@@ -98,12 +99,12 @@ Un turno corresponde al tiempo efectivo declarado por **un técnico dentro de un
 3. Solo el propietario puede **finalizar su turno**. Debe enviar `descripcion_trabajo` no vacía. El servidor fija `terminado_en`; la duración es `terminado_en - iniciado_en`, positiva. Fotografías son opcionales. El cierre lleva el turno a `PENDIENTE_REVISION`.
 4. Una persona no puede abrir dos turnos simultáneos, ni en obras distintas. La unicidad condicional `UniqueConstraint(tecnico, condition=Q(terminado_en__isnull=True))`, más bloqueo transaccional del usuario técnico, evita la carrera entre dos solicitudes.
 5. El supervisor revisa cada turno cerrado, comprueba el trabajo declarado y fija manualmente el `costo_hora_neto` histórico. Puede **VALIDAR** o **OBSERVAR**, dejando motivo y actor. Un turno observado **no cuenta para cierre** hasta subsanarse y validarse nuevamente.
-6. El técnico puede **subsanar** un turno `OBSERVADO` añadiendo aclaraciones y/o fotografías opcionales, sin alterar timestamps ni duración. Se registra evento; vuelve a `PENDIENTE_REVISION`. El supervisor puede corregir tiempo/costo de un error excepcional **solo con motivo y evento antes/después**; el técnico nunca puede editar horas directamente.
+6. El técnico puede **subsanar** un turno `OBSERVADO` añadiendo aclaraciones y/o fotografías opcionales, sin alterar timestamps ni duración. Se registra evento; vuelve a `PENDIENTE_REVISION`. El Supervisor puede corregir excepcionalmente el tiempo **mediante `duracion_ajustada_segundos`**, nunca sobrescribiendo `iniciado_en`, `terminado_en` o `duracion_segundos` originales, y/o rectificar `costo_hora_neto`. Toda rectificación exige motivo y evento con valores antes/después, e invalida una revisión `VALIDADO` anterior: el turno queda `PENDIENTE_REVISION` para nueva validación. El técnico jamás edita duración ni tarifa.
 7. Para pasar una Obra a `SUSPENDIDA` no debe existir ningún turno abierto; el servicio 004A `suspender_obra` requiere un guard nuevo en 004B. Para finalizar tampoco puede haber turnos abiertos, pendientes u observados.
 8. No se pueden iniciar turnos nuevos si la Obra está PLANIFICADA, SUSPENDIDA, FINALIZADA o CANCELADA. Turnos válidos ya cerrados se conservan al suspender o reasignar al principal.
 9. Tiempos excesivos, cierres accidentales o falta de conectividad deben quedar identificados para revisión. No falsificar timestamps con el reloj del dispositivo ni eliminar registros. La corrección excepcional del supervisor deja el dato inicial original en auditoría.
 
-**Costo de mano de obra por turno:** `ROUND_HALF_UP((duracion_segundos / 3600) × costo_hora_neto, 0.01)`, calculado con `Decimal`, sin redondear duración anticipadamente a horas completas. Un turno no valorado (`costo_hora_neto = null`) o no validado **no acredita costos completos**. No tomar automáticamente salario, tarifa comercial ni precio presupuestado. Rechazar una tarifa negativa; la exigencia de costo real total positivo se verifica a nivel de Obra, no porque un servicio sea gratuito para el cliente.
+**Costo de mano de obra por turno:** `ROUND_HALF_UP((duracion_ajustada_segundos si existe, de lo contrario duracion_segundos) / 3600 × costo_hora_neto, 0.01)`, calculado con `Decimal`, sin redondear duración anticipadamente a horas completas. Un turno no valorado (`costo_hora_neto = null`) o no validado **no acredita costos completos**. No tomar automáticamente salario, tarifa comercial ni precio presupuestado. Rechazar una tarifa negativa; la exigencia de costo real total positivo se verifica a nivel de Obra, no porque un servicio sea gratuito para el cliente.
 
 ### 3.3 `EvidenciaTurno`: texto obligatorio y fotografías opcionales
 
@@ -284,7 +285,7 @@ Los endpoints son **futuros: NO existen en el backend actual**. Todos requieren 
 | POST `/api/obras/{id}/turnos/{turno_id}/finalizar/` | T propietario | Cerrar turno con descripción obligatoria y fotos opcionales. |
 | POST `/api/obras/{id}/turnos/{turno_id}/subsanar/` | T propietario | Aclarar evidencia de turno observado. |
 | POST `/api/obras/{id}/turnos/{turno_id}/revisar/` | S | Validar u observar; fijar manualmente costo/hora para validación. |
-| POST `/api/obras/{id}/turnos/{turno_id}/corregir/` | S | Corrección excepcional motivada y auditable, nunca silenciosa. |
+| POST `/api/obras/{id}/turnos/{turno_id}/corregir/` | S | Rectifica opcionalmente `duracion_ajustada_segundos` y/o `costo_hora_neto`, con motivo; conserva timestamps y duración original, deja revisión pendiente y registra evento. |
 | GET `/api/obras/{id}/turnos/{turno_id}/fotos/{foto_id}/` | G/S, T propietario | Descarga autenticada de foto autorizada. |
 | GET/POST `/api/obras/{id}/gastos/` | G/S lectura; S crea | Materiales y otros gastos en una sola colección. |
 | PATCH `/api/obras/{id}/gastos/{gasto_id}/` | S | Corrección motivada. |
@@ -340,7 +341,9 @@ Con fotos, aceptar `multipart/form-data`: `descripcion_trabajo` obligatorio más
 }
 ```
 
-Una observación requiere `decision=OBSERVAR`, `motivo` explicativo y no genera costo validado; el costo horario puede informarse después. Validar requiere turno cerrado, descripción y costo hora válido.
+Una observación requiere `decision=OBSERVAR`, `motivo` explicativo y no genera costo validado; el costo horario puede informarse después. Validar requiere turno cerrado, descripción y costo hora válido. **La tarifa horaria y la revisión forman parte de 004B-2**; 004B-3 implementa los materiales y otros gastos, no pospone el registro por turno.
+
+**Rectificación excepcional de duración (Supervisor):** `POST .../corregir/` con `{"duracion_ajustada_segundos": 3600, "motivo": "Corrección excepcional respaldada por revisión del trabajo"}`. Se admite `null` para retirar un ajuste previo y volver a la duración original; solo para turno cerrado, nunca para uno abierto. Un cambio real exige motivo y siempre vuelve a `PENDIENTE_REVISION`, exigiendo revalidación. No se aceptan timestamps ni campos de actor del cliente.
 
 **Registrar gasto de material:**
 
@@ -413,7 +416,7 @@ Toda escritura y su evento son atómicos. Bloquear Obra antes de decidir complet
 
 - **No modificar** migraciones `obras.0001` a `0004`. Crear migraciones 004B nuevas, incrementales y reversibles cuando sea seguro.
 - `ObraParticipante`: FK a Obra/Usuario; unicidad de pareja `(obra,tecnico)`; validaciones de activo/rol y pertenencia en servicios, no CHECK con JOIN.
-- `TurnoObra`: FK reales, `terminado_en IS NULL OR terminado_en > iniciado_en`, estados de revisión consistentes, `duracion_segundos > 0` al cerrar. Constraint parcial única por técnico donde `terminado_en IS NULL`, incluso entre Obras diferentes. La fila abierta puede tener descripción y costo nulos; el servicio de cierre/revisión los exige cuando corresponda.
+- `TurnoObra`: FK reales, `terminado_en IS NULL OR terminado_en > iniciado_en`, estados de revisión consistentes, `duracion_segundos > 0` al cerrar; `duracion_ajustada_segundos` es null o entero positivo y no altera timestamps originales. Constraint parcial única por técnico donde `terminado_en IS NULL`, incluso entre Obras diferentes. La fila abierta puede tener descripción y costo nulos; el servicio de cierre/revisión los exige cuando corresponda.
 - `EvidenciaTurno`: FK, metadatos validados por aplicación; archivo privado y control de acceso. Las DB CHECK no validan contenido binario ni veracidad de imágenes.
 - `GastoObra`: tipo permitido, cantidad finita >0, costo unitario finito >=0, `0 <= cantidad_devuelta <= cantidad`, y si tipo !=MATERIAL entonces `cantidad_devuelta=0`; IDs/fechas/actor válidos.
 - `ControlCostosObra` y `CierreCostosObra`: unicidad por Obra; versiones no negativas, snapshot costo total igual suma de componentes (misma fila); consistencia con tablas hijas validada por servicio bajo lock.
@@ -424,7 +427,7 @@ Toda escritura y su evento son atómicos. Bloquear Obra antes de decidir complet
 
 ## 11. Pruebas y criterios de aceptación
 
-**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Conservar la regresión completa existente (**332 pruebas locales de base en 004A**, crecerá el total) y exigir Backend CI verde en PR.
+**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Conservar la regresión completa existente (**347 pruebas locales al cerrar 004B-1**, crecerá el total) y exigir Backend CI verde en PR.
 
 1. **Compatibilidad:** 004A sin regresiones; Presupuesto usado no anulable; una Obra por Presupuesto; no autorización comercial extraordinaria; migraciones previas intactas.
 2. **Participantes:** principal queda asociado, varios técnicos por obra, duplicados rechazados, asignación/desasignación/reactivación auditable, miembro inactivo sin acceso nuevo, antiguo principal con turnos históricos intactos, no remover con turno abierto.
@@ -455,8 +458,8 @@ No declarar 004B implementada hasta que modelos, API, control de turnos, evidenc
 
 ## 12. Entregas de implementación sugeridas
 
-1. **004B-1 — Modelos y participantes:** SOLO `ObraParticipante`, eventos de membresía, migración/backfill del principal histórico, sincronización del principal, API de asignación/desasignación, permisos de T, pruebas relacionales, acceso por membresía. Sin TurnoObra ni costos todavía.
-2. **004B-2 — Turnos/evidencia:** inicio/cierre por Obra, timestamps servidor, descripción obligatoria, fotos opcionales privadas, revisión del Supervisor y concurrencia de turnos.
+1. **004B-1 — Modelos y participantes (INTEGRADO):** `ObraParticipante`, eventos de membresía, migración/backfill del principal histórico, sincronización del principal, API de asignación/desasignación, permisos de T, pruebas relacionales y acceso por membresía. PR #9 fusionado en `main`; 347 pruebas locales reportadas y Backend CI aprobado.
+2. **004B-2 — Turnos/evidencia (SIGUIENTE):** inicio/cierre por Obra, timestamps servidor, descripción obligatoria, fotos opcionales privadas, revisión del Supervisor **con costo horario manual**, subsanaciones, correcciones excepcionales auditadas y concurrencia de turnos. Activar los guards de turno abierto en suspensión, reasignación y desasignación. Sin gastos ni finalización de Obra.
 3. **004B-3 — Materiales y gastos:** un recurso clasificado, valorización manual, devoluciones, correcciones, historial de costos.
 4. **004B-4 — Completitud/cortesía:** control de rubros, versionado de validación, decisión excepcional sin cobro sin manipular costos ni Presupuesto.
 5. **004B-5 — Finalización:** guard, snapshot, migración de evento terminal, regresión completa, Backend CI, PR. No habilitar finalización prematuramente.
@@ -468,7 +471,7 @@ Cada entrega debe contener código y tests coherentes; no activar endpoints term
 Estos puntos **no reabren B1–B8**; se resuelven mediante pruebas e implementación sin inventar aprobaciones nuevas:
 
 - Definir el almacenamiento privado de evidencias en el entorno de despliegue y su política de retención, manteniendo fotos opcionales.
-- Confirmar la política de corrección excepcional de turnos sin alterar silenciosamente timestamps del servidor; siempre auditada por Supervisor.
+- La corrección excepcional del tiempo utiliza `duracion_ajustada_segundos` con auditoría, sin alterar `iniciado_en`, `terminado_en` ni la duración original; siempre requiere revalidación por Supervisor.
 - Verificar el efecto de reasignar principal y desasignar miembros con turnos abiertos para no perder acceso o crear horas huérfanas.
 - Elegir las reglas exactas de redondeo de duración en UI sin cambiar el cálculo económico sobre segundos reales.
 - Ajustar SPEC-004 en la parte de roles/asignaciones: sigue habiendo un responsable principal, **pero también participantes**; T conserva prohibición de editar Obra y obtiene permiso limitado para sus turnos/evidencias.
@@ -478,7 +481,7 @@ Estos puntos **no reabren B1–B8**; se resuelven mediante pruebas e implementac
 
 1. [SPEC-004, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/004-gestion-obras.md): D1–D9, máquina de estados y guard comercial. **004B extiende técnicos participantes/horas y habilita solamente FINALIZADA**.
 2. [SPEC-003B, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/003b-gestion-presupuestos.md): precio comercial aprobado, inmutabilidad y bloqueo de anulación; **un gasto interno no cambia el precio del Presupuesto**.
-3. [Backend 004A integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): migraciones, `Obra.tecnico_responsable`, filtros y permisos operativos actuales. **No modificar migraciones históricas**.
+3. [Backend de Obras integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): 004A y 004B-1 (participantes) integrados; migraciones `obras.0001`–`0006` vigentes, modelo `Obra.tecnico_responsable`, membresías, permisos y filtros. **No modificar migraciones históricas**.
 4. Decisiones B1–B8: respuestas expresas del responsable del proyecto en esta conversación (7-11-2026); se presentan como decisiones del equipo académico, no como términos acordados externamente con FYAG.
 
 **Precedencia de implementación:** preservar integridad de 004A; modificar sus servicios/permisos únicamente donde B4–B6 lo requieren y con nuevas pruebas. Si una decisión futura amplía el cobro/contabilidad, crear una SPEC financiera; no convertir una cortesía en costo empresa cero ni en anulación retroactiva de presupuesto.
