@@ -241,6 +241,69 @@ class ObraEvento(_TextoValidado):
             raise ValidationError(errores)
 
 
+class ObraParticipante(_TextoValidado):
+    class Origen(models.TextChoices):
+        OPERACION = "OPERACION", "Operación"
+        MIGRACION_004B = "MIGRACION_004B", "Migración 004B"
+
+    campos_texto = ("motivo_asignacion", "motivo_desasignacion")
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="participantes")
+    tecnico = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="participaciones_obra")
+    activo = models.BooleanField(default=True)
+    origen_registro = models.CharField(max_length=20, choices=Origen.choices, default=Origen.OPERACION)
+    asignado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="participantes_asignados", null=True, blank=True)
+    asignado_en = models.DateTimeField(null=True, blank=True)
+    motivo_asignacion = models.CharField(max_length=2000, blank=True, default="")
+    desasignado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="participantes_desasignados", null=True, blank=True)
+    desasignado_en = models.DateTimeField(null=True, blank=True)
+    motivo_desasignacion = models.CharField(max_length=2000, blank=True, default="")
+
+    class Meta:
+        ordering = ("id",)
+        constraints = [
+            models.UniqueConstraint(fields=("obra", "tecnico"), name="obra_participante_unico"),
+            models.CheckConstraint(condition=Q(origen_registro__in=["OPERACION", "MIGRACION_004B"]), name="participante_origen_valido"),
+            models.CheckConstraint(
+                condition=Q(origen_registro="MIGRACION_004B") | Q(asignado_por__isnull=False, asignado_en__isnull=False, motivo_asignacion__gt=""),
+                name="participante_asignacion_auditada",
+            ),
+            models.CheckConstraint(
+                condition=(Q(activo=True, desasignado_por__isnull=True, desasignado_en__isnull=True, motivo_desasignacion="") | Q(activo=False, desasignado_por__isnull=False, desasignado_en__isnull=False, motivo_desasignacion__gt="")),
+                name="participante_baja_coherente",
+            ),
+            models.CheckConstraint(condition=Q(motivo_asignacion=Trim("motivo_asignacion")) & Q(motivo_desasignacion=Trim("motivo_desasignacion")), name="participante_motivos_trim"),
+        ]
+
+
+class ObraParticipanteEvento(_TextoValidado):
+    class Tipo(models.TextChoices):
+        ASIGNACION = "ASIGNACION", "Asignación"
+        DESASIGNACION = "DESASIGNACION", "Desasignación"
+        REACTIVACION = "REACTIVACION", "Reactivación"
+
+    campos_texto = ("motivo",)
+    participante = models.ForeignKey(ObraParticipante, on_delete=models.PROTECT, related_name="eventos")
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="eventos_participantes")
+    motivo = models.CharField(max_length=2000)
+    datos_anteriores = models.JSONField(default=dict, blank=True)
+    datos_nuevos = models.JSONField(default=dict)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("creado_en", "id")
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo__in=["ASIGNACION", "DESASIGNACION", "REACTIVACION"]), name="participante_evento_tipo_valido"),
+            models.CheckConstraint(condition=~Q(motivo="") & Q(motivo=Trim("motivo")), name="participante_evento_motivo"),
+        ]
+
+    def clean(self):
+        super().clean()
+        for campo in ("datos_anteriores", "datos_nuevos"):
+            if not isinstance(getattr(self, campo), dict):
+                raise ValidationError({campo: "Debe ser un objeto JSON."})
+
+
 class CategoriaServicioEvento(_TextoValidado):
     class Tipo(models.TextChoices):
         CREACION = "CREACION", "Creación"
