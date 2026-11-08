@@ -24,6 +24,11 @@ from .exceptions import (
 )
 from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteEvento
 from .permissions import PuedeOperarCategorias, PuedeOperarObras
+from .views_turnos import TurnosMixin
+from .serializers_turnos import (
+    InicioTurnoSerializer, EvidenciaEntradaSerializer, SubsanarTurnoSerializer,
+    RevisarTurnoSerializer, CorregirTurnoSerializer, CierreAdministrativoSerializer,
+)
 from .serializers import (
     CambioTecnicoSerializer, CategoriaServicioEventoSerializer,
     CategoriaServicioSerializer, MotivoCategoriaSerializer,
@@ -89,7 +94,7 @@ def _validar_query_params(params, permitidos):
 
 
 class ObraViewSet(
-    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+    TurnosMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
 ):
     permission_classes = [IsAuthenticated, PuedeOperarObras]
     pagination_class = ObrasPaginacion
@@ -110,6 +115,12 @@ class ObraViewSet(
 
     def get_serializer_class(self):
         clases = {
+            "iniciar_turno": InicioTurnoSerializer,
+            "cerrar_administrativamente": CierreAdministrativoSerializer,
+            "finalizar_turno": EvidenciaEntradaSerializer,
+            "subsanar_turno": SubsanarTurnoSerializer,
+            "revisar_turno": RevisarTurnoSerializer,
+            "corregir_turno": CorregirTurnoSerializer,
             "create": ObraCrearSerializer,
             "partial_update": ObraEditarSerializer,
             "cambiar_tecnico": CambioTecnicoSerializer,
@@ -121,6 +132,8 @@ class ObraViewSet(
             "tecnicos_disponibles": TecnicoDisponibleSerializer,
         }
         accion = getattr(self, "action", None)
+        if accion in {"turnos", "foto_turno"}:
+            return self._turno_serializer()
         if accion == "participantes":
             return ParticipanteAsignarSerializer if self.request.method == "POST" else ParticipanteSerializer
         if accion == "desasignar_participante":
