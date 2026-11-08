@@ -15,6 +15,7 @@ class MigracionParticipantesTests(BaseObras, TransactionTestCase):
 
     def test_backfill_preserva_datos_y_acceso_sin_inventar_historia(self):
         executor = MigrationExecutor(connection)
+        actuales = executor.loader.graph.leaf_nodes()
         executor.migrate(self.anterior)
         try:
             self.setUpTestData()
@@ -45,6 +46,10 @@ class MigracionParticipantesTests(BaseObras, TransactionTestCase):
             self.assertEqual(Obra.objects.values().get(pk=obra.pk), original)
             self.assertEqual(list(Evento.objects.values()), eventos)
             self.assertEqual(type(self.presupuesto).objects.values().get(pk=self.presupuesto.pk), presupuesto)
+            # Los servicios actuales requieren el esquema posterior a 004B-1.
+            MigrationExecutor(connection).migrate(actuales)
+            from apps.obras.models import TurnoObra
+            self.assertFalse(TurnoObra.objects.exists())
             client = APIClient()
             client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(self.tecnico)}")
             self.assertEqual(client.get("/api/obras/mis-obras/").data["count"], 1)
@@ -56,4 +61,4 @@ class MigracionParticipantesTests(BaseObras, TransactionTestCase):
             self.assertEqual(miembro.asignado_por_id, self.supervisor.pk)
             self.assertEqual(miembro.eventos.count(), 2)
         finally:
-            MigrationExecutor(connection).migrate(self.destino)
+            MigrationExecutor(connection).migrate(actuales)

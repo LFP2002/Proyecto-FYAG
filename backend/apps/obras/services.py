@@ -23,7 +23,7 @@ from .exceptions import (
 )
 from .models import (
     CategoriaServicio, CategoriaServicioEvento, Obra, ObraEvento,
-    ObraParticipante, ObraParticipanteEvento,
+    ObraParticipante, ObraParticipanteEvento, TurnoObra,
 )
 
 
@@ -56,6 +56,8 @@ def _operacion(funcion):
             # Capturar solo la unicidad conocida. Otros errores son inesperados.
             diagnostico = getattr(exc.__cause__, "diag", None)
             nombre = getattr(diagnostico, "constraint_name", "") or ""
+            if nombre == "turno_abierto_tecnico_unico":
+                raise EstadoIncompatible("El técnico ya tiene un turno abierto.") from exc
             if "obras_obra_presupuesto_id" in nombre and (
                 "key" in nombre or "uniq" in nombre
             ):
@@ -327,6 +329,8 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
     nuevo = _tecnico_elegible(nuevo_id) if nuevo_id is not None else None
     motivo = _motivo(motivo, obligatorio=True)
     anterior = obra.tecnico_responsable_id
+    if anterior is not None:
+        _sin_turnos_abiertos(obra, anterior)
     obra.tecnico_responsable = nuevo
     obra.save(update_fields=["tecnico_responsable", "actualizado_en"])
     if anterior is not None:
@@ -419,6 +423,7 @@ def _activar_participante(obra, tecnico, actor, motivo, *, permitir_activo=False
 
 
 def _desactivar_participante(participante, actor, motivo):
+    _sin_turnos_abiertos(participante.obra, participante.tecnico_id)
     anteriores = _snapshot_participante(participante)
     participante.activo = False
     participante.desasignado_por = actor
@@ -464,6 +469,15 @@ def desasignar_participante(referencia, participante_id, usuario, motivo):
     return _desactivar_participante(participante, actor, motivo)
 
 
+def _sin_turnos_abiertos(obra, tecnico_id=None):
+    # Todos los callers ya tienen el lock de Obra, compartido con inicio/cierre.
+    turnos = TurnoObra.objects.filter(obra=obra, terminado_en__isnull=True)
+    if tecnico_id is not None:
+        turnos = turnos.filter(tecnico_id=tecnico_id)
+    if turnos.exists():
+        raise EstadoIncompatible("Cierre el turno abierto antes de realizar esta operación.")
+
+
 @_operacion
 def suspender_obra(referencia, usuario, motivo):
     actor = _actor_autorizado(usuario, SUPERVISOR)
@@ -473,6 +487,7 @@ def suspender_obra(referencia, usuario, motivo):
     motivo = _motivo(motivo, obligatorio=True)
     anterior = obra.estado
     obra.estado = Obra.Estado.SUSPENDIDA
+    _sin_turnos_abiertos(obra)
     obra.save(update_fields=["estado", "actualizado_en"])
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_ESTADO, actor, anterior,

@@ -10,6 +10,10 @@ services:
 
     volumes:
       - ./backend:/app
+      - evidencias_data:/var/lib/fyag/evidencias
+
+    environment:
+      FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
 
     ports:
       - "8000:8000"
@@ -61,3 +65,4 @@ services:
 volumes:
   postgres_data:
   mongodb_data:
+  evidencias_data:

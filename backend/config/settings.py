@@ -136,6 +136,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Almacenamiento privado de evidencias: no asociar a MEDIA_URL ni static().
+EVIDENCIAS_ROOT = Path(os.getenv("FYAG_EVIDENCIAS_ROOT", BASE_DIR / "private_evidencias"))
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

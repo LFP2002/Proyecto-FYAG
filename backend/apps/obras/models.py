@@ -5,6 +5,8 @@ FINALIZADA y CANCELADA existen para el ciclo completo, pero sus acciones no
 forman parte de 004A. No exponer endpoints hasta entregar el guard de Presupuestos.
 """
 
+from decimal import Decimal, ROUND_HALF_UP, localcontext
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -347,3 +349,124 @@ class CategoriaServicioEvento(_TextoValidado):
                 errores[campo] = "Debe ser un objeto JSON."
         if errores:
             raise ValidationError(errores)
+
+
+class TurnoObra(_TextoValidado):
+    class ModoCierre(models.TextChoices):
+        TECNICO = "TECNICO", "Técnico"
+        SUPERVISOR = "SUPERVISOR", "Supervisor"
+
+    class Estado(models.TextChoices):
+        ABIERTO = "ABIERTO", "Abierto"
+        PENDIENTE_REVISION = "PENDIENTE_REVISION", "Pendiente de revisión"
+        OBSERVADO = "OBSERVADO", "Observado"
+        VALIDADO = "VALIDADO", "Validado"
+
+    campos_texto = ("descripcion_trabajo", "observacion_revision")
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="turnos")
+    tecnico = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="turnos_obra")
+    iniciado_en = models.DateTimeField(editable=False)
+    terminado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    modo_cierre = models.CharField(max_length=10, choices=ModoCierre.choices, null=True, blank=True, editable=False)
+    cerrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="turnos_cerrados", null=True, blank=True, editable=False)
+    # Microsegundos exactos del reloj del servidor, sin redondear horas/segundos.
+    duracion_segundos = models.DecimalField(max_digits=20, decimal_places=6, null=True, blank=True, editable=False)
+    duracion_ajustada_segundos = models.PositiveBigIntegerField(null=True, blank=True)
+    descripcion_trabajo = models.CharField(max_length=2000, blank=True, default="")
+    estado_revision = models.CharField(max_length=20, choices=Estado.choices, default=Estado.ABIERTO)
+    costo_hora_neto = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    revisado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="turnos_revisados", null=True, blank=True)
+    revisado_en = models.DateTimeField(null=True, blank=True)
+    observacion_revision = models.CharField(max_length=2000, blank=True, default="")
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("iniciado_en", "id")
+        constraints = [
+            models.UniqueConstraint(fields=("tecnico",), condition=Q(terminado_en__isnull=True), name="turno_abierto_tecnico_unico"),
+            models.CheckConstraint(condition=(
+                Q(terminado_en__isnull=True, modo_cierre__isnull=True, cerrado_por__isnull=True)
+                | Q(terminado_en__isnull=False, modo_cierre__isnull=False, modo_cierre__in=["TECNICO", "SUPERVISOR"], cerrado_por__isnull=False)
+            ), name="turno_cierre_identificado"),
+            models.CheckConstraint(condition=Q(terminado_en__isnull=True) | Q(terminado_en__gt=F("iniciado_en")), name="turno_fin_tras_inicio"),
+            models.CheckConstraint(condition=Q(duracion_ajustada_segundos__isnull=True) | Q(duracion_ajustada_segundos__gt=0), name="turno_ajuste_positivo"),
+            models.CheckConstraint(condition=Q(costo_hora_neto__isnull=True) | Q(costo_hora_neto__gte=0, costo_hora_neto__lte=Decimal("9999999999999.99")), name="turno_tarifa_finita"),
+            models.CheckConstraint(condition=(
+                Q(estado_revision="ABIERTO", terminado_en__isnull=True, duracion_segundos__isnull=True, duracion_ajustada_segundos__isnull=True, costo_hora_neto__isnull=True, descripcion_trabajo="")
+                | (Q(estado_revision__in=["PENDIENTE_REVISION", "OBSERVADO", "VALIDADO"], terminado_en__isnull=False, duracion_segundos__isnull=False, duracion_segundos__gt=0, duracion_segundos__lte=Decimal("99999999999999.999999")) & ~Q(descripcion_trabajo=""))
+            ), name="turno_estado_coherente"),
+            models.CheckConstraint(condition=(
+                Q(estado_revision__in=["ABIERTO", "PENDIENTE_REVISION"], revisado_por__isnull=True, revisado_en__isnull=True, observacion_revision="")
+                | (Q(estado_revision__in=["OBSERVADO", "VALIDADO"], revisado_por__isnull=False, revisado_en__isnull=False) & ~Q(observacion_revision=""))
+            ), name="turno_revision_auditada"),
+            models.CheckConstraint(condition=~Q(estado_revision="VALIDADO") | Q(costo_hora_neto__isnull=False), name="turno_validado_con_tarifa"),
+            models.CheckConstraint(condition=Q(descripcion_trabajo=Trim("descripcion_trabajo")) & Q(observacion_revision=Trim("observacion_revision")), name="turno_textos_trim"),
+        ]
+
+    @property
+    def costo_mano_obra(self):
+        segundos = self.duracion_ajustada_segundos or self.duracion_segundos
+        if self.modo_cierre == self.ModoCierre.SUPERVISOR:
+            segundos = self.duracion_ajustada_segundos
+        if segundos is None or self.costo_hora_neto is None:
+            return None
+        with localcontext() as ctx:
+            ctx.prec = 50
+            return (Decimal(segundos) / Decimal(3600) * self.costo_hora_neto).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+class EvidenciaTurno(_TextoValidado):
+    turno = models.ForeignKey(TurnoObra, on_delete=models.PROTECT, related_name="fotos")
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="evidencias_turnos")
+    nombre_interno = models.CharField(max_length=80, unique=True, editable=False)
+    tipo_mime = models.CharField(max_length=20)
+    tamano = models.PositiveIntegerField()
+    sha256 = models.CharField(max_length=64)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="evidencias_turnos")
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("id",)
+        constraints = [
+            models.CheckConstraint(condition=Q(tamano__gt=0, tamano__lte=5 * 1024 * 1024), name="evidencia_tamano_valido"),
+            models.CheckConstraint(condition=Q(tipo_mime__in=["image/jpeg", "image/png", "image/webp"]), name="evidencia_mime_valido"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.turno_id and self.obra_id != self.turno.obra_id:
+            raise ValidationError({"obra": "La evidencia debe pertenecer a la Obra del turno."})
+
+
+class TurnoObraEvento(_TextoValidado):
+    class Tipo(models.TextChoices):
+        INICIO = "INICIO", "Inicio"
+        CIERRE = "CIERRE", "Cierre"
+        CIERRE_ADMINISTRATIVO = "CIERRE_ADMINISTRATIVO", "Cierre administrativo"
+        OBSERVACION = "OBSERVACION", "Observación"
+        SUBSANACION = "SUBSANACION", "Subsanación"
+        VALIDACION = "VALIDACION", "Validación"
+        CORRECCION = "CORRECCION", "Corrección"
+
+    campos_texto = ("motivo",)
+    turno = models.ForeignKey(TurnoObra, on_delete=models.PROTECT, related_name="eventos")
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="eventos_turnos")
+    tipo = models.CharField(max_length=24, choices=Tipo.choices)
+    motivo = models.CharField(max_length=2000)
+    datos_anteriores = models.JSONField(default=dict, blank=True)
+    datos_nuevos = models.JSONField(default=dict)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("creado_en", "id")
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo__in=["INICIO", "CIERRE", "CIERRE_ADMINISTRATIVO", "OBSERVACION", "SUBSANACION", "VALIDACION", "CORRECCION"]), name="turno_evento_tipo_valido"),
+            models.CheckConstraint(condition=~Q(motivo="") & Q(motivo=Trim("motivo")), name="turno_evento_motivo_valido"),
+        ]
+
+    def clean(self):
+        super().clean()
+        for campo in ("datos_anteriores", "datos_nuevos"):
+            if not isinstance(getattr(self, campo), dict):
+                raise ValidationError({campo: "Debe ser un objeto JSON."})

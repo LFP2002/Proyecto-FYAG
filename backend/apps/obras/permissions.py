@@ -29,6 +29,12 @@ class PuedeOperarObras(BasePermission):
             accion = view.action_map.get("get") or view.action_map.get("post")
         if accion == "mis_obras":
             return usuario.rol == T
+        if accion in {"iniciar_turno", "finalizar_turno", "subsanar_turno"}:
+            return usuario.rol == T
+        if accion in {"revisar_turno", "corregir_turno", "cerrar_administrativamente"}:
+            return usuario.rol == S
+        if accion in {"turnos", "foto_turno"}:
+            return usuario.rol in {G, S, T}
         if accion == "participantes":
             return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
         if accion == "desasignar_participante":
