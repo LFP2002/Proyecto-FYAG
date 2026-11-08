@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PageHead } from '../components/ui';
+import { Chip, PageHead } from '../components/ui';
 import { clientPath } from '../comercial/api.js';
 import { clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Errors, Fields, useCommercial } from '../comercial/ui.jsx';
@@ -32,31 +32,40 @@ export default function Clientes() {
     ...(form?.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' ? [['pais_identificacion', 'País (ISO, dos letras)'], ['tipo_documento_extranjero', 'Tipo de documento extranjero']] : []),
     ['nombre_legal', 'Nombre legal'], ['nombre_contacto', 'Contacto'], ['correo', 'Correo'], ['telefono', 'Teléfono'],
   ];
-  return <section>
+  const detailLabels = { tipo_cliente: 'Tipo de cliente', tipo_identificacion: 'Tipo de identificación', numero_identificacion: 'Número de identificación', pais_identificacion: 'País', tipo_documento_extranjero: 'Documento extranjero', nombre_legal: 'Nombre legal', nombre_contacto: 'Contacto', correo: 'Correo', telefono: 'Teléfono' };
+  return <section className="commercial-page">
     <PageHead title="Clientes" sub="Clientes persistidos en Django.">
       <button className="btn btn-fyag-primary" disabled={disabled} onClick={() => { setSelected(null); setForm({ ...emptyClient }); api.setError(null); }}>Nuevo cliente</button>
     </PageHead>
     <Errors error={api.error} />
-    <button disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}>Reconsultar datos</button>
-    {api.locked && <p role="status">Resultado incierto o conflicto: reconsulta antes de realizar otra escritura. No se repetirá la operación.</p>}
-    {api.loading && <p role="status">Cargando clientes…</p>}
-    {!clients.length && !api.loading && !api.error && <p>No hay clientes.</p>}
-    <div className="table-responsive"><table className="table"><thead><tr><th>ID</th><th>Nombre legal</th><th>Identificación</th><th>Estado</th><th>Detalle</th></tr></thead>
-      <tbody>{clients.map((c) => <tr key={c.id}><td>{c.id}</td><td>{c.nombre_legal}</td><td>{c.numero_identificacion || 'Sin identificación'}</td><td>{c.activo ? 'Activo' : 'Inactivo'}</td><td><button disabled={disabled || !!form} onClick={() => void detail(c.id)}>Ver cliente</button></td></tr>)}</tbody></table></div>
-    {selected && <article className="card-fyag"><h2>{selected.nombre_legal} · #{selected.id}</h2>
-      <button disabled={api.busy || api.loading} onClick={() => { setSelected(null); setForm(null); }}>Volver al listado</button>
-      <dl>{Object.keys(emptyClient).map((key) => <React.Fragment key={key}><dt>{key}</dt><dd>{selected[key] || '—'}</dd></React.Fragment>)}</dl>
-      <p>{selected.activo ? 'Activo' : 'Inactivo'}</p>
-      <button disabled={disabled || !!form} onClick={() => setForm({ ...emptyClient, ...selected })}>Editar cliente</button>{' '}
-      <button disabled={disabled || !!form} onClick={() => {
+    <div className="commercial-toolbar">
+      <p className="commercial-help mb-0">Consulta y administra los datos de tus clientes.</p>
+      <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}>Reconsultar datos</button>
+    </div>
+    {api.locked && <p className="alert alert-warning" role="status">Resultado incierto o conflicto: reconsulta antes de realizar otra escritura. No se repetirá la operación.</p>}
+    {api.loading && <p className="commercial-loading" role="status">Cargando clientes…</p>}
+    <div className="card-fyag commercial-table-card">
+      <div className="table-responsive" role="region" aria-label="Listado de clientes" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">ID</th><th scope="col">Nombre legal</th><th scope="col">Identificación</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead>
+        <tbody>{clients.map((c) => <tr key={c.id}><td className="commercial-code">#{c.id}</td><td className="commercial-description"><strong>{c.nombre_legal}</strong></td><td className="commercial-description">{c.numero_identificacion || 'Sin identificación'}</td><td><Chip cls={c.activo ? 'green' : 'gray'}>{c.activo ? 'Activo' : 'Inactivo'}</Chip></td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!form} onClick={() => void detail(c.id)}>Ver cliente</button></td></tr>)}</tbody></table></div>
+      {!clients.length && !api.loading && !api.error && <div className="commercial-empty"><h2>No hay clientes.</h2><p>Crea un cliente para comenzar a preparar sus presupuestos.</p></div>}
+    </div>
+    {selected && <article className="card-fyag commercial-detail">
+      <div className="commercial-section-head"><div><h2>{selected.nombre_legal} · #{selected.id}</h2><Chip cls={selected.activo ? 'green' : 'gray'}>{selected.activo ? 'Activo' : 'Inactivo'}</Chip></div>
+        <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setForm(null); }}>Volver al listado</button>
+      </div>
+      <dl className="commercial-facts">{Object.keys(emptyClient).map((key) => <div key={key}><dt>{detailLabels[key]}</dt><dd>{selected[key] || '—'}</dd></div>)}</dl>
+      <div className="commercial-actions">
+      <button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => setForm({ ...emptyClient, ...selected })}>Editar cliente</button>
+      <button className={`btn ${selected.activo ? 'btn-outline-danger' : 'btn-outline-success'}`} disabled={disabled || !!form} onClick={() => {
         const action = selected.activo ? 'desactivar' : 'activar';
         if (window.confirm(`¿${action} cliente #${selected.id}?`)) void api.write(`${clientPath(selected.id)}${action}/`, 'POST', {}, async (data) => { await api.requiredLoad('list', clientPath(), (rows) => { setClients(rows); setSelected(data); }); });
       }}>{selected.activo ? 'Desactivar' : 'Activar'}</button>
+      </div>
     </article>}
-    {form && <form className="card-fyag" onSubmit={save}><h2>{selected ? 'Editar cliente' : 'Nuevo cliente'}</h2>
+    {form && <form className="card-fyag commercial-form" onSubmit={save}><h2>{selected ? 'Editar cliente' : 'Nuevo cliente'}</h2>
       <Fields form={form} setForm={setForm} fields={fields} disabled={api.busy} />
-      <button type="submit" disabled={disabled}>Guardar cliente</button>{' '}
-      <button type="button" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button>
+      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}>Guardar cliente</button>
+      <button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div>
     </form>}
   </section>;
 }

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AF, G, actionsFor, canRead, clientPayload, emptyClient, itemPayload, money, needsReason, validDecimal, validRut, validateClient, validateItem } from '../src/comercial/domain.js';
+import { AF, G, actionsFor, canRead, clientPayload, emptyClient, emptyItem, itemPayload, money, needsReason, validDecimal, validRut, validateClient, validateItem } from '../src/comercial/domain.js';
 import { budgetPath, clientPath, itemPath, pagePath, validatePage } from '../src/comercial/api.js';
 import { createScope } from '../src/comercial/scope.js';
 import { ApiError } from '../src/auth/client.js';
+import { isCatalogUnit, OTHER_UNIT, UNIT_GROUPS } from '../src/comercial/units.js';
 
 test('RUT módulo 11: formato común, K, DV inválido, nulo y cero', () => {
   assert.ok(validRut('12.345.678-5'));
@@ -43,6 +44,31 @@ test('ítems: payload estricto strings e int y PATCH sin campos calculados', () 
   const created = itemPayload(original);
   assert.equal(typeof created.cantidad, 'string'); assert.equal(typeof created.precio_unitario, 'string'); assert.equal(typeof created.orden, 'number'); assert.equal(created.subtotal, undefined);
   assert.ok(validateItem({ ...original, orden: '2147483648' }).orden);
+});
+test('catálogo reutilizable de unidades: nombres, abreviaturas y valores únicos de hasta 30 caracteres', () => {
+  const units = UNIT_GROUPS.flatMap((group) => group.options);
+  assert.equal(new Set(units.map(([unit]) => unit)).size, units.length);
+  for (const [unit, label] of units) {
+    assert.ok(unit.length > 0 && unit.length <= 30);
+    assert.ok(label.includes(`(${unit})`));
+    assert.ok(isCatalogUnit(unit)); assert.notEqual(unit, OTHER_UNIT);
+  }
+  for (const unit of ['u', 'kg', 'm', 'm²', 'm³', 'L', 'h', 'punto', 'servicio']) assert.ok(isCatalogUnit(unit));
+  assert.equal(isCatalogUnit('Unidad histórica'), false);
+});
+test('unidad obligatoria y máximo 30 caracteres; payload solo contiene el string recortado', () => {
+  const form = { descripcion: 'Servicio', cantidad: '1', precio_unitario: '10', orden: '1', unidad: '' };
+  for (const unidad of ['', '   ', 'x'.repeat(31)]) assert.ok(validateItem({ ...form, unidad }).unidad);
+  for (const unidad of ['kg', 'Unidad histórica', 'x'.repeat(30)]) {
+    assert.deepEqual(validateItem({ ...form, unidad }), {});
+    assert.equal(itemPayload({ ...form, unidad: ` ${unidad} ` }).unidad, unidad);
+  }
+});
+test('orden nuevo vacío: solo acepta un entero positivo explícito dentro del límite Django', () => {
+  assert.equal(emptyItem.orden, '');
+  const form = { ...emptyItem, descripcion: 'Línea', unidad: 'u', cantidad: '1', precio_unitario: '1' };
+  for (const orden of ['', '0', '-1', '1.5', '2147483648']) assert.ok(validateItem({ ...form, orden }).orden);
+  assert.equal(validateItem({ ...form, orden: '2147483647' }).orden, undefined);
 });
 test('roles G/AF/S/T, sin saltos de Gerencia ni excepción monetaria', () => {
   for (const role of ['TECNICO', 'SUPERVISOR_OBRAS']) { assert.equal(canRead(role), false); assert.deepEqual(actionsFor(role, 'BORRADOR'), []); }

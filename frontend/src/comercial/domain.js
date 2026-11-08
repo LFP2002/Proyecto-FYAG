@@ -57,6 +57,8 @@ export function itemPayload(form, original) {
 export function validateItem(form) {
   const errors = {};
   for (const k of ['descripcion', 'unidad']) if (!form[k].trim()) errors[k] = ['Campo obligatorio.'];
+  if (form.descripcion.trim().length > 2000) errors.descripcion = ['La descripción debe tener como máximo 2000 caracteres.'];
+  if (form.unidad.trim().length > 30) errors.unidad = ['La unidad debe tener como máximo 30 caracteres.'];
   if (!validDecimal(form.cantidad, 9, 3, true)) errors.cantidad = ['Usa hasta 9 enteros y 3 decimales; mínimo 0.001.'];
   if (!validDecimal(form.precio_unitario, 13, 2)) errors.precio_unitario = ['Usa hasta 13 enteros y 2 decimales, sin comas.'];
   if (!/^[1-9][0-9]*$/.test(String(form.orden)) || Number(form.orden) > 2147483647) errors.orden = ['Orden entero positivo hasta 2147483647.'];
