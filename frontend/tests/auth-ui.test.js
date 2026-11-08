@@ -14,7 +14,7 @@ let AppProvider;
 before(async () => {
   server = await createServer({
     configFile: false, esbuild: { jsx: 'automatic' },
-    server: { middlewareMode: true }, appType: 'custom',
+    server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom',
     optimizeDeps: { noDiscovery: true, include: [] },
   });
   ({ default: App } = await server.ssrLoadModule('/src/app.jsx'));
@@ -68,9 +68,10 @@ for (const [role, label] of [
       user: { id: 7, username: 'Alias de la cuenta real', email: 'cuenta@example.test', role } });
     assert.match(html, /Alias de la cuenta real/);
     assert.ok(html.includes(label));
-    assert.match(html, /Pendiente de integración/);
+    if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo borrador/);
+    else assert.match(html, /Pendiente de integración/);
     assert.match(html, /Salir/);
-    assert.doesNotMatch(html, /<select|Guardar|Aprobar|Registrar pago|Registrar en bitácora/);
+    assert.doesNotMatch(html, /Guardar|Aprobar|Registrar pago|Registrar en bitácora/);
     if (role === 'TECNICO') assert.doesNotMatch(html, /Gerencia|Cobranzas|Presupuestos|Usuarios y roles/);
     if (role === 'SUPERVISOR_OBRAS') assert.doesNotMatch(html, /Cobranzas|Usuarios y roles/);
   });

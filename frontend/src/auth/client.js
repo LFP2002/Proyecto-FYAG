@@ -5,11 +5,13 @@ export const USER_ROLES = Object.freeze([
 ]);
 
 export class ApiError extends Error {
-  constructor(status, message, retryAfter = null) {
+  constructor(status, message, retryAfter = null, { fieldErrors = {}, code = null } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.retryAfter = retryAfter;
+    this.fieldErrors = fieldErrors;
+    this.code = code;
   }
 }
 
@@ -18,6 +20,9 @@ function messageFor(status) {
     400: 'Revisa los datos ingresados.',
     401: 'Credenciales inválidas o sesión no disponible.',
     403: 'Solicitud rechazada. Verifica tus permisos o vuelve a intentarlo.',
+    404: 'El recurso ya no está disponible.',
+    405: 'Esta operación no está permitida.',
+    409: 'El recurso cambió o no permite esta acción. Vuelve a consultar antes de continuar.',
     429: 'Demasiados intentos. Espera antes de volver a intentar.',
   })[status] || 'No fue posible completar la solicitud. Inténtalo nuevamente.';
 }
@@ -71,7 +76,21 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {
       throw new ApiError(0, 'No hay conexión con el servidor. Comprueba tu conexión e inténtalo nuevamente.');
     }
     if (!response.ok) {
-      throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'));
+      let fields = {}, code = null;
+      // Solo contratos de validación comercial; nunca HTML, trazas o tokens.
+      if ([400, 409].includes(response.status) && !path.startsWith('/api/auth/')) {
+        try {
+          const data = await response.json();
+          const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+          const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
+          for (const [key, value] of Object.entries(data || {})) {
+            const values = Array.isArray(value) ? value : [value];
+            if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
+          }
+          if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code)) code = data.code;
+        } catch { /* Respuesta no pública: conservar mensaje genérico. */ }
+      }
+      throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });
     }
     if (response.status === 204) return null;
     try {
