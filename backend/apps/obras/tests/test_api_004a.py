@@ -182,7 +182,7 @@ class ObrasAPIContratoTests(ObrasAPIBase):
         self.assertEqual(historia.status_code, 200)
         self.assertEqual(historia.data["count"], 4)
 
-    def test_no_hay_finalizar_ni_cancelar_004a(self):
+    def test_finalizar_planificada_rechaza_y_cancelar_no_existe(self):
         obra = self.crear_obra(tecnico=self.usuarios[T])
         for nombre in ("finalizar", "cancelar"):
             with self.subTest(accion=nombre):
@@ -190,7 +190,7 @@ class ObrasAPIContratoTests(ObrasAPIBase):
                     f"/api/obras/{obra.pk}/{nombre}/",
                     {"motivo": "Intento"}, format="json",
                 )
-                self.assertEqual(respuesta.status_code, 404)
+                self.assertEqual(respuesta.status_code, 409 if nombre == "finalizar" else 404)
         for metodo in ("put", "delete"):
             self.assertEqual(getattr(self.client, metodo)(f"/api/obras/{obra.pk}/").status_code, 405)
 

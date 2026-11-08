@@ -1,4 +1,4 @@
-"""API 004A: no expone finalizar, cancelar ni escrituras de eventos."""
+"""API Obras 004A/B: finalización protegida, sin cancelación ni eventos editables."""
 
 from datetime import date
 import re
@@ -12,12 +12,13 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 
 from apps.comercial.models import Presupuesto
 from apps.usuarios.models import Usuario
 
-from . import services
+from . import services, services_finalizacion
 from .exceptions import (
     DatosInvalidos, ErrorObras, EstadoIncompatible, PermisoDenegado,
     PresupuestoUtilizado, RecursoNoEncontrado, SinCambios,
@@ -147,6 +148,7 @@ class ObraViewSet(
             "iniciar": MotivoObligatorioSerializer,
             "suspender": MotivoObligatorioSerializer,
             "reanudar": MotivoObligatorioSerializer,
+            "finalizar": MotivoObligatorioSerializer,
             "historial": ObraEventoSerializer,
             "presupuestos_disponibles": PresupuestoDisponibleSerializer,
             "tecnicos_disponibles": TecnicoDisponibleSerializer,
@@ -179,6 +181,12 @@ class ObraViewSet(
         serializer = self.get_serializer(data=self.request.data)
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
+
+    @action(detail=True, methods=["post"], parser_classes=[JSONParser])
+    def finalizar(self, request, pk=None):
+        obra = self.get_object()
+        actual = services_finalizacion.finalizar_obra(obra, self._datos(), request.user)
+        return self._detalle(actual)
 
     def _paginado(self, queryset, serializer_class):
         pagina = self.paginate_queryset(queryset)

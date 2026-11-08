@@ -16,7 +16,7 @@ class PuedeOperarObras(BasePermission):
 
     acciones_supervisor = frozenset({
         "create", "partial_update", "cambiar_tecnico", "iniciar", "suspender",
-        "reanudar", "presupuestos_disponibles", "tecnicos_disponibles",
+            "reanudar", "finalizar", "presupuestos_disponibles", "tecnicos_disponibles",
     })
 
     def has_permission(self, request, view):
