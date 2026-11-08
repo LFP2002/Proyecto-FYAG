@@ -2,12 +2,12 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: implementación parcial. 004B-1 (técnicos participantes) integrado en `main` mediante PR #9 y 004B-2 (turnos, evidencias y cierre administrativo B9) integrado mediante PR #10, ambos con Backend CI aprobado. 004B-3 (materiales y gastos), 004B-4 (completitud/cortesía) y 004B-5 (finalización) permanecen pendientes.** Las decisiones de negocio B1–B9 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
+**Estado: implementación parcial. 004B-1 (participantes), 004B-2 (turnos/evidencias/cierre administrativo B9) y 004B-3 (materiales/gastos/devoluciones) integrados en `main` mediante PR #9, #10 y #11 respectivamente, con Backend CI aprobado. 004B-4 (completitud y cortesía) es el siguiente bloque; 004B-5 (finalización) permanece pendiente.** Las decisiones de negocio B1–B9 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
 
 - Proyecto: **FYAG — Sistema de Gestión de Obras y Presupuestos**.
 - Documentos base: `specs/004-gestion-obras.md` (SPEC-004, especialmente D1–D9) y `specs/003b-gestion-presupuestos.md` (SPEC-003B).
 - Base tecnológica: Django REST Framework, PostgreSQL, JWT, `Usuario.Rol`, React como cliente.
-- Estado del repositorio: **004A integrado mediante PR #8**, **004B-1 mediante PR #9** y **004B-2 mediante PR #10**, con Backend CI aprobado. Se mantienen las reglas de 004A, ampliadas por participantes, turnos y cierre administrativo B9.
+- Estado del repositorio: **004A integrado mediante PR #8** y **004B-1, 004B-2 y 004B-3 integrados mediante PR #9, #10 y #11**, con Backend CI aprobado. Están disponibles `ObraParticipante`, `TurnoObra` y `GastoObra`; 004B-4 no debe reimplementar estos registros.
 - Objetivo: registrar **lo que realmente costó ejecutar cada Obra**, incorporar técnicos participantes y turnos individuales con evidencia, validar la completitud y habilitar la transición **`EN_PROCESO → FINALIZADA`**.
 
 **Reglas heredadas que se conservan:** una Obra por Presupuesto; presupuesto de origen inmutable y aprobado por cliente; técnico principal activo obligatorio al iniciar; bloqueo de anulación comercial cuando existe una Obra; finalización operativa distinta de facturación y pago; trazabilidad; permisos por rol sin bypass por superusuario; y prohibición de finalizar sin costos reales registrados y validados.
@@ -161,7 +161,7 @@ Para evitar una interfaz dispersa, **materiales y otros gastos se cargan en el m
 Auditoría append-only separada por sensibilidad de datos:
 
 - **`TurnoObraEvento`**: `INICIO`, `CIERRE`, `OBSERVACION`, `SUBSANACION`, `VALIDACION`, `CORRECCION` y, cuando corresponda, `ADJUNTO`; turno/obra, actor, fecha, motivo y snapshots pertinentes. Incluye timestamps reales y cambios de duración, **pero no se expone al técnico información monetaria**.
-- **`CostoObraEvento`**: alta, corrección, devolución, baja lógica, cambio de declaración, validación y decisión de cortesía; Obra, tipo de recurso, ID, actor, momento, motivo, datos anteriores/nuevos. Puede incluir importes; **solo G/S** pueden acceder a detalles económicos.
+- **`CostoObraEvento`**: alta, corrección, devolución, baja lógica, cambio de declaración, validación y decisión de cortesía; Obra, tipo de recurso, ID, actor, momento, motivo, datos anteriores/nuevos. Puede incluir importes; **solo G/S** pueden acceder a detalles económicos. **Compatibilidad con 004B-3:** actualmente `CostoObraEvento.gasto` es FK obligatoria. En 004B-4 debe permitirse `null` exclusivamente para eventos de CONTROL/VALIDACION/CORTESIA sin gasto individual, manteniendo obligatorio el gasto para ALTA/CORRECCION/DEVOLUCION/ANULACION; reforzar esta correspondencia con constraints y pruebas de migración. No sobrescribir ni migrar artificialmente el historial anterior.
 
 En ambos casos, sin POST/PATCH/DELETE directo de eventos. Toda mutación y su evento se confirman en una transacción. El histórico no desaparece al cambiar responsable, desasignar participante, registrar devolución o corregir un turno.
 
@@ -177,6 +177,8 @@ En ambos casos, sin POST/PATCH/DELETE directo de eventos. Toda mutación y su ev
 | `version_validada` | Versión validada, nullable. |
 | `validado_por`, `validado_en` | Supervisor y timestamp al validar sin errores. |
 | `actualizado_en` | Timestamp. |
+
+**Regla de incorporación 004B-4:** los gastos y turnos creados antes de esta migración siguen siendo válidos; no se crean horas, gastos, revisiones ni versiones retrospectivas ficticias. La creación inicial del control, cuando sea necesaria, comienza con `version_actual=0` y declaraciones `PENDIENTE`; toda modificación posterior real incrementa la versión desde ese punto. El control y sus números son siempre derivados/gestionados por el backend, no de valores enviados por React.
 
 **Mano de obra no se declara automáticamente `NO_APLICA`:** la regla de este incremento exige al menos **un turno real cerrado y validado**. Todo turno iniciado debe cerrarse y revisarse, o documentar una rectificación excepcional que no falsee el registro original.
 
@@ -289,7 +291,7 @@ G = Gerencia; AF = Administrativo/Finanzas; S = Supervisor de Obras; T = Técnic
 
 ## 8. Contrato HTTP propuesto
 
-Los endpoints de participantes (004B-1) y turnos/evidencias (004B-2) están integrados en `main`. Los de materiales y gastos corresponden a 004B-3; el control global de costos, cortesías y finalización siguen fuera de este incremento. Todos requieren JWT; no PUT ni DELETE físico; IDs enteros estrictos; paginación fija 25 con orden determinista. URL de Obra siempre determina el ámbito del recurso hijo.
+Los endpoints de participantes (004B-1), turnos/evidencias (004B-2) y materiales/gastos (004B-3) están integrados en `main`. El control global de costos y las cortesías pertenecen a 004B-4; la transición `finalizar` y el snapshot de cierre permanecen fuera de este incremento. Todos requieren JWT; no PUT ni DELETE físico; IDs enteros estrictos; paginación fija 25 con orden determinista. URL de Obra siempre determina el ámbito del recurso hijo.
 
 | Método / ruta | Actor | Función |
 | --- | --- | --- |
@@ -439,6 +441,51 @@ Este bloque implementa únicamente los movimientos económicos **de materiales y
 
 Los valores y fechas de ejemplo de §8.2 son ilustrativos, no datos de producción ni justifican omitir ninguna regla anterior.
 
+
+### 8.5 Contrato incremental de completitud y cortesía (004B-4)
+
+**Naturaleza de esta entrega:** 004B-4 incorpora control de rubros, revisión de completitud, versión de costos, resúmenes y constancia de cortesía. **No** habilita la transición de Obra a `FINALIZADA`, `CierreCostosObra`, cancelaciones, facturación ni un importe de cobro final. Los contratos de §§3.6–3.8, 4, 5, 7 y 9 tienen prioridad; los ejemplos de aquí son formatos de solicitud, no nuevos permisos.
+
+**A. Control y versiones.** Crear `ControlCostosObra` con relación OneToOne a Obra, estados y justificaciones de los dos rubros, `version_actual` no negativa, `version_validada` nullable, `validado_por`/`validado_en` nullable y timestamp. Declaraciones iniciales `PENDIENTE`; mano de obra no admite `NO_APLICA`. En `NO_APLICA`, registrar justificación, autor y fecha (en el control o evento de auditoría de forma recuperable). `CON_REGISTROS` requiere al menos un `GastoObra` **vigente** del rubro correspondiente; `NO_APLICA` requiere no tener gastos vigentes de ese rubro y justificación explícita. Un material completamente devuelto pero vigente sigue siendo un registro de MATERIAL (subtotal cero), no desaparece del historial. Si cambia el conjunto de gastos y la declaración previa deja de corresponder a los registros, volver ese rubro a `PENDIENTE`, dejando evento. No inferir `NO_APLICA` ni `CON_REGISTROS` automáticamente cuando aún no hubo revisión del Supervisor.
+
+**Invalidación atómica y monotónica:** un alta/corrección/devolución/anulación de gastos, inicio/cierre/subsanación/revisión/corrección de turnos, adjunto probatorio, cambio de participantes con efecto en la acreditación, modificación de declaración y alta/rectificación de cortesía **efectivos** incrementan `version_actual` exactamente una vez por operación de dominio e invalidan `version_validada`, `validado_por` y `validado_en` en la misma transacción. Los no-op y las lecturas no incrementan. Cualquier operación relevante posterior a una validación obliga a revisar nuevamente; la validación no debe persistir como vigente si cambian datos persistidos. Reutilizar los servicios existentes, sin abrir transacciones durables anidadas incompatibles con el manejo de archivos privados de 004B-2. El orden es Presupuesto → Obra → recursos hijos/control; la fila Obra bloqueada serializa mutaciones y validación.
+
+**B. Declarar o revisar rubros.** `GET /api/obras/{id}/costos/control/` lo consultan Gerencia y Supervisor. `PATCH` solo Supervisor en `EN_PROCESO` o `SUSPENDIDA`. Acepta exclusivamente `materiales_estado`, `materiales_justificacion`, `otros_estado`, `otros_justificacion` y `motivo` obligatorio para cualquier cambio efectivo; permite actualizar un rubro o ambos. Las elecciones de estado son `CON_REGISTROS` o `NO_APLICA` (volver a `PENDIENTE` solo mediante invalidación automática del backend). `NO_APLICA` exige justificación real no vacía; `CON_REGISTROS` exige registro vigente y elimina justificación obsoleta. No-op normalizado devuelve 200, sin evento, versión ni cambio de `actualizado_en`. Cambios efectivos crean evento `DECLARACION` con snapshots del control y actor.
+
+Ejemplo:
+
+```json
+{
+  "materiales_estado": "NO_APLICA",
+  "materiales_justificacion": "No se utilizaron ni consumieron repuestos",
+  "motivo": "Revisión del rubro de materiales"
+}
+```
+
+**C. Validación de completitud.** `POST /api/obras/{id}/costos/validar/` acepta solo `{"motivo":"Costos y evidencia revisados"}`; requiere Supervisor y Obra en `EN_PROCESO` o `SUSPENDIDA`. El servicio comprueba desde la BD y bajo lock **todos** los requisitos de §5: responsable elegible, turnos cerrados y validados (ninguno abierto/pendiente/observado), por lo menos un turno valorado, ausencia de tiempo administrativo no verificado, rubros declarados coherentemente, gastos vigentes válidos, importe real consolidado positivo y ninguna inconsistencia pendiente. Nunca acepta `costos_completos`, importes, flags, actor, fechas ni versiones desde el request. Si existe un bloqueo, responder conflicto 409 estructurado y no dejar una versión validada; distinguir los requisitos pendientes sin exponer montos a roles no autorizados. En éxito, establecer `version_validada=version_actual`, `validado_por`, `validado_en` y un evento `VALIDACION` con actor y motivo. Si ya existe una validación vigente idéntica, responder 409 `sin_cambios` sin nuevo evento ni fecha. La verificación de costos no cambia el estado de la Obra.
+
+**D. Resumen calculado.** `GET /api/obras/{id}/costos/resumen/`: para Gerencia/Supervisor, responder identificador de Obra, tres totales netos CLP (`materiales_total`, `otros_total`, `mano_obra_total`), `costo_total`, declaraciones de rubro, versión actual/validada, `costos_validados` derivado y constancia de `cortesia_sin_cobro` (justificación visible solo G/S). Sumar solo `GastoObra.vigente=True`, subtotales por fila ya redondeados, y turnos cerrados `VALIDADO` con costo horario informado y segundos imputables verificables. No incluir turnos pendientes/observados como costo certificado; la presencia de turnos sin validar bloquea completitud aunque los totales parciales puedan mostrarse como **provisionales**. No persistir agregados editables ni reutilizar importes enviados por la app.
+
+Para `ADMINISTRATIVO_FINANZAS`, responder **solo** `obra`, `materiales_total`, `otros_total`, `mano_obra_total`, `costo_total`, `costos_validados` y `cortesia_sin_cobro`, sin turnos individuales, tarifas, motivos, identificación de técnicos, autor de validación, versiones internas ni datos personales. Todos los importes de respuesta son strings con dos decimales. `TECNICO` recibe 403; no agregar costos a las fichas operativas 004A/004B-1.
+
+**E. Cortesía excepcional.** `POST /api/obras/{id}/cortesia-sin-cobro/` solo Supervisor en Obra `EN_PROCESO` o `SUSPENDIDA`; acepta exclusivamente `justificacion` obligatoria, y para rectificar una autorización previa exige además `motivo` distinto y no vacío. Crear `CortesiaObra` OneToOne con `tipo=SIN_COBRO`, justificación, autor, fecha y trazabilidad de cada rectificación; duplicar sin cambios responde 409 sin evento ni incremento de versión. La constancia se registra aunque los costos estén todavía incompletos, pero **no** los valida ni autoriza una facturación real a $0. No modifica Presupuesto (aprobación, importe, ítems, estado), `GastoObra`, tarifas, turnos ni la fórmula de costo. Generar evento `CORTESIA` con snapshots, actor y motivo, invalidando cualquier validación vigente de costos. No se ofrece DELETE, revocación de la cortesía ni efecto contable en 004B-4; su eventual reversión requerirá contrato explícito posterior, no un cambio silencioso.
+
+Ejemplo:
+
+```json
+{
+  "justificacion": "Atención menor otorgada excepcionalmente sin cobro al cliente"
+}
+```
+
+**F. Extender `CostoObraEvento` sin perder histórico.** 004B-3 ya registra `ALTA`, `CORRECCION`, `DEVOLUCION` y `ANULACION` con FK obligatoria `gasto`. 004B-4 añade `DECLARACION`, `VALIDACION` y `CORTESIA`: para estos eventos no existe gasto individual y `gasto` será `null`, mientras que para los cuatro tipos anteriores continuará siendo obligatorio. Garantizarlo por modelo y CHECK PostgreSQL, sin reescribir la migración `0009` ni las filas anteriores. `obra` continúa obligatoria; en nuevos eventos, asociar la entidad control/cortesía de forma trazable mediante campos o estructura validada, sin inventar `gasto_id`. Historial económico completo sigue siendo solo G/S; los eventos son append-only, sin PUT/PATCH/DELETE, y no deben contener secretos.
+
+**G. Migraciones y datos anteriores.** Crear migración(es) posteriores a `obras.0009_gastos_costos`. No modificar `0001`–`0009` ni crear registros de gastos, turnos, cortesías o validaciones ficticios. La primera apertura/operación puede crear el control con `PENDIENTE` y versión cero incluso si hay datos reales previos; la lectura de resúmenes debe usar dichos datos y no inferir que no existen. En concurrencia, la unicidad OneToOne y el lock de Obra impiden dos controles para la misma obra. Preservar el histórico de gastos y la restricción comercial que impide anular presupuestos usados.
+
+**H. Pruebas de aceptación 004B-4.** Probar permisos de los cuatro roles y superusuario, contratos estrictos, rubros `NO_APLICA`/`CON_REGISTROS` y sus justificaciones, gasto vigente/totalmente devuelto/anulado, cálculo CLP exacto con Decimal, turnos ordinarios y cierre administrativo verificado, versiones y eventos por mutación real, no-op, invalidación después de **cada** tipo de cambio, validación con turnos abiertos/observados/sin tarifa, costo total cero, cortesía con costo positivo y cortesía sin costos todavía, doble validación, carreras gasto/turno/cortesía vs validar, migración limpia y con gastos/turnos anteriores, y regresión de Obras/Comercial. La CI debe pasar antes del merge.
+
+**Límite absoluto de 004B-4:** no registrar rutas `finalizar`/`cancelar`, no tocar `finalizado_en` ni crear `CierreCostosObra`; eso corresponde a 004B-5. Las validaciones generadas en este bloque son una condición futura necesaria pero nunca suficiente para inventar una transición terminal.
+
 ## 9. Concurrencia y orden de bloqueos
 
 Extender el orden 004A sin invertir los bloqueos ya utilizados:
@@ -467,7 +514,7 @@ Toda escritura y su evento son atómicos. Bloquear Obra antes de decidir complet
 - `TurnoObraEvento`: ampliar en migración posterior a `obras.0007` la lista permitida para `CIERRE_ADMINISTRATIVO`, sin editar migraciones anteriores ni conceder acceso de escritura directa a los eventos.
 - `EvidenciaTurno`: FK, metadatos validados por aplicación; archivo privado y control de acceso. Las DB CHECK no validan contenido binario ni veracidad de imágenes; comprobar además el máximo de 12 MP antes de decodificar.
 - `GastoObra`: tipo permitido, cantidad finita >0, costo unitario finito >=0, `0 <= cantidad_devuelta <= cantidad`, y si tipo !=MATERIAL entonces `cantidad_devuelta=0`; IDs/fechas/actor válidos.
-- `ControlCostosObra` y `CierreCostosObra`: unicidad por Obra; versiones no negativas, snapshot costo total igual suma de componentes (misma fila); consistencia con tablas hijas validada por servicio bajo lock.
+- `ControlCostosObra` y `CierreCostosObra`: unicidad por Obra; versiones no negativas y validación nullable/coherente; snapshot costo total igual suma de componentes (misma fila); consistencia con tablas hijas validada por servicio bajo lock. `ControlCostosObra` se implementa en 004B-4; `CierreCostosObra` solo en 004B-5.
 - `CortesiaObra`: única por Obra, autor y motivo obligatorio/normalizado; **nunca modificar estado ni neto del Presupuesto**.
 - La `CheckConstraint` de `ObraEvento` acepta `EN_PROCESO → FINALIZADA` solo con motivo; no habilitar `CANCELADA`, reapertura, ni saltos de estado. `finalizado_en` se administra por servidor.
 - No fabricar turnos/materiales históricos, horas o costos para que una Obra antigua «parezca completa». Las obras existentes requieren datos reales antes de finalizar.
@@ -475,7 +522,7 @@ Toda escritura y su evento son atómicos. Bloquear Obra antes de decidir complet
 
 ## 11. Pruebas y criterios de aceptación
 
-**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Referencia integrada de 004B-2: **390 pruebas locales reportadas** y Backend CI aprobado en el PR #10. Para 004B-3 las nuevas pruebas se añaden sobre esa base sin alterar la regresión anterior.
+**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Referencia integrada de 004B-3: **413 pruebas locales reportadas** y Backend CI aprobado en el PR #11. Para 004B-4 las nuevas pruebas se añaden sobre esa base sin alterar la regresión anterior.
 
 1. **Compatibilidad:** 004A sin regresiones; Presupuesto usado no anulable; una Obra por Presupuesto; no autorización comercial extraordinaria; migraciones previas intactas.
 2. **Participantes:** principal queda asociado, varios técnicos por obra, duplicados rechazados, asignación/desasignación/reactivación auditable, miembro inactivo sin acceso nuevo, antiguo principal con turnos históricos intactos, no remover con turno abierto.
@@ -509,8 +556,8 @@ No declarar 004B implementada hasta que modelos, API, control de turnos, evidenc
 
 1. **004B-1 — Modelos y participantes (INTEGRADO):** `ObraParticipante`, eventos de membresía, migración/backfill del principal histórico, sincronización del principal, API de asignación/desasignación, permisos de T, pruebas relacionales y acceso por membresía. PR #9 fusionado en `main`; 347 pruebas locales reportadas y Backend CI aprobado.
 2. **004B-2 — Turnos/evidencia (INTEGRADO):** inicio/cierre por Obra, timestamps servidor, descripción obligatoria, fotos privadas opcionales con límite de 12 MP, revisión del Supervisor con costo horario manual, subsanaciones y correcciones auditadas, guardias de turno abierto y cierre administrativo unilateral B9. PR #10 fusionado en `main`; 390 pruebas locales reportadas y Backend CI aprobado.
-3. **004B-3 — Materiales y gastos (SIGUIENTE):** un recurso `GastoObra` clasificado, valorización manual en CLP netos, devoluciones de materiales, correcciones y baja lógica motivadas, historial económico y endpoints estrictos G/S. Sin control global de completitud ni finalización.
-4. **004B-4 — Completitud/cortesía:** control de rubros, versionado de validación, decisión excepcional sin cobro sin manipular costos ni Presupuesto.
+3. **004B-3 — Materiales y gastos (INTEGRADO):** `GastoObra`, `CostoObraEvento`, devoluciones, correcciones y anulaciones lógicas, migración `obras.0009`, permisos G/S y pruebas concurrentes. PR #11 integrado en `main`, Backend CI aprobado; 413 pruebas locales reportadas. Sin control global de completitud ni finalización.
+4. **004B-4 — Completitud/cortesía (SIGUIENTE):** `ControlCostosObra`, versiones/invalidación, revisión de rubros, validación de costos, resumen por rol, decisión excepcional sin cobro e historial auditable. Sin `finalizar`.
 5. **004B-5 — Finalización:** guard, snapshot, migración de evento terminal, regresión completa, Backend CI, PR. No habilitar finalización prematuramente.
 
 Cada entrega debe contener código y tests coherentes; no activar endpoints terminales antes de que **todo** el guard de costos esté desarrollado.
@@ -530,7 +577,7 @@ Estos puntos **no reabren B1–B9**; se resuelven mediante pruebas e implementac
 
 1. [SPEC-004, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/004-gestion-obras.md): D1–D9, máquina de estados y guard comercial. **004B extiende técnicos participantes/horas y habilita solamente FINALIZADA**.
 2. [SPEC-003B, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/003b-gestion-presupuestos.md): precio comercial aprobado, inmutabilidad y bloqueo de anulación; **un gasto interno no cambia el precio del Presupuesto**.
-3. [Backend de Obras integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): 004A, 004B-1 y 004B-2 integrados; migraciones `obras.0001`–`0008` vigentes, modelo `Obra.tecnico_responsable`, participantes, turnos, evidencias y cierre administrativo B9. **No modificar migraciones históricas**.
+3. [Backend de Obras integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): 004A, 004B-1, 004B-2 y 004B-3 integrados; migraciones `obras.0001`–`0009` vigentes, con participantes, turnos, evidencias, cierre administrativo B9, materiales y gastos. **No modificar migraciones históricas**.
 4. Decisiones B1–B9: respuestas expresas del responsable del proyecto en esta conversación (7-11-2026); se presentan como decisiones del equipo académico, no como términos acordados externamente con FYAG. B9 introduce cierre administrativo del Supervisor para un turno que el técnico no puede cerrar.
 
 **Precedencia de implementación:** preservar integridad de 004A; modificar sus servicios/permisos únicamente donde B4–B6 y B9 lo requieren y con nuevas pruebas. Si una decisión futura amplía el cobro/contabilidad, crear una SPEC financiera; no convertir una cortesía en costo empresa cero ni en anulación retroactiva de presupuesto.
