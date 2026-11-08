@@ -15,7 +15,7 @@ from apps.usuarios.models import Usuario
 from . import services as base
 from .exceptions import CostosIncompletos, DatosInvalidos, EstadoIncompatible, PermisoDenegado, SinCambios
 from .evidencias import MAX_BYTES, ruta_privada
-from .models import ControlCostosObra, CortesiaObra, CostoObraEvento, GastoObra, Obra, ObraParticipante, TurnoObra
+from .models import CierreCostosObra, ControlCostosObra, CortesiaObra, CostoObraEvento, GastoObra, Obra, ObraParticipante, TurnoObra
 
 
 RUBROS = ("materiales", "otros")
@@ -365,7 +365,10 @@ def resumen_costos(referencia, usuario):
     gastos = list(GastoObra.objects.filter(obra=obra, vigente=True))
     turnos = list(TurnoObra.objects.filter(obra=obra))
     cortesia = CortesiaObra.objects.filter(obra=obra).first()
-    datos = {"obra": obra.pk, **{k: format(v, ".2f") for k, v in _totales(gastos, turnos).items()},
+    cierre = CierreCostosObra.objects.filter(obra=obra).first() if obra.estado == Obra.Estado.FINALIZADA else None
+    totales = ({campo: getattr(cierre, campo) for campo in ("materiales_total", "otros_total", "mano_obra_total", "costo_total")}
+               if cierre else _totales(gastos, turnos))
+    datos = {"obra": obra.pk, **{k: format(v, ".2f") for k, v in totales.items()},
              "costos_validados": control.costos_validados, "cortesia_sin_cobro": cortesia is not None}
     if actor.rol != Usuario.Rol.ADMINISTRATIVO_FINANZAS:
         datos.update({k: v for k, v in snapshot(control).items() if k not in {"id", "creado_en", "actualizado_en"}})

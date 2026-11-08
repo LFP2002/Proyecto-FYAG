@@ -210,6 +210,7 @@ class ObraEvento(_TextoValidado):
                             Q(estado_anterior="PLANIFICADA", estado_nuevo="EN_PROCESO")
                             | Q(estado_anterior="EN_PROCESO", estado_nuevo="SUSPENDIDA")
                             | Q(estado_anterior="SUSPENDIDA", estado_nuevo="EN_PROCESO")
+                            | Q(estado_anterior="EN_PROCESO", estado_nuevo="FINALIZADA")
                         )
                     )
                     | (
@@ -679,3 +680,51 @@ class CortesiaObra(_TextoValidado):
             models.CheckConstraint(condition=Q(tipo="SIN_COBRO"), name="cortesia_tipo_valido"),
             models.CheckConstraint(condition=~Q(justificacion="") & Q(justificacion=Trim("justificacion")), name="cortesia_justificacion_valida"),
         ]
+
+
+class _CierreInmutableQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("La fotografía de cierre es inmutable.")
+
+    def delete(self):
+        raise ValidationError("La fotografía de cierre no se puede eliminar.")
+
+
+class CierreCostosObra(_TextoValidado):
+    """Fotografía económica de servidor; sin API ni registro editable en Admin."""
+
+    # 36 enteros: margen para sumar productos y tarifas de múltiples registros.
+    LIMITE_IMPORTE = Decimal("999999999999999999999999999999999999.99")
+    obra = models.OneToOneField(Obra, on_delete=models.PROTECT, related_name="cierre_costos")
+    materiales_total = models.DecimalField(max_digits=38, decimal_places=2, editable=False)
+    otros_total = models.DecimalField(max_digits=38, decimal_places=2, editable=False)
+    mano_obra_total = models.DecimalField(max_digits=38, decimal_places=2, editable=False)
+    costo_total = models.DecimalField(max_digits=38, decimal_places=2, editable=False)
+    version_validada = models.PositiveBigIntegerField(editable=False)
+    validado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cierres_costos_validados", editable=False)
+    finalizado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cierres_obras_finalizados", editable=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    objects = _CierreInmutableQuerySet.as_manager()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(
+                materiales_total__gte=0, materiales_total__lte=Decimal("999999999999999999999999999999999999.99"),
+                otros_total__gte=0, otros_total__lte=Decimal("999999999999999999999999999999999999.99"),
+                mano_obra_total__gte=0, mano_obra_total__lte=Decimal("999999999999999999999999999999999999.99"),
+                costo_total__gte=0, costo_total__lte=Decimal("999999999999999999999999999999999999.99"),
+            ), name="cierre_importes_finitos"),
+            models.CheckConstraint(condition=Q(
+                costo_total=F("materiales_total") + F("otros_total") + F("mano_obra_total"),
+            ), name="cierre_total_suma_rubros"),
+            models.CheckConstraint(condition=Q(version_validada__gte=0), name="cierre_version_no_negativa"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("La fotografía de cierre es inmutable.")
+        kwargs["force_insert"] = True  # Nunca usar save() para sobrescribir una PK.
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("La fotografía de cierre no se puede eliminar.")

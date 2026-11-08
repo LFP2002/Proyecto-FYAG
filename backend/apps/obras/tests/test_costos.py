@@ -520,14 +520,14 @@ class ResumenCortesiaTests(CostosBase, TestCase):
             for campo in ("costo_hora_neto", "costo_total", "version_actual", "cortesia_sin_cobro", "control_costos"):
                 self.assertNotIn(campo, texto)
 
-    def test_http_autenticacion_recursos_metodos_y_sin_finalizacion(self):
+    def test_http_autenticacion_recursos_metodos_y_finalizacion_estricta(self):
         for ruta in (self.control_url, self.resumen_url):
             self.assertEqual(self.client.delete(ruta).status_code, 405)
             self.assertEqual(self.client.put(ruta, {}, format="json").status_code, 405)
             self.assertEqual(self.client.get(ruta + "?rol=GERENCIA").status_code, 400)
         self.assertEqual(self.client.get("/api/obras/999999/costos/control/").status_code, 404)
         for accion in ("finalizar", "cancelar"):
-            self.assertEqual(self.client.post(f"/api/obras/{self.obra.pk}/{accion}/", {}, format="json").status_code, 404)
+            self.assertEqual(self.client.post(f"/api/obras/{self.obra.pk}/{accion}/", {}, format="json").status_code, 400 if accion == "finalizar" else 404)
         self.client.credentials()
         for ruta in (self.control_url, self.resumen_url):
             self.assertEqual(self.client.get(ruta).status_code, 401)
