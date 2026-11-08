@@ -26,6 +26,11 @@ from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteE
 from .permissions import PuedeOperarCategorias, PuedeOperarObras
 from .views_turnos import TurnosMixin
 from .views_gastos import GastosMixin
+from .views_costos import CostosMixin
+from .serializers_costos import (
+    ControlCostosSerializer, CortesiaEntradaSerializer, DeclaracionCostosSerializer,
+    ResumenCostosSerializer, ResumenFinanzasSerializer,
+)
 from .serializers_turnos import (
     InicioTurnoSerializer, EvidenciaEntradaSerializer, SubsanarTurnoSerializer,
     RevisarTurnoSerializer, CorregirTurnoSerializer, CierreAdministrativoSerializer,
@@ -50,7 +55,10 @@ class ConflictoObras(APIException):
     status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, error):
-        super().__init__({"detail": str(error), "code": error.codigo})
+        datos = {"detail": str(error), "code": error.codigo}
+        if hasattr(error, "pendientes"):
+            datos["pendientes"] = error.pendientes
+        super().__init__(datos)
 
 
 def traducir_error_obras(error):
@@ -99,7 +107,7 @@ def _validar_query_params(params, permitidos):
 
 
 class ObraViewSet(
-    TurnosMixin, GastosMixin, mixins.ListModelMixin,
+    TurnosMixin, GastosMixin, CostosMixin, mixins.ListModelMixin,
     mixins.RetrieveModelMixin, viewsets.GenericViewSet,
 ):
     permission_classes = [IsAuthenticated, PuedeOperarObras]
@@ -131,6 +139,8 @@ class ObraViewSet(
             "devolver_gasto": DevolucionSerializer,
             "anular_gasto": MotivoObligatorioSerializer,
             "historial_costos": CostoObraEventoSerializer,
+            "validar_costos": MotivoObligatorioSerializer,
+            "cortesia_sin_cobro": CortesiaEntradaSerializer,
             "create": ObraCrearSerializer,
             "partial_update": ObraEditarSerializer,
             "cambiar_tecnico": CambioTecnicoSerializer,
@@ -142,6 +152,10 @@ class ObraViewSet(
             "tecnicos_disponibles": TecnicoDisponibleSerializer,
         }
         accion = getattr(self, "action", None)
+        if accion == "control_costos":
+            return DeclaracionCostosSerializer if self.request.method == "PATCH" else ControlCostosSerializer
+        if accion == "resumen_costos":
+            return ResumenFinanzasSerializer if self.request.user.rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS else ResumenCostosSerializer
         if accion in {"turnos", "foto_turno"}:
             return self._turno_serializer()
         if accion == "gastos":

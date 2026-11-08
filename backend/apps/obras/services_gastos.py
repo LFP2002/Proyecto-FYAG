@@ -127,6 +127,9 @@ def _snapshot(gasto, **extras):
 
 
 def _evento(gasto, tipo, actor, motivo, anteriores, **extras):
+    from .services_costos import invalidar
+    control = invalidar(gasto.obra, actor, motivo, gastos=True)
+    extras["version_costos"] = control.version_actual
     return CostoObraEvento.objects.create(
         obra=gasto.obra, gasto=gasto, tipo=tipo, registrado_por=actor,
         motivo=motivo, datos_anteriores=anteriores,

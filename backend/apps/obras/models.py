@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Lower, Trim
+from django.utils import timezone
 
 from apps.comercial.calculos import CANTIDAD_MAXIMA, CENTAVO, PRECIO_MAXIMO
 
@@ -574,10 +575,15 @@ class CostoObraEvento(_TextoValidado):
         CORRECCION = "CORRECCION", "Corrección"
         DEVOLUCION = "DEVOLUCION", "Devolución"
         ANULACION = "ANULACION", "Anulación"
+        DECLARACION = "DECLARACION", "Declaración"
+        VALIDACION = "VALIDACION", "Validación"
+        CORTESIA = "CORTESIA", "Cortesía"
 
     campos_texto = ("motivo",)
     obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="eventos_costos")
-    gasto = models.ForeignKey(GastoObra, on_delete=models.PROTECT, related_name="eventos")
+    gasto = models.ForeignKey(GastoObra, on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
+    control = models.ForeignKey("ControlCostosObra", on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
+    cortesia = models.ForeignKey("CortesiaObra", on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=Tipo.choices)
     registrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
@@ -593,7 +599,13 @@ class CostoObraEvento(_TextoValidado):
         constraints = [
             models.CheckConstraint(condition=Q(tipo__in=[
                 "ALTA", "CORRECCION", "DEVOLUCION", "ANULACION",
+                "DECLARACION", "VALIDACION", "CORTESIA",
             ]), name="costo_evento_tipo_valido"),
+            models.CheckConstraint(condition=(
+                Q(tipo__in=["ALTA", "CORRECCION", "DEVOLUCION", "ANULACION"], gasto__isnull=False, control__isnull=True, cortesia__isnull=True)
+                | Q(tipo__in=["DECLARACION", "VALIDACION"], gasto__isnull=True, control__isnull=False, cortesia__isnull=True)
+                | Q(tipo="CORTESIA", gasto__isnull=True, control__isnull=True, cortesia__isnull=False)
+            ), name="costo_evento_recurso_coherente"),
             models.CheckConstraint(
                 condition=~Q(motivo="") & Q(motivo=Trim("motivo")),
                 name="costo_evento_motivo_valido",
@@ -605,3 +617,65 @@ class CostoObraEvento(_TextoValidado):
         for campo in ("datos_anteriores", "datos_nuevos"):
             if not isinstance(getattr(self, campo), dict):
                 raise ValidationError({campo: "Debe ser un objeto JSON."})
+        for campo in ("gasto", "control", "cortesia"):
+            if getattr(self, f"{campo}_id") and getattr(self, campo).obra_id != self.obra_id:
+                raise ValidationError({campo: "El recurso debe pertenecer a la misma Obra."})
+
+
+class ControlCostosObra(_TextoValidado):
+    class Estado(models.TextChoices):
+        PENDIENTE = "PENDIENTE", "Pendiente"
+        CON_REGISTROS = "CON_REGISTROS", "Con registros"
+        NO_APLICA = "NO_APLICA", "No aplica"
+
+    campos_texto = ("materiales_justificacion", "otros_justificacion")
+    obra = models.OneToOneField(Obra, on_delete=models.PROTECT, related_name="control_costos")
+    materiales_estado = models.CharField(max_length=13, choices=Estado.choices, default=Estado.PENDIENTE)
+    otros_estado = models.CharField(max_length=13, choices=Estado.choices, default=Estado.PENDIENTE)
+    materiales_justificacion = models.CharField(max_length=2000, blank=True, default="")
+    otros_justificacion = models.CharField(max_length=2000, blank=True, default="")
+    version_actual = models.PositiveBigIntegerField(default=0, editable=False)
+    version_validada = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
+    validado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="controles_costos_validados", null=True, blank=True, editable=False)
+    validado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(version_actual__gte=0), name="control_version_no_negativa"),
+            models.CheckConstraint(condition=(
+                Q(version_validada__isnull=True, validado_por__isnull=True, validado_en__isnull=True)
+                | Q(version_validada__isnull=False, version_validada=F("version_actual"), validado_por__isnull=False, validado_en__isnull=False)
+            ), name="control_validacion_coherente"),
+            *[
+                models.CheckConstraint(condition=(
+                    Q(**{f"{rubro}_estado__in": ["PENDIENTE", "CON_REGISTROS"], f"{rubro}_justificacion": ""})
+                    | (Q(**{f"{rubro}_estado": "NO_APLICA"}) & ~Q(**{f"{rubro}_justificacion": ""}))
+                ) & Q(**{f"{rubro}_justificacion": Trim(f"{rubro}_justificacion")}), name=f"control_{rubro}_coherente")
+                for rubro in ("materiales", "otros")
+            ],
+        ]
+
+    @property
+    def costos_validados(self):
+        return (self.version_validada is not None
+                and self.version_validada == self.version_actual
+                and self.validado_por_id is not None and self.validado_en is not None)
+
+
+class CortesiaObra(_TextoValidado):
+    campos_texto = ("justificacion",)
+    obra = models.OneToOneField(Obra, on_delete=models.PROTECT, related_name="cortesia")
+    tipo = models.CharField(max_length=10, default="SIN_COBRO", editable=False)
+    justificacion = models.CharField(max_length=2000)
+    autorizado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="cortesias_autorizadas")
+    autorizado_en = models.DateTimeField(default=timezone.now, editable=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo="SIN_COBRO"), name="cortesia_tipo_valido"),
+            models.CheckConstraint(condition=~Q(justificacion="") & Q(justificacion=Trim("justificacion")), name="cortesia_justificacion_valida"),
+        ]

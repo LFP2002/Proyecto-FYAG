@@ -41,6 +41,12 @@ class PuedeOperarObras(BasePermission):
             return usuario.rol == S
         if accion == "historial_costos":
             return usuario.rol in {G, S}
+        if accion == "control_costos":
+            return usuario.rol == S if request.method == "PATCH" else usuario.rol in {G, S}
+        if accion in {"validar_costos", "cortesia_sin_cobro"}:
+            return usuario.rol == S
+        if accion == "resumen_costos":
+            return usuario.rol in {G, S, AF}
         if accion == "participantes":
             return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
         if accion == "desasignar_participante":

@@ -33,6 +33,15 @@ class EstadoIncompatible(ErrorObras):
     mensaje = "La acción no es válida para el estado actual."
 
 
+class CostosIncompletos(EstadoIncompatible):
+    codigo = "costos_incompletos"
+    mensaje = "Existen requisitos pendientes para acreditar los costos."
+
+    def __init__(self, pendientes):
+        self.pendientes = pendientes
+        super().__init__()
+
+
 class PresupuestoUtilizado(ErrorObras):
     codigo = "presupuesto_utilizado"
     mensaje = "El presupuesto ya está asociado a una obra."
