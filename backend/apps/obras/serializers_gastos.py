@@ -103,7 +103,9 @@ class GastoLecturaSerializer(serializers.Serializer):
 class CostoObraEventoSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     obra = serializers.IntegerField(source="obra_id", read_only=True)
-    gasto = serializers.IntegerField(source="gasto_id", read_only=True)
+    gasto = serializers.IntegerField(source="gasto_id", read_only=True, allow_null=True)
+    control = serializers.IntegerField(source="control_id", read_only=True, allow_null=True)
+    cortesia = serializers.IntegerField(source="cortesia_id", read_only=True, allow_null=True)
     tipo = serializers.CharField(read_only=True)
     registrado_por = serializers.IntegerField(
         source="registrado_por_id", read_only=True,

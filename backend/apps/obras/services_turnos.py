@@ -63,8 +63,12 @@ def _snapshot(turno):
 
 
 def _evento(turno, tipo, actor, motivo, antes):
+    from .services_costos import invalidar
+    control = invalidar(turno.obra, actor, motivo)
+    nuevos = _snapshot(turno)
+    nuevos["version_costos"] = control.version_actual
     TurnoObraEvento.objects.create(turno=turno, tipo=tipo, registrado_por=actor,
-        motivo=motivo, datos_anteriores=antes, datos_nuevos=_snapshot(turno))
+        motivo=motivo, datos_anteriores=antes, datos_nuevos=nuevos)
 
 
 @base._operacion

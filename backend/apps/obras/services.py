@@ -346,6 +346,8 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
         previos={"tecnico_responsable": anterior},
         nuevos={"tecnico_responsable": nuevo_id}, motivo=motivo,
     )
+    from .services_costos import invalidar
+    invalidar(obra, actor, motivo)
     return obra
 
 
@@ -447,7 +449,10 @@ def asignar_participante(referencia, datos, usuario):
     _participantes_editables(obra)
     motivo = _motivo(datos["motivo"], obligatorio=True)
     tecnico = _tecnico_elegible(datos["tecnico"], campo="tecnico")
-    return _activar_participante(obra, tecnico, actor, motivo)
+    resultado = _activar_participante(obra, tecnico, actor, motivo)
+    from .services_costos import invalidar
+    invalidar(obra, actor, motivo)
+    return resultado
 
 
 @_operacion
@@ -466,7 +471,10 @@ def desasignar_participante(referencia, participante_id, usuario, motivo):
         raise EstadoIncompatible("Cambie al responsable principal mediante cambiar-tecnico.")
     if not participante.activo:
         raise SinCambios("El participante ya está inactivo.")
-    return _desactivar_participante(participante, actor, motivo)
+    resultado = _desactivar_participante(participante, actor, motivo)
+    from .services_costos import invalidar
+    invalidar(obra, actor, motivo)
+    return resultado
 
 
 def _sin_turnos_abiertos(obra, tecnico_id=None):
