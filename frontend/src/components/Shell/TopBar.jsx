@@ -1,10 +1,10 @@
 import React from 'react';
-import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../auth/AuthContext';
 import { ROLES } from '../../data/constants';
 import { Icon } from '../ui';
 
 export default function TopBar() {
-  const { role, logout } = useApp();
+  const { user, logout } = useAuth();
   return (
     <header className="fyag-top">
       <div className="brand">
@@ -14,9 +14,9 @@ export default function TopBar() {
       <div className="top-right">
         <span className="d-inline-flex align-items-center gap-2">
           <Icon d="M20 21v-1a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
-          {ROLES[role].user}
+          {user.username} · {ROLES[user.role].short}
         </span>
-        <button className="btn btn-sm btn-fyag-white" onClick={logout}>
+        <button className="btn btn-sm btn-fyag-white" onClick={() => void logout()}>
           <Icon d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" /> Salir
         </button>
       </div>
