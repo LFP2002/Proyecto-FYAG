@@ -13,6 +13,8 @@ from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Lower, Trim
 
+from apps.comercial.calculos import CANTIDAD_MAXIMA, CENTAVO, PRECIO_MAXIMO
+
 
 class _TextoValidado(models.Model):
     campos_texto = ()
@@ -463,6 +465,139 @@ class TurnoObraEvento(_TextoValidado):
         constraints = [
             models.CheckConstraint(condition=Q(tipo__in=["INICIO", "CIERRE", "CIERRE_ADMINISTRATIVO", "OBSERVACION", "SUBSANACION", "VALIDACION", "CORRECCION"]), name="turno_evento_tipo_valido"),
             models.CheckConstraint(condition=~Q(motivo="") & Q(motivo=Trim("motivo")), name="turno_evento_motivo_valido"),
+        ]
+
+    def clean(self):
+        super().clean()
+        for campo in ("datos_anteriores", "datos_nuevos"):
+            if not isinstance(getattr(self, campo), dict):
+                raise ValidationError({campo: "Debe ser un objeto JSON."})
+
+
+class GastoObra(_TextoValidado):
+    """Materiales y otros gastos directos; los subtotales se calculan, no se guardan."""
+
+    class Tipo(models.TextChoices):
+        MATERIAL = "MATERIAL", "Material"
+        TRANSPORTE = "TRANSPORTE", "Transporte"
+        ARRIENDO_EQUIPO = "ARRIENDO_EQUIPO", "Arriendo de equipo"
+        SERVICIO_EXTERNO = "SERVICIO_EXTERNO", "Servicio externo"
+        OTRO = "OTRO", "Otro"
+
+    campos_texto = (
+        "descripcion", "unidad", "referencia_respaldo", "observacion",
+        "motivo_anulacion",
+    )
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="gastos")
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    descripcion = models.CharField(max_length=500)
+    unidad = models.CharField(max_length=30)
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+    cantidad_devuelta = models.DecimalField(
+        max_digits=12, decimal_places=3, default=Decimal("0.000"),
+    )
+    costo_unitario_neto = models.DecimalField(max_digits=15, decimal_places=2)
+    fecha_gasto = models.DateField()
+    referencia_respaldo = models.CharField(max_length=500, blank=True, default="")
+    observacion = models.CharField(max_length=2000, blank=True, default="")
+    vigente = models.BooleanField(default=True)
+    anulado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="gastos_anulados", null=True, blank=True,
+    )
+    anulado_en = models.DateTimeField(null=True, blank=True)
+    motivo_anulacion = models.CharField(max_length=2000, blank=True, default="")
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="gastos_registrados",
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-creado_en", "-id")
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo__in=[
+                "MATERIAL", "TRANSPORTE", "ARRIENDO_EQUIPO",
+                "SERVICIO_EXTERNO", "OTRO",
+            ]), name="gasto_tipo_valido"),
+            # Cota superior también excluye NaN de NUMERIC en PostgreSQL.
+            models.CheckConstraint(condition=Q(
+                cantidad__gt=0, cantidad__lte=CANTIDAD_MAXIMA,
+                cantidad_devuelta__gte=0, cantidad_devuelta__lte=CANTIDAD_MAXIMA,
+            ), name="gasto_cantidades_rango"),
+            models.CheckConstraint(condition=Q(
+                costo_unitario_neto__gte=0, costo_unitario_neto__lte=PRECIO_MAXIMO,
+            ), name="gasto_costo_rango"),
+            models.CheckConstraint(
+                condition=Q(cantidad_devuelta__lte=F("cantidad")),
+                name="gasto_devolucion_acumulada",
+            ),
+            models.CheckConstraint(
+                condition=Q(tipo="MATERIAL") | Q(cantidad_devuelta=0),
+                name="gasto_devolucion_solo_material",
+            ),
+            models.CheckConstraint(condition=(
+                Q(vigente=True, anulado_por__isnull=True, anulado_en__isnull=True,
+                  motivo_anulacion="")
+                | (Q(vigente=False, anulado_por__isnull=False, anulado_en__isnull=False)
+                   & ~Q(motivo_anulacion=""))
+            ), name="gasto_baja_auditada"),
+            models.CheckConstraint(condition=(
+                ~Q(descripcion="") & ~Q(unidad="")
+                & Q(descripcion=Trim("descripcion"))
+                & Q(unidad=Trim("unidad"))
+                & Q(referencia_respaldo=Trim("referencia_respaldo"))
+                & Q(observacion=Trim("observacion"))
+                & Q(motivo_anulacion=Trim("motivo_anulacion"))
+            ), name="gasto_textos_validos"),
+        ]
+
+    @property
+    def subtotal(self):
+        """Costo interno neto: materiales descontados por devolución, ROUND_HALF_UP."""
+        cantidad = self.cantidad
+        if self.tipo == self.Tipo.MATERIAL:
+            cantidad -= self.cantidad_devuelta
+        with localcontext() as contexto:
+            contexto.prec = 50
+            return (cantidad * self.costo_unitario_neto).quantize(
+                CENTAVO, rounding=ROUND_HALF_UP,
+            )
+
+
+class CostoObraEvento(_TextoValidado):
+    """Historial económico append-only de gastos; nunca se expone al técnico."""
+
+    class Tipo(models.TextChoices):
+        ALTA = "ALTA", "Alta"
+        CORRECCION = "CORRECCION", "Corrección"
+        DEVOLUCION = "DEVOLUCION", "Devolución"
+        ANULACION = "ANULACION", "Anulación"
+
+    campos_texto = ("motivo",)
+    obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="eventos_costos")
+    gasto = models.ForeignKey(GastoObra, on_delete=models.PROTECT, related_name="eventos")
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="eventos_costos",
+    )
+    motivo = models.CharField(max_length=2000)
+    datos_anteriores = models.JSONField(default=dict, blank=True)
+    datos_nuevos = models.JSONField(default=dict)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("creado_en", "id")
+        constraints = [
+            models.CheckConstraint(condition=Q(tipo__in=[
+                "ALTA", "CORRECCION", "DEVOLUCION", "ANULACION",
+            ]), name="costo_evento_tipo_valido"),
+            models.CheckConstraint(
+                condition=~Q(motivo="") & Q(motivo=Trim("motivo")),
+                name="costo_evento_motivo_valido",
+            ),
         ]
 
     def clean(self):

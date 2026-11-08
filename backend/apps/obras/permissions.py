@@ -35,6 +35,12 @@ class PuedeOperarObras(BasePermission):
             return usuario.rol == S
         if accion in {"turnos", "foto_turno"}:
             return usuario.rol in {G, S, T}
+        if accion == "gastos":
+            return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
+        if accion in {"editar_gasto", "devolver_gasto", "anular_gasto"}:
+            return usuario.rol == S
+        if accion == "historial_costos":
+            return usuario.rol in {G, S}
         if accion == "participantes":
             return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
         if accion == "desasignar_participante":

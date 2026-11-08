@@ -123,10 +123,10 @@ def _motivo(valor, *, obligatorio):
     return _texto(valor, "motivo", obligatorio=obligatorio)
 
 
-def _fecha(valor):
+def _fecha(valor, campo="fecha_programada"):
     if valor is not None and (type(valor) is not date):
         # Un DateFieldSerializer entrega objetos date; no aceptar datetime ni bool.
-        raise DatosInvalidos({"fecha_programada": ["Ingrese una fecha válida."]})
+        raise DatosInvalidos({campo: ["Ingrese una fecha válida."]})
     return valor
 
 

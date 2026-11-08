@@ -25,9 +25,14 @@ from .exceptions import (
 from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteEvento
 from .permissions import PuedeOperarCategorias, PuedeOperarObras
 from .views_turnos import TurnosMixin
+from .views_gastos import GastosMixin
 from .serializers_turnos import (
     InicioTurnoSerializer, EvidenciaEntradaSerializer, SubsanarTurnoSerializer,
     RevisarTurnoSerializer, CorregirTurnoSerializer, CierreAdministrativoSerializer,
+)
+from .serializers_gastos import (
+    CostoObraEventoSerializer, DevolucionSerializer, GastoCrearSerializer,
+    GastoEditarSerializer, GastoLecturaSerializer,
 )
 from .serializers import (
     CambioTecnicoSerializer, CategoriaServicioEventoSerializer,
@@ -94,7 +99,8 @@ def _validar_query_params(params, permitidos):
 
 
 class ObraViewSet(
-    TurnosMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+    TurnosMixin, GastosMixin, mixins.ListModelMixin,
+    mixins.RetrieveModelMixin, viewsets.GenericViewSet,
 ):
     permission_classes = [IsAuthenticated, PuedeOperarObras]
     pagination_class = ObrasPaginacion
@@ -121,6 +127,10 @@ class ObraViewSet(
             "subsanar_turno": SubsanarTurnoSerializer,
             "revisar_turno": RevisarTurnoSerializer,
             "corregir_turno": CorregirTurnoSerializer,
+            "editar_gasto": GastoEditarSerializer,
+            "devolver_gasto": DevolucionSerializer,
+            "anular_gasto": MotivoObligatorioSerializer,
+            "historial_costos": CostoObraEventoSerializer,
             "create": ObraCrearSerializer,
             "partial_update": ObraEditarSerializer,
             "cambiar_tecnico": CambioTecnicoSerializer,
@@ -134,6 +144,8 @@ class ObraViewSet(
         accion = getattr(self, "action", None)
         if accion in {"turnos", "foto_turno"}:
             return self._turno_serializer()
+        if accion == "gastos":
+            return GastoCrearSerializer if self.request.method == "POST" else GastoLecturaSerializer
         if accion == "participantes":
             return ParticipanteAsignarSerializer if self.request.method == "POST" else ParticipanteSerializer
         if accion == "desasignar_participante":
