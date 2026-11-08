@@ -2,12 +2,12 @@
 
 ## 1. Estado, contexto y alcance
 
-**Estado: implementación parcial. 004B-1 (técnicos participantes) integrado en `main` mediante PR #9, con Backend CI aprobado; 004B-2 implementado en rama local y en revisión, con 376 pruebas locales reportadas antes de incorporar el cierre administrativo; 004B-3 a 004B-5 pendientes.** Las decisiones de negocio B1–B9 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
+**Estado: implementación parcial. 004B-1 (técnicos participantes) integrado en `main` mediante PR #9 y 004B-2 (turnos, evidencias y cierre administrativo B9) integrado mediante PR #10, ambos con Backend CI aprobado. 004B-3 (materiales y gastos), 004B-4 (completitud/cortesía) y 004B-5 (finalización) permanecen pendientes.** Las decisiones de negocio B1–B9 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
 
 - Proyecto: **FYAG — Sistema de Gestión de Obras y Presupuestos**.
 - Documentos base: `specs/004-gestion-obras.md` (SPEC-004, especialmente D1–D9) y `specs/003b-gestion-presupuestos.md` (SPEC-003B).
 - Base tecnológica: Django REST Framework, PostgreSQL, JWT, `Usuario.Rol`, React como cliente.
-- Estado del repositorio: **004A integrado mediante PR #8** y **004B-1 integrado mediante PR #9**, ambos en `main` con Backend CI aprobado. Permanecen las reglas de 004A, ampliadas por las membresías de técnicos participantes incorporadas en 004B-1.
+- Estado del repositorio: **004A integrado mediante PR #8**, **004B-1 mediante PR #9** y **004B-2 mediante PR #10**, con Backend CI aprobado. Se mantienen las reglas de 004A, ampliadas por participantes, turnos y cierre administrativo B9.
 - Objetivo: registrar **lo que realmente costó ejecutar cada Obra**, incorporar técnicos participantes y turnos individuales con evidencia, validar la completitud y habilitar la transición **`EN_PROCESO → FINALIZADA`**.
 
 **Reglas heredadas que se conservan:** una Obra por Presupuesto; presupuesto de origen inmutable y aprobado por cliente; técnico principal activo obligatorio al iniciar; bloqueo de anulación comercial cuando existe una Obra; finalización operativa distinta de facturación y pago; trazabilidad; permisos por rol sin bypass por superusuario; y prohibición de finalizar sin costos reales registrados y validados.
@@ -289,7 +289,7 @@ G = Gerencia; AF = Administrativo/Finanzas; S = Supervisor de Obras; T = Técnic
 
 ## 8. Contrato HTTP propuesto
 
-Los endpoints de participantes están integrados en `main` (004B-1). Los endpoints de turnos y evidencias están desarrollados localmente para 004B-2 y **aún no fusionados**; los de costos y finalización son futuros. Todos requieren JWT; no PUT ni DELETE físico; IDs enteros estrictos; paginación fija 25 con orden determinista. URL de Obra siempre determina el ámbito del recurso hijo.
+Los endpoints de participantes (004B-1) y turnos/evidencias (004B-2) están integrados en `main`. Los de materiales y gastos corresponden a 004B-3; el control global de costos, cortesías y finalización siguen fuera de este incremento. Todos requieren JWT; no PUT ni DELETE físico; IDs enteros estrictos; paginación fija 25 con orden determinista. URL de Obra siempre determina el ámbito del recurso hijo.
 
 | Método / ruta | Actor | Función |
 | --- | --- | --- |
@@ -421,6 +421,24 @@ El resultado registra autor y fecha, pero **no** borra costos ni cambia el monto
 
 Evaluar autenticación → permisos → recurso autorizado → contrato HTTP → invariantes persistidas bajo lock; sin filtrar datos sensibles en errores.
 
+### 8.4 Contrato incremental de materiales y gastos (004B-3)
+
+Este bloque implementa únicamente los movimientos económicos **de materiales y otros gastos directos**, excluida la mano de obra (ya valorada por turnos en 004B-2). Las decisiones de clasificación, cobro y validación global permanecen separadas:
+
+- **Recurso único:** `GastoObra` con tipos `MATERIAL`, `TRANSPORTE`, `ARRIENDO_EQUIPO`, `SERVICIO_EXTERNO` y `OTRO`; `obra` se obtiene exclusivamente de la URL. El supervisor ingresa manualmente precio/costo unitario. Todos los importes son **costos internos netos CLP**, nunca facturación o venta.
+- **Estados habilitados para escrituras:** únicamente Obra `EN_PROCESO` o `SUSPENDIDA`. `PLANIFICADA`, `FINALIZADA` y `CANCELADA` no admiten altas ni cambios de gastos. Gerencia puede consultar; Técnico y Administrativo/Finanzas no acceden a estas rutas económicas.
+- **GET/POST `/api/obras/{id}/gastos/`:** lectura paginada (25) para Gerencia y Supervisor, orden determinista; creación solo Supervisor. En POST se reciben `tipo`, `descripcion`, `unidad`, `cantidad`, `costo_unitario_neto`, `fecha_gasto` y, si se usan, `referencia_respaldo`/`observacion`. `vigente`, `cantidad_devuelta`, auditoría, ID, Obra y subtotales son administrados por el servidor y rechazados si se envían. `cantidad_devuelta` comienza en cero.
+- **PATCH `/api/obras/{id}/gastos/{gasto_id}/`:** solo Supervisor; admite corrección de campos de negocio **con motivo obligatorio**, conservando el antes/después en un evento. Una corrección no puede dejar `cantidad_devuelta > cantidad`, aplicar devoluciones a no materiales ni restaurar silenciosamente una baja lógica. Un no-op no genera evento ni cambia `actualizado_en`.
+- **POST `/api/obras/{id}/gastos/{gasto_id}/devolver/`:** solo para `MATERIAL` vigente; entrada: `cantidad` (string decimal positivo), `fecha_devolucion` (fecha ISO válida) y `motivo` obligatorio. Acumular devoluciones bajo bloqueo; no superar cantidad original. La fecha de devolución no puede ser futura ni anterior a la fecha del gasto. La operación no simula movimiento de inventario, factura o devolución de dinero.
+- **POST `/api/obras/{id}/gastos/{gasto_id}/anular/`:** baja lógica de gasto con motivo, no `DELETE`; sin eliminar ni reescribir devoluciones/historial. Un gasto ya anulado no puede modificarse, devolverse ni volver a anularse en este bloque; esa repetición produce 409.
+- **Historial económico:** `CostoObraEvento` con eventos `ALTA`, `CORRECCION`, `DEVOLUCION` y `ANULACION`, enlazados al gasto y a su obra, actor persistido, fecha de servidor, motivo y snapshots de datos anteriores/nuevos. Solo Gerencia/Supervisor pueden consultarlo, por `GET /api/obras/{id}/costos/historial/`, paginado y sin endpoints de escritura. No agregar montos ni eventos económicos a `ObraEvento` ni mostrarlos a técnicos.
+- **Moneda y tipos estrictos:** seguir §4 y SPEC-003B para precisión de `Decimal`; inputs monetarios/cantidades como strings decimales; rechazar floats, booleanos, exponentes, comas, NaN/Infinity y campos desconocidos. La suma monetaria y el subtotal de cada registro son calculados por backend, redondeados `ROUND_HALF_UP` a dos decimales. Los gastos anulados no contribuyen a subtotales vigentes, pero permanecen íntegros en historial.
+- **Reglas temporales:** `fecha_gasto` es fecha ISO de día local real, no futura; si antecede a la fecha local de `iniciado_en`, solo se acepta mediante corrección excepcional **motivada y auditada**, nunca en un POST ordinario. Las fechas de auditoría siempre proceden del servidor. Un gasto fechado antes del inicio no es un permiso para cargar gastos en estado PLANIFICADA.
+- **Concurrencia:** cada escritura bloquea primero Presupuesto y Obra siguiendo 004A/004B-2 y después la fila del gasto, revalidando estado, vigencia y límites desde base de datos. Crear/devolver/corregir/anular y sus eventos deben ser atómicos. Dos devoluciones concurrentes no pueden sobrepasar la cantidad disponible. Las respuestas 400/401/403/404/405/409 y la precedencia de validación siguen §8.3.
+- **Límite de la entrega:** 004B-3 no crea ni simula `ControlCostosObra`, `CierreCostosObra`, cortesías, versiones validadas ni transición `finalizar`; quedan para 004B-4/5. Por tanto los gastos registrados son **movimientos trazables, no una certificación de completitud**. En 004B-4 la creación/corrección/devolución/baja deberá invalidar cualquier validación vigente, bajo el mismo lock. No introducir un flag `costos_completos` provisional.
+
+Los valores y fechas de ejemplo de §8.2 son ilustrativos, no datos de producción ni justifican omitir ninguna regla anterior.
+
 ## 9. Concurrencia y orden de bloqueos
 
 Extender el orden 004A sin invertir los bloqueos ya utilizados:
@@ -457,7 +475,7 @@ Toda escritura y su evento son atómicos. Bloquear Obra antes de decidir complet
 
 ## 11. Pruebas y criterios de aceptación
 
-**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Base validada de 004B-1: **347 pruebas**. Para 004B-2, OpenCode reportó **376 pruebas locales aprobadas** tras agregar el límite de 12 MP, **antes** de implementar el cierre administrativo B9; las nuevas pruebas de B9 deben aumentar el total y exigir Backend CI verde en PR.
+**Obligatorias sobre PostgreSQL real**, con JWT válido y permisos por rol. Referencia integrada de 004B-2: **390 pruebas locales reportadas** y Backend CI aprobado en el PR #10. Para 004B-3 las nuevas pruebas se añaden sobre esa base sin alterar la regresión anterior.
 
 1. **Compatibilidad:** 004A sin regresiones; Presupuesto usado no anulable; una Obra por Presupuesto; no autorización comercial extraordinaria; migraciones previas intactas.
 2. **Participantes:** principal queda asociado, varios técnicos por obra, duplicados rechazados, asignación/desasignación/reactivación auditable, miembro inactivo sin acceso nuevo, antiguo principal con turnos históricos intactos, no remover con turno abierto.
@@ -490,8 +508,8 @@ No declarar 004B implementada hasta que modelos, API, control de turnos, evidenc
 ## 12. Entregas de implementación sugeridas
 
 1. **004B-1 — Modelos y participantes (INTEGRADO):** `ObraParticipante`, eventos de membresía, migración/backfill del principal histórico, sincronización del principal, API de asignación/desasignación, permisos de T, pruebas relacionales y acceso por membresía. PR #9 fusionado en `main`; 347 pruebas locales reportadas y Backend CI aprobado.
-2. **004B-2 — Turnos/evidencia (EN REVISIÓN LOCAL):** inicio/cierre por Obra, timestamps servidor, descripción obligatoria, fotos opcionales privadas (incluido límite de 12 MP), revisión del Supervisor **con costo horario manual**, subsanaciones, correcciones excepcionales auditadas y concurrencia de turnos. Activar los guards de turno abierto en suspensión, reasignación y desasignación. **Antes del commit/PR falta implementar B9: cierre administrativo unilateral y su suite de regresión**, sin gastos ni finalización de Obra.
-3. **004B-3 — Materiales y gastos:** un recurso clasificado, valorización manual, devoluciones, correcciones, historial de costos.
+2. **004B-2 — Turnos/evidencia (INTEGRADO):** inicio/cierre por Obra, timestamps servidor, descripción obligatoria, fotos privadas opcionales con límite de 12 MP, revisión del Supervisor con costo horario manual, subsanaciones y correcciones auditadas, guardias de turno abierto y cierre administrativo unilateral B9. PR #10 fusionado en `main`; 390 pruebas locales reportadas y Backend CI aprobado.
+3. **004B-3 — Materiales y gastos (SIGUIENTE):** un recurso `GastoObra` clasificado, valorización manual en CLP netos, devoluciones de materiales, correcciones y baja lógica motivadas, historial económico y endpoints estrictos G/S. Sin control global de completitud ni finalización.
 4. **004B-4 — Completitud/cortesía:** control de rubros, versionado de validación, decisión excepcional sin cobro sin manipular costos ni Presupuesto.
 5. **004B-5 — Finalización:** guard, snapshot, migración de evento terminal, regresión completa, Backend CI, PR. No habilitar finalización prematuramente.
 
@@ -512,7 +530,7 @@ Estos puntos **no reabren B1–B9**; se resuelven mediante pruebas e implementac
 
 1. [SPEC-004, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/004-gestion-obras.md): D1–D9, máquina de estados y guard comercial. **004B extiende técnicos participantes/horas y habilita solamente FINALIZADA**.
 2. [SPEC-003B, `main`](https://github.com/LFP2002/Proyecto-FYAG/blob/main/specs/003b-gestion-presupuestos.md): precio comercial aprobado, inmutabilidad y bloqueo de anulación; **un gasto interno no cambia el precio del Presupuesto**.
-3. [Backend de Obras integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): 004A y 004B-1 (participantes) integrados; migraciones `obras.0001`–`0006` vigentes, modelo `Obra.tecnico_responsable`, membresías, permisos y filtros. **No modificar migraciones históricas**.
+3. [Backend de Obras integrado, `main`](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/obras): 004A, 004B-1 y 004B-2 integrados; migraciones `obras.0001`–`0008` vigentes, modelo `Obra.tecnico_responsable`, participantes, turnos, evidencias y cierre administrativo B9. **No modificar migraciones históricas**.
 4. Decisiones B1–B9: respuestas expresas del responsable del proyecto en esta conversación (7-11-2026); se presentan como decisiones del equipo académico, no como términos acordados externamente con FYAG. B9 introduce cierre administrativo del Supervisor para un turno que el técnico no puede cerrar.
 
 **Precedencia de implementación:** preservar integridad de 004A; modificar sus servicios/permisos únicamente donde B4–B6 y B9 lo requieren y con nuevas pruebas. Si una decisión futura amplía el cobro/contabilidad, crear una SPEC financiera; no convertir una cortesía en costo empresa cero ni en anulación retroactiva de presupuesto.
