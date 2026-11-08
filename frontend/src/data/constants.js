@@ -1,34 +1,29 @@
 export const UMBRAL = 5000000;
 export const UMBRAL_ALERTA = 10;
-export const TEC = 'Luis Torres';
+// Los prototipos de negocio no se montan hasta integrar sus API.
+export const TEC = '';
 
 export const ROLES = {
-  gerencia: { short: 'Gerencia', email: 'gerencia@fyag.cl', user: 'Gerencia General' },
-  finanzas: { short: 'Finanzas', email: 'finanzas@fyag.cl', user: 'Administración y Finanzas' },
-  supervisor: { short: 'Supervisor', email: 'supervisor@fyag.cl', user: 'Supervisor de Obras' },
-  tecnico: { short: 'Técnico', email: 'ltorres@fyag.cl', user: TEC }
-};
-
-export const ROLE_HINT = {
-  gerencia: 'Dashboard, rentabilidad, aprobación de presupuestos y reportes ejecutivos.',
-  finanzas: 'Clientes, presupuestos, estados de pago y cobranza. No aprueba presupuestos.',
-  supervisor: 'Crea obras, asigna técnicos, registra costos y actualiza estados.',
-  tecnico: 'Solo sus obras asignadas y el registro de avances en terreno (vista móvil).'
+  GERENCIA: { short: 'Gerencia' },
+  ADMINISTRATIVO_FINANZAS: { short: 'Administrativo / Finanzas' },
+  SUPERVISOR_OBRAS: { short: 'Supervisor de Obras' },
+  TECNICO: { short: 'Técnico' }
 };
 
 export const ROLE_NOTE = {
-  gerencia: 'Vista amplia: indicadores, rentabilidad y aprobación de presupuestos. No realiza tareas operativas.',
-  finanzas: 'Gestiona clientes, presupuestos y pagos. No aprueba presupuestos ni administra usuarios.',
-  supervisor: 'Gestiona la ejecución de obras y registra costos. No ve presupuestos, márgenes ni pagos.'
+  GERENCIA: 'Los módulos de negocio están pendientes de integración con sus API.',
+  ADMINISTRATIVO_FINANZAS: 'Los módulos de negocio están pendientes de integración con sus API.',
+  SUPERVISOR_OBRAS: 'Los módulos de negocio están pendientes de integración con sus API.'
 };
 
 export const NAV = {
-  gerencia: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'usuarios'],
-  finanzas: ['clientes', 'presupuestos', 'cobranzas', 'reportes'],
-  supervisor: ['obras', 'alertas']
+  GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'usuarios'],
+  ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes'],
+  SUPERVISOR_OBRAS: ['obras', 'alertas'],
+  TECNICO: ['obras']
 };
 
-export const DEFMOD = { gerencia: 'dashboard', finanzas: 'presupuestos', supervisor: 'obras' };
+export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras' };
 
 export const MODS = {
   dashboard: { label: 'Dashboard', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },

@@ -1,8 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import App from './App.jsx';
+import App from './app.jsx';
 import { AppProvider } from './context/AppContext.jsx';
+import { AuthProvider } from './auth/AuthContext.jsx';
 
 import './styles/variables.css';
 import './styles/base.css';
@@ -22,8 +23,10 @@ import './styles/pages/usuarios.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AppProvider>
-      <App />
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <App />
+      </AppProvider>
+    </AuthProvider>
   </React.StrictMode>
 );

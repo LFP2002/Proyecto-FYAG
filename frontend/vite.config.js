@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { '/api': 'http://localhost:8000' }
+    // Mantener Host y Origin del navegador coherentes para CSRF en Django.
+    // No reescribir Origin/cookies ni desactivar la protección del backend.
+    proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: false } }
   }
 });
