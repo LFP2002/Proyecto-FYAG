@@ -5,8 +5,8 @@ import { DEFMOD, NAV } from '../data/constants';
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
 
-// Solo navegación. La identidad pertenece a AuthContext y los módulos de
-// negocio aún no tienen estado de datos ni acciones de persistencia simulada.
+// Solo navegación. La identidad pertenece a AuthContext; los datos comerciales
+// se consultan en sus pantallas, sin acciones de persistencia simulada aquí.
 export function AppProvider({ children }) {
   const { user } = useAuth();
   const [selection, setSelection] = useState(null);

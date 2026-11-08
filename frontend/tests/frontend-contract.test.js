@@ -44,7 +44,10 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /status === 'restoring'/);
   assert.match(app, /status !== 'authenticated'/);
   assert.match(app, /PendingIntegration/);
-  assert.doesNotMatch(app, /pages\/(Clientes|Presupuestos|Obras|Cobranzas|Usuarios)/);
+  assert.match(app, /pages\/Clientes/);
+  assert.match(app, /pages\/Presupuestos/);
+  assert.match(app, /canRead\(user.role\)/);
+  assert.doesNotMatch(app, /pages\/(Obras|Cobranzas|Usuarios)/);
   const context = await source('context/AppContext.jsx');
   assert.doesNotMatch(context, /savePre|saveCli|crearObra|applyEstado|addCosto|pagoChange|savePago|switchRole|loginRole/);
   assert.match(await source('components/PendingIntegration.jsx'), /Pendiente de integración/);
@@ -55,6 +58,7 @@ test('menús usan exclusivamente los cuatro enums reales; Técnico no ofrece mó
   assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
   assert.deepEqual(NAV.TECNICO, ['obras']);
   assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas']);
+  assert.ok(NAV.GERENCIA.includes('clientes'));
   for (const role of Object.keys(NAV)) assert.ok(NAV[role].includes(DEFMOD[role]));
 });
 

@@ -11,13 +11,13 @@ export const ROLES = {
 };
 
 export const ROLE_NOTE = {
-  GERENCIA: 'Los módulos de negocio están pendientes de integración con sus API.',
-  ADMINISTRATIVO_FINANZAS: 'Los módulos de negocio están pendientes de integración con sus API.',
+  GERENCIA: 'Clientes y Presupuestos conectados. Los demás módulos están pendientes de integración.',
+  ADMINISTRATIVO_FINANZAS: 'Clientes y Presupuestos conectados. Los demás módulos están pendientes de integración.',
   SUPERVISOR_OBRAS: 'Los módulos de negocio están pendientes de integración con sus API.'
 };
 
 export const NAV = {
-  GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'usuarios'],
+  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'usuarios'],
   ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes'],
   SUPERVISOR_OBRAS: ['obras', 'alertas'],
   TECNICO: ['obras']
@@ -52,7 +52,7 @@ export const PAGO_CHIP = { Facturado: 'amber', Pagado: 'green', Anulado: 'gray' 
 
 export const MATRIX = [
   ['Dashboard e indicadores', 'Total', '—', '—', '—'],
-  ['Clientes', '—', 'Total', '—', '—'],
+  ['Clientes', 'Total', 'Total', '—', '—'],
   ['Presupuestos', 'Aprueba o rechaza', 'Crea y edita', '—', '—'],
   ['Obras', 'Lectura', '—', 'Crea y edita', 'Solo asignadas'],
   ['Costos y horas', 'Lectura', '—', 'Registra', '—'],

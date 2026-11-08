@@ -20,6 +20,7 @@ import './styles/pages/cobranzas.css';
 import './styles/pages/alertas.css';
 import './styles/pages/reportes.css';
 import './styles/pages/usuarios.css';
+import './styles/pages/comercial.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
