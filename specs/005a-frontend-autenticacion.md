@@ -1,15 +1,17 @@
 # SPEC-005A — Integración del frontend: autenticación real y sesión
 
-**Estado:** propuesta de implementación, no integrada. 8 de noviembre de 2026.
+**Estado:** **implementada e integrada en `main` mediante el PR #14** (8 de noviembre de 2026), con **Frontend CI aprobado** en el PR y tras el merge. Esta SPEC conserva los requisitos y decisiones originales como referencia histórica; la integración posterior de Clientes y Presupuestos corresponde a SPEC-005B.
 
-## 1. Contexto verificado
+**Referencia de integración:** [PR #14 — Autenticación real del frontend](https://github.com/LFP2002/Proyecto-FYAG/pull/14). Commit de merge `0759ed8086e14cf7a08d78b82fef05b02636a65b`. La entrega incorporó `.github/workflows/frontend-ci.yml`.
+
+## 1. Contexto original verificado (antes de implementar 005A)
 
 - Backend FYAG en `main`: SPEC-001, 002A/002B, 003A/003B y 004A/004B-1…004B-5 integradas; SPEC-004B cerrada tras PR #13, Backend CI aprobado.
-- Frontend React 18 + Vite 5 tiene un login de demostración y estado local, sin consumir las API para autenticar; `RoleSwitch` modifica el rol visual localmente.
+- Antes de este incremento, el frontend React 18 + Vite 5 tenía un login de demostración y estado local, sin consumir las API para autenticar; `RoleSwitch` modificaba el rol visual localmente. **Esta situación fue corregida en PR #14.**
 - Los módulos backend `finanzas`, `dashboard`, `reportes`, `alertas` y `auditoria` existen como scaffolds, no como funcionalidades completas.
 - Django expone `/api/auth/csrf/`, `/api/auth/login/`, `/api/auth/refresh/`, `/api/auth/logout/` y `/api/auth/me/`.
 - `frontend/vite.config.js` ya tiene un proxy de `/api` a `http://localhost:8000`; Docker Compose inicia backend y bases de datos, no Vite.
-- `frontend/src/app.jsx` importa `./components/Login` y el archivo existente es `frontend/src/components/login.jsx`: corregir la discrepancia de mayúsculas para entornos de archivos case-sensitive.
+- Antes del PR #14, `frontend/src/app.jsx` importaba `./components/Login` mientras existía `frontend/src/components/login.jsx`. La discrepancia de mayúsculas se corrigió para compatibilidad con Linux.
 
 ## 2. Objetivo y límites
 
@@ -86,4 +88,15 @@ Sustituir el inicio de sesión simulado por el mecanismo real de Django JWT, y p
 - Pruebas de frontend y build de producción exitosos.
 - Documentación mínima de arranque de Vite y backend.
 - Informe de límites y módulos que todavía necesitan integración de API.
-- No hacer commit, push ni PR hasta revisión humana.
+- Criterio del flujo de entrega original: revisar la implementación antes de autorizar commit, push y PR. **Cumplido para el PR #14.**
+
+## 10. Resultado de implementación e integración (8-11-2026)
+
+- **Estado final de SPEC-005A: integrado en `main`.** Login real por email y contraseña, CSRF, JWT de acceso solo en memoria, refresh en cookie HttpOnly, recuperación de sesión con `/me/`, logout y protección frente a respuestas tardías.
+- El rol proviene del backend. Se retiraron el selector manual de roles y las credenciales de demostración del login.
+- `frontend/src/auth/client.js` concentra las solicitudes de sesión y expone `authClient.request(path, options)` para las futuras API protegidas; `AuthContext.jsx` lo entrega mediante `useAuth().request`.
+- Los módulos de negocio no conectados presentan `PendingIntegration`, sin escrituras locales ficticias.
+- El nuevo workflow `Frontend CI` ejecuta `npm ci`, `npm test`, `npm run build` y `npm audit --omit=dev` sobre Node.js 22. Se verificó su conclusión exitosa en el PR y tras el merge a `main`.
+- Resultado de pruebas reportado durante la revisión: 48 tests de frontend y 508 tests de backend. La verificación visual del usuario confirmó acceso con identidad/rol correctos; esto **no sustituye** una prueba E2E automatizada de todos los escenarios.
+- El PR actualizó herramientas de desarrollo a Vite `^6.4.5` y `@vitejs/plugin-react` `^4.3.4`. El paso CI `npm audit --omit=dev` terminó correctamente; no se atribuye a ese resultado la auditoría de todas las dependencias de desarrollo.
+- La conexión de Clientes y Presupuestos no forma parte de 005A: queda definida en `specs/005b-frontend-comercial.md`.
