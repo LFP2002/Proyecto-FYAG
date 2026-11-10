@@ -7,9 +7,11 @@ from .views import (
     PerfilActualView,
     RefreshView,
 )
+from .views_usuarios import CambiarClavePropiaView
 
 
 urlpatterns = [
+    path("cambiar-clave/", CambiarClavePropiaView.as_view(), name="cambiar_clave_propia"),
     path(
         "csrf/",
         CsrfTokenView.as_view(),

@@ -2,7 +2,7 @@ from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken
 
 from apps.obras import services
 from apps.obras.models import ObraParticipante, ObraParticipanteEvento

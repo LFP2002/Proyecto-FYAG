@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken
 
 from apps.comercial.models import Cliente, Presupuesto
 from apps.obras.models import CategoriaServicio, Obra

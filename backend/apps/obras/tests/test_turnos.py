@@ -13,7 +13,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image, PngImagePlugin
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken
 
 from apps.comercial.models import Presupuesto
 from apps.obras import services, services_turnos as turnos

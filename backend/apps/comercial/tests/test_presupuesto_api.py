@@ -9,7 +9,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import resolve
 from django.utils import timezone
 from rest_framework.test import APITestCase
-from rest_framework_simplejwt.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken
 
 from apps.comercial import services_presupuestos as servicios
 from apps.comercial.exceptions import (

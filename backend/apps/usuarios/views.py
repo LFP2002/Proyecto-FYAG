@@ -4,16 +4,16 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 
 from rest_framework import status
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import LoginSerializer
+from .serializers import LoginSerializer, VersionedRefreshSerializer
 from .services import delete_refresh_cookie, set_refresh_cookie
 from .throttles import (
     LoginEmailRateThrottle,
@@ -83,11 +83,11 @@ class RefreshView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        serializer = VersionedRefreshSerializer(data={"refresh": refresh_token})
 
         try:
             serializer.is_valid(raise_exception=True)
-        except TokenError:
+        except (TokenError, AuthenticationFailed):
             return Response(
                 {"detail": "Refresh token inválido o expirado."},
                 status=status.HTTP_401_UNAUTHORIZED,

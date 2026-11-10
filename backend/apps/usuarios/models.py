@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower, Trim
 
@@ -25,6 +26,7 @@ class Usuario(AbstractUser):
         max_length=30,
         choices=Rol.choices,
     )
+    sesion_version = models.PositiveBigIntegerField(default=1, editable=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
@@ -34,6 +36,7 @@ class Usuario(AbstractUser):
         verbose_name_plural = "users"
 
         constraints = [
+            models.CheckConstraint(condition=models.Q(sesion_version__gte=1), name="usuarios_sesion_version_positiva"),
             models.CheckConstraint(
                 condition=~models.Q(email=""),
                 name="usuarios_email_no_vacio",
@@ -75,3 +78,64 @@ class Usuario(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class EventosInmutablesQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("El historial administrativo no se puede editar.")
+
+    def delete(self):
+        raise ValidationError("El historial administrativo no se puede eliminar.")
+
+    def bulk_create(self, objs, **kwargs):
+        raise ValidationError("El historial debe registrarse mediante una operación auditada.")
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise ValidationError("El historial administrativo no se puede editar.")
+
+
+class UsuarioEvento(models.Model):
+    objects = EventosInmutablesQuerySet.as_manager()
+    class Tipo(models.TextChoices):
+        CREACION = "CREACION", "Creación"
+        EDICION = "EDICION", "Edición"
+        ACTIVACION = "ACTIVACION", "Activación"
+        DESACTIVACION = "DESACTIVACION", "Desactivación"
+        CAMBIO_ROL = "CAMBIO_ROL", "Cambio de rol"
+        ESTABLECER_CLAVE = "ESTABLECER_CLAVE", "Establecimiento de contraseña"
+        CAMBIO_CLAVE_PROPIA = "CAMBIO_CLAVE_PROPIA", "Cambio propio de contraseña"
+
+    usuario_objetivo = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="eventos_administrativos")
+    actor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="acciones_administrativas")
+    tipo = models.CharField(max_length=24, choices=Tipo.choices)
+    motivo = models.CharField(max_length=2000, blank=True, default="")
+    datos_anteriores = models.JSONField(default=dict, blank=True)
+    datos_nuevos = models.JSONField(default=dict, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["creado_en", "id"]
+        constraints = [models.CheckConstraint(
+            condition=models.Q(tipo__in=["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA"]),
+            name="usuarios_evento_tipo_valido",
+        )]
+
+    def clean(self):
+        super().clean()
+        allowed = {"email", "username", "first_name", "last_name", "rol", "is_active"}
+        for data in (self.datos_anteriores, self.datos_nuevos):
+            if not isinstance(data, dict) or set(data) - allowed:
+                raise ValidationError("Snapshot administrativo no permitido.")
+            if any(type(value) is not (bool if key == "is_active" else str) for key, value in data.items()):
+                raise ValidationError("Tipos de snapshot no permitidos.")
+            if self.tipo in {self.Tipo.ESTABLECER_CLAVE, self.Tipo.CAMBIO_CLAVE_PROPIA} and data:
+                raise ValidationError("Los eventos de contraseña no admiten snapshots.")
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise ValidationError("El historial administrativo no se puede editar.")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial administrativo no se puede eliminar.")

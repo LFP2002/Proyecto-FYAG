@@ -5,7 +5,7 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken
 
 from apps.obras import services
 from apps.obras.exceptions import DatosInvalidos, EstadoIncompatible, PermisoDenegado, SinCambios
