@@ -8,3 +8,16 @@
 .li { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #edf1f5; }
 .acts { display: flex; flex-wrap: wrap; gap: 6px; }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--fyag-primary-light); font-weight: 700; text-decoration: underline; min-height: 32px; text-align: left; cursor: pointer; }
+.obras-page .obras-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 20px; margin-bottom: 20px; }
+.obras-page .obras-field, .obras-page .obras-selector { min-width: 0; }
+.obras-page .obras-selector .commercial-pager { padding: 10px 0; gap: 8px; border-top: 0; }
+.obras-page .obras-selector .commercial-page-info { flex: 1 1 100%; order: -1; }
+.obras-page .obras-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--fyag-line); }
+.obras-page .obras-action-form { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--fyag-line); }
+.obras-page .obras-event-changes { display: grid; gap: 8px; font-size: .8125rem; }
+.obras-page .obras-event-changes dt { color: var(--fyag-muted); }
+.obras-page .obras-event-changes dd { margin-bottom: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.obras-page .budget-toolbar > .obras-field { flex: 0 1 280px; }
+.obras-tecnico { width: 100%; max-width: 1100px; padding: 16px; }
+.obras-tecnico .tec-top { border-radius: 12px; margin-bottom: 20px; }
+.obras-tecnico .page-head h1 { font-size: 1.5rem; }

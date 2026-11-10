@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
-import PendingIntegration from '../components/PendingIntegration';
+import Obras from './Obras';
 
 export default function TecnicoApp() {
   const { user, logout } = useAuth();
@@ -10,9 +10,9 @@ export default function TecnicoApp() {
         <span className="fw-bold">FYAG · Técnico</span>
         <button className="btn btn-sm btn-fyag-white ms-auto" onClick={() => void logout()}>Salir</button>
       </header>
-      <main className="tec-container">
+      <main className="tec-container obras-tecnico">
         <div className="tec-top"><h1 className="tec-name">{user.username}</h1></div>
-        <PendingIntegration />
+        <Obras key={`${user.id}:${user.role}:mis-obras`} />
       </main>
     </div>
   );

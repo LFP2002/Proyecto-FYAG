@@ -69,6 +69,7 @@ for (const [role, label] of [
     assert.match(html, /Alias de la cuenta real/);
     assert.ok(html.includes(label));
     if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo borrador/);
+    else if (role === 'SUPERVISOR_OBRAS') assert.match(html, /Nueva obra/);
     else assert.match(html, /Pendiente de integración/);
     assert.match(html, /Salir/);
     assert.doesNotMatch(html, /Guardar|Aprobar|Registrar pago|Registrar en bitácora/);

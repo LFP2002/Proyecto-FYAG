@@ -256,11 +256,12 @@ test('cambio de usuario/rol y logout desmontan Comercial y abortan respuestas ta
   try {
     assert.equal(calls.length, 2);
     await act(async () => { session = { status: 'authenticated', user: { id: 2, username: 'Supervisor', role: 'SUPERVISOR_OBRAS' } }; listeners.forEach((fn) => fn()); });
-    assert.ok(calls.every((c) => c.options.signal.aborted));
+    assert.ok(calls.slice(0, 2).every((c) => c.options.signal.aborted));
+    assert.equal(calls.at(-1).path, '/api/obras/?page=1');
     await act(async () => { pending.splice(0).forEach((resolve) => resolve()); await flush(); });
-    assert.doesNotMatch(text(renderer.root), /Nuevo borrador/); assert.equal(calls.length, 2);
+    assert.doesNotMatch(text(renderer.root), /Nuevo borrador/); assert.equal(calls.length, 3);
     await act(async () => { session = { status: 'authenticated', user: { id: 3, username: 'Técnico', role: 'TECNICO' } }; listeners.forEach((fn) => fn()); });
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 4); assert.equal(calls.at(-1).path, '/api/obras/mis-obras/?page=1');
     await act(async () => { session = { status: 'anonymous', user: null }; listeners.forEach((fn) => fn()); });
     assert.match(text(renderer.root), /Correo electrónico/); assert.doesNotMatch(text(renderer.root), /Supervisor|Nuevo borrador/);
   } finally { await act(async () => renderer.unmount()); }
