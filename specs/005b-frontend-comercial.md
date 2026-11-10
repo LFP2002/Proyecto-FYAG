@@ -1,6 +1,8 @@
 # SPEC-005B — Integración del frontend: Clientes y Presupuestos reales
 
-**Estado:** especificada para implementación; **no implementada ni integrada** a 8 de noviembre de 2026. Rama de trabajo prevista: `feature/frontend-005b-comercial` (crear desde `main` actualizado después del PR #14). Esta SPEC es de **integración frontend**, no de rediseño de las reglas comerciales.
+**Estado:** **implementada e integrada en `main` mediante [PR #15](https://github.com/LFP2002/Proyecto-FYAG/pull/15) (8 de noviembre de 2026)**. Frontend CI `React / Vite` finalizó correctamente tanto en el PR como después del merge. Esta SPEC documenta el contrato de integración frontend ya entregado; no altera las reglas de negocio de Comercial.
+
+**Nota de lectura:** las secciones siguientes conservan la formulación original de requisitos y pasos de implementación como evidencia del alcance acordado. Las menciones históricas a tareas «pendientes», al prototipo anterior y a la rama prevista **no describen el estado actual**. Para el estado real de entrega, consultar el registro de cierre del final.
 
 **Precedencia:** `specs/003a-gestion-clientes.md` y `specs/003b-gestion-presupuestos.md` son autoridad de negocio; `specs/002b-hardening-autenticacion.md` y `specs/005a-frontend-autenticacion.md` gobiernan sesión y seguridad. Si esta SPEC contradice una API real vigente, **no** inventar contratos ni alterar silenciosamente el backend: documentar discrepancia y detener esa operación concreta para revisión.
 
@@ -258,3 +260,12 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - [Código Comercial](https://github.com/LFP2002/Proyecto-FYAG/tree/main/backend/apps/comercial): `urls.py`, `views.py`, `views_presupuestos.py`, serializers, permisos, modelos y servicios.
 - [AuthClient](https://github.com/LFP2002/Proyecto-FYAG/blob/main/frontend/src/auth/client.js) y [AuthContext](https://github.com/LFP2002/Proyecto-FYAG/blob/main/frontend/src/auth/AuthContext.jsx): reutilización de sesión SPEC-005A.
 - [PR #14](https://github.com/LFP2002/Proyecto-FYAG/pull/14) y `.github/workflows/frontend-ci.yml`: integración y CI confirmados.
+
+## 13. Registro de cierre de implementación (8-11-2026)
+
+- **Integración:** [PR #15 — `feat(frontend): integrar clientes y presupuestos reales 005B`](https://github.com/LFP2002/Proyecto-FYAG/pull/15), fusionado en `main` el 8-11-2026, con Frontend CI en verde.
+- **Funcionalidad integrada:** CRUD autorizado de Clientes; presupuestos e ítems reales; aprobación obligatoria de Gerencia; historial, rechazos, revisiones y anulación conforme al backend; selector de unidades y edición en línea.
+- **Interfaz:** barra de herramientas compacta, filtros de estado, controles de actualización y estilo Bootstrap 5/CSS FYAG; estándar acordado de Bootstrap Icons para nuevos íconos.
+- **Verificación:** la implementación fue revisada y el usuario completó pruebas manuales exitosas de flujo G/AF en navegador. Las pruebas de CI constan en GitHub. No atribuir a este registro resultados de una suite no ejecutada en este commit documental.
+- **Límites vigentes:** Obras, Finanzas, Dashboard, Alertas, Reportes y Usuarios no quedaron integrados como resultado de 005B. El filtrado por estado de Presupuestos opera sobre la página cargada (25 registros), no como filtro global de servidor.
+- **Continuidad:** [SPEC-005C](005c-frontend-obras.md) define la integración de Gestión de Obras en bloques revisables.

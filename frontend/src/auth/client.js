@@ -77,17 +77,20 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {
     }
     if (!response.ok) {
       let fields = {}, code = null;
-      // Solo contratos de validación comercial; nunca HTML, trazas o tokens.
+      // Solo campos públicos de validación; nunca HTML, trazas o tokens.
       if ([400, 409].includes(response.status) && !path.startsWith('/api/auth/')) {
         try {
           const data = await response.json();
           const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+          if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
+            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page']) allowed.add(field);
+          }
           const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
           for (const [key, value] of Object.entries(data || {})) {
             const values = Array.isArray(value) ? value : [value];
             if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
           }
-          if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code)) code = data.code;
+          if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
         } catch { /* Respuesta no pública: conservar mensaje genérico. */ }
       }
       throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });

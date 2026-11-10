@@ -47,7 +47,9 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /pages\/Clientes/);
   assert.match(app, /pages\/Presupuestos/);
   assert.match(app, /canRead\(user.role\)/);
-  assert.doesNotMatch(app, /pages\/(Obras|Cobranzas|Usuarios)/);
+  assert.match(app, /pages\/Obras/);
+  assert.match(app, /canReadObras\(user.role\)/);
+  assert.doesNotMatch(app, /pages\/(Cobranzas|Usuarios)/);
   const context = await source('context/AppContext.jsx');
   assert.doesNotMatch(context, /savePre|saveCli|crearObra|applyEstado|addCosto|pagoChange|savePago|switchRole|loginRole/);
   assert.match(await source('components/PendingIntegration.jsx'), /Pendiente de integración/);

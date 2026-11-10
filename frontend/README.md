@@ -1,4 +1,4 @@
-# Frontend FYAG — sesión y Comercial reales (005A/005B)
+# Frontend FYAG — sesión, Comercial y operación de Obras (005A/005B/005C-1)
 
 ## Desarrollo
 
@@ -36,9 +36,12 @@ same-origin que encamine `/api` a Django. No es un proxy de producción.
 
 ## Alcance
 
-Autenticación, Clientes y Presupuestos están conectados a Django. Los demás
-módulos mantienen `PendingIntegration`; no hay escrituras simuladas ni integración
-de Obras/Finanzas. Los menús no otorgan permisos del backend.
+Autenticación, Clientes, Presupuestos y la operación de Obras 005C-1 están
+conectados a Django. Turnos/evidencias (005C-2), gastos/costos/finalización
+(005C-3) y los demás módulos mantienen avisos de integración pendiente.
+No hay escrituras simuladas ni integración de Finanzas. Los menús no otorgan
+permisos del backend. La guía de revisión y E2E de Obras está en
+[`REVIEW-005C-1.md`](REVIEW-005C-1.md).
 
 ## Prueba manual con cuentas reales (005B)
 
@@ -61,7 +64,7 @@ con roles `ADMINISTRATIVO_FINANZAS` (AF) y `GERENCIA` (G).
    solo filtra la página cargada, no toda la base de datos.
 6. AF: anular con motivo solo cuando sea válido. Si Django responde
    `presupuesto_utilizado`, no se anula: mostrar el conflicto y **Reconsultar datos**.
-   Esa situación exige datos preparados con una Obra; esta entrega no crea Obras.
+   Esa situación exige datos preparados con una Obra; 005C-1 permite crearla como Supervisor.
 7. Desde rechazado/anulado, **Crear revisión** genera un nuevo ID BORRADOR y un
    enlace al origen. Comprobar que el original y su historial se conservan.
 8. Probar F5, renovación de sesión, logout y acceso con otra cuenta. S/T no tienen
@@ -73,3 +76,16 @@ Las solicitudes comerciales se cancelan al desmontar, descartan resultados tard�
 y tienen un timeout de 30 segundos. Un timeout no prueba que Django haya revertido
 una escritura: hay que reconsultar. No se ha ejecutado E2E con cuentas reales;
 los tests montados usan contratos HTTP controlados, no PostgreSQL real.
+
+## QA de navegación adaptable (005C-1)
+
+La navegación lateral se mantiene en escritorio. En pantallas de hasta 880 px,
+«Menú» abre los módulos autorizados debajo de la cabecera; se cierra al cambiar
+de sección, al presionar Escape o al pulsar nuevamente el botón. El estado activo
+se identifica visualmente y mediante `aria-current`; el botón comunica
+`aria-expanded`. Verificar anchos de 320, 375, 768 y 1024 px, teclado y roles G/S/AF.
+
+Al cambiar el técnico responsable, la API actual desasigna al responsable
+anterior y activa al nuevo como participante. La confirmación de la UI informa
+ese efecto antes de escribir; modificar la política requiere una entrega de
+backend separada. No es un cambio de rol de la cuenta de usuario.

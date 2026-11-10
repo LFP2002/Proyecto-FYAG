@@ -11,9 +11,9 @@ export const ROLES = {
 };
 
 export const ROLE_NOTE = {
-  GERENCIA: 'Clientes y Presupuestos conectados. Los demás módulos están pendientes de integración.',
-  ADMINISTRATIVO_FINANZAS: 'Clientes y Presupuestos conectados. Los demás módulos están pendientes de integración.',
-  SUPERVISOR_OBRAS: 'Los módulos de negocio están pendientes de integración con sus API.'
+  GERENCIA: 'Consulta operativa de Obras y administración de categorías.',
+  ADMINISTRATIVO_FINANZAS: 'Clientes, Presupuestos y consulta mínima de Obras.',
+  SUPERVISOR_OBRAS: 'Gestión operativa de Obras y técnicos participantes.'
 };
 
 export const NAV = {

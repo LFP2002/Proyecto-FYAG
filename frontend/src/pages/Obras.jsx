@@ -1,118 +1,63 @@
-import { useApp } from '../context/AppContext';
-import { OBRA_CHIP } from '../data/constants';
-import { devTxt, fm, pctTxt } from '../utils/format';
-import { Chip, PageHead, Table, Track } from '../components/ui';
-
-const TECNICOS = ['Pedro Díaz', 'Luis Torres'];
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { PageHead } from '../components/ui';
+import { collectionPath, obraPath, readPage } from '../obras/api.js';
+import { canReadObras, canReadTeam, emptyFilters, filterErrors, OBRA_STATES, orderingOptions, projectObra, S, shortDate, T } from '../obras/domain.js';
+import Categories from '../obras/Categories.jsx';
+import NewObra from '../obras/ObraForm.jsx';
+import ObraDetail from '../obras/ObraDetail.jsx';
+import { Feedback, Field, focusError, ObraStatus, Pager, PendingSection, RefreshButton, useOperational } from '../obras/ui.jsx';
 
 export default function Obras() {
-  const a = useApp();
-  const { role, obrasC, pres, sinObra, sel, crearPre, costos, estadoDraft, fObraTec, fObraCat, fCostoTipo, fCostoDesc, fCostoMonto, setField, set, openObra, crearObra, applyEstado, assignTec, addCosto } = a;
-  const showMoney = role === 'gerencia';
-  const showDev = role === 'supervisor';
-  const canEdit = role === 'supervisor';
-  const so = obrasC.find((o) => o.id === sel);
-  const crearP = pres.find((p) => p.id === crearPre);
-  const devChip = (o) => (o.dev > 10 ? 'red' : o.dev > 5 ? 'amber' : 'green');
-  const cols = showMoney ? '80px 1.4fr 1.2fr 1fr 110px 1.2fr 110px 110px 110px' : '80px 1.4fr 1.2fr 1fr 110px 1.2fr 140px';
-  const head = ['ID', 'Cliente', 'Servicio', 'Técnico', 'Estado', 'Avance', ...(showMoney ? ['Presupuesto', 'Costo real', 'Margen'] : ['Costo vs avance'])];
-  const costoRows = so ? (costos[so.id] || []).slice().reverse() : [];
-
-  return (
-    <section>
-      <PageHead title="Obras" sub={role === 'gerencia' ? 'Estado, avance y rentabilidad.' : 'Creación, técnicos, costos y estados.'} />
-      {role === 'supervisor' && (
-        <div className="card-fyag">
-          <div className="card-h"><div><h2>Presupuestos aceptados sin obra</h2></div></div>
-          {sinObra.length === 0 && <p className="fyag-empty">No hay pendientes.</p>}
-          {sinObra.map((p) => (
-            <div key={p.id} className="li">
-              <div><strong>{p.id} · {p.cliente}</strong><div className="feed-d">{p.desc}</div></div>
-              <button className="btn btn-sm btn-fyag-primary" onClick={() => set({ crearPre: p.id, fObraTec: '', fObraCat: 'Refrigeración Industrial' })}>Crear obra</button>
-            </div>
-          ))}
-          {crearP && (
-            <div className="subform">
-              <h2>Nueva obra desde {crearP.id}</h2>
-              <div className="fgrid">
-                <div><label htmlFor="f-ot">Técnico</label><select id="f-ot" className="form-select" value={fObraTec} onChange={(e) => setField('fObraTec', e.target.value)}><option value="">Sin asignar</option>{TECNICOS.map((t) => <option key={t}>{t}</option>)}</select></div>
-                <div><label htmlFor="f-oc">Categoría</label><select id="f-oc" className="form-select" value={fObraCat} onChange={(e) => setField('fObraCat', e.target.value)}><option>Refrigeración Industrial</option><option>Climatización</option><option>Mantención</option></select></div>
-              </div>
-              <div className="actions mt-3"><button className="btn btn-fyag-primary" onClick={crearObra}>Crear obra</button><button className="btn btn-outline-secondary" onClick={() => setField('crearPre', null)}>Cancelar</button></div>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="card-fyag flush">
-        <Table label="Obras" min={showMoney ? '1000px' : '820px'} columns={cols} head={head} style={{ marginTop: 14 }}>
-          {obrasC.map((o) => (
-            <div key={o.id} className={`trow${sel === o.id ? ' sel' : ''}`} role="row">
-              <div role="cell"><button className="linkbtn" onClick={() => openObra(o.id)}>{o.id}</button></div>
-              <div role="cell">{o.cliente}</div>
-              <div role="cell">{o.servicio}</div>
-              <div role="cell">{o.tecnico || 'Sin asignar'}</div>
-              <div role="cell"><Chip cls={OBRA_CHIP[o.estado]}>{o.estado}</Chip></div>
-              <div role="cell" className="mini"><Track small value={o.avance} /><span>{o.avance}%</span></div>
-              {showMoney && (<><div role="cell">{fm(o.presupuesto)}</div><div role="cell">{fm(o.costo)}</div><div role="cell" className={o.margen >= 0 ? 'fyag-pos' : 'fyag-neg'}>{fm(o.margen)}</div></>)}
-              {showDev && <div role="cell"><Chip cls={devChip(o)}>{devTxt(o.dev)}</Chip></div>}
-            </div>
-          ))}
-        </Table>
-      </div>
-
-      {so && (
-        <div className="card-fyag">
-          <div className="card-h">
-            <div><h2>{so.id} · {so.cliente}</h2></div>
-            <button className="btn btn-sm btn-outline-secondary" onClick={() => setField('sel', null)}>Cerrar</button>
-          </div>
-          <div className="dgrid">
-            <div className="dcol">
-              <div className="kv"><span>Estado</span><Chip cls={OBRA_CHIP[so.estado]}>{so.estado}</Chip></div>
-              <div className="kv"><span>Técnico</span><strong>{so.tecnico || 'Sin asignar'}</strong></div>
-              <div className="kv"><span>Avance</span><strong>{so.avance}%</strong></div>
-              <Track value={so.avance} />
-              {showMoney && (<><div className="kv"><span>Presupuesto</span><strong>{fm(so.presupuesto)}</strong></div><div className="kv"><span>Costo</span><strong>{fm(so.costo)}</strong></div><div className="kv"><span>Margen</span><strong className={so.margen >= 0 ? 'fyag-pos' : 'fyag-neg'}>{fm(so.margen)}</strong></div></>)}
-              {showDev && (<><div className="kv"><span>Costo acumulado</span><strong>{fm(so.costo)}</strong></div><div className="kv"><span>Desviación</span><Chip cls={devChip(so)}>{devTxt(so.dev)}</Chip></div></>)}
-              {canEdit && (
-                <div className="subform">
-                  <label htmlFor="f-est" style={{ marginTop: 0 }}>Cambiar estado</label>
-                  <div className="inline">
-                    <select id="f-est" className="form-select" value={estadoDraft} onChange={(e) => setField('estadoDraft', e.target.value)}><option>En proceso</option><option>Suspendida</option><option>Finalizada</option><option>Cancelada</option></select>
-                    <button className="btn btn-fyag-primary" onClick={applyEstado}>Aplicar</button>
-                  </div>
-                  <label htmlFor="f-tec">Técnico</label>
-                  <select id="f-tec" className="form-select" value={so.tecnico || ''} onChange={(e) => assignTec(e.target.value)}><option value="">Sin asignar</option>{TECNICOS.map((t) => <option key={t}>{t}</option>)}</select>
-                </div>
-              )}
-            </div>
-            <div className="dcol">
-              <h2>Costos</h2>
-              <Table label="Costos" min="0" columns="80px 1fr 56px 100px" head={['Tipo', 'Detalle', 'Fecha', 'Monto']} style={{ marginTop: 10 }}>
-                {costoRows.map((c, i) => (
-                  <div key={i} className="trow" role="row" style={{ padding: '10px 0' }}>
-                    <div role="cell"><Chip cls={c.tipo === 'Material' ? 'blue' : 'gray'}>{c.tipo}</Chip></div>
-                    <div role="cell">{c.desc}</div>
-                    <div role="cell" className="fyag-muted">{c.fecha}</div>
-                    <div role="cell" className="fyag-money">{fm(c.monto)}</div>
-                  </div>
-                ))}
-              </Table>
-              {canEdit && (
-                <div className="subform">
-                  <h2>Registrar costo</h2>
-                  <div className="fgrid">
-                    <div><label htmlFor="f-kt">Tipo</label><select id="f-kt" className="form-select" value={fCostoTipo} onChange={(e) => setField('fCostoTipo', e.target.value)}><option value="Material">Material</option><option value="Horas">Horas</option></select></div>
-                    <div><label htmlFor="f-kd">Detalle</label><input id="f-kd" className="form-control" value={fCostoDesc} onChange={(e) => setField('fCostoDesc', e.target.value)} /></div>
-                    <div><label htmlFor="f-km">Monto ($)</label><input id="f-km" className="form-control" type="number" value={fCostoMonto} onChange={(e) => setField('fCostoMonto', e.target.value)} /></div>
-                  </div>
-                  <div className="actions mt-3"><button className="btn btn-fyag-primary" onClick={addCosto}>Registrar</button></div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
+  const { user } = useAuth(), api = useOperational();
+  const [query, setQuery] = useState({ filters: { ...emptyFilters }, page: 1 });
+  const [draft, setDraft] = useState({ ...emptyFilters }), [errors, setErrors] = useState({});
+  const [data, setData] = useState(null), [selected, setSelected] = useState(null), [creating, setCreating] = useState(false), [categories, setCategories] = useState(false), [expanded, setExpanded] = useState(false);
+  const refreshFlight = useRef(false);
+  const path = user.role === T ? `${obraPath()}mis-obras/` : obraPath();
+  const read = () => { setData(null); return api.load('list', collectionPath(path, query.page, query.filters), (result) => {
+    const page = readPage(result, path); setData({ ...page, results: page.results.map((row) => projectObra(row, user.role)) });
+  }); };
+  useEffect(() => { setData(null); if (canReadObras(user.role)) void read(); }, [query]);
+  async function refresh() {
+    if (refreshFlight.current || api.busy || api.loading) return;
+    refreshFlight.current = true;
+    try { await api.reconcile(read); } finally { refreshFlight.current = false; }
+  }
+  function apply(event) {
+    event.preventDefault();
+    const invalid = filterErrors(draft); setErrors(invalid); focusError(event, invalid);
+    if (!Object.keys(invalid).length) { api.setError(null); setQuery({ filters: { ...draft }, page: 1 }); }
+  }
+  const blocked = api.busy || api.loading || api.locked;
+  if (!canReadObras(user.role)) return <p role="alert">No tienes acceso a Obras.</p>;
+  if (categories && canReadTeam(user.role)) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
+  if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} onBack={() => { setSelected(null); void read(); }} /></section>;
+  return <section className="commercial-page obras-page">
+    <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : 'Planificación y seguimiento operativo.'} />
+    <div className="budget-toolbar">
+      {user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { setExpanded(false); setCreating(true); }}>Nueva obra</button>}
+      {canReadTeam(user.role) && <button className="btn btn-outline-secondary" disabled={blocked || creating} onClick={() => setCategories(true)}>Categorías de servicio</button>}
+      <div className="budget-toolbar-filters"><button className="btn btn-outline-secondary" type="button" aria-expanded={expanded} aria-controls="obras-filters" disabled={api.busy || creating} onClick={() => setExpanded(!expanded)}>Filtros</button><RefreshButton busy={api.busy || api.loading} onClick={refresh} /></div>
+    </div>
+    {expanded && <form id="obras-filters" className="card-fyag commercial-form" noValidate onSubmit={apply}>
+      <div className="obras-form-grid">
+        <Field name="estado" label="Estado" value={draft.estado} options={[[ '', 'Todos' ], ...Object.entries(OBRA_STATES).map(([key, [label]]) => [key, label])]} onChange={(estado) => setDraft({ ...draft, estado })} error={errors.estado} />
+        {[[ 'cliente', 'Cliente (ID)' ], ['tecnico_responsable', 'Responsable (ID)'], ['categoria_servicio', 'Categoría (ID)']].map(([name, label]) => <Field key={name} name={name} label={label} value={draft[name]} onChange={(value) => setDraft({ ...draft, [name]: value })} error={errors[name]} />)}
+        <Field name="fecha_programada_desde" label="Programada desde" type="date" value={draft.fecha_programada_desde} onChange={(value) => setDraft({ ...draft, fecha_programada_desde: value })} error={errors.fecha_programada_desde} />
+        <Field name="fecha_programada_hasta" label="Programada hasta" type="date" value={draft.fecha_programada_hasta} onChange={(value) => setDraft({ ...draft, fecha_programada_hasta: value })} error={errors.fecha_programada_hasta} />
+        <Field name="ordering" label="Ordenar por" value={draft.ordering} options={orderingOptions} onChange={(ordering) => setDraft({ ...draft, ordering })} error={errors.ordering} />
+      </div><div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.loading} type="submit">Aplicar filtros</button><button className="btn btn-outline-secondary" disabled={api.loading} type="button" onClick={() => { setDraft({ ...emptyFilters }); setErrors({}); api.setError(null); setQuery({ filters: { ...emptyFilters }, page: 1 }); }}>Limpiar filtros</button></div>
+    </form>}
+    <Feedback api={api} />
+    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label={user.role === T ? 'Mis obras asignadas' : 'Listado de obras'} tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Código', 'Cliente', 'Categoría', 'Responsable', 'Estado', 'Programación', 'Detalle'].map((label) => <th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>
+      {data?.results.map((obra) => <tr key={obra.id}><td className="commercial-code">{obra.codigo} · #{obra.id}</td><td className="commercial-description">{obra.cliente_nombre} · #{obra.cliente}</td><td>{obra.categoria_nombre} · #{obra.categoria_servicio}</td><td>{obra.tecnico_nombre || 'Sin asignar'}{obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</td><td><ObraStatus state={obra.estado} /></td><td>{shortDate(obra.fecha_programada)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={blocked || creating} onClick={() => setSelected(obra.id)}>Ver obra</button></td></tr>)}
+    </tbody></table></div>
+      {data && !data.count && <div className="commercial-empty"><h2>No hay obras para esta consulta.</h2><p>Prueba con otros filtros.</p></div>}
+      <Pager label="Paginación de obras" data={data} page={query.page} setPage={(page) => setQuery({ ...query, page })} disabled={blocked || creating} />
+      {api.error?.status === 404 && query.page !== 1 && <button className="btn btn-outline-secondary m-3" onClick={() => setQuery({ ...query, page: 1 })}>Volver a la primera página</button>}
+    </div>
+    {creating && user.role === S && <NewObra onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); setSelected(id); }} />}
+    {user.role === T && <PendingSection>Mis turnos: pendiente de integración frontend en 005C-2.</PendingSection>}
+  </section>;
 }
