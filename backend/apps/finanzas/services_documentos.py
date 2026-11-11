@@ -9,7 +9,7 @@ from rest_framework.exceptions import APIException, AuthenticationFailed, NotFou
 from apps.comercial.models import Presupuesto
 from apps.obras.models import Obra, CierreCostosObra, CortesiaObra
 from apps.usuarios.models import Usuario
-from .models import DocumentoCobro, CierreSinCobro, FinanzasEvento
+from .models import DocumentoCobro, CierreSinCobro, FinanzasEvento, PagoDocumento
 from .serializers_documentos import DocumentoCrearSerializer, DocumentoRevertirSerializer, SinCobroCrearSerializer
 
 
@@ -125,7 +125,8 @@ def revertir_documento(pk, payload, actor):
         raise ConflictoFinanciero("origen_inconsistente", "La referencia de origen cambió.")
     if documento.estado != "VIGENTE":
         raise ConflictoFinanciero("documento_ya_revertido", "El registro ya fue revertido administrativamente.")
-    # No existe modelo/servicio de pagos en 007A; 007B deberá añadir su guard aquí.
+    if PagoDocumento.objects.filter(documento=documento, activo=True).exists():
+        raise ConflictoFinanciero("pagos_pendientes_de_resolver", "Resuelva administrativamente los pagos activos antes de revertir el documento.")
     documento.estado = "REVERTIDO"
     documento.revertido_por = actor
     documento.revertido_en = timezone.now()

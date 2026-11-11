@@ -2,7 +2,7 @@ import re
 
 from rest_framework import serializers
 
-from .models import DocumentoCobro, FinanzasEvento, SNAPSHOT_FIELDS
+from .models import DocumentoCobro, FinanzasEvento, SNAPSHOT_FIELDS, tipo_snapshot
 from .validaciones import hoy_santiago, validar_montos
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -112,6 +112,7 @@ class OrigenFinancieroSerializer(serializers.Serializer):
 
 
 class DocumentoLecturaSerializer(serializers.ModelSerializer):
+    cobranza = serializers.SerializerMethodField()
     naturaleza = serializers.CharField(read_only=True, default="REGISTRO_ADMINISTRATIVO_DOCUMENTO_EXTERNO")
     origen = serializers.SerializerMethodField()
     monto_neto = Importe(read_only=True)
@@ -121,9 +122,13 @@ class DocumentoLecturaSerializer(serializers.ModelSerializer):
     def get_origen(self, obj):
         return origen_financiero(obj.obra)
 
+    def get_cobranza(self, obj):
+        from .consultas_cobranzas import resumen_documento
+        return resumen_documento(obj)
+
     class Meta:
         model = DocumentoCobro
-        fields = ["id", "naturaleza", "origen", "tipo_documento", "folio_externo", "fecha_emision", "fecha_vencimiento", "monto_neto", "monto_impuesto", "monto_total", "referencia_respaldo", "estado", "registrado_por", "registrado_en", "revertido_por", "revertido_en", "motivo_reversion", "referencia_rectificacion_externa"]
+        fields = ["id", "naturaleza", "origen", "tipo_documento", "folio_externo", "fecha_emision", "fecha_vencimiento", "monto_neto", "monto_impuesto", "monto_total", "referencia_respaldo", "estado", "registrado_por", "registrado_en", "revertido_por", "revertido_en", "motivo_reversion", "referencia_rectificacion_externa", "cobranza"]
         read_only_fields = fields
 
 
@@ -136,7 +141,7 @@ class FinanzasEventoSerializer(serializers.ModelSerializer):
         if not isinstance(data, dict):
             return {}
         return {key: value for key, value in data.items() if key in SNAPSHOT_FIELDS
-                and type(value) is (int if key in {"obra", "cortesia"} else str)}
+                and type(value) is tipo_snapshot(key)}
 
     def get_datos_anteriores(self, obj):
         return self.snapshot(obj, "datos_anteriores")
@@ -146,5 +151,5 @@ class FinanzasEventoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FinanzasEvento
-        fields = ["id", "documento", "cierre_sin_cobro", "tipo", "actor", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"]
+        fields = ["id", "documento", "cierre_sin_cobro", "pago", "tipo", "actor", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"]
         read_only_fields = fields

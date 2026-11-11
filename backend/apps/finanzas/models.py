@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import F, Q
 from django.db.models.functions import Trim
 
-from .validaciones import LIMITE, hoy_santiago, validar_montos
+from .validaciones import LIMITE, hoy_santiago, importe, validar_montos
 
 
 class InmutableQuerySet(models.QuerySet):
@@ -118,7 +118,66 @@ SNAPSHOT_FIELDS = {
     "obra", "tipo_documento", "folio_externo", "fecha_emision", "fecha_vencimiento",
     "monto_neto", "monto_impuesto", "monto_total", "referencia_respaldo", "estado",
     "motivo_reversion", "referencia_rectificacion_externa", "cortesia", "motivo_registro",
+    "documento", "monto", "fecha_pago", "medio", "observacion", "activo",
+    "motivo_anulacion", "referencia_reversion_externa",
 }
+
+
+def tipo_snapshot(key):
+    return int if key in {"obra", "cortesia", "documento"} else bool if key == "activo" else str
+
+
+class PagoDocumento(RegistroInmutable):
+    class Medio(models.TextChoices):
+        TRANSFERENCIA = "TRANSFERENCIA", "Transferencia"
+        EFECTIVO = "EFECTIVO", "Efectivo"
+        TARJETA = "TARJETA", "Tarjeta"
+        OTRO = "OTRO", "Otro"
+
+    documento = models.ForeignKey(DocumentoCobro, on_delete=models.PROTECT, related_name="pagos")
+    monto = models.DecimalField(max_digits=38, decimal_places=2)
+    fecha_pago = models.DateField()
+    medio = models.CharField(max_length=13, choices=Medio.choices)
+    referencia_respaldo = models.CharField(max_length=500)
+    observacion = models.CharField(max_length=2000, blank=True, default="")
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="pagos_financieros_registrados", editable=False)
+    registrado_en = models.DateTimeField(auto_now_add=True)
+    activo = models.BooleanField(default=True, editable=False)
+    anulado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="pagos_financieros_anulados", null=True, blank=True, editable=False)
+    anulado_en = models.DateTimeField(null=True, blank=True, editable=False)
+    motivo_anulacion = models.CharField(max_length=2000, null=True, blank=True, editable=False)
+    referencia_reversion_externa = models.CharField(max_length=500, null=True, blank=True, editable=False)
+    clave_idempotencia = models.UUIDField(editable=False)
+    huella_solicitud = models.CharField(max_length=64, editable=False)
+
+    class Meta:
+        ordering = ["-registrado_en", "-id"]
+        indexes = [
+            models.Index(fields=["documento", "activo"], name="fin_pago_documento_activo_idx"),
+            models.Index(fields=["fecha_pago", "id"], name="fin_pago_fecha_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["clave_idempotencia"], name="fin_pago_idempotencia_unica"),
+            models.CheckConstraint(condition=Q(monto__gt=0, monto__lte=LIMITE), name="fin_pago_monto_positivo"),
+            models.CheckConstraint(condition=Q(medio__in=["TRANSFERENCIA", "EFECTIVO", "TARJETA", "OTRO"]), name="fin_pago_medio_valido"),
+            models.CheckConstraint(condition=Q(huella_solicitud__regex=r"^[0-9a-f]{64}$"), name="fin_pago_huella_valida"),
+            models.CheckConstraint(condition=~Q(referencia_respaldo="") & Q(referencia_respaldo=Trim("referencia_respaldo"), observacion=Trim("observacion")), name="fin_pago_textos_validos"),
+            models.CheckConstraint(condition=(
+                Q(activo=True, anulado_por__isnull=True, anulado_en__isnull=True, motivo_anulacion__isnull=True, referencia_reversion_externa__isnull=True)
+                | (Q(activo=False, anulado_por__isnull=False, anulado_en__isnull=False, motivo_anulacion__isnull=False, referencia_reversion_externa__isnull=False,
+                     anulado_en__gte=F("registrado_en"), motivo_anulacion=Trim("motivo_anulacion"), referencia_reversion_externa=Trim("referencia_reversion_externa")) & ~Q(motivo_anulacion="") & ~Q(referencia_reversion_externa=""))
+            ), name="fin_pago_anulacion_coherente"),
+        ]
+
+    def clean(self):
+        super().clean()
+        importe(self.monto)
+        if self.monto <= 0:
+            raise ValidationError({"monto": "Debe ser estrictamente positivo."})
+        if self.fecha_pago and self.fecha_pago > hoy_santiago():
+            raise ValidationError({"fecha_pago": "No puede ser futura en Santiago."})
+        if self.documento_id and self.fecha_pago and self.fecha_pago < self.documento.fecha_emision:
+            raise ValidationError({"fecha_pago": "No puede preceder a la emisión del documento."})
 
 
 class FinanzasEvento(RegistroInmutable):
@@ -126,9 +185,12 @@ class FinanzasEvento(RegistroInmutable):
         DOCUMENTO_REGISTRADO = "DOCUMENTO_REGISTRADO", "Documento externo registrado"
         DOCUMENTO_REVERTIDO = "DOCUMENTO_REVERTIDO", "Documento revertido administrativamente"
         SIN_COBRO_REGISTRADO = "SIN_COBRO_REGISTRADO", "Cierre administrativo sin cobro"
+        PAGO_REGISTRADO = "PAGO_REGISTRADO", "Pago recibido registrado"
+        PAGO_ANULADO = "PAGO_ANULADO", "Pago anulado administrativamente"
 
     documento = models.ForeignKey(DocumentoCobro, on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
     cierre_sin_cobro = models.ForeignKey(CierreSinCobro, on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
+    pago = models.ForeignKey(PagoDocumento, on_delete=models.PROTECT, related_name="eventos", null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=Tipo.choices)
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="eventos_financieros", editable=False)
     motivo = models.CharField(max_length=2000, blank=True, default="")
@@ -139,8 +201,9 @@ class FinanzasEvento(RegistroInmutable):
     class Meta:
         ordering = ["creado_en", "id"]
         constraints = [models.CheckConstraint(condition=(
-            Q(tipo__in=["DOCUMENTO_REGISTRADO", "DOCUMENTO_REVERTIDO"], documento__isnull=False, cierre_sin_cobro__isnull=True)
-            | Q(tipo="SIN_COBRO_REGISTRADO", documento__isnull=True, cierre_sin_cobro__isnull=False)
+            Q(tipo__in=["DOCUMENTO_REGISTRADO", "DOCUMENTO_REVERTIDO"], documento__isnull=False, cierre_sin_cobro__isnull=True, pago__isnull=True)
+            | Q(tipo="SIN_COBRO_REGISTRADO", documento__isnull=True, cierre_sin_cobro__isnull=False, pago__isnull=True)
+            | Q(tipo__in=["PAGO_REGISTRADO", "PAGO_ANULADO"], documento__isnull=True, cierre_sin_cobro__isnull=True, pago__isnull=False)
         ), name="fin_evento_referencia_coherente")]
 
     def clean(self):
@@ -148,5 +211,5 @@ class FinanzasEvento(RegistroInmutable):
         for data in (self.datos_anteriores, self.datos_nuevos):
             if not isinstance(data, dict) or set(data) - SNAPSHOT_FIELDS:
                 raise ValidationError("Snapshot financiero no permitido.")
-            if any(type(value) is not (int if key in {"obra", "cortesia"} else str) for key, value in data.items()):
+            if any(type(value) is not tipo_snapshot(key) for key, value in data.items()):
                 raise ValidationError("Tipo de snapshot financiero no permitido.")
