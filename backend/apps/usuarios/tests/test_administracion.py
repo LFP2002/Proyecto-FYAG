@@ -24,8 +24,8 @@ class AdminBase:
     def setUpTestData(cls):
         cls.users = {role: Usuario.objects.create_user(username=f"cuenta_{index}", email=f"cuenta{index}@example.test", password=PASSWORD, rol=role)
                      for index, role in enumerate(Usuario.Rol.values)}
-        cls.manager = cls.users[Usuario.Rol.GERENCIA]
-        cls.other_manager = Usuario.objects.create_user(username="otra_gerencia", email="otra@example.test", password=PASSWORD, rol=Usuario.Rol.GERENCIA)
+        cls.manager = cls.users[Usuario.Rol.ADMINISTRADOR_TI]
+        cls.other_manager = Usuario.objects.create_user(username="otra_ti", email="otra@example.test", password=PASSWORD, rol=Usuario.Rol.ADMINISTRADOR_TI)
         cls.target = cls.users[Usuario.Rol.TECNICO]
 
     def authenticate(self, user=None):
@@ -62,7 +62,7 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertTrue(active.data["is_active"])
         self.assertEqual(self.client.post("/api/auth/login/", {"email": user.email, "password": PASSWORD}, format="json").status_code, 200)
 
-    def test_alta_cuatro_roles_sin_privilegios_django(self):
+    def test_alta_cinco_roles_sin_privilegios_django(self):
         for index, role in enumerate(Usuario.Rol.values):
             result = self.client.post("/api/usuarios/", self.new_data(email=f"alta{index}@example.test", username=f"alta{index}", rol=role), format="json")
             self.assertEqual(result.status_code, 201, result.data)
@@ -87,17 +87,17 @@ class AdministracionAPITests(AdminBase, APITestCase):
         result = self.client.get("/api/usuarios/")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(len(result.data["results"]), 25)
-        self.assertEqual(result.data["count"], 31)
+        self.assertEqual(result.data["count"], 32)
         self.assertEqual([user["id"] for user in result.data["results"]], sorted(user["id"] for user in result.data["results"]))
-        self.assertEqual(len(self.client.get("/api/usuarios/?page=2").data["results"]), 6)
+        self.assertEqual(len(self.client.get("/api/usuarios/?page=2").data["results"]), 7)
         result = self.client.get("/api/usuarios/?rol=TECNICO&activo=false")
         self.assertEqual(result.data["count"], 26)
         for query in ["rol=admin", "activo=True", "activo=1", "rol=TECNICO&rol=GERENCIA", "page=1&page=2", "email=x", "ordering=email", "activo="]:
             self.assertEqual(self.client.get("/api/usuarios/?" + query).status_code, 400, query)
         self.assertEqual(self.client.get("/api/usuarios/?page=999").status_code, 404)
 
-    def test_roles_no_gerencia_denegados_antes_de_revelar_cuentas(self):
-        for role in [Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO]:
+    def test_roles_no_ti_denegados_antes_de_revelar_cuentas(self):
+        for role in [Usuario.Rol.GERENCIA, Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO]:
             user = self.users[role]
             user.is_superuser = True
             user.is_staff = True
@@ -148,7 +148,7 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertEqual(result.status_code, 409)
         self.assertEqual(result.data["code"], "sin_cambios")
 
-    def test_autooperaciones_protegidas_y_ultima_gerencia(self):
+    def test_autooperaciones_protegidas_y_ultima_ti(self):
         url = f"/api/usuarios/{self.manager.pk}/"
         for action, data in [("desactivar", {"motivo": "Propia"}), ("cambiar-rol", {"rol": "TECNICO", "motivo": "Propia"}), ("establecer-clave", {"nueva_clave": NEW_PASSWORD, "motivo": "Propia"})]:
             self.assertEqual(self.client.post(url + action + "/", data, format="json").status_code, 409)
@@ -156,9 +156,9 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.other_manager.save()
         result = self.client.post(url + "desactivar/", {"motivo": "Última"}, format="json")
         self.assertEqual(result.status_code, 409)
-        self.assertEqual(result.data["code"], "ultima_gerencia")
+        self.assertEqual(result.data["code"], "ultima_ti")
         result = self.client.post(url + "cambiar-rol/", {"rol": "TECNICO", "motivo": "Última"}, format="json")
-        self.assertEqual(result.data["code"], "ultima_gerencia")
+        self.assertEqual(result.data["code"], "ultima_ti")
         self.assertEqual(UsuarioEvento.objects.count(), 0)
 
     def test_clave_administrativa_y_snapshots_sin_secretos(self):

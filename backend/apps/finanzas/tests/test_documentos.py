@@ -64,7 +64,8 @@ class DocumentosTests(FinanzasBase, TestCase):
             self.assertEqual(self.client.get(path).status_code, 401)
 
     def test_rol_persistido_sesion_revocada_e_inactiva(self):
-        services_usuarios.cambiar_rol(self.finanzas, {"rol": "TECNICO", "motivo": "Cambio"}, self.gerencia)
+        ti = Usuario.objects.create_user(username="ti", email="ti@example.test", rol="ADMINISTRADOR_TI")
+        services_usuarios.cambiar_rol(self.finanzas, {"rol": "TECNICO", "motivo": "Cambio"}, ti)
         self.assertEqual(self.client.get(self.documentos_url).status_code, 401)
         self.finanzas.refresh_from_db()
         self.autenticar(self.finanzas)

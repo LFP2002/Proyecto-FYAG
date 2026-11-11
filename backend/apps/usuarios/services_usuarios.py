@@ -14,6 +14,7 @@ from rest_framework.exceptions import APIException, AuthenticationFailed, NotFou
 from .models import Usuario, UsuarioEvento
 
 G = Usuario.Rol.GERENCIA
+TI = Usuario.Rol.ADMINISTRADOR_TI
 PROFILE = {"email", "username", "first_name", "last_name"}
 SNAPSHOT = PROFILE | {"rol", "is_active"}
 ADMIN_MUTEX = 6006006  # Namespace FYAG/SPEC-006, advisory xact (se libera al commit/rollback).
@@ -57,13 +58,13 @@ def _admin(actor, target=None):
     target_id = _id(target) if target is not None else None
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", [ADMIN_MUTEX])
-    # El mutex evita phantoms de Gerencia entre operaciones 006. También se
-    # bloquean sus filas (y actor/objetivo) siempre en el mismo orden de PK.
+    # El mismo mutex protege TI/Gerencia y el aprovisionamiento inicial.
+    # Filas activas de ambos roles, actor y objetivo: siempre por PK ascendente.
     accounts = {user.pk: user for user in Usuario.objects.select_for_update().filter(
-        Q(rol=G, is_active=True) | Q(pk__in=[actor.pk, target_id]),
+        Q(rol__in=[G, TI], is_active=True) | Q(pk__in=[actor.pk, target_id]),
     ).order_by("pk")}
     actual = accounts.get(actor.pk)
-    if not actual or not actual.is_active or actual.rol != G:
+    if not actual or not actual.is_active or actual.rol != TI:
         raise PermissionDenied("Operación no autorizada.")
     if actual.sesion_version != actor.sesion_version:
         raise AuthenticationFailed("Sesión no disponible.")
@@ -147,6 +148,11 @@ def _last_manager(user):
         raise ConflictoUsuario("ultima_gerencia", "Debe permanecer una Gerencia activa.")
 
 
+def _last_ti(user):
+    if user.is_active and user.rol == TI and Usuario.objects.filter(rol=TI, is_active=True).count() <= 1:
+        raise ConflictoUsuario("ultima_ti", "Debe permanecer una cuenta TI activa.")
+
+
 def _dependencies(user):
     from apps.obras.models import Obra, ObraParticipante, TurnoObra
     # Consultas no bloqueantes. El lock de Usuario serializa los escritores que
@@ -198,6 +204,7 @@ def actividad_usuario(target, data, actor, *, activo):
     reason = _text(data["motivo"], "motivo")
     if not activo:
         _last_manager(user)
+        _last_ti(user)
         _not_self(actor, user)
     if user.is_active == activo:
         return user
@@ -219,6 +226,8 @@ def cambiar_rol(target, data, actor):
     role, reason = _role(data["rol"]), _text(data["motivo"], "motivo")
     if role != G:
         _last_manager(user)
+    if role != TI:
+        _last_ti(user)
     _not_self(actor, user)
     if role == user.rol:
         raise ConflictoUsuario("sin_cambios", "La cuenta ya tiene ese rol.")
@@ -264,4 +273,25 @@ def cambiar_clave_propia(data, actor):
     _version(user)
     user.save(update_fields=["password", "sesion_version"])
     _event(user, user, UsuarioEvento.Tipo.CAMBIO_CLAVE_PROPIA)
+    return user
+
+
+@operacion
+def aprovisionar_primera_ti(data):
+    """Solo CLI de confianza; no se publica en HTTP ni modifica cuentas existentes.
+
+    Bloquea incluso con cero filas TI: dos ejecuciones no pueden crear dos
+    primeras cuentas. Una TI inactiva también exige recuperación, no rebootstrap.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s)", [ADMIN_MUTEX])
+    if Usuario.objects.filter(rol=TI).exists():
+        raise ConflictoUsuario("ti_ya_aprovisionada", "Ya existe una cuenta TI; utilice la administración o el procedimiento de recuperación.")
+    _contract(data, PROFILE | {"password"}, {"email", "username", "password"})
+    user = Usuario(**_profile(data), rol=TI.value, is_active=True)
+    _password(data["password"], user, "password")
+    user.set_password(data["password"])
+    _unique(user)
+    user.save()
+    _event(user, user, UsuarioEvento.Tipo.CREACION, "Aprovisionamiento manual inicial de TI mediante comando Django", after=_snapshot(user))
     return user

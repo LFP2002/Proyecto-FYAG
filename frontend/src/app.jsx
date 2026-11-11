@@ -9,6 +9,7 @@ import Clientes from './pages/Clientes';
 import Presupuestos from './pages/Presupuestos';
 import { canRead } from './comercial/domain.js';
 import Obras from './pages/Obras';
+import Usuarios from './pages/Usuarios';
 import { canReadObras } from './obras/domain.js';
 
 export default function App() {
@@ -19,6 +20,6 @@ export default function App() {
   }
   if (status !== 'authenticated' || !user) return <Login />;
   if (user.role === 'TECNICO') return <TecnicoApp key={`${user.id}:${user.role}`} />;
-  const Page = mod === 'obras' && canReadObras(user.role) ? Obras : canRead(user.role) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
+  const Page = mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios : mod === 'obras' && canReadObras(user.role) ? Obras : canRead(user.role) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
   return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
 }
