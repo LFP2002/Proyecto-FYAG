@@ -7,23 +7,26 @@ export const ROLES = {
   GERENCIA: { short: 'Gerencia' },
   ADMINISTRATIVO_FINANZAS: { short: 'Administrativo / Finanzas' },
   SUPERVISOR_OBRAS: { short: 'Supervisor de Obras' },
-  TECNICO: { short: 'Técnico' }
+  TECNICO: { short: 'Técnico' },
+  ADMINISTRADOR_TI: { short: 'Administrador de TI' }
 };
 
 export const ROLE_NOTE = {
   GERENCIA: 'Consulta operativa de Obras y administración de categorías.',
   ADMINISTRATIVO_FINANZAS: 'Clientes, Presupuestos y consulta mínima de Obras.',
-  SUPERVISOR_OBRAS: 'Gestión operativa de Obras y técnicos participantes.'
+  SUPERVISOR_OBRAS: 'Gestión operativa de Obras y técnicos participantes.',
+  ADMINISTRADOR_TI: 'Administración de cuentas y auditoría de usuarios, sin acceso de negocio.'
 };
 
 export const NAV = {
-  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'usuarios'],
+  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes'],
   ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes'],
   SUPERVISOR_OBRAS: ['obras', 'alertas'],
-  TECNICO: ['obras']
+  TECNICO: ['obras'],
+  ADMINISTRADOR_TI: ['usuarios']
 };
 
-export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras' };
+export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras', ADMINISTRADOR_TI: 'usuarios' };
 
 export const MODS = {
   dashboard: { label: 'Dashboard', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
@@ -59,6 +62,6 @@ export const MATRIX = [
   ['Cobranzas y pagos', 'Lectura', 'Total', '—', '—'],
   ['Alertas', 'Lectura', '—', 'Lectura', '—'],
   ['Reportes', 'Total', 'Cobranza', '—', '—'],
-  ['Usuarios y roles', 'Total', '—', '—', '—'],
+  ['Usuarios y roles', '—', '—', '—', '—'],
   ['Registro de avances', '—', '—', 'Lectura', 'Registra']
-];
+].map((row) => [...row, row[0] === 'Usuarios y roles' ? 'Total' : '—']);

@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from . import services_usuarios as services
 from .models import Usuario
-from .permissions import EsGerenciaActiva
+from .permissions import EsAdministradorTIActivo
 from .serializers_usuarios import (
     CambiarClavePropiaSerializer, CrearUsuarioSerializer, EstablecerClaveSerializer,
     MotivoUsuarioSerializer, PerfilUsuarioSerializer, RolUsuarioSerializer,
@@ -31,7 +31,7 @@ def validar_query(params, allowed):
 
 
 class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated, EsGerenciaActiva]
+    permission_classes = [IsAuthenticated, EsAdministradorTIActivo]
     parser_classes = [JSONParser]
     pagination_class = UsuariosPaginacion
     http_method_names = ["get", "post", "patch", "head", "options"]

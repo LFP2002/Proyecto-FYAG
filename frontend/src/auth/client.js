@@ -1,7 +1,9 @@
 // Access y CSRF solo en esta instancia en memoria. La cookie de refresh la
 // administra el navegador; nunca se lee desde JavaScript ni se devuelve un token.
+import { API_ORIGIN, trustedOrigin } from './config.js';
 export const USER_ROLES = Object.freeze([
   'GERENCIA', 'ADMINISTRATIVO_FINANZAS', 'SUPERVISOR_OBRAS', 'TECNICO',
+  'ADMINISTRADOR_TI',
 ]);
 
 export class ApiError extends Error {
@@ -27,7 +29,8 @@ function messageFor(status) {
   })[status] || 'No fue posible completar la solicitud. Inténtalo nuevamente.';
 }
 
-export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {}) {
+export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiOrigin = API_ORIGIN } = {}) {
+  const origin = trustedOrigin(apiOrigin);
   let access = null;
   let csrf = null;
   let epoch = 0;
@@ -56,7 +59,8 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {
 
   async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal } = {}) {
     // No enviar credenciales a URLs externas, ni seguir redirecciones de API.
-    if (!path.startsWith('/api/') || path.includes('\\') || path.startsWith('/api//')) {
+    if (typeof path !== 'string' || !path.startsWith('/api/') || path.includes('\\') || path.startsWith('/api//')
+        || !new URL(path, 'https://request.invalid').pathname.startsWith('/api/')) {
       throw new ApiError(400, 'La ruta debe pertenecer a la API del mismo origen.');
     }
     const requestHeaders = new Headers(headers);
@@ -68,8 +72,8 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {
     if (csrfToken) requestHeaders.set('X-CSRFToken', csrfToken);
     let response;
     try {
-      response = await fetchImpl(path, {
-        method, headers: requestHeaders, credentials: 'same-origin', redirect: 'error',
+      response = await fetchImpl(origin ? `${origin}${path}` : path, {
+        method, headers: requestHeaders, credentials: origin ? 'include' : 'same-origin', redirect: 'error',
         cache: 'no-store', signal, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     } catch {
@@ -85,12 +89,16 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args) } = {
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
             for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page']) allowed.add(field);
           }
+          if (path.startsWith('/api/usuarios/')) {
+            for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
+          }
           const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
           for (const [key, value] of Object.entries(data || {})) {
             const values = Array.isArray(value) ? value : [value];
             if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
           }
           if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
+          if (path.startsWith('/api/usuarios/') && ['ultima_ti', 'ultima_gerencia', 'autooperacion_protegida', 'asignaciones_pendientes', 'sin_cambios', 'version_agotada'].includes(data?.code)) code = data.code;
         } catch { /* Respuesta no pública: conservar mensaje genérico. */ }
       }
       throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });

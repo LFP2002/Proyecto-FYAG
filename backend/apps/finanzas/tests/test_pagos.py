@@ -15,6 +15,7 @@ from apps.finanzas import services_documentos as documentos, services_pagos as p
 from apps.finanzas.models import DocumentoCobro, PagoDocumento, FinanzasEvento
 from apps.finanzas.validaciones import hoy_santiago, LIMITE
 from apps.usuarios import services_usuarios
+from apps.usuarios.models import Usuario
 from .base import FinanzasBase
 
 
@@ -259,7 +260,8 @@ class PagosTests(PagosBase, TestCase):
             self.assertEqual(self.client.get(path).status_code, 401)
 
     def test_jwt_revocado_y_actor_persistido(self):
-        services_usuarios.editar_usuario(self.finanzas, {"email": "revocado@example.test"}, self.gerencia)
+        ti = Usuario.objects.create_user(username="ti", email="ti@example.test", rol="ADMINISTRADOR_TI")
+        services_usuarios.editar_usuario(self.finanzas, {"email": "revocado@example.test"}, ti)
         self.assertEqual(self.pagar().status_code, 401)
         self.finanzas.refresh_from_db()
         self.autenticar(self.finanzas)

@@ -23,6 +23,7 @@ from .test_administracion import PASSWORD
 class ConcurrenciaTests(BaseObras, TransactionTestCase):
     def setUp(self):
         self.setUpTestData()
+        self.ti = Usuario.objects.create_user(username="ti", email="ti@example.test", rol="ADMINISTRADOR_TI")
 
     def race(self, first, second):
         ready, release, started = Event(), Event(), Event()
@@ -72,35 +73,35 @@ class ConcurrenciaTests(BaseObras, TransactionTestCase):
             return one.result(timeout=15), two.result(timeout=15)
 
     def deactivate(self):
-        return usuarios.actividad_usuario(self.tecnico, {"motivo": "Baja"}, self.gerencia, activo=False)
+        return usuarios.actividad_usuario(self.tecnico, {"motivo": "Baja"}, self.ti, activo=False)
 
     def demote(self):
-        return usuarios.cambiar_rol(self.tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.gerencia)
+        return usuarios.cambiar_rol(self.tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.ti)
 
-    def test_gerencias_desactivaciones_cruzadas(self):
-        other = Usuario.objects.create_user(username="segunda", email="segunda@example.test", rol="GERENCIA")
+    def test_ti_desactivaciones_cruzadas(self):
+        other = Usuario.objects.create_user(username="segunda", email="segunda@example.test", rol="ADMINISTRADOR_TI")
         one, two = self.race(
-            lambda: usuarios.actividad_usuario(other, {"motivo": "Baja"}, self.gerencia, activo=False),
-            lambda: usuarios.actividad_usuario(self.gerencia, {"motivo": "Baja"}, other, activo=False),
+            lambda: usuarios.actividad_usuario(other, {"motivo": "Baja"}, self.ti, activo=False),
+            lambda: usuarios.actividad_usuario(self.ti, {"motivo": "Baja"}, other, activo=False),
         )
         self.assertIsInstance(one, Usuario)
         self.assertIsInstance(two, APIException)
-        self.assertEqual(Usuario.objects.filter(rol="GERENCIA", is_active=True).count(), 1)
+        self.assertEqual(Usuario.objects.filter(rol="ADMINISTRADOR_TI", is_active=True).count(), 1)
         self.assertEqual(UsuarioEvento.objects.count(), 1)
 
-    def test_gerencias_degradaciones_cruzadas(self):
-        other = Usuario.objects.create_user(username="segunda", email="segunda@example.test", rol="GERENCIA")
+    def test_ti_degradaciones_cruzadas(self):
+        other = Usuario.objects.create_user(username="segunda", email="segunda@example.test", rol="ADMINISTRADOR_TI")
         one, two = self.race(
-            lambda: usuarios.cambiar_rol(other, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.gerencia),
-            lambda: usuarios.cambiar_rol(self.gerencia, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, other),
+            lambda: usuarios.cambiar_rol(other, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.ti),
+            lambda: usuarios.cambiar_rol(self.ti, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, other),
         )
         self.assertIsInstance(one, Usuario)
         self.assertIsInstance(two, APIException)
-        self.assertEqual(Usuario.objects.filter(rol="GERENCIA", is_active=True).count(), 1)
+        self.assertEqual(Usuario.objects.filter(rol="ADMINISTRADOR_TI", is_active=True).count(), 1)
 
     def test_activacion_duplicada_un_evento(self):
         Usuario.objects.filter(pk=self.tecnico.pk).update(is_active=False)
-        action = lambda: usuarios.actividad_usuario(self.tecnico, {"motivo": "Alta"}, self.gerencia, activo=True)
+        action = lambda: usuarios.actividad_usuario(self.tecnico, {"motivo": "Alta"}, self.ti, activo=True)
         self.race(action, action)
         self.tecnico.refresh_from_db()
         self.assertEqual(self.tecnico.sesion_version, 2)
@@ -108,7 +109,7 @@ class ConcurrenciaTests(BaseObras, TransactionTestCase):
 
     def test_alta_duplicada_400_sin_doble_evento(self):
         data = {"username": "nueva", "email": "nueva@example.test", "rol": "TECNICO", "password": PASSWORD}
-        action = lambda: usuarios.crear_usuario(data, self.gerencia)
+        action = lambda: usuarios.crear_usuario(data, self.ti)
         one, two = self.race(action, action)
         self.assertIsInstance(one, Usuario)
         self.assertEqual(two.status_code, 400)

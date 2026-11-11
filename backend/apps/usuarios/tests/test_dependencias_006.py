@@ -6,13 +6,19 @@ from apps.obras import services_turnos as turnos
 from apps.obras.models import ObraParticipante
 from apps.obras.tests.test_servicios_004a import BaseObras
 from apps.usuarios import services_usuarios as usuarios
+from apps.usuarios.models import Usuario
 
 
 class DependenciasTests(BaseObras, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.ti = Usuario.objects.create_user(username="ti", email="ti@example.test", rol="ADMINISTRADOR_TI")
+
     def deny_changes(self, tecnico):
         for action in [
-            lambda: usuarios.actividad_usuario(tecnico, {"motivo": "Baja"}, self.gerencia, activo=False),
-            lambda: usuarios.cambiar_rol(tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.gerencia),
+            lambda: usuarios.actividad_usuario(tecnico, {"motivo": "Baja"}, self.ti, activo=False),
+            lambda: usuarios.cambiar_rol(tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.ti),
         ]:
             with self.assertRaises(usuarios.ConflictoUsuario) as caught:
                 action()
@@ -26,7 +32,7 @@ class DependenciasTests(BaseObras, TestCase):
         obra = self.crear(tecnico_responsable=self.tecnico.pk, motivo="Asignación")
         self.deny_changes(self.tecnico)
         obras.cambiar_tecnico(obra, self.otro_tecnico.pk, self.supervisor, "Relevo")
-        usuarios.actividad_usuario(self.tecnico, {"motivo": "Resuelto"}, self.gerencia, activo=False)
+        usuarios.actividad_usuario(self.tecnico, {"motivo": "Resuelto"}, self.ti, activo=False)
         self.assertTrue(ObraParticipante.objects.filter(obra=obra, tecnico=self.tecnico, activo=False).exists())
         obra.refresh_from_db()
         self.assertEqual(obra.tecnico_responsable_id, self.otro_tecnico.pk)
@@ -36,7 +42,7 @@ class DependenciasTests(BaseObras, TestCase):
         participante, _ = obras.asignar_participante(obra, {"tecnico": self.tecnico.pk, "motivo": "Apoyo"}, self.supervisor)
         self.deny_changes(self.tecnico)
         obras.desasignar_participante(obra, participante.pk, self.supervisor, "Apoyo terminado")
-        usuarios.cambiar_rol(self.tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Sin pendientes"}, self.gerencia)
+        usuarios.cambiar_rol(self.tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Sin pendientes"}, self.ti)
         participante.refresh_from_db()
         self.assertFalse(participante.activo)
 
@@ -55,7 +61,7 @@ class DependenciasTests(BaseObras, TestCase):
         obra = self.crear(tecnico_responsable=self.tecnico.pk, motivo="Responsable")
         # Estado histórico: 004A no expone todavía una acción de cancelación.
         type(obra).objects.filter(pk=obra.pk).update(estado="CANCELADA", cancelado_en=timezone.now())
-        usuarios.actividad_usuario(self.tecnico, {"motivo": "Sin obligaciones vigentes"}, self.gerencia, activo=False)
+        usuarios.actividad_usuario(self.tecnico, {"motivo": "Sin obligaciones vigentes"}, self.ti, activo=False)
         obra.refresh_from_db()
         self.assertEqual(obra.tecnico_responsable_id, self.tecnico.pk)
         self.assertTrue(ObraParticipante.objects.filter(obra=obra, tecnico=self.tecnico).exists())

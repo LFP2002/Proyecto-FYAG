@@ -49,15 +49,18 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /canRead\(user.role\)/);
   assert.match(app, /pages\/Obras/);
   assert.match(app, /canReadObras\(user.role\)/);
-  assert.doesNotMatch(app, /pages\/(Cobranzas|Usuarios)/);
+  assert.doesNotMatch(app, /pages\/Cobranzas/);
+  assert.match(app, /mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI'/);
   const context = await source('context/AppContext.jsx');
   assert.doesNotMatch(context, /savePre|saveCli|crearObra|applyEstado|addCosto|pagoChange|savePago|switchRole|loginRole/);
   assert.match(await source('components/PendingIntegration.jsx'), /Pendiente de integración/);
   assert.doesNotMatch(await source('pages/TecnicoApp.jsx'), /saveNota|addAvance|Guardar registro/);
 });
 
-test('menús usan exclusivamente los cuatro enums reales; Técnico no ofrece módulos privilegiados', () => {
-  assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
+test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {
+  assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
+  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios']);
+  assert.equal(NAV.GERENCIA.includes('usuarios'), false);
   assert.deepEqual(NAV.TECNICO, ['obras']);
   assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas']);
   assert.ok(NAV.GERENCIA.includes('clientes'));
