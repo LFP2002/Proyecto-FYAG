@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from apps.obras.models import Obra, CortesiaObra, CierreCostosObra
 from . import services_documentos as services
 from .models import DocumentoCobro, CierreSinCobro
+from .consultas_cobranzas import con_cobranza
 from .permissions import PermisoFinanciero
 from .serializers_documentos import DocumentoLecturaSerializer, FinanzasEventoSerializer, OrigenFinancieroSerializer, FechaISO
 
@@ -41,7 +42,7 @@ def obras_lectura():
 
 
 def documentos_lectura():
-    return DocumentoCobro.objects.select_related("obra__presupuesto__cliente", "obra__cortesia").prefetch_related("obra__presupuesto__items")
+    return con_cobranza(DocumentoCobro.objects.select_related("obra__presupuesto__cliente", "obra__cortesia").prefetch_related("obra__presupuesto__items"))
 
 
 class DocumentoViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):

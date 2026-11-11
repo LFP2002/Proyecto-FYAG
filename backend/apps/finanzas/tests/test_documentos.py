@@ -217,7 +217,7 @@ class DocumentosTests(FinanzasBase, TestCase):
                 services.registrar_documento(self.payload(), self.finanzas)
         self.assertFalse(DocumentoCobro.objects.exists())
 
-    def test_immutable_admin_y_metodos_prohibidos_sin_007b(self):
+    def test_immutable_admin_metodos_prohibidos_y_rutas_acumulativas(self):
         obj = services.registrar_documento(self.payload(), self.finanzas)
         for model in [DocumentoCobro, CierreSinCobro, FinanzasEvento]:
             self.assertNotIn(model, admin.site._registry)
@@ -226,8 +226,9 @@ class DocumentosTests(FinanzasBase, TestCase):
         for action in [lambda: obj.save(), lambda: obj.delete(), lambda: DocumentoCobro.objects.filter(pk=obj.pk).update(monto_total=0), lambda: obj.eventos.all().delete(), lambda: obj.eventos.get().save()]:
             with self.assertRaises(DjangoValidationError):
                 action()
+        # 007B habilita estas rutas sin cambiar las prohibiciones CRUD de 007A.
         for path in ["cobranzas/", f"documentos/{obj.pk}/pagos/"]:
-            self.assertEqual(self.client.get("/api/finanzas/" + path).status_code, 404)
+            self.assertEqual(self.client.get("/api/finanzas/" + path).status_code, 200)
 
     def test_constraints_db_suma_estado_folio_y_eventos(self):
         obj = services.registrar_documento(self.payload(), self.finanzas)
