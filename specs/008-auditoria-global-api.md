@@ -65,7 +65,7 @@ Query exacta:
 | `limit` | Entero 1–50, default 25 |
 | `cursor` | Token opaco firmado, con expiración, asociado a actor/rol/versión de sesión, filtros y corte |
 
-**Si se pasa `cursor`**, los demás filtros deben omitirse o coincidir exactamente con los codificados, conforme a una única política documentada y probada. Recomendación: solo `cursor` y `limit` idéntico al de la primera página. Rechazar nombres desconocidos, valores repetidos, fechas malformadas y límites extremos (400). La fecha final de un periodo se implementa usando el inicio civil del día siguiente en `America/Santiago`, no sumando 86.400 segundos (DST).
+**Si se pasa `cursor`**, debe ser **el único parámetro de consulta**. Todos los filtros originales, el límite y los watermarks se recuperan del cursor firmado, no se repiten ni se modifican. Cualquier combinación de `cursor` con otro parámetro recibe `400` (`cursor_invalido`). Rechazar nombres desconocidos, valores repetidos, fechas malformadas y límites extremos (400). La fecha final de un periodo se implementa usando el inicio civil del día siguiente en `America/Santiago`, no sumando 86.400 segundos (DST).
 
 Formato 200, ejemplo **no real**:
 
