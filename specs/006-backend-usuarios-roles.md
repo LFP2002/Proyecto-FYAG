@@ -1,5 +1,7 @@
 # SPEC-006 — Administración de usuarios y roles (backend)
 
+> **Estado vigente (11-11-2026): IMPLEMENTADA E INTEGRADA EN `main`.** [PR #20](https://github.com/LFP2002/Proyecto-FYAG/pull/20) entregó administración de usuarios y roles. [PR #24](https://github.com/LFP2002/Proyecto-FYAG/pull/24) (SPEC-006B) sustituyó la autorización administrativa de Gerencia por un **quinto rol persistido exclusivo `ADMINISTRADOR_TI`**, incorporó protección de última TI, comando de aprovisionamiento, integración real de React y CORS optativo. **La matriz, actor «Gerencia», cuatro roles, exclusiones de frontend y pasos de implementación indicados en el texto original son históricos y están supersedidos por SPEC-006B.** Consultar [`specs/006b-administrador-ti.md`](006b-administrador-ti.md) como contrato vigente y `backend/apps/usuarios/` como implementación. No modificar migraciones 0004/0005 ni cambiar reglas históricas retrospectivamente.
+
 **Estado:** definida para implementación; **no implementada**. Documento acordado el 10 de noviembre de 2026. Rama de documentación: `docs/spec-006-usuarios-roles`. Rama sugerida para implementación posterior: `feature/backend-006-usuarios-roles`.
 
 **Precedencia y alcance:** ampliar `specs/002a-autenticacion-jwt.md` y `specs/002b-hardening-autenticacion.md` sin degradar sus contratos. Se reutiliza `apps.usuarios.Usuario` y la autenticación existente; no se modifican las reglas de Comercial, Obras, costos o aprobación. SPEC-006 es **exclusivamente backend** (Django, DRF, PostgreSQL y pruebas). No incluye frontend ni depende de MongoDB.

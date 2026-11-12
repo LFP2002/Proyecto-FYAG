@@ -1,5 +1,8 @@
 # SPEC-006B — Administrador de TI
 
+> **Registro de estado real (11-11-2026): IMPLEMENTADA E INTEGRADA EN `main` mediante [PR #24](https://github.com/LFP2002/Proyecto-FYAG/pull/24).** El documento original que sigue fue redactado antes del commit, PR y pruebas remotas; sus expresiones «no se hace commit», «CI pendiente», «Postman pendiente» o «no ejecutado» son un reporte temporal de la entrega inicial, no el estado vigente. El PR integró 26 archivos; scripts legados 004A quedaron fuera. GitHub Actions confirmó **Backend CI** y **Frontend CI** exitosos en commit `459274a9c75094761df66d25c4849baf4e312898`. Se reportaron 643 tests Django y 142 React, junto a dos recorridos Postman con cero fallos; estos últimos son evidencia manual reportada, no ejecución de GitHub Actions. La UI fue validada funcionalmente, pero su refinamiento visual queda a cargo del equipo frontend. La corrección incremental de UX tras cambiar el correo propio se desarrolla en SPEC-006C; las suites CI/QA de esa rama requieren validación independiente.
+
+
 Entrega para revisión en `feature/006b-administrador-ti`. Amplía SPEC-006 conforme al requerimiento de quinto rol. La SPEC histórica no se reescribe. No se hace commit, push, PR ni merge.
 
 ## Resultado y matriz

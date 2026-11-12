@@ -1,5 +1,7 @@
 # SPEC-007 — Finanzas: facturación documental, pagos y cobranzas (backend)
 
+> **Estado vigente (11-11-2026): IMPLEMENTADA E INTEGRADA EN `main` (007A y 007B).** [PR #22](https://github.com/LFP2002/Proyecto-FYAG/pull/22) incorporó documentos externos y cortesías; [PR #23](https://github.com/LFP2002/Proyecto-FYAG/pull/23) agregó pagos, idempotencia y cobranzas. [PR #21](https://github.com/LFP2002/Proyecto-FYAG/pull/21) fue únicamente la especificación inicial. Las instrucciones «no implementada» y «no iniciar 007B» son antecedentes históricos. El sistema **registra** documentos fiscales emitidos fuera de FYAG y pagos confirmados fuera de la aplicación; **no emite DTE, cobra dinero, realiza transferencias ni concilia con bancos o SII**. Para validación: `backend/apps/finanzas/` y sus pruebas; la integración React de finanzas es un alcance distinto.
+
 **Estado:** especificada para implementación; **no implementada**. Fecha: 10 de noviembre de 2026.
 
 **Proyecto:** FYAG, pyme chilena de servicios de frío y agroindustria. **Rama documental:** `docs/spec-007-finanzas-cobranzas`. **Implementación prevista:** `feature/backend-007a-facturacion` y luego `feature/backend-007b-pagos-cobranzas`. Dos incrementos acumulativos: **007A primero, 007B después**. En cada etapa se exige revisión, pruebas, PR y Backend CI antes de pasar a la siguiente.

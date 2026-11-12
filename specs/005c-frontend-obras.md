@@ -1,5 +1,7 @@
 # SPEC-005C — Integración del frontend: Gestión real de Obras
 
+> **Estado vigente (11-11-2026): PARCIAL.** **005C-1 está implementada e integrada en `main` mediante [PR #18](https://github.com/LFP2002/Proyecto-FYAG/pull/18)** (fichas, operación y participantes); **005C-2 (turnos/evidencias) y 005C-3 (costos/finalización en React) permanecen pendientes de integración frontend**. Esto no significa que falten endpoints backend de SPEC-004B: dichos endpoints ya existen. No marcar SPEC-005C completa hasta integrar y probar explícitamente las otras dos fases. El texto original «pendiente de implementación» es una referencia histórica de redacción.
+
 **Estado:** especificada, pendiente de implementación. **Fecha de definición:** 8 de noviembre de 2026. **Rama prevista:** `feature/frontend-005c-obras`, creada desde `main` después del PR #15.
 
 **Naturaleza:** contrato de integración de React con las API de Obras ya implementadas en Django. Esta SPEC **no añade reglas al dominio**, no crea endpoints ni autoriza cambios en el backend. Para cualquier discrepancia prevalecen las SPEC-004/004B, los serializers, permisos y servicios realmente integrados en `main`: informar la discrepancia y no inventar una solución en React.
