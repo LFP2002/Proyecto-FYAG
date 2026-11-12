@@ -1,6 +1,6 @@
 # Mapa de contratos backend pendientes — SPEC-008 a SPEC-011
 
-**Estado: mapa de avance actualizado tras PR #32.** SPEC-008 (Auditoría) y SPEC-009 (Alertas) están implementadas e integradas en `main`; SPEC-010 (Dashboard) y SPEC-011 (Reportes) continúan pendientes de programación por OpenCode. Este mapa es documental y no implementa endpoints.
+**Estado: mapa de avance actualizado tras PR #34.** SPEC-008 (Auditoría), SPEC-009 (Alertas) y SPEC-010 (Dashboard) están implementadas e integradas en `main`; SPEC-011 (Reportes) permanece pendiente de programación por OpenCode. Este mapa es documental y no implementa endpoints nuevos.
 
 ## 1. Estado e inventario comprobado
 - IMPLEMENTADO: autenticación y Usuarios bajo /api/auth/ y /api/usuarios/ (SPEC-002/006B/006C).
@@ -8,13 +8,14 @@
 - IMPLEMENTADO: Obras, participantes, turnos, gastos, cierre bajo /api/obras/ y /api/categorias-servicio/ (SPEC-004/004B).
 - IMPLEMENTADO: documentos externos, pagos y cobranzas bajo /api/finanzas/ (SPEC-007).
 - IMPLEMENTADO: Auditoría global bajo `/api/auditoria/eventos/` (SPEC-008, PR #27) y Alertas bajo `/api/alertas/` (SPEC-009, PR #30), con sus tests y CI verificados.
-- PENDIENTE: `apps.dashboard` y `apps.reportes` siguen como esqueletos sin rutas registradas en `backend/config/urls.py`; sus contratos están en SPEC-010 y SPEC-011.
+- IMPLEMENTADO: Dashboard gerencial bajo `/api/dashboard/` (SPEC-010, PR #34): resumen, serie de finalizaciones y Obras en proceso; acceso solo Gerencia.
+- PENDIENTE: `apps.reportes` permanece como esqueleto sin rutas registradas en `backend/config/urls.py`; contrato formal en SPEC-011.
 
 ## 2. Prioridades y contratos propuestos
 1. **INTEGRADA — SPEC-008 Auditoría global:** GET `/api/auditoria/eventos/` (PR #27).
 2. **INTEGRADA — SPEC-009 Alertas:** GET `/api/alertas/`, `/resumen/`, `/{id}/`, `/{id}/historial/` y POST `/{id}/atender/` (PR #30).
-3. **SIGUIENTE — SPEC-010 Dashboard:** GET `/api/dashboard/resumen/`, `/serie-obras/`, `/obras-activas/`; solo Gerencia; métricas consistentes, neto/bruto separado, sin margen proyectado. **Endpoints todavía no implementados.**
-4. **PENDIENTE — SPEC-011 Reportes:** GET `/api/reportes/catalogo/`, `/obras/`, `/rentabilidad/`, `/cobranzas/`, `/{tipo}/exportar/`; PDF/XLSX/CSV reales. **Endpoints todavía no implementados.**
+3. **INTEGRADA — SPEC-010 Dashboard:** GET `/api/dashboard/resumen/`, `/serie-obras/`, `/obras-activas/`; solo Gerencia; métricas consistentes, neto/bruto separado, sin margen proyectado (PR #34).
+4. **SIGUIENTE — SPEC-011 Reportes:** GET `/api/reportes/catalogo/`, `/obras/`, `/rentabilidad/`, `/cobranzas/`, `/{tipo}/exportar/`; PDF/XLSX/CSV reales. **Endpoints todavía no implementados.**
 
 La numeración representa un orden sugerido, no una dependencia de ejecución obligatoria. Cada equipo puede preparar su rama desde main actualizado, sin modificar dominios ajenos salvo integraciones expresas revisadas. Alertas y Auditoría pueden renderizarse independientemente de Dashboard.
 
@@ -34,7 +35,7 @@ La numeración representa un orden sugerido, no una dependencia de ejecución ob
 5. PR de código con explicación técnica, límites, migraciones, decisiones, CI y rollback; merge autorizado.
 6. Contratos publicados y versionados (OpenAPI), frontend puede consumirlos directamente sin inventar cálculos ni introducir cambios de backend.
 
-**Las APIs de Auditoría y Alertas ya están operativas en `main`.** Las nuevas rutas de Dashboard y Reportes **NO existen aún** por el solo hecho de especificarlas. No habilitar cifras simuladas ni botones de exportación sin respuesta real.
+**Las APIs de Auditoría, Alertas y Dashboard ya están operativas en `main`.** Las rutas de Reportes **NO existen aún** por el solo hecho de especificarlas. No habilitar cifras simuladas ni botones de exportación sin respuesta real.
 
 ## 5. Responsabilidades y secuencia de colaboración
 
