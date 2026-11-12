@@ -1,0 +1,3 @@
+-r requirements.txt
+# Lector binario de PDF para QA; no se importa desde código productivo.
+pypdf==7.0.1

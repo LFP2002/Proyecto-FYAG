@@ -3,6 +3,8 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        REQUIREMENTS_FILE: requirements-test.txt
 
     container_name: fyag_backend
 
