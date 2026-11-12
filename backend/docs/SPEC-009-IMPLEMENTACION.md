@@ -2,7 +2,7 @@
 
 ## 1. Estado, base y alcance
 
-Implementación local en `feature/backend-009-alertas`, creada desde `origin/main` **dbcde3e** (merge del PR documental #28). Se leyó íntegramente `specs/009-alertas-backend.md` ya integrada. No se modifica esa SPEC ni frontend. **Sin commit, push, PR ni merge de esta implementación**: entrega sujeta a revisión del responsable.
+Implementación en `feature/backend-009-alertas`, creada desde `origin/main` **dbcde3e** (merge del PR documental #28). Se leyó íntegramente `specs/009-alertas-backend.md` ya integrada. No se modifica esa SPEC ni frontend. El informe inicial se entregó sin commit/push/PR; después de su revisión favorable el responsable autorizó la publicación, **sin merge a main**. Ver actualización de integración en la sección 11.
 
 API de alertas derivadas, exclusivamente con las cuatro reglas aprobadas:
 
@@ -257,4 +257,17 @@ OpenAPI: pruebas comprueban rutas, catálogo, campos y resolución de referencia
 
 ## 10. Punto de revisión
 
-Entregar este informe y revisar diff, contrato, integridad SQL, pruebas, operación del proceso y límites de consistencia. **Detenerse antes de commit/push/PR.** Solo después de aceptación se organizarán commits y PR hacia main. La aprobación de merge, CI remoto y Postman corresponde a la fase posterior y al responsable del proyecto.
+El informe inicial fue revisado favorablemente antes de cualquier commit/push/PR. El responsable autorizó después los commits, integración de main y publicación del PR. La aprobación de merge, CI remoto y Postman corresponde a la fase posterior y al responsable del proyecto; no se realiza merge a main.
+
+## 11. Revisión prepublicación e integración de main
+
+- Se ejecutaron git status, git diff --stat, git diff --check y git fetch origin antes de publicar. El alcance del diff contra main se limita a 30 archivos de Alertas, documentación e integraciones necesarias.
+- Los cambios se protegieron en cinco commits coherentes (núcleo transaccional, detección/operación, API, documentación y pruebas), antes de integrar origin/main mediante un commit de merge sin reescribir trabajo ajeno.
+- origin/main avanzó a **5e9c9c0** agregando únicamente frontend/.env. Se incorporó ese commit tal cual; el blob de frontend/.env es idéntico al de main y **no aparece en el diff del PR**. No hubo conflictos ni cambios de backend/dependencias provenientes de main.
+- La SPEC contractual conserva el mismo blob **5fef4a6413519c61e4677cca3e2f248692bc57a4** que origin/main. No se modificó para ajustar la implementación.
+- Revisión de secretos: sin coincidencias de patrones de claves privadas/tokens ni de credenciales locales en los archivos cambiados; los valores no se imprimieron. .env local sigue ignorado. El diff no incorpora .env locales, bases, dumps o bytecode; .env.example solo agrega la cadencia no secreta.
+- Pagos: services_pagos.registrar_pago y anular_pago llaman a services_documentos.evento mediante base.evento(pago=...). Ese punto común obtiene pago.documento_id y programa la callback postcommit. Por eso services_pagos.py no requiere modificación. Las pruebas recorren el registro parcial/total, anulación, nueva generación y resolución, además de la carrera de atención con pago en curso.
+- Tras integrar main: check sin problemas, makemigrations sin cambios, migrate --plan sin operaciones pendientes, Compose config correcto y nuevo docker compose up -d --build exitoso sobre PostgreSQL existente. El proceso de migraciones terminó sin operaciones nuevas y el reconciliador arrancó automáticamente.
+- Reconciliaciones automáticas del nuevo arranque: 2026-11-12T19:34:35Z (0.024143 s) y 19:35:35Z (0.015712 s), confirmando nuevamente la cadencia; ejecución --once: 0.021787 s. La base local seguía sin condiciones activas; no se añadieron datos demostrativos.
+- Suite Alertas posterior a integración: **48 aprobadas, 0 fallidas, 8.665 s**. Regresión completa posterior a integración: **721 aprobadas, 0 fallidas, 140.403 s**, sin errores de callbacks. Solo aparecen los avisos preexistentes de tests que generan deliberadamente JWT para usuarios inactivos.
+- No se identificaron incompatibilidades con el cambio de main ni problemas técnicos adicionales que requirieran alterar código de negocio. GitHub Actions remoto y Postman no se declaran aprobados por esta validación local.
