@@ -1,33 +1,54 @@
-# SPEC-012 — Integración funcional y segura de MongoDB (metadatos documentales)
+# SPEC-012 — Integración MongoDB y gestión documental real (backend)
 
-**Estado: PROPUESTA CONTRACTUAL PARA REVISIÓN; NO IMPLEMENTADA.** Se desarrolla después de SPEC-011 Reportes (PR #37 integrado en `main`). Este documento define el siguiente incremento de backend; **no cambia aún código, datos, contenedores ni APIs**. Su implementación y cualquier modificación del Docker de desarrollo requieren revisión de este contrato y autorización del responsable.
+**Estado: CONTRATO REVISADO EN PR DOCUMENTAL; PENDIENTE DE APROBACIÓN E IMPLEMENTACIÓN.** Revisión de SPEC-012 posterior al Informe 2 y a la integración de SPEC-011 (PR #37). No afirma que exista un módulo de adjuntos de facturas ni que ya se almacenen imágenes de usuarios. **Este documento no ejecuta limpieza, cambia infraestructura ni crea endpoints por sí mismo.**
 
-## 1. Situación real y objetivo
+## 1. Objetivo y decisiones revisadas
 
-**Comprobado en el repositorio:**
-- `compose.yaml` define `mongodb` con imagen `mongo:8.0`, volumen `mongodb_data`, puerto publicado como `${MONGO_HOST_PORT}:27017` y `MONGO_INITDB_DATABASE`. No configura autenticación de usuario ni `healthcheck`; el backend declara una dependencia `service_started`, aunque sus módulos de negocio no utilizan MongoDB.
-- `backend/requirements.txt` contiene `pymongo`, pero `backend/config/settings.py` configura PostgreSQL para Django y no existe una integración funcional de PyMongo para los endpoints de negocio.
-- `database/init_mongodb.js`, `database/indices_mongodb.js` y `database/validaciones_mongodb.js` preparan nombres de colecciones `auditoria_eventos`, `alertas_eventos` y `documentos_metadata`; su mera presencia no prueba que se hayan ejecutado sobre el volumen del usuario.
-- El modelo PostgreSQL `apps.obras.models.EvidenciaTurno` ya persiste identificadores de Obra/Turno, `tipo_mime`, `tamano`, `sha256`, nombre interno y fecha. Las fotos están en almacenamiento privado de Obras, NO en MongoDB.
-- Los eventos de Auditoría y las Alertas son gestionados por sus módulos de dominio en PostgreSQL y poseen contratos existentes. El README declara que CI no necesita MongoDB actualmente.
+Se adopta MongoDB por una **necesidad documental real**: atributos flexibles, notas y etiquetas de evidencia según tipo de documento. No se instalará únicamente para repetir en BSON una tabla SQL. La integración se realizará mediante Django/DRF; React no accede directamente a los motores.
 
-**Objetivo v1 (012A):** incorporar MongoDB como **proyección NoSQL funcional** de metadatos de evidencias de turnos, con conexión autenticada, escritura idempotente y reconciliable, lectura autorizada desde Django, health/status operativo y pruebas con MongoDB real. PostgreSQL y el almacén privado de archivos siguen siendo fuentes de verdad. No introducir una segunda fuente oficial de costos, pagos, permisos ni estados.
+**Separación de responsabilidades:**
 
-**No confundir servicio levantado con integración:** para considerar SPEC-012A implementada debe existir al menos un flujo real PostgreSQL → MongoDB y una lectura real MongoDB → Django autenticada y cubierta por pruebas, además de control de recuperación ante indisponibilidad.
+| Información | Fuente autoritativa / almacén |
+| --- | --- |
+| Usuarios, credenciales, JWT, roles y permisos | PostgreSQL |
+| Clientes, Presupuestos, Obras, turnos y participantes | PostgreSQL |
+| Costos, márgenes, documentos de cobro, folios, importes, pagos y saldos | PostgreSQL |
+| Eventos de negocio de Auditoría y Alertas | PostgreSQL; no se duplican por defecto |
+| Registro de existencia de evidencia de turno y sus relaciones | PostgreSQL: `EvidenciaTurno` |
+| Descripción documental, etiquetas y atributos variables relacionados con evidencias | MongoDB, en documento flexible de dominio restringido |
+| Bytes de fotografías, PDF escaneados y adjuntos | Almacenamiento privado (actualmente volumen `evidencias_data` para fotos de turnos; futuro objeto/almacenamiento privado para adjuntos) |
+| PDF/XLSX/CSV de Reportes | Archivos temporales generados bajo demanda, sin persistencia documental |
 
-## 2. Límite de dominio y fases
+**Estado comprobado en el código:**
+- MongoDB 8.0 está configurado en Compose y PyMongo instalado; **no existe integración funcional**.
+- `backend/apps/obras/models.py` registra fotos de turno en `EvidenciaTurno`, y `backend/apps/obras/evidencias.py` guarda los bytes privados. `views_turnos.py` expone descarga autenticada. El usuario confirmó que **hoy no hay imágenes reales guardadas**; de todos modos se inspeccionarán los volúmenes locales antes de limpiar.
+- Finanzas registra `DocumentoCobro.referencia_respaldo` como texto, **no** recibe ni guarda un escaneo adjunto. Un `folio_externo` o referencia no acredita la existencia de un archivo.
+- Los scripts `database/{init_mongodb.js,indices_mongodb.js,validaciones_mongodb.js}` son preliminares; contienen nombres de campos distintos a esta revisión. Se debe versionarlos/adaptarlos en la implementación y no confundir archivos en Git con cambios ya aplicados en MongoDB.
+- En el Informe 2 se propuso una colección `evidencias_obra` con descripción, etiquetas, archivo y metadatos. Esta revisión conserva ese **uso documental**, pero adecua colección/esquema al backend real y evita guardar bytes o rutas privadas en MongoDB. No se exige mantener un nombre provisional del informe si rompe consistencia.
 
-- **012A, alcance obligatorio del próximo PR:** endurecimiento de seguridad MongoDB y su despliegue; cliente PyMongo de mínimo privilegio; proyección `documentos_metadata` para `EvidenciaTurno`; sincronización eventual idempotente y reconciliación; API de lectura acotada por permisos de Obras; estado técnico de integración; índices, validadores, pruebas y documentación.
-- **012B, futuro y NO parte de 012A:** decidir si `auditoria_eventos` y `alertas_eventos` necesitan proyecciones derivadas en MongoDB. Requiere una SPEC/PR separado y justificar consultas o retención. No realizar doble escritura síncrona ni cambiar las APIs actuales por usar estas colecciones.
-- **Nunca en MongoDB como fuente oficial:** Usuarios/JWT/roles, `Presupuesto` y sus importes, `Obra` y sus estados, `CierreCostosObra`, `DocumentoCobro`, `PagoDocumento`, eventos de Auditoría y Alertas autoritativos. No almacenar fotos o archivos exportados dentro de `documentos_metadata`.
+## 2. Entrega incremental: 012A y 012B
 
-La eventualidad de la proyección **no afecta decisiones financieras, autorizaciones ni reglas de negocio**: se consultan siempre desde PostgreSQL.
+**SPEC-012A (siguiente incremento y alcance del primer PR de implementación):**
+1. Conexión MongoDB autenticada y endurecimiento Compose; mínimo privilegio, healthcheck, timeouts.
+2. Colección `fyag_documentos.documentos_metadata` con origen `EVIDENCIA_TURNO`, datos técnicos de origen referencial más **campos documentales editables** (`descripcion`, `etiquetas`, `atributos`).
+3. Sincronización idempotente recuperable de `EvidenciaTurno` desde PostgreSQL; **nunca sobrescribir** anotaciones de MongoDB al reconciliar.
+4. API protegida para **consultar y editar metadatos documentales**, y comando de diagnóstico/operación.
+5. Pruebas reales de ambos motores, seguridad, concurrency, rollback y documentación de uso; NO frontend en esta fase.
 
-## 3. Modelo documental v1: `fyag_documentos.documentos_metadata`
+**SPEC-012B (siguiente incremento, contrato de alcance; NO implementarlo dentro de 012A):**
+- Carga, consulta y descarga de **adjuntos documentales reales** (por ejemplo, escaneo de factura externa o informe técnico), con binarios en almacenamiento privado y metadatos flexibles en MongoDB, mientras que la relación/autorización se valida en PostgreSQL.
+- Diseñar una entidad relacional mínima de **registro de adjunto** (sin modificar montos, folio, estado ni reglas del `DocumentoCobro`) o un contrato equivalente que garantice integridad y restauración; exigir definición y pruebas de ciclo de vida. No escribir una FK SQL ficticia hacia MongoDB ni declarar respaldo presente cuando solo existe una referencia textual.
+- Un escaneo **no reemplaza** la factura tributaria real, ni crea factura ni registra pago. No OCR, emisión DTE, lectura automática de importes ni reconocimiento automático sin especificación adicional.
+- Definir endpoints, matríz RBAC para Finanzas, validación estricta de PDF/JPEG/PNG, límites de tamaño, detección de tipo real, sanitización, hash, antivirus/política antimalware, rollback de archivos huérfanos, retención y borrado antes de la implementación 012B; no improvisar cambios de Finanzas en 012A.
+- Si se decide implementar 012B más tarde, hacerlo en otra rama/PR autorizado; el frontend solo consumirá endpoints reales, nunca nombres de archivo privados.
 
-**Origen real:** filas persistidas de `Obras.EvidenciaTurno`. **Clave estable:** `_id = "evidencia_turno:{id}"`, sin depender de timestamps de inserción ni de IDs autogenerados por MongoDB.
+**Futuro fuera de ambas fases:** evaluar proyecciones de `auditoria_eventos` y `alertas_eventos` en MongoDB solo si existe necesidad demostrada. PostgreSQL sigue siendo fuente oficial.
 
-Documento BSON interno esperado (ejemplo sintético, no dato real):
+## 3. Colección MongoDB 012A: esquema flexible pero acotado
+
+Base: `fyag_documentos`; colección: `documentos_metadata`. Identificador Mongo determinista `_id = "evidencia_turno:{evidencia_id}"`. Proyección técnica desde PostgreSQL más anotación documental real de MongoDB.
+
+Ejemplo **sintético** BSON:
 
 ~~~javascript
 {
@@ -41,125 +62,181 @@ Documento BSON interno esperado (ejemplo sintético, no dato real):
   tamano_bytes: NumberLong("204800"),
   sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   creado_en: ISODate("2026-11-12T21:00:00Z"),
-  sincronizado_en: ISODate("2026-11-12T21:01:00Z")
+  sincronizado_en: ISODate("2026-11-12T21:01:00Z"),
+  descripcion: "Estado inicial del equipo",
+  etiquetas: ["antes", "unidad_exterior"],
+  atributos: { ubicacion_general: "exterior", vista: "frontal" },
+  revision: NumberInt(1),
+  anotado_en: ISODate("2026-11-12T21:05:00Z"),
+  anotado_por_id: NumberLong("17")
 }
 ~~~
 
-Los únicos campos autorizados son `_id`, `version_esquema`, `origen`, `evidencia_id`, `obra_id`, `turno_id`, `tipo_mime`, `tamano_bytes`, `sha256`, `creado_en`, `sincronizado_en`. No añadir extensiones de texto libre aún: ningún atributo ajeno existe hoy en `EvidenciaTurno`.
+**Propietario de campos:**
+- **Espejo técnico SQL, NO editable por cliente:** `_id`, `version_esquema`, `origen`, `evidencia_id`, `obra_id`, `turno_id`, `tipo_mime`, `tamano_bytes`, `sha256`, `creado_en`, `sincronizado_en`.
+- **Documento flexible, propiedad MongoDB y editable vía API autorizada:** `descripcion`, `etiquetas`, `atributos`, `revision`, `anotado_en`, `anotado_por_id`.
 
-- `_id` determinista y único, `version_esquema=1`, `origen=EVIDENCIA_TURNO`.
-- Enteros BSON `Int64` o `int` compatibles con PK positiva BigInt y tamaños válidos; fechas BSON UTC reales, sin fechas en string.
-- `sha256` se puede persistir para trazabilidad técnica **pero nunca se devuelve por API pública**.
-- **Prohibido:** `ruta_archivo`, `nombre_interno`, paths privados, nombres legales, RUT, correos, cookies, tokens, descripciones de trabajos, datos de pacientes, contenido binario, base64, referencias de descarga pública. Un archivo nunca se expone por conocer su MongoDB `_id`.
-- Índices mínimos: `_id` único implícito y `(obra_id ASC, creado_en DESC, evidencia_id DESC)` para consulta paginada. Crear índices con nombres/versiones explícitos e idempotentes; medir plan de consultas real.
+**Contrato de validación 012A:**
+- `descripcion`: string UTF-8 de 0 a 1000 caracteres, normalizada, sin HTML activo.
+- `etiquetas`: lista de 0 a 12 strings únicos, longitud 1-40, contenido legible, normalización y orden determinista documentados; sin etiquetas duplicadas tras normalización.
+- `atributos`: documento plano de 0 a 12 pares; claves ASCII permitidas `[a-z][a-z0-9_]{0,39}`; valores solo strings de hasta 200 caracteres o booleanos (no arrays, objetos anidados, null ambiguo, ni datos binarios). Máximo 4 KiB de JSON serializado. Rechazar claves que empiecen por `$`, contengan `.`, sean reservadas del esquema o puedan crear inyecciones de operadores MongoDB.
+- Documento total sujeto a tamaño acotado (máximo 16 KiB BSON por documento de este dominio), aunque el límite general de MongoDB sea mayor.
+- `revision` entero positivo incremental; asignación inicial 0, actualización mediante comparación atómica `revision` (CAS), rechazo 409 a actualizaciones obsoletas.
+- Fecha BSON almacenada en UTC; representación ISO8601 en API, identificadores enteros positivos BigInt. No confiar en IDs de MongoDB enviados por frontend.
+- `sha256` solo técnico/interno, jamás en respuesta API. **Nunca guardar** `nombre_interno`, paths, URLs firmadas, contenido de archivos, base64, RUT, emails, tokens, credenciales, nombres de personas o valores financieros.
+- No confundir `atributos` con una vía de almacenar PII: contrato de claves y valores restringido, documentado y auditado; rechazar claves específicas sensibles y no registrar textos completos en logs.
+- El validador Mongo debe usar esquema BSON con `validationLevel=strict`, `validationAction=error`, campos requeridos, `additionalProperties=false` considerando `_id`; versiones de esquema explícitas y una transición idempotente para datos de prueba existentes.
 
-**Compatibilidad con scripts existentes:** los scripts `database/*.js` son preliminares y su esquema actual exige campos `nombre`, `fecha`, `tipo_archivo` y `ruta_archivo`. Antes de implementar, adaptarlos de manera revisable al nuevo esquema, **sin eliminar datos existentes ni hacer `dropDatabase`, `drop`, `deleteMany` o `collMod` destructivo**. Detectar colecciones previas no vacías, índices conflictivos o validadores incompatibles y detenerse con informe y plan de migración. No sobrescribir silenciosamente documentos creados por otro integrante del equipo.
+Índices iniciales: `_id` implícito, `(obra_id ASC, creado_en DESC, evidencia_id DESC)` y, si las consultas por etiquetas se habilitan realmente, `(obra_id ASC, etiquetas ASC)`; índices solo por consultas justificadas.
 
-## 4. Seguridad de infraestructura y secretos
+**Regla crítica de sincronización:** utilizar `$set` únicamente en campos espejo técnicos y `$setOnInsert` para `descripcion=""`, `etiquetas=[]`, `atributos={}`, `revision=0` y `anotado_en/anotado_por_id=null`. Nunca resetear notas/etiquetas con un `upsert` posterior. Un cambio de anotaciones usa actualización atómica por revisión y afecta solo campos Mongo editables.
 
-El `compose.yaml` actual **no es adecuado para uso compartido o productivo** porque MongoDB carece de autenticación configurada y el puerto puede quedar expuesto por la interfaz host.
+## 4. Seguridad e infraestructura
 
-La implementación debe:
+El Compose actual expone `mongodb` sin autenticación y publica el puerto con `${MONGO_HOST_PORT}:27017`. Es adecuado solo como preparación de laboratorio, no como configuración definitiva.
 
-1. Incorporar autenticación MongoDB y usuario de aplicación de alcance `fyag_documentos` con permisos mínimos. Si se necesitan identidades distintas para escritura y lectura, separar roles. Nunca conectar Django con la cuenta root/admin.
-2. Proporcionar variables de entorno sanitizadas en `.env.example`, sin secretos reales ni defaults utilizables en producción. No registrar URI/password en logs ni errores JSON.
-3. Mantener comunicación backend ↔ MongoDB **por la red interna de Docker**. El acceso host de desarrollo debe estar restringido a `127.0.0.1` o eliminarse; no publicar 27017 en todas las interfaces.
-4. Agregar comprobación de salud autenticada y límites de timeout (`serverSelectionTimeoutMS`, `connectTimeoutMS`, `socketTimeoutMS`). No hacer ping indiscriminadamente en cada solicitud de negocio.
-5. Proporcionar instrucciones **no destructivas** para volúmenes MongoDB preexistentes. **Atención:** agregar `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD` a un volumen ya inicializado puede no crear usuarios automáticamente. Diseñar la transición por etapas: inspección y respaldo → alta verificada de usuarios en DB existente → habilitar autenticación → prueba con cliente restringido. Para volúmenes nuevos usar bootstrap autenticado y script idempotente; **nunca ejecutar `docker compose down -v` ni recrear el volumen sin aprobación específica**.
-6. No hacer que PostgreSQL, login, Obras, Finanzas o Reportes fallen al arrancar solo porque MongoDB esté caído. Retirar o justificar dependencia obligatoria del backend; el sincronizador sí puede depender de MongoDB saludable y reintentar.
-7. En despliegue productivo: TLS sobre redes no confiables, gestión de secretos, acceso de red restringido, política de respaldos, recursos y recuperación. Local Compose no equivale a producción.
+La implementación 012A debe:
+1. Activar autenticación, crear **identidad de aplicación NO root** con privilegios mínimos en `fyag_documentos` y credenciales locales por variables sin valores publicables. Prohibido habilitar acceso anónimo o pasar contraseñas en código, commits, URLs HTTP o logs.
+2. Conservar PyMongo como cliente; reutilización por proceso y cierre en worker; límites `serverSelectionTimeoutMS`, `connectTimeoutMS`, `socketTimeoutMS`, pool razonable y ping/health verificado, no en cada solicitud de negocio.
+3. Mantener tráfico interno Docker y retirar el puerto host o restringir a `127.0.0.1`; CORS de Django no es seguridad de MongoDB.
+4. Tener healthcheck seguro, bootstrap de colecciones, usuarios, validadores e índices **idempotente**, documentando la versión de esquema y la orden exacta de ejecución; no asumir que guardar `database/*.js` ejecuta los scripts.
+5. Controlar volúmenes existentes: credenciales root agregadas a Compose **no crean usuarios en un volumen inicializado**. Preparar ruta segura para volumen nuevo y ruta de migración para volumen existente, sin sobrescribir datos sin clasificación previa.
+6. El backend principal, PostgreSQL, Finanzas, Obras, Auditoría, Alertas, Dashboard y Reportes deben poder operar si MongoDB falla. El reconciliador sí depende de Mongo; reintenta con backoff acotado.
+7. No habilitar conexiones de cloud ni cargar credenciales reales de Render/Neon/Atlas durante implementación local. Una configuración cloud es una tarea posterior.
+8. Usar variables separadas para desarrollo y pruebas con Mongo aislado. CI no debe conectarse a los volúmenes locales del usuario.
 
-La imagen MongoDB es v8 del repositorio; antes de incorporar cambios verificar compatibilidad y versiones de PyMongo y sus transitive, fijando mínimos o rango razonable donde corresponde. No introducir URI de Atlas por defecto sin contrato y autorización.
+## 5. Escritura, recuperación y consistencia
 
-## 5. Escritura y recuperación: proyección eventual, NO doble transacción
+PostgreSQL sigue siendo autoridad para existencia, pertenencia y permisos de `EvidenciaTurno`. MongoDB es autoridad SOLO de las anotaciones documentales 012A.
 
-- Las operaciones PostgreSQL ya existentes son autoritativas. No modificar la transacción de `finalizar_turno`, crear evidencia, finalizar obra, autorizar usuarios, etc. para exigir éxito en MongoDB; no sostener locks o una transacción PostgreSQL abierta durante escritura remota.
-- Dos vías complementarias:
-  1. Tras confirmación de una nueva `EvidenciaTurno` en PostgreSQL, se puede emitir una señal/callback `transaction.on_commit` **best-effort** hacia un servicio idempotente, sin propagar fallos al éxito del dominio.
-  2. Reconciliador recuperable `python manage.py reconciliar_documentos_mongodb` que recorre la fuente PostgreSQL por lotes/keyset y aplica `update_one(..., upsert=True)` sobre `_id` determinista.
-- **No confiar solo en un high-water-mark de PK**: transacciones PostgreSQL concurrentes pueden confirmar IDs fuera de orden. El proceso periódico debe detectar y rellenar huecos (recorrido completo paginado o estrategia con prueba de cobertura equivalente).
-- El reconciliador puede ejecutarse manualmente y mediante servicio independiente con cadencia configurable. Debe ser idempotente y apto para repetición después de caída entre lectura, escritura y confirmación.
-- Evitar borrados de MongoDB basados en ventanas cortas o fallos temporales de consulta. La fuente `EvidenciaTurno` es de datos estables y no habilita aquí borrado de binarios. Cualquier política de borrado/protección de datos futuro requiere diseño específico.
-- El comportamiento de negocio queda intacto con MongoDB inactivo: registrar nueva evidencia en PostgreSQL continúa sujeto solamente a las reglas existentes, y la proyección se pone al día cuando vuelve el servicio.
-- Reconciliar debe dejar registro mínimo de `examinados`, `insertados`, `actualizados`, `fallidos`, `segundos`, última sincronización exitosa y último error sin PII. No registrar documentos completos, paths, fotos, sha256 o secretos. Un lote parcialmente fallido NO debe marcar sincronización completa.
-- Incluir cancelación limpia, timeouts, backoff acotado, una instancia de reconciliación por recurso o idempotencia bajo ejecución simultánea y contención de memoria/CPU.
+- Mantener sin cambios los flujos transaccionales ya validados de `finalizar_turno` y `subsanar_turno`. No realizar escritura Mongo dentro de una transacción abierta de PostgreSQL ni agregar bloqueo de éxito de negocio por indisponibilidad Mongo.
+- Proyección idempotente después del commit mediante callback best-effort opcional y un **reconciliador recuperable** `python manage.py reconciliar_documentos_mongodb` que recorre `EvidenciaTurno` por lotes. Usar upsert determinista, con timeouts, manejo de fallos y logs sanitizados.
+- Un high-water-mark simple de PK es insuficiente ante commits fuera de orden: recorrer o probar otra estrategia que rellene huecos, incluso después de interrupciones.
+- El servicio de escritura documental verifica JWT y rol en PostgreSQL, confirma existencia y vínculo de evidencia/obra/turno antes de modificar Mongo, y opera con **optimistic locking** por `revision`; si la proyección aún no existe, intentar una sincronización puntual post-commit y luego escribir, o devolver error explícito reintentable si la fuente o Mongo no están disponibles.
+- Distinguir pérdida temporal de Mongo (503) de colisión de edición (409). Nunca responder 200 vacío por fallo de base ni transformar indisponibilidad de un motor en caída del otro.
+- Ediciones de metadatos no alteran estados de Obra, validación de turnos, costos, montos o historia financiera.
+- Registrar operaciones estructuradas con actor ID, evidencia ID, resultado, revisión y correlación sin descripción, etiquetas completas, atributo libre, tokens, paths, SHA ni importes.
+- Prueba de reconciliador concurrente/repetido que **preserva** `descripcion`/`etiquetas`/`atributos`; prueba de dos PATCH simultáneos con una sola actualización por revisión.
 
-## 6. API de lectura y permisos
+## 6. API DRF 012A y RBAC
 
-Exponer **un único endpoint de lectura** para acreditar uso funcional de MongoDB:
+**Endpoints definidos:**
+1. `GET /api/documentos-metadata/?obra=<id>&page=<n>` — listado y metadatos documentales de evidencias de una Obra.
+2. `GET /api/documentos-metadata/evidencias/<id>/` — detalle documental para evidencia existente y autorizada.
+3. `PATCH /api/documentos-metadata/evidencias/<id>/` — actualización atómica de anotaciones flexibles.
 
-`GET /api/documentos-metadata/?obra=<id>&page=<n>`
+**Permisos:** `GERENCIA` y `SUPERVISOR_OBRAS` acceden a consulta y edición de anotaciones 012A; `TECNICO`, `ADMINISTRATIVO_FINANZAS` y `ADMINISTRADOR_TI` reciben 403. La carga y descarga de fotos existente en Obras conserva sus permisos, sin ampliar accesos por este módulo. No confiar en `is_staff`, superuser o claims manipulables; JWT versionado y actividad/rol `sesion_version` se comprueban en PostgreSQL en cada solicitud.
 
-**RBAC:** solo `GERENCIA` y `SUPERVISOR_OBRAS`, con JWT versionado activo, rol y sesión revalidados en PostgreSQL. `ADMINISTRATIVO_FINANZAS`, `TECNICO`, `ADMINISTRADOR_TI` → 403; identidad ausente/revocada/inactiva → 401. No conceder acceso por flags Django o claims. Esto no modifica el endpoint existente de descarga/consulta de evidencias en Obras.
+**GET listado:** `obra` obligatorio, ID positivo ASCII ≤ BIGINT; `page` opcional, entero positivo, 25 registros. Rechazar query vacía, repetida, desconocida, signos, notación científica, overflow y ceros iniciales: 400. Validar Obra en PostgreSQL antes de usar Mongo; Obra inexistente 404 genérico. Leer solo documentos `origen=EVIDENCIA_TURNO` vinculados a esa Obra; ordenar `creado_en DESC, evidencia_id DESC`.
 
-- `obra` es obligatorio y debe ser un ID positivo estricto, dentro de BigInt; `page` opcional, entero positivo, tamaño fijo 25. Query duplicada/desconocida/vacía → 400. Obra ausente o inaccesible → 404 genérico según política de Obras, **validado en PostgreSQL antes de consultar MongoDB**, nunca basado exclusivamente en la proyección.
-- JSON: `{"count":0,"next":null,"previous":null,"results":[],"proyeccion":"EVENTUAL","fuente_autoritativa":"POSTGRESQL"}`.
-- Cada resultado contiene exclusivamente `evidencia_id`, `obra_id`, `turno_id`, `tipo_mime`, `tamano_bytes`, `creado_en`, `sincronizado_en`; ISO8601 con zona conocida. **No devolver** `_id` interno, `sha256`, `nombre_interno`, ruta de archivo, URL de archivo, usuario identificable ni binarios.
-- Orden `creado_en DESC, evidencia_id DESC`; paginación estable dentro de la consulta MongoDB por solicitud, sin afirmar snapshot entre páginas. `count` y `results` reflejan la **proyección actual** y pueden estar atrasados respecto a PostgreSQL; no afirmar sincronización inmediata ni utilizar este resultado para autorizaciones de descarga.
-- Si MongoDB está inaccesible o no autenticado → **503 JSON saneado** con `{"code":"proyeccion_no_disponible","detail":"..."}` y `Retry-After` razonable; **no** emitir falso `200 []`, permitir lectura anónima ni ejecutar fallback inadvertido sobre tablas de otro dominio. Si MongoDB está disponible pero aún no reconciliado → 200 con conteos reales y semántica eventual documentada.
-- `HEAD/OPTIONS` con RBAC, `POST/PATCH/DELETE` 405 para autorizado, `Cache-Control: private, no-store`, `Vary: Authorization`, sin rutas públicas. Evitar N+1 contra PostgreSQL; consultar la existencia/autorización de Obra una sola vez.
-- Para operaciones de archivos reales, el cliente debe seguir utilizando los endpoints oficiales existentes de Obras, no la proyección MongoDB.
+Respuesta:
 
-**Estado técnico:** un comando `python manage.py verificar_mongodb` informa ping/autenticación, base accesible, índices, validadores, recuentos y duración, sin imprimir secretos. No crear endpoint HTTP de infraestructura pública ni permitir a `ADMINISTRADOR_TI` leer metadatos de negocio. Estado interno por logs/mando es suficiente en 012A.
+~~~json
+{
+  "count": 1,
+  "next": null,
+  "previous": null,
+  "results": [{
+    "evidencia_id": 123,
+    "obra_id": 8,
+    "turno_id": 29,
+    "tipo_mime": "image/jpeg",
+    "tamano_bytes": 204800,
+    "creado_en": "2026-11-12T21:00:00+00:00",
+    "descripcion": "Estado inicial del equipo",
+    "etiquetas": ["antes", "unidad_exterior"],
+    "atributos": {"ubicacion_general": "exterior", "vista": "frontal"},
+    "revision": 1,
+    "sincronizado_en": "2026-11-12T21:01:00+00:00"
+  }],
+  "proyeccion": "EVENTUAL",
+  "fuente_autoritativa": "POSTGRESQL"
+}
+~~~
 
-## 7. Configuración de colecciones e índices
+**GET detalle:** misma representación de fila, sin `_id`, `sha256`, `nombre_interno`, URLs privadas ni registros de otros dominios. Verificar la evidencia en PostgreSQL y la autorización de la Obra; si aún no existe proyección: 409 `metadata_pendiente_sincronizacion` o sincronización puntual segura (documentar comportamiento exacto), jamás un 404 ambiguo por lag Mongo.
 
-- Inicializar/proteger `fyag_documentos.documentos_metadata` por script idempotente con validador BSON `validationLevel=strict`, `validationAction=error`, campos requeridos y `additionalProperties=false` más `_id` admitido.
-- `auditoria_eventos` y `alertas_eventos`: NO escribir, replicar ni activar como fuentes de negocio. Los scripts pueden mantenerlas inalteradas si ya existen; documentar estado y evitar una migración que afecte al módulo Auditoría de PostgreSQL.
-- Índices idempotentes, verificables, sin reconstrucción destructiva. Si el volumen contiene documentos incompatibles, informar cuántos, obtener muestra saneada sin PII y detenerse: preservar datos y pedir autorización de migración.
-- No tratar un archivo `database/*.js` como proceso automáticamente ejecutado solo por montarlo o guardarlo en Git. Crear comando/script de bootstrap controlado y documentar la ejecución real contra el contenedor.
-- Registrar versión de esquema MongoDB independiente de las migraciones Django. No introducir migraciones SQL por defecto.
+**PATCH detalle:** `Content-Type: application/json` estricto, cuerpo objeto con `revision` entero no negativo **obligatorio**, y al menos uno de `descripcion`, `etiquetas`, `atributos`. Solo estos campos, sin modificar metadatos de PostgreSQL. Campos presentes se **reemplazan completos**; campos ausentes se conservan. Sin claves desconocidas, duplicadas o valores nulos no definidos. Respuesta 200 con representación actual y revisión incrementada, 409 `revision_obsoleta` cuando otro actor modificó antes, 503 al no disponer de Mongo. Rechazar reintentos que intenten actualizar datos desde una revisión antigua; no aceptar `revision` en la URL.
 
-## 8. Arquitectura propuesta
+**HTTP:** 200, 400, 401, 403, 404, 405, 409 y 503 con errores saneados; encabezados `Cache-Control: private, no-store`, `Vary: Authorization`, `X-Content-Type-Options: nosniff`; `Retry-After` solo cuando corresponda. HEAD/OPTIONS siguen permiso/autenticación; mutaciones no previstas → 405 para actor autorizado. Sin rutas públicas ni accesos directos desde React a Mongo.
 
-Mantener el código aislado en un paquete claramente separado de dominio, por ejemplo `backend/apps/documentos_mongo/` o `backend/integraciones/mongodb/`; elegir y documentar una sola ubicación, sin modificar flujos financieros ni la capa ORM de Django. Separar:
-- Cliente PyMongo (configuración, conexión reutilizable por proceso y cierre adecuado).
-- Esquema/serialización BSON, índices y versionado.
-- Fuente PostgreSQL (`EvidenciaTurno`) y transformación de proyección.
-- Reconciliación y comandos de gestión.
-- Consultas de MongoDB solo lectura; validar obra y permisos con PostgreSQL.
-- API DRF/serializers/URLs y manejo controlado de fallos.
-- Tests PostgreSQL + MongoDB real, sin degradar suites anteriores.
+**Importante:** las descripciones y etiquetas en Mongo son anotaciones documentales, **no** reemplazan la descripción laboral oficial de `TurnoObra`. No permitir que este endpoint cambie o valide el trabajo de un técnico.
 
-Documentos requeridos: `backend/docs/SPEC-012-IMPLEMENTACION.md` y `backend/docs/openapi/SPEC-012-v1.json`. Actualizar `README.md`, `.env.example` y Compose con pasos de instalación, operación y rollback **sin secretos**. Asegurar CI independiente de credenciales de desarrollo, con MongoDB temporal aislado para pruebas SPEC-012; nunca apuntar tests a volúmenes persistentes del usuario.
+## 7. Scripts de `database/` e índices
 
-## 9. Pruebas y criterios de aceptación
+Reorganización controlada sugerida:
 
-1. MongoDB 8.0 real autenticado: contenedor, conectividad PyMongo, ping/health, mínimo privilegio, credenciales inválidas, no root en Django.
-2. Bootstrap: índices y validadores idempotentes; inicialización segura con volumen nuevo y **procedimiento no destructivo** para volumen previo; rechazar datos previos incompatibles sin borrarlos.
-3. Materializar registros `EvidenciaTurno` reales de pruebas en MongoDB; comparar IDs, BSON UTC, mime, tamaño, obra/turno, versión; no crear evidencias ficticias en BD de desarrollo.
-4. Reconciliación repetida no crea duplicados; caída durante lote seguida de retry completa sin pérdidas y sin escribir negocios PostgreSQL.
-5. Simulación de commits PostgreSQL fuera de orden: ningún ID atrasado se pierde por marca de avance.
-6. Mongo caído: PostgreSQL, login, Obras/Finanzas/Auditoría/Alertas/Dashboard/Reportes siguen operativos; API Mongo devuelve 503 seguro; recuperación vuelve a sincronizar.
-7. Matriz 401/403/404/405, JWT expirado/revocado, rol persistido, `HEAD/OPTIONS`, query estricta, Obra desconocida, 25/page, orden estable, `count`, sin rutas/nombres privados/sha256.
-8. Verificación de esquema BSON, índices, plan de lectura real, consumo de memoria y operaciones por lotes.
-9. Métricas/correlación sin PII, secretos, archivos, fotos ni trazas sensibles.
-10. `manage.py check`, `makemigrations --check --dry-run`, suites PostgreSQL existentes sin regresiones, pruebas Mongo reales en CI con servicio aislado y Postman de endpoint autorizado.
-11. Datos de negocio no se escriben dos veces en modo transaccional; Mongo no reemplaza fuente de verdad.
-12. `docker compose down`/reconstrucción no borra volúmenes; rollback restablece rutas/worker/config previos sin tocar datos PostgreSQL ni eliminar MongoDB almacenado.
+~~~text
+database/
+  mongodb/
+    init_mongodb.js
+    indices_mongodb.js
+    validaciones_mongodb.js
+  README.md
+~~~
 
-**Definición de terminado:** conexión autenticada real, colección derivada validada, reconciliador demostrado, endpoint DRF consultando MongoDB con RBAC, recuperación sin degradar PostgreSQL, pruebas Mongo/PostgreSQL, CI y Postman aprobados y PR de código integrado con autorización expresa. Tener el contenedor levantado o haber creado colecciones vacías NO basta.
+- Cambiar rutas solo con ajuste de documentación y comandos Compose/CI que las referencien, sin romper scripts de compañeros. No tocar datos SQL mediante scripts sueltos: estructura relacional se administra con migraciones Django.
+- Bootstrap para `documentos_metadata` idempotente con `validationLevel=strict`, campos espejo + anotaciones, índice ordenado por Obra/fecha; compatibilidad con scripts antiguos `auditoria_eventos` y `alertas_eventos` sin añadir escritura de negocio. No afirmar que ya existe un índice por solo tener un JS.
+- Con datos previos no compatibles, inspeccionar y clasificar antes de una operación destructiva; debido a la autorización de limpieza de datos **locales de prueba**, se permite preparar una transición controlada tras el diagnóstico, pero no borrar automáticamente colecciones de otras apps.
 
-## 10. Seguridad y decisiones pendientes de implementación
+## 8. Limpieza autorizada del entorno de desarrollo
 
-- **Prioridad crítica:** configurar autenticación y cerrar el puerto MongoDB expuesto antes de habilitar acceso habitual a este servicio.
-- Como `mongo_data` puede contener datos de otro integrante, **nunca autorizar limpieza de volúmenes como remedio automático**.
-- Elegir una estrategia robusta de creación de usuario no-root compatible con volúmenes existentes, comprobando sus credenciales sin mostrarlas. Debe poder recuperarse el servicio si MongoDB deja de estar disponible.
-- La información eventual/documental no reemplaza permisos persistidos ni puede aprobar decisiones operativas.
-- Mantener separados scripts de `auditoria_eventos`/`alertas_eventos`; su futura sincronización requiere contrato adicional.
+**Autorización del responsable:** eliminar datos basura exclusivamente de **entornos locales de pruebas de FYAG**; no hay datos empresariales relevantes ni imágenes guardadas actualmente, según el responsable. Esta autorización **NO** se extiende a servicios cloud, volúmenes de otros proyectos, credenciales, repositorios, documentos de diseño ni archivos fuera del proyecto.
 
-## 11. Flujo de trabajo y gobierno Git
+**Procedimiento obligatorio, separado de la implementación 012A:**
+1. Detectar `docker context`, carpeta de Compose, nombre de proyecto, contenedores, volúmenes nominados reales y conexiones PostgreSQL/Mongo; mostrar inventario y comprobar que no son servicios compartidos. No inferir nombres de volúmenes por el YAML.
+2. Contabilizar filas/colecciones/documentos y existencia de archivos privados; verificar efectivamente el volumen de evidencias aunque el responsable indicó que está vacío.
+3. Generar **respaldo de seguridad local** restaurable (PostgreSQL y MongoDB si hay documentos; metadatos/volúmenes si procede) en una ubicación privada fuera de Git. Verificar que el respaldo se puede leer/restaurar en entorno de prueba o, como mínimo, integridad de artefactos y manifiesto; NO subir datos ni secretos a GitHub.
+4. Ofrecer un plan de limpieza **limitado al stack FYAG de desarrollo**, describiendo exactamente qué se borraría y qué cuentas de administración deberán preservarse o recrearse. No hacer `docker compose down -v` sin identificar alcance real; no truncar tablas protegidas de Finanzas/Auditoría sin estrategia transaccional/migratoria.
+5. Ejecutar la limpieza solo mediante un comando/procedimiento explícito de desarrollo, con protecciones contra entornos no locales y registro de ejecución. La autorización de esta conversación cubre ese conjunto de datos de prueba **una vez confirmada la identidad del entorno**; si se descubren datos no clasificados, backups ajenos o recursos compartidos, detenerse e informar.
+6. Reconstruir esquema desde **migraciones Django oficiales** y bootstrap Mongo revisado; verificar creación/uso de cuentas por rol y ejecución de smoke tests. No alterar archivos de migraciones ni generar una `dump.sql` versionada.
+7. **No ejecutarlo antes de cerrar las pruebas de integración que dependan de datos actuales.** La limpieza no reemplaza tests ni prueba disponibilidad de Mongo; preferir efectuarla al final de las verificaciones locales, en una fase operacional separada.
+8. Dado que el usuario usa Django para crear cuentas de prueba y credenciales, nunca hardcodear una nueva clave ni imprimir secretos en el informe. Anotar los pasos para recrear usuarios autorizados.
 
-1. Esta propuesta vive en un PR **solo documental**. Revisar y fusionar exclusivamente tras autorización explícita del responsable.
-2. Con `main` actualizado, crear rama nueva `feature/backend-012-mongodb`.
-3. OpenCode lee esta SPEC, modelos/permiso/servicios y los tres scripts `database/`; antes de tocar MongoDB real debe **inventariar el volumen y sus colecciones** y advertir si existen datos.
-4. Implementar y probar **sin borrados destructivos**. Entregar informe previo a commits/push/PR; ChatGPT revisa cambios y seguridad. No elevar la funcionalidad como integrada hasta superar CI y Postman.
-5. Publicación/merge de implementación solo con autorización expresa; luego PR documental de estado integrado.
+**No ejecutar ninguna limpieza desde un workflow CI, PR, despliegue o `post_migrate`.** En CI usar siempre bases efímeras separadas.
 
-**Fuera de alcance:** migración de PostgreSQL a MongoDB, replicación financiera, almacenamiento de fotos, documentos públicos, Atlas o cloud no solicitado, cambios de UI, reportes desde MongoDB, sistemas de colas complejos no justificados, exportaciones en Mongo, y auditoría/alertas replicadas sin aprobación.
+## 9. Pruebas obligatorias
 
-## 12. Fuentes comprobadas
+1. Mongo real autenticado, versión y compatibilidad PyMongo, no root, acceso denegado sin credenciales y health/timeout robusto.
+2. Bootstrap/índices/validadores ejecutados y verificados contra Mongo real, dos ejecuciones idénticas sin efectos, datos previos detectados sin borrar por sorpresa.
+3. `EvidenciaTurno` de fixture PostgreSQL, luego proyección Mongo con IDs/tipos correctos, fechas UTC, campos técnicos cerrados; datos no se introducen en base de desarrollo por fixtures de test.
+4. PATCH válido para `descripcion`, `etiquetas`, `atributos` diferenciados; GET devuelve valores reales y paginación, filtros y formatos exactos.
+5. Reconciliación repetida **no borra ni resetea anotaciones Mongo**. Dos ediciones concurrentes con misma revisión → solo una exitosa; conflicto 409 estable.
+6. Fallo de Mongo entre commit PostgreSQL y proyección → no perder evidencia, recuperable. Comprobación de commits PostgreSQL fuera de orden sin perder IDs; sin consultas lazy fuera de control.
+7. Mongo desconectado, credenciales inválidas, índices faltantes y documentos BSON corruptos → 503/errores sanitizados, sin comprometer login, Obras, Finanzas, Auditoría, Alertas, Dashboard, Reportes.
+8. Matriz RBAC 401/403/404/405 para todos los roles, JWT revocado/inactivo, cambios de rol persistido, validación de pertenencia de evidencia/Obra, no acceso por flags superuser.
+9. Inyección de operador MongoDB, claves `$`/punto, anidamientos, strings grandes, duplicados de claves JSON, BSON malicioso, HTML, Unicode, etiquetas repetidas, elementos sensibles: 400 y nada de filtraciones.
+10. Revisión de secretos, paths, nombres internos, sha256 y contenidos de anotación en API/logs, y de no escrituras de importes o estados financieros.
+11. Pruebas Compose PostgreSQL + Mongo, CI con Mongo autenticado aislado, pruebas de migraciones y regresión completa Django existentes. Reportar counts/duración reales; no afirmar ejecución de CI remoto antes de abrir PR.
+12. Perfil de 1.000 metadatos: tiempo, índices/explain, memoria y consultas bajo paginación de 25; resultados como evidencia local, no SLA.
+13. Inspección y plan de limpieza de solo datos de prueba, respaldo, preservación/recreación de cuentas, sin eliminar imágenes inexistentes ni volúmenes ajenos.
+14. Contrato OpenAPI completo, ejemplos JSON y guía de integración para compañeros del frontend, sin modificar el frontend.
 
-`compose.yaml`, `.env.example`, `backend/requirements.txt`, `backend/config/settings.py`, `database/{init_mongodb.js,indices_mongodb.js,validaciones_mongodb.js}`, `backend/apps/obras/models.py` (`EvidenciaTurno`), `backend/apps/obras/views.py` (permisos/querysets), `backend/apps/alertas/{models.py,services.py}`, `backend/apps/auditoria/{adapters.py,services.py}`, `README.md` y SPEC-008 a 011.
+**Aceptación 012A:** una fotografía de turno registrada mediante API existente genera una ficha documental en Mongo; Gerencia/Supervisor pueden consultar y **editar anotaciones**; reiniciar/sincronizar no pierde anotaciones; Mongo caído no rompe el sistema SQL; no se exponen archivos; suites CI/Postman verificadas tras publicación autorizada. Una colección vacía o un simple espejo SQL no cumple la SPEC.
 
-Este documento describe un contrato propuesto para SPEC-012; no afirma que MongoDB haya sido integrado funcionalmente ni que el usuario haya aprobado cambios de datos o infraestructura.
+## 10. Operación, documentación y despliegue
+
+Entregables de implementación: `backend/docs/SPEC-012-IMPLEMENTACION.md`, `backend/docs/openapi/SPEC-012-v1.json`, `database/README.md`, `.env.example` actualizado sin secretos, comandos de bootstrap, diagnóstico `python manage.py verificar_mongodb` y reconciliación `python manage.py reconciliar_documentos_mongodb`.
+
+- Documentar cómo iniciar/reconstruir backend y Mongo con `docker compose`, preservar volúmenes e inicializar sin root de aplicación.
+- Si se agrega un reconciliador permanente, definir proceso único o idempotente, cadencia, límites y salida limpia; no se inicia dentro de `runserver` ni mediante import side effects.
+- Archivos reales quedan privados en volumen/almacenamiento dedicado; en la nube deberían migrarse a almacenamiento persistente de objetos. **No** guardar archivos en las bases por comodidad ni usar `GridFS` sin decisión separada.
+- Monitoreo de fallo Mongo y recuperación; rollback de versión de API/servicio y scripts sin eliminación de datos SQL o Mongo; observar cambios de esquema y límites de rutas.
+- Producción (Render/Neon/Atlas/Azure o similares) no se configura todavía: estos servicios gratuitos están destinados a demostración; los planes comerciales se evaluarán posteriormente.
+
+## 11. Flujo de Git y alcance de la primera implementación
+
+1. Revisar y fusionar el PR **solo documental** de actualización SPEC-012 mediante autorización expresa. No implementar contra una copia antigua de SPEC-012.
+2. Actualizar `main` local vía `git pull --ff-only origin main` tras el merge; confirmar que el nuevo contrato está disponible.
+3. Crear rama `feature/backend-012a-mongodb` desde `main` actualizado. Implementar **exclusivamente 012A**, sin implementar uploads de facturas de 012B, sin frontend y sin cambios financieros no aprobados.
+4. OpenCode ejecuta validaciones locales sobre contenedores y bases de pruebas independientes, registra inventario y plan de limpieza, y **se detiene antes de cualquier commit, push, PR o merge**. Entrega informe con tests reales y riesgos.
+5. Revisión del informe y archivos por ChatGPT; publicación de código solo tras autorización explícita del responsable; CI y Postman; merge por autorización.
+6. Luego abrir e implementar 012B en otro incremento, no modificar el contrato de facturación ya integrado sin nueva revisión de SPEC.
+
+**Fuera de alcance de 012A:** emisión DTE, OCR, subidas de PDFs/facturas, nuevas tablas financieras, migración PostgreSQL→MongoDB, modificación de estados/costos/roles, replicación global de Auditoría/Alertas, UI/React, servicios cloud y borrado de recursos ajenos.
+
+## 12. Fuentes revisadas
+
+`compose.yaml`, `.env.example`, `backend/requirements.txt`, `backend/config/settings.py`, `database/*.js`, `backend/apps/obras/{models.py,evidencias.py,services_turnos.py,views_turnos.py}`, `backend/apps/finanzas/{models.py,views_documentos.py,serializers_documentos.py}`, `specs/011-reportes-backend.md`, SPEC-004/007/008/009 y Documento de Informe 2 de FYAG.
+
+Este contrato revisado incorpora el uso documental flexible definido en el Informe 2 pero prioriza integridad, seguridad, recuperación y pruebas del backend definitivo. El usuario confirmó que el entorno local no contiene datos de negocio relevantes ni fotografías reales y autorizó limpiar datos de prueba; **esa autorización no implica que ya se haya ejecutado la limpieza**.
