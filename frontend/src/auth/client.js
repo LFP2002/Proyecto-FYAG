@@ -161,6 +161,14 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     return pending;
   }
 
+  // El backend ya revocó access/refresh al confirmar el PATCH del correo propio.
+  // No intentar refresh/logout con tokens obsoletos ni reconsultar datos protegidos.
+  function sessionInvalidatedByEmailChange() {
+    if (snapshot.status !== 'authenticated' || !snapshot.user) return false;
+    clear('Correo actualizado correctamente. Inicia sesión con tu nuevo correo electrónico.');
+    return true;
+  }
+
   function restore() {
     // También deduplica el doble efecto de React.StrictMode al montar.
     if (!restoreFlight) restoreFlight = snapshot.status === 'restoring'
@@ -254,7 +262,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    restore, login, logout, request,
+    restore, login, logout, request, sessionInvalidatedByEmailChange,
   });
 }
 

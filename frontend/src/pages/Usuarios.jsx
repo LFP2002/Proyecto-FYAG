@@ -28,7 +28,7 @@ function Field({ name, label, form, setForm, disabled, type = 'text', options, r
 }
 
 function AccountForm({ mode, account, api, onSaved, onCancel }) {
-  const { logout } = useAuth();
+  const { user: authenticatedUser, logout, sessionInvalidatedByEmailChange } = useAuth();
   const [form, setForm] = useState({ ...empty, ...(account || {}) });
   const busy = api.busy || api.loading || api.locked;
   const titles = { crear: 'Crear cuenta inactiva', editar: 'Editar perfil', activar: 'Activar cuenta', desactivar: 'Desactivar cuenta', rol: 'Cambiar rol', clave: 'Establecer contraseña ajena', propia: 'Cambiar mi contraseña' };
@@ -46,7 +46,14 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
     try {
       await api.write(path, method, body, async (result) => {
         if (mode === 'propia') { await logout(); return; }
-        await onSaved(readUser(result));
+        const saved = readUser(result);
+        if (mode === 'editar' && account?.id === authenticatedUser?.id && saved.email !== account.email) {
+          // La API confirmó la nueva identidad: el token ya no es válido.
+          // Mostrar el login con aviso explícito, sin provocar refresh ni relecturas 401.
+          sessionInvalidatedByEmailChange();
+          return;
+        }
+        await onSaved(saved);
       });
     } finally { setForm((prev) => ({ ...prev, password: '', nueva_clave: '', clave_actual: '' })); }
   }

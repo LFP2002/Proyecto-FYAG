@@ -51,7 +51,8 @@ function backend() {
 async function mount(request, role = 'ADMINISTRADOR_TI', full = false) {
   let session = { status: 'authenticated', user: { id: 1, username: 'Institucional', email: 'sesion@example.test', role } };
   const listeners = new Set();
-  const client = { getSnapshot: () => session, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); }, restore: async () => {}, request };
+  const client = { getSnapshot: () => session, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); }, restore: async () => {}, request,
+    sessionInvalidatedByEmailChange: () => { session = { status: 'anonymous', user: null, notice: 'Correo actualizado correctamente. Inicia sesión con tu nuevo correo electrónico.' }; listeners.forEach((fn) => fn()); } };
   const content = full ? React.createElement(AppProvider, null, React.createElement(App)) : React.createElement(Usuarios);
   let renderer;
   await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, content)); await flush(); });
@@ -191,5 +192,27 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=2'));
     await click(renderer, 'Volver a usuarios');
     assert.equal(calls.at(-1), '/api/usuarios/?page=2&activo=false');
+  } finally { await act(async () => renderer.unmount()); }
+});
+
+test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni refresh obsoleto', async () => {
+  const api = backend();
+  const { renderer } = await mount(api.request, 'ADMINISTRADOR_TI', true);
+  try {
+    await click(renderer, 'Ver cuenta #1');
+    await click(renderer, 'Editar perfil');
+    await input(renderer, 'first_name', 'Nombre actualizado');
+    await submit(renderer);
+    assert.equal(api.accounts[0].first_name, 'Nombre actualizado');
+    assert.ok(renderer.root.findAllByType('button').some((b) => text(b) === 'Editar perfil'), 'editar nombre no revoca sesión');
+    const historyReads = api.calls.filter((c) => c.path.includes('/historial/')).length;
+    await click(renderer, 'Editar perfil');
+    await input(renderer, 'email', 'nuevo@example.test');
+    await submit(renderer);
+    assert.equal(api.accounts[0].email, 'nuevo@example.test');
+    assert.match(text(renderer.root), /Correo actualizado correctamente/);
+    assert.match(text(renderer.root), /Correo electrónico/);
+    assert.equal(api.calls.filter((c) => c.path.includes('/historial/')).length, historyReads, 'no reconsulta con token ya revocado');
+    assert.equal(api.calls.filter((c) => c.path.startsWith('/api/auth/refresh/')).length, 0);
   } finally { await act(async () => renderer.unmount()); }
 });

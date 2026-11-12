@@ -7,7 +7,8 @@ export function AuthProvider({ children, client = authClient }) {
   const session = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
   useEffect(() => { void client.restore(); }, [client]);
   return (
-    <AuthContext.Provider value={{ ...session, login: client.login, logout: client.logout, request: client.request }}>
+    <AuthContext.Provider value={{ ...session, login: client.login, logout: client.logout, request: client.request,
+        sessionInvalidatedByEmailChange: client.sessionInvalidatedByEmailChange }}>
       {children}
     </AuthContext.Provider>
   );

@@ -338,3 +338,16 @@ test('respuestas de autenticación malformadas terminan en error controlado', as
     assert.equal(client.getSnapshot().user, null);
   }
 });
+
+test('correo propio confirmado invalida sesión local sin refresh y comunica nuevo login', async () => {
+  const { client, calls } = backend();
+  await client.login(credentials);
+  assert.equal(client.sessionInvalidatedByEmailChange(), true);
+  assert.equal(client.getSnapshot().status, 'anonymous');
+  assert.equal(client.getSnapshot().user, null);
+  assert.match(client.getSnapshot().notice, /nuevo correo electrónico/);
+  const before = calls.length;
+  await assert.rejects(client.request('/api/obras/'), { status: 401 });
+  assert.equal(calls.length, before, 'no se utiliza access ni refresh revocados');
+  assert.equal(client.sessionInvalidatedByEmailChange(), false);
+});

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from django.conf import settings
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
@@ -12,7 +14,7 @@ from rest_framework.exceptions import ValidationError
 from apps.usuarios import services_usuarios as services
 from apps.usuarios.models import UsuarioEvento
 from apps.usuarios.serializers_usuarios import UsuarioEventoSerializer
-from apps.usuarios.tokens import AccessToken
+from apps.usuarios.tokens import AccessToken, RefreshToken
 
 Usuario = get_user_model()
 PASSWORD = "Clave-Inicial-9X!"
@@ -126,6 +128,36 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertEqual(self.target.date_joined, old_joined)
         for field in ["rol", "password", "is_active", "is_staff", "is_superuser", "groups", "user_permissions", "sesion_version", "date_joined", "last_login"]:
             self.assertEqual(self.client.patch(self.url, {field: 1}, format="json").status_code, 400, field)
+
+    def test_editar_correo_propio_ti_normaliza_revoca_tokens_y_audita(self):
+        """La respuesta PATCH confirma el cambio, pero toda credencial anterior queda obsoleta."""
+        target = self.manager
+        own_url = f"/api/usuarios/{target.pk}/"
+        original_email = target.email
+        access = AccessToken.for_user(target)
+        refresh = RefreshToken.for_user(target)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        unchanged = self.client.patch(own_url, {"email": original_email.upper()}, format="json")
+        self.assertEqual(unchanged.status_code, 200, unchanged.data)
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+        self.assertFalse(target.eventos_administrativos.exists())
+
+        changed = self.client.patch(own_url, {"email": " NUEVO.TI@EXAMPLE.TEST "}, format="json")
+        self.assertEqual(changed.status_code, 200, changed.data)
+        self.assertEqual(changed.data["email"], "nuevo.ti@example.test")
+        target.refresh_from_db()
+        self.assertEqual(target.sesion_version, 2)
+        evento = target.eventos_administrativos.get()
+        self.assertEqual(evento.tipo, "EDICION")
+        self.assertEqual(evento.actor_id, target.pk)
+        self.assertEqual(evento.datos_anteriores, {"email": original_email})
+        self.assertEqual(evento.datos_nuevos, {"email": "nuevo.ti@example.test"})
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+        self.client.cookies[settings.JWT_REFRESH_COOKIE_NAME] = str(refresh)
+        self.assertEqual(self.client.post("/api/auth/refresh/", {}, format="json").status_code, 401)
+        self.client.credentials()
+        self.assertEqual(self.client.post("/api/auth/login/", {"email": original_email, "password": PASSWORD}, format="json").status_code, 401)
+        self.assertEqual(self.client.post("/api/auth/login/", {"email": target.email, "password": PASSWORD}, format="json").status_code, 200)
 
     def test_activar_desactivar_idempotentes_exigen_motivo(self):
         self.assertEqual(self.client.post(self.url + "desactivar/", {}, format="json").status_code, 400)
