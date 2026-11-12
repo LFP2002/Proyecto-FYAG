@@ -72,7 +72,19 @@ ROOT_URLCONF = "config.urls"
 # Separación frontend/API opt-in: nunca wildcard ni confiar en el frontend.
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("DJANGO_CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
-CORS_EXPOSE_HEADERS = ["Retry-After", "Idempotency-Replayed"]
+CORS_EXPOSE_HEADERS = ["Retry-After", "Idempotency-Replayed", "Content-Disposition", "X-Correlation-ID"]
+
+# Trazabilidad mínima de archivos generados; no confirma descarga del cliente.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"reportes_consola": {"class": "logging.StreamHandler"}},
+    "loggers": {
+        "apps.reportes.services": {
+            "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
+        },
+    },
+}
 CORS_URLS_REGEX = r"^/api/.*$"
 
 TEMPLATES = [
