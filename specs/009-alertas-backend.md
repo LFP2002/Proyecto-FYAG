@@ -1,84 +1,246 @@
-# SPEC-009 — Alertas reales y atención auditable
+# SPEC-009 — Alertas operativas y financieras: detección, atención y reconciliación (backend)
 
-**Estado: definida para implementación por OpenCode; NO implementada ni integrada.** La aplicación alertas está vacía; estas rutas son un contrato propuesto, no endpoints actuales.
+**Estado: DEFINIDA PARA IMPLEMENTACIÓN; NO IMPLEMENTADA EN MAIN.** Revisión contractual para OpenCode. La aplicación Django apps.alertas está registrada, pero actualmente solo contiene esqueletos y no está incluida en backend/config/urls.py. Esta SPEC no crea endpoints por sí misma.
 
-## 1. Estado, contexto y precedencia
+## 1. Contexto confirmado y precedencia
 
-La aplicación `apps.alertas` está creada como esqueleto, pero no implementa modelos de alertas, servicios ni URLs conectadas a `config.urls`. Preservar los estados y validaciones de Comercial, Obras y Finanzas; SPEC-003/004/007 prevalecen como fuentes de verdad, y SPEC-006B determina las autorizaciones. No interpretar esta SPEC como una implementación existente.
+Proyecto-FYAG utiliza Django 5/DRF, PostgreSQL, JWT con sesion_version y roles persistidos. Existen APIs reales de Clientes/Presupuestos (SPEC-003), Obras/Turnos/Costos (SPEC-004/004B), Finanzas/Cobranzas (SPEC-007), Usuarios y RBAC exclusivo de TI (SPEC-006B/006C), y auditoría global de solo lectura (SPEC-008).
 
-## 2. Objetivo, alcance y reglas de alerta
-El prototipo React afirma detectar desviación entre costo y avance mayor a diez puntos, pero el backend NO tiene una medición persistida y validada de porcentaje de avance. Está prohibido fabricar ese dato a partir de costos, horas o fixtures. La desviación quedará fuera del MVP hasta definir formalmente cómo se registra y valida el avance de Obra.
+La autoridad sobre el estado de cada entidad corresponde al módulo propietario. Alertas es un **modelo derivado de observaciones**, no un mecanismo para actualizar las entidades de origen, no un nuevo motor contable y no una alternativa a sus endpoints existentes. Sus escrituras se limitan a los registros propios de Alerta y AlertaEvento.
 
-Tipos de alerta v1, derivados únicamente de reglas presentes en los modelos:
-- PRESUPUESTO_PENDIENTE_GERENCIA: presupuesto en PENDIENTE_GERENCIA; Gerencia.
-- OBRA_SUSPENDIDA: obra en SUSPENDIDA; Gerencia y Supervisor.
-- TURNO_PENDIENTE_REVISION: turno en PENDIENTE_REVISION; solo Supervisor.
-- COBRANZA_VENCIDA: documento VIGENTE con saldo mayor a cero y vencimiento anterior al día de Santiago, según la consulta oficial de Finanzas; solo Gerencia.
+**Precedencia:** prevalecen los invariantes de datos, permisos y cálculos de los dominios propietarios y el control JWT/CSRF/CORS vigente. Los resultados de un prototipo React nunca son fuente de verdad. Toda contradicción material debe elevarse para revisión antes de cambiar el contrato.
 
-No exponer detalles financieros al Supervisor. TI, AF y Técnico sin nueva bandeja de Alertas, sin cambiar sus rutas de negocio existentes. No enviar correos/push ni generar notificaciones automáticas externas.
+## 2. Objetivo, entregables y catálogo cerrado v1
 
-## 3. Matriz de roles y visibilidad
+Exponer una bandeja de alertas por rol, con condición verificable, deduplicación, historial, acuse motivado y resolución automática. Entregar endpoints estables, migraciones nuevas en apps.alertas, reconciliador ejecutándose de forma efectiva, tests Django/PostgreSQL, documentación OpenAPI y guía operativa. **No implementar frontend**.
 
-| Rol | Consulta / atiende | Contenido |
+| Tipo estable | Condición actual que activa | Origen exacto | Destinatarios | Severidad fija |
+|---|---|---|---|---|
+| PRESUPUESTO_PENDIENTE_GERENCIA | Presupuesto.estado = PENDIENTE_GERENCIA | comercial.Presupuesto | GERENCIA | MEDIA |
+| OBRA_SUSPENDIDA | Obra.estado = SUSPENDIDA | obras.Obra | GERENCIA y SUPERVISOR_OBRAS | ALTA |
+| TURNO_PENDIENTE_REVISION | TurnoObra.estado_revision = PENDIENTE_REVISION | obras.TurnoObra | SUPERVISOR_OBRAS | MEDIA |
+| COBRANZA_VENCIDA | DocumentoCobro.estado = VIGENTE, saldo > 0 y fecha_vencimiento < hoy civil Santiago | finanzas.DocumentoCobro mediante finanzas.consultas_cobranzas.con_cobranza | GERENCIA | ALTA |
+
+Vencida significa que el cálculo **oficial** retorna estado_cobranza_calculado = VENCIDA, no cualquier documento con fecha anterior: pago total, documento revertido y saldo no positivo lo excluyen. No usar float, no sumar pagos dos veces y no inventar IVA. El tipo de Turno se activa también al entrar a PENDIENTE_REVISION desde una subsanación o corrección, no únicamente en el primer cierre.
+
+**Exclusión expresa:** no existe avance porcentual persistido ni validado de Obra; por tanto, no se implementa alerta de desviación costo-versus-avance, umbrales de 10 puntos, rentabilidad proyectada, severidad inferida de dinero, SMS, email, push, Kafka, Celery u otro servicio no justificado para este alcance. Futuras alertas exigen ampliación explícita de SPEC.
+
+## 3. Matriz RBAC y semántica de destinatarios
+
+| Rol persistido activo | Consultar / atender | Ámbito visible |
 |---|---|---|
-| GERENCIA | Sí, alertas destinadas a G | Estados de presupuesto/obra y cobranza vencida, sin datos ajenos |
-| SUPERVISOR_OBRAS | Sí, alertas destinadas a S | Estados operativos de Obras y turnos; nunca saldo/documento financiero |
-| ADMINISTRATIVO_FINANZAS | No | Conserva `/api/finanzas/cobranzas/` propio |
-| TECNICO | No | Conserva `/api/obras/mis-obras/` propio |
-| ADMINISTRADOR_TI | No | Solo administración de Usuarios |
+| GERENCIA | Sí | Sus alertas de presupuestos, obras suspendidas y cobranza vencida |
+| SUPERVISOR_OBRAS | Sí | Sus alertas de obras suspendidas y turnos pendientes |
+| ADMINISTRATIVO_FINANZAS | No (403) | Conserva sus endpoints reales de cobranza, no hereda la bandeja |
+| TECNICO | No (403) | Conserva sus endpoints operativos de Obras |
+| ADMINISTRADOR_TI | No (403) | Exclusividad de administración de Usuarios; sin alertas de negocio |
 
-Comprobar actor activo y `Usuario.rol` persistido para toda lectura y escritura. Sin bypass por `is_superuser`, rol del token ni navegación React.
+La bandeja corresponde al **rol destinatario**, no a una cuenta individual. Dos personas activas del mismo rol comparten el estado de atención de la alerta de ese rol. Distintos roles mantienen acuses independientes: una obra suspendida genera **dos registros**, uno para GERENCIA y otro para SUPERVISOR_OBRAS; atender el aviso de un rol NO atiende el del otro. La resolución de la causa sí debe resolver ambos.
 
-## 4. Modelo de datos, integridad y ciclo de vida
-Se requiere registro nuevo en alertas con ID, tipo, recurso_tipo, recurso_id, generación del episodio, estado PENDIENTE/ATENDIDA/RESUELTA, creado_en, atendida_por, atendida_en, motivo_atencion y resuelta_en. Unique constraint (tipo,recurso_tipo,recurso_id,generacion). La atención solo significa reconocimiento, jamás ejecución de una operación de negocio; no cambiar estados de Obra/turno/presupuesto/documento desde esta API.
+El servidor valida rol persistido, is_active y sesión versionada, sin elevación por is_staff/is_superuser, claims o componentes React. Todos los GET, POST y metadatos OPTIONS aplican el ámbito del rol; un ID que pertenece a otro rol es indistinguible de uno inexistente (404). No revelar saldos, folios, pagos, documentos ni costos a Supervisor; no revelar detalles de Turnos a Gerencia más allá de la alerta de OBRA_SUSPENDIDA.
 
-Crear una alerta por episodio real; resolver al desaparecer la condición de origen y crear una generación nueva si reaparece. Generación basada en transición de negocio identificable, no en una edición irrelevante. GET estrictamente read-only, sin crear o reconciliar filas silenciosamente. Implementar mecanismo idempotente de actualización al commit y/o reconciliación supervisada; los cambios de fecha de la cobranza deben detectarse sin depender de que un usuario abra el listado. Reintentos y carreras no pueden duplicar episodios ni atenciones.
+## 4. Modelos, restricciones e historial de eventos
 
-## 5. Contrato REST, filtros y respuestas
-- GET /api/alertas/?estado=PENDIENTE&tipo=...&page=1 — paginación DRF 25.
-- GET /api/alertas/resumen/ — conteos por tipo y estado, filtrados al rol.
-- GET /api/alertas/{id}/ — detalle con mínimo de campos.
-- GET /api/alertas/{id}/historial/ — trazabilidad de atención.
-- POST /api/alertas/{id}/atender/ — JSON exacto {"motivo":"Atención coordinada"}; retorna alerta actualizada (200).
+### 4.1 Alerta (modelo nuevo)
 
-Filtros de lista: estado, tipo, recurso_tipo y recurso_id (positivo), desde y hasta (YYYY-MM-DD, rango <=366 días), page. Orden por -creado_en,-id; parámetros desconocidos/duplicados o fechas invertidas dan 400. Un ID fuera del ámbito da 404. Actor real proviene del JWT; no se recibe en JSON.
+Campos mínimos: id BigAutoField; tipo del catálogo; rol_destinatario (GERENCIA/SUPERVISOR_OBRAS); recurso_tipo (PRESUPUESTO/OBRA/TURNO/DOCUMENTO); recurso_id entero positivo BigInteger; generacion entero positivo; estado PENDIENTE/ATENDIDA/RESUELTA; severidad derivada del catálogo **no editable**; creado_en; atendida_por FK a Usuario nullable; atendida_en nullable; motivo_atencion nullable; resuelta_en nullable; ultima_comprobacion_en. Prohibidos snapshots de precios, correos, tokens, descripciones libres y datos duplicados del negocio en Alerta.
 
-Ejemplo de elemento, **no dato real**:
+Correspondencia cerrada tipo↔recurso_tipo y tipo↔rol_destinatario; CheckConstraints y validación de servidor. UniqueConstraint para (tipo, recurso_tipo, recurso_id, rol_destinatario, generacion) y **unicidad parcial de alerta no resuelta** por (tipo, recurso_tipo, recurso_id, rol_destinatario) cuando estado está en PENDIENTE o ATENDIDA. Una causa no produce más de una alerta abierta para el mismo rol.
+
+La generación arranca en 1 por combinación de tipo, recurso y rol, y aumenta de manera monotónica al reactivarse una condición que ya había quedado RESUELTA. No reabrir ni borrar un episodio histórico ni reiniciar su número. Reintentos y dos workers simultáneos no pueden crear dos generaciones activas. Resolver la concurrencia con bloqueos PostgreSQL de granularidad por clave y constraints, respetando el orden de locks de los servicios existentes. No usar un mutex global que serialice todos los recursos del sistema.
+
+Estados y transiciones:
+- Primera detección: inexistente → PENDIENTE; registrar CREACION.
+- Reconocimiento motivado autorizado: PENDIENTE → ATENDIDA; registrar ATENCION; no cambia origen.
+- Origen deja de cumplir la regla: PENDIENTE o ATENDIDA → RESUELTA; registrar RESOLUCION por el sistema; no inventar usuario operador; conservar fecha/actor/motivo de atención anteriores.
+- Nueva ocurrencia posterior: crear una nueva Alerta PENDIENTE con generacion + 1 y nueva CREACION. La anterior permanece RESUELTA.
+- Reconciliar una condición activa ya registrada no modifica la generación ni el historial; se permite actualizar únicamente ultima_comprobacion_en con frecuencia controlada.
+
+### 4.2 AlertaEvento (modelo nuevo e histórico)
+
+Registro append-only: id, alerta FK con PROTECT, tipo (CREACION/ATENCION/RESOLUCION), estado_anterior nullable, estado_nuevo, actor nullable (null para sistema), motivo (vacío para eventos automáticos, no vacío para atención), registrado_en (hora servidor). No se acepta input HTTP para crear o modificar eventos. Restringir update/delete vía servicios y modelos como las auditorías existentes, y no crear APIs de edición/borrado. El evento RESOLUCION se registra independientemente para los dos roles en alertas compartidas.
+
+### 4.3 Coherencia de campo y representación
+
+Estado PENDIENTE exige atendida_por/atendida_en/motivo_atencion null y resuelta_en null. Estado ATENDIDA exige los tres campos de atención y resuelta_en null. Estado RESUELTA exige resuelta_en y puede conservar campos de atención (si se atendió antes); validar CheckConstraint, timestamps y transiciones. No se expone la columna generacion como parámetro editable. La severidad, titulo y descripcion son derivados del tipo, con texto fijo de servidor y sin datos sensibles.
+
+## 5. Detección, activación y resolución automática
+
+No se permiten efectos laterales en GET. La creación/resolución es responsabilidad del servicio de proyección de alertas:
+
+1. **Notificación rápida postcommit:** integrar puntos mínimos de señalización después de una mutación de negocio exitosa, sin cambiar sus reglas. Priorizar transiciones reales (Presupuesto enviado/retirado de Gerencia, Obra suspendida/reanudada, Turno cerrado/subsanado/revisado/corregido, documento registrado/revertido y pago registrado/anulado). Usar transaction.on_commit o patrón equivalente seguro y no ejecutar consultas de alertas antes del commit de negocio. Un fallo de señalización nunca debe revertir un pago confirmado ni una operación original.
+2. **Reconciliación obligatoria:** comando de gestión idempotente y seguro para ejecutar un ciclo completo de fuentes, detectando alertas faltantes y resolviendo las obsoletas, incluso tras reinicio o fallo de callback. Por ejemplo, python manage.py reconciliar_alertas --once, o nombre documentado equivalente. Usar filtros/consultas incrementales y agregaciones: no cargar toda la base a memoria; no modificar el dominio.
+3. **Programación efectiva sin usuario conectado:** ejecutar un ciclo al inicio del proceso reconciliador y posteriormente cada 60 segundos como configuración por defecto de desarrollo. Proveer servicio/proceso separado del web server para Docker Compose; en despliegue real debe haber scheduler/worker externo equivalente, con reinicio supervisado y prevención de carreras. No depender de que alguien abra /api/alertas/ o ejecute manualmente el comando. No instalar Celery/Redis ni agregar dependencias sin justificación técnica.
+4. **Cambio de día civil:** la comparación de fecha_vencimiento usa hoy_santiago() de Finanzas y la misma consulta con_cobranza. El proceso programado debe detectar vencimientos nuevos tras medianoche America/Santiago incluso con transiciones de 23/25 horas (DST). No usar UTC date ni sumar segundos para avanzar días civiles.
+5. **Observabilidad:** persistir timestamp de la última reconciliación completa exitosa (tabla de estado propio del módulo, sin secretos). GET /api/alertas/resumen/ incluirá sincronizacion.ultima_correcta_en nullable y sincronizacion.desactualizada boolean. Considerar desactualizada cuando no existe ejecución exitosa o su edad supera 180 segundos bajo cadencia 60s. El endpoint de resumen **solo lee**, nunca ejecuta reconciliación.
+6. **Consistencia eventual declarada:** si una incidencia aparece y desaparece enteramente entre reconciliaciones y se pierde la señalización postcommit, puede no producir episodio histórico, pues el estado actual no da evidencia suficiente de su aparición. No prometer captura de cada transición breve sin un outbox duradero de dominios; registrar el límite operacional y probar recuperación al siguiente ciclo para incidencias vigentes.
+
+Priorizar no añadir bloqueos ni importaciones circulares en los servicios originales; si las notificaciones postcommit requieren cambiar archivos de Comercial/Obras/Finanzas, documentar exactamente los archivos y demostrar regresión. El reconciliador siempre es el mecanismo de recuperación: los callbacks no reemplazan el scheduler.
+
+## 6. Contrato REST público v1
+
+Rutas nuevas (slash final obligatorio):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | /api/alertas/ | Bandeja paginada del rol actual |
+| GET | /api/alertas/resumen/ | Conteos agregados y salud de reconciliación |
+| GET | /api/alertas/{id}/ | Detalle autorizado |
+| GET | /api/alertas/{id}/historial/ | Historial de la alerta, paginado |
+| POST | /api/alertas/{id}/atender/ | Reconocimiento motivado, sin modificar origen |
+
+Los métodos de escritura restantes (PUT/PATCH/DELETE, y POST sobre rutas distintas de atender) deben retornar 405 a perfiles que tienen acceso. No agregar endpoints CRUD generales, POST de resolución, método para forzar estado ni exposición pública de reconciliación administrativa.
+
+### 6.1 GET /api/alertas/
+
+Paginación DRF exacta: count, next, previous, results; 25 elementos por página, orden creado_en DESC, id DESC. Filtrar por rol_destinatario **antes** de contar, paginar o consultar detalle. Query aceptada: estado (PENDIENTE/ATENDIDA/RESUELTA/TODAS), tipo del catálogo, recurso_tipo del catálogo, recurso_id entero positivo (requiere recurso_tipo), desde y hasta YYYY-MM-DD en Santiago (ambas juntas, rango máximo 366 días inclusivos), page entero decimal positivo. Parámetros no reconocidos, repetidos, incoherentes, valores vacíos o extremos → 400. Fecha aplica a creado_en; desde inclusive y hasta inclusive con frontera SQL exclusiva al inicio del día siguiente.
+
+Sin estado: listar **solo incidencias actuales**, es decir PENDIENTE y ATENDIDA. estado=TODAS incluye registros resueltos históricos; estado=RESUELTA los filtra expresamente. Sin fechas: no restringir temporalmente incidencias activas; mantener acceso histórico paginado por petición explícita. No aceptar por query un rol_destinatario arbitrario: se deduce del principal.
+
+### 6.2 GET /api/alertas/resumen/
+
+No acepta filtros ni page. JSON 200 contractual de ejemplo sintético:
 
 ~~~json
 {
-  "id": 18, "tipo": "TURNO_PENDIENTE_REVISION", "estado": "PENDIENTE",
-  "severidad": "MEDIA", "recurso_tipo": "TURNO", "recurso_id": 83,
-  "obra": 12, "titulo": "Turno pendiente de revisión",
-  "descripcion": "Revisión de Supervisor requerida",
-  "creado_en": "2026-11-11T14:10:00-03:00",
-  "atendida_por": null, "atendida_en": null,
-  "motivo_atencion": null, "resuelta_en": null,
+  "generado_en": "2026-11-12T15:30:00-03:00",
+  "zona_horaria": "America/Santiago",
+  "por_estado": {"PENDIENTE": 2, "ATENDIDA": 1, "RESUELTA": 4},
+  "activas": 3,
+  "por_tipo": {
+    "PRESUPUESTO_PENDIENTE_GERENCIA": {"PENDIENTE": 1, "ATENDIDA": 0, "RESUELTA": 1},
+    "OBRA_SUSPENDIDA": {"PENDIENTE": 1, "ATENDIDA": 1, "RESUELTA": 1},
+    "COBRANZA_VENCIDA": {"PENDIENTE": 0, "ATENDIDA": 0, "RESUELTA": 2}
+  },
+  "sincronizacion": {"ultima_correcta_en": "2026-11-12T15:29:00-03:00", "desactualizada": false}
+}
+~~~
+
+por_tipo incluye solo tipos destinados al rol, todos sus estados con ceros cuando no haya filas. por_estado.RESUELTA es conteo histórico, no una incidencia actual. El ejemplo muestra estructura, no datos reales. Para Supervisor, por_tipo incluye únicamente OBRA_SUSPENDIDA y TURNO_PENDIENTE_REVISION. No revelar contadores de otro rol.
+
+### 6.3 GET /api/alertas/{id}/ y resultados del listado
+
+El listado y el detalle comparten una proyección idéntica, sin importes ni datos privados. Ejemplo sintético:
+
+~~~json
+{
+  "id": 18,
+  "tipo": "TURNO_PENDIENTE_REVISION",
+  "estado": "PENDIENTE",
+  "severidad": "MEDIA",
+  "rol_destinatario": "SUPERVISOR_OBRAS",
+  "recurso_tipo": "TURNO",
+  "recurso_id": 83,
+  "recurso_codigo": null,
+  "obra": 12,
+  "titulo": "Turno pendiente de revisión",
+  "descripcion": "El turno requiere revisión del Supervisor.",
+  "creado_en": "2026-11-12T14:10:00-03:00",
+  "atendida_por": null,
+  "atendida_en": null,
+  "motivo_atencion": null,
+  "resuelta_en": null,
   "acciones_permitidas": ["ATENDER"]
 }
 ~~~
 
-Severidad fija por tipo, no calculada desde indicadores inexistentes. POST sin motivo => 400; segunda atención => 409 alerta_ya_atendida; origen resuelto => 409 alerta_resuelta; alerta desactualizada => 409 alerta_desactualizada. Nunca hay PUT/DELETE físicos.
+Todos los campos tienen tipos estables. recurso_codigo es string o null, generado por backend desde un identificador permitido (código de presupuesto/obra, folio si el rol lo permite); obra es PK de Obra o null. Para alertas de obra suspendida, obra coincide con recurso_id; para Turno, obra se obtiene del modelo TurnoObra; para documento, se permite Obra como contexto exclusivamente a Gerencia; para Presupuesto sin Obra, null. No incluir IDs de pago, nombres de clientes, correos, precios, costos, teléfonos, documentos privados ni descripción libre de origen. Las acciones_permitidas resultan del estado y del rol en servidor: ["ATENDER"] solo PENDIENTE y condición vigente; de otro modo [].
 
-## 6. Errores, concurrencia y reconciliación
+### 6.4 POST /api/alertas/{id}/atender/
 
-Además de conflictos específicos `409`: 400 para filtros o body inválidos, 401 sesión inválida, 403 rol sin acceso global, 404 alerta ajena/inexistente y 405 métodos no implementados. Dos escritores concurrentes no deben crear duplicaciones y una atención no debe resolver ni mutar la entidad de origen. Los servicios deben evitar ciclos de importación y bloqueos invertidos entre dominios; un proceso de reconciliación eventual se supervisa y ejecuta idempotentemente.
+Body exacto JSON con un único campo, motivo string tras trim, longitud 1–2000, sin campos desconocidos ni datos de actor/estado/fecha. Requiere JWT válido y rol destinatario. En una transacción PostgreSQL: bloquear registro de alerta, revalidar condición de origen actual y estado PENDIENTE, guardar actor real, fecha del servidor y motivo, crear exactamente un AlertaEvento ATENCION. Responder 200 con la misma proyección de detalle y estado ATENDIDA. **Nunca** modificar el recurso propietario.
 
-## 7. Arquitectura recomendada
+Conflictos estables con HTTP 409 y JSON code/detail:
+- alerta_ya_atendida: la alerta está ATENDIDA.
+- alerta_resuelta: está RESUELTA.
+- alerta_desactualizada: figura abierta, pero la condición de origen ya no se verifica al atender; la reconciliación posterior la resolverá.
 
-Implementar en `apps.alertas/{models.py,services.py,serializers.py,permissions.py,views.py,urls.py,tests/}`, con migración incremental nueva para entidades de alerta/atención y constraint de deduplicación. Reusar APIs de consulta y cálculos oficiales sin introducir cálculos de avance ficticio. Conectar rutas en `backend/config/urls.py` solo cuando la implementación y pruebas estén listas.
+Un doble POST concurrente produce un único evento de atención y una respuesta 200/409 según quién ganó. No reintentar automáticamente acciones no idempotentes en el frontend.
 
-## 8. Matriz mínima de pruebas
-PostgreSQL con dos escritores concurrentes, doble POST, reaparición del problema, vencimiento/cruce de medianoche zona Santiago, cobro completo/anulación de pago, documento revertido, filtros, error 401/403/404/405 y permisos incluso con is_superuser. Pruebas de que GET no muta base de datos. La matriz de tipos/receptores se somete a aprobación funcional antes de programar.
+### 6.5 GET /api/alertas/{id}/historial/
 
-## 9. Fuera de alcance
+Paginación DRF de 25 por page, filtro obligatorio por rol y por alerta antes de consultar. Orden registrado_en DESC, id DESC. Schema de evento:
 
-No hay avance porcentual verificado; no alertas de desviación costo-avance, mensajería push/SMS/email, tareas de frontend ni modificación de Obras/Presupuestos/Finanzas por una acción de atención.
+~~~json
+{
+  "id": 54,
+  "alerta": 18,
+  "tipo": "ATENCION",
+  "estado_anterior": "PENDIENTE",
+  "estado_nuevo": "ATENDIDA",
+  "actor": 7,
+  "motivo": "Revisión coordinada con el equipo.",
+  "registrado_en": "2026-11-12T15:10:00-03:00"
+}
+~~~
 
-## 10. Entrega y flujo de integración
+Actor null cuando el evento lo crea el sistema. Sin snapshots de datos de negocio. No exponer el historial si la alerta no pertenece al rol.
 
-OpenCode implementa en rama separada, ejecuta tests y entrega **informe técnico completo de lo realizado**; después de su revisión, commits y push descriptivos. ChatGPT audita el PR en GitHub y CI, entrega colección Postman si corresponde, el responsable la ejecuta y comunica resultados. Merge exclusivamente autorizado; actualizar estado de la SPEC tras integración verificada. Se avisará cuando la documentación sea subida y requiera `git pull`.
+## 7. Validación de errores y códigos HTTP
 
-## 11. Fuentes verificadas
+- 200 GET válido; 200 POST de atención válida.
+- 400 filtros/JSON/motivo inválidos, parámetros duplicados, paginación inválida o rango >366 días.
+- 401 ausencia, caducidad o revocación del JWT, usuario inactivo.
+- 403 rol sin acceso al módulo, incluso OPTIONS (en el marco del permiso DRF).
+- 404 alerta inexistente o perteneciente a otro rol, en detalle, atención e historial, sin filtración de existencia.
+- 405 método no permitido a un actor autorizado.
+- 409 conflictos de atención con code estable: alerta_ya_atendida, alerta_resuelta, alerta_desactualizada.
+- 500 error interno genérico sin SQL, tokens, credenciales, datos de documentos ni tracebacks en cuerpo; logs saneados con correlación.
 
-`backend/apps/{alertas,comercial,obras,finanzas}/`, `backend/config/urls.py`, SPEC-003/004/007, SPEC-006B, workflow Backend CI.
+GET/HEAD/OPTIONS no crean alertas, actualizan flags ni ejecutan reconciliación. Respuestas autenticadas de Alertas: Cache-Control private, no-store. Mantener JWT versionado, CSRF y CORS existentes sin nuevos orígenes confiables.
+
+## 8. Concurrencia, invariantes transaccionales y rendimiento
+
+- Operaciones por recurso/rol con select_for_update y/o advisory locks **por clave**, respetando lock order propietario; ninguna carrera crea dos alertas activas con igual clave.
+- UniqueConstraints parciales y totales en PostgreSQL; resolver colisiones con rollback y recuperación, no ignorarlas silenciosamente.
+- La atención comprueba estado bajo lock y condicion actual sin transferir bloqueos hacia dominios en orden incompatible. Si no es posible revalidar sin riesgo de deadlock, detener implementación y documentar la alternativa antes de modificar el contrato.
+- En reconciliación, el estado del recurso es fuente de verdad; la transición se revalida antes de resolver. Un pago registrado y después anulado puede reactivar COBRANZA_VENCIDA con nueva generación; un documento revertido lo resuelve; un turno observado resuelve el pendiente y su subsanación puede originar otro.
+- La reconciliación debe ser idempotente ante reintentos, caída del proceso, dos workers y reinicios; eventos append-only, sin duplicación de CREACION/ATENCION/RESOLUCION.
+- Paginación estable, filtros e índices efectivos; evitar N+1 al construir el campo obra/recurso_codigo. Agregaciones de resumen solo del rol autorizado.
+- Cadencia, latencia, número de filas y plan SQL se medirán realmente; no afirmar que un proceso está desplegado por haber escrito un comando. El estado desactualizada hace visible la falta de reconciliación.
+
+## 9. Arquitectura, migraciones y operación
+
+Implementación contenida en apps.alertas: models, migrations, services, serializers, permissions, views, urls, tests y management/commands/reconciliar_alertas.py. Agregar include a backend/config/urls.py. Las modificaciones mínimas en servicios de Comercial/Obras/Finanzas para eventos postcommit deben justificarse y contar con pruebas de regresión por dominio. Evitar señales Django implícitas si no ofrecen transacciones y trazabilidad apropiadas.
+
+Añadir un proceso de reconciliación en Compose o un mecanismo de scheduler equivalente, separado del servidor web y habilitado para el entorno de desarrollo **al ejecutar docker compose up -d --build**, con intervalo documentado y parada limpia. Un comando que solo funciona cuando un operador lo ejecuta manualmente NO satisface la detección automática. Documentar instalación/ejecución equivalente para producción, recuperación y observabilidad sin inventar despliegue remoto.
+
+La migración incremental de alertas debe funcionar en base vacía y en base con Presupuestos/Obras/Finanzas existentes. Efectuar reconciliación inicial segura tras aplicar migraciones, sin alterar datos históricos. No editar migraciones ya integradas de otras apps ni reescribir operaciones de negocio existentes.
+
+## 10. Matriz mínima de pruebas PostgreSQL y aceptación
+
+1. Matriz exacta de los cuatro tipos; ninguna alerta sin fuente verificable, severidad fuera del catálogo ni porcentaje de avance.
+2. Presupuesto pendiente → alerta G; aprobación/rechazo → RESUELTA; otros estados nunca la activan.
+3. Obra suspendida → dos alertas distintas G/S; atender una no afecta otra; reanudar resuelve ambas; segunda suspensión genera nueva generación y conserva historial.
+4. Turno ABIERTO → PENDIENTE_REVISION (cierre) → OBSERVADO/VALIDADO (resolver); OBSERVADO → PENDIENTE_REVISION por subsanación crea nuevo episodio.
+5. Documento vigente y vencido con saldo pendiente → alerta G. Documento pagado totalmente/revertido → resuelta; anulación posterior de pago puede reactivarla; día anterior/al vencimiento no activa; utilizar exclusivamente con_cobranza.
+6. Cruce de medianoche y DST America/Santiago; reconcilia sin usuario conectado; scheduler activo, salud stale/healthy, reinicio y recuperaciones.
+7. Dos reconciliadores concurrentes, señalización postcommit simultánea, fallo de callback y recuperación: una sola alerta abierta y un evento por transición; no hay writes en GET.
+8. Acceso por rol: G/S por su ámbito, AF/T/TI 403; JWT revocado/usuario inactivo 401; flags Django no escalan; alerta de otro rol 404 en detalle, historial y POST.
+9. Body estricto, motivo vacío/con espacios >2000, campos extra, filtro duplicado, fecha invertida/rango largo, page inválida, recurso_id sin tipo, estado/tipo incorrectos → 400.
+10. Atención PENDIENTE → 200 con único evento; doble petición concurrente → 200+409; ATENDIDA → alerta_ya_atendida; RESUELTA → alerta_resuelta; causa no vigente aún sin reconciliar → alerta_desactualizada.
+11. Respuesta exacta y nullables de todas las rutas, sort, página 25, conteos de rol, historial append-only, generacion creciente y no fuga de montos, PII ni datos ajenos.
+12. Validar migraciones desde PostgreSQL limpio con migraciones previas, manage.py check, makemigrations --check --dry-run, suite apps.alertas y suite completa, EXPLAIN/consulta bounded si es necesario; CI de backend en verde.
+13. Integración HTTP/contrato con suite Postman completa para el usuario; validar además que el frontend pueda consumirlo con Bearer sin modificaciones posteriores del backend. Postman no sustituye pruebas de concurrencia real ni el scheduler.
+
+## 11. Fuera de alcance y extensiones posteriores
+
+No se implementan UI React, notificaciones externas, modificación administrativa de alertas, cálculo de utilidad proyectada, control porcentual de avance, creación de documentos o pagos desde Alertas, ni nuevas políticas de acceso a otros módulos. Las futuras alertas requerirán SPEC incremental. No prometer cobertura absoluta de incidentes fugaces fuera de las transiciones realmente notificadas o del estado observado por reconciliación.
+
+## 12. Entrega e integración
+
+1. ChatGPT mantiene esta SPEC versionada y entrega en el chat un **prompt detallado**, sin crear archivos de instrucciones para OpenCode.
+2. OpenCode implementa en rama feature/backend-009-alertas desde main actualizado, sin modificar frontend, documenta cualquier incompatibilidad antes de cambiar contrato, ejecuta pruebas reales y entrega informe técnico detallado **antes de commit/push**.
+3. Tras revisar ese informe, OpenCode realiza commits descriptivos, push y PR con motivación, decisiones de arquitectura, migraciones, impacto, verificación y rollback.
+4. ChatGPT revisa el PR y GitHub Actions, además de la separación de responsabilidades y seguridad. Entrega una suite Postman completa importable cuando el código esté listo; el usuario la ejecuta y comunica passed/failed.
+5. Corregir y revalidar si procede. Merge solo después de autorización explícita. Actualizar estado de SPEC-009 a implementada/integrada únicamente después de pruebas aprobadas y merge verificado.
+6. Cada publicación de SPEC se notifica para que el usuario traiga los cambios a su PC. Este documento es especificación, no código ejecutable.
+
+## 13. Fuentes internas verificadas
+
+- backend/apps/alertas/ (actual esqueleto), backend/config/{settings.py,urls.py}, compose.yaml.
+- backend/apps/comercial/{models.py,services_presupuestos.py}.
+- backend/apps/obras/{models.py,services.py,services_turnos.py}.
+- backend/apps/finanzas/{models.py,consultas_cobranzas.py,services_documentos.py,services_pagos.py,validaciones.py}.
+- backend/apps/usuarios/{models.py,authentication.py}; SPEC-006B/006C.
+- specs/003b-gestion-presupuestos.md, specs/004-gestion-obras.md, specs/004b-costos-finalizacion.md, specs/007-finanzas-cobranzas.md, specs/008-auditoria-global-api.md.
