@@ -1,0 +1,136 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Alertas operativas y financieras",
+    "version": "1.0.0",
+    "description": "Bandeja compartida por rol: GERENCIA (presupuesto, obra y cobranza); SUPERVISOR_OBRAS (obra y turno). AF, Técnico y TI: 403. Atención no modifica la causa. Detección postcommit y reconciliación independiente cada 60 s; consistencia eventual, sin garantía de capturar incidentes fugaces si se pierde la callback."
+  },
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/alertas/": {
+      "get": {
+        "operationId": "listarAlertas",
+        "description": "Paginación fija de 25, creado_en DESC e id DESC. Ámbito por rol antes de contar. Sin estado: PENDIENTE y ATENDIDA; sin fechas: sin restricción temporal. Rechaza parámetros desconocidos, repetidos, vacíos, extremos o incoherentes. No escribe ni reconcilia.",
+        "parameters": [
+          {"name": "estado", "in": "query", "schema": {"type": "string", "enum": ["PENDIENTE", "ATENDIDA", "RESUELTA", "TODAS"]}},
+          {"name": "tipo", "in": "query", "schema": {"$ref": "#/components/schemas/Tipo"}},
+          {"name": "recurso_tipo", "in": "query", "schema": {"$ref": "#/components/schemas/RecursoTipo"}},
+          {"name": "recurso_id", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "description": "Requiere recurso_tipo; no comprueba ni revela existencia de recursos ajenos."},
+          {"name": "desde", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "Requiere hasta. Rango de creado_en civil Santiago, máximo 366 días inclusivos."},
+          {"name": "hasta", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "Requiere desde. Fin inclusivo; SQL usa inicio civil del día siguiente (DST)."},
+          {"$ref": "#/components/parameters/Page"}
+        ],
+        "responses": {
+          "200": {"description": "Página del rol, Cache-Control: private, no-store.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaAlertas"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"},
+          "401": {"$ref": "#/components/responses/Sesion"},
+          "403": {"$ref": "#/components/responses/Permiso"},
+          "405": {"$ref": "#/components/responses/Metodo"},
+          "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasAlertas", "description": "Misma validación y autorización que GET, sin cuerpo.", "responses": {"200": {"description": "Cabeceras privadas, sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}},
+      "options": {"description": "Metadatos autenticados, sin escrituras.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    },
+    "/api/alertas/resumen/": {
+      "get": {
+        "operationId": "resumirAlertas",
+        "description": "No admite query. Conteos históricos por estado, activas=PENDIENTE+ATENDIDA. por_tipo solo tipos del rol, con ceros. Salud desactualizada si no hay ciclo completo exitoso o tiene más de 180 s. Solo lee.",
+        "responses": {
+          "200": {"description": "Resumen privado del rol.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Resumen"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasResumenAlertas", "responses": {"200": {"description": "Igual a GET sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}},
+      "options": {"description": "Metadatos autenticados, sin escrituras.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    },
+    "/api/alertas/{id}/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "get": {
+        "operationId": "consultarAlerta", "description": "No admite query. Misma proyección que listado. ID de otro rol e inexistente son indistinguibles.",
+        "responses": {
+          "200": {"description": "Detalle privado.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Alerta"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}, "405": {"$ref": "#/components/responses/Metodo"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasAlerta", "responses": {"200": {"description": "Igual a GET sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}}},
+      "options": {"description": "Metadatos autenticados y dentro del ámbito del rol.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}}}
+    },
+    "/api/alertas/{id}/historial/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "get": {
+        "operationId": "listarHistorialAlerta", "description": "Solo page. Orden registrado_en DESC, id DESC. Eventos append-only, sin snapshots; sistema con actor=null.",
+        "parameters": [{"$ref": "#/components/parameters/Page"}],
+        "responses": {
+          "200": {"description": "Historial privado paginado.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaEventos"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}, "405": {"$ref": "#/components/responses/Metodo"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasHistorialAlerta", "responses": {"200": {"description": "Igual a GET sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}}},
+      "options": {"description": "Metadatos autenticados y dentro del ámbito del rol.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}}}
+    },
+    "/api/alertas/{id}/atender/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "post": {
+        "operationId": "atenderAlerta", "description": "No admite query. Motivo string tras trim, 1–2000 caracteres; JSON exacto sin claves duplicadas. No recibe actor, estado o fecha. Bloquea y revalida condición, registra una atención. No resuelve ni modifica el origen.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["motivo"], "properties": {"motivo": {"type": "string", "minLength": 1, "maxLength": 2000}}}, "example": {"motivo": "Revisión coordinada con el equipo."}}}},
+        "responses": {
+          "200": {"description": "Alerta ATENDIDA, misma proyección pública.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Alerta"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}, "405": {"$ref": "#/components/responses/Metodo"},
+          "409": {"description": "Conflicto estable. No reintentar automáticamente; consultar estado.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["alerta_ya_atendida", "alerta_resuelta", "alerta_desactualizada"]}, "detail": {"type": "string"}}}}}},
+          "415": {"description": "Usar Content-Type application/json."}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "options": {"description": "Metadatos autenticados y dentro del ámbito del rol.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT versionado FYAG"}},
+    "parameters": {
+      "Id": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807, "default": 1}, "description": "Decimal positivo. Página fuera de rango: 400; no admite last ni tamaños personalizados."}
+    },
+    "responses": {
+      "Validacion": {"description": "Query, JSON, motivo o paginación inválidos; errores por campo.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Sesion": {"description": "JWT ausente, expirado, revocado o usuario inactivo."},
+      "Permiso": {"description": "Rol persistido sin acceso, sin bypass por flags o claims."},
+      "NoEncontrada": {"description": "Alerta no encontrada o de otro rol, indistinguibles.", "content": {"application/json": {"example": {"detail": "Alerta no encontrada."}}}},
+      "Metodo": {"description": "Método no permitido a un actor autorizado; no hay CRUD, resolución manual ni API de reconciliación."},
+      "Interno": {"description": "Error genérico saneado, con X-Correlation-ID.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["detail", "correlacion"], "properties": {"detail": {"type": "string"}, "correlacion": {"type": "string", "format": "uuid"}}}}}}
+    },
+    "schemas": {
+      "Tipo": {"type": "string", "enum": ["PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION", "COBRANZA_VENCIDA"]},
+      "Estado": {"type": "string", "enum": ["PENDIENTE", "ATENDIDA", "RESUELTA"]},
+      "RecursoTipo": {"type": "string", "enum": ["PRESUPUESTO", "OBRA", "TURNO", "DOCUMENTO"]},
+      "FechaNullable": {"type": ["string", "null"], "format": "date-time"},
+      "Alerta": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "tipo", "estado", "severidad", "rol_destinatario", "recurso_tipo", "recurso_id", "recurso_codigo", "obra", "titulo", "descripcion", "creado_en", "atendida_por", "atendida_en", "motivo_atencion", "resuelta_en", "acciones_permitidas"],
+        "properties": {
+          "id": {"type": "integer", "minimum": 1}, "tipo": {"$ref": "#/components/schemas/Tipo"}, "estado": {"$ref": "#/components/schemas/Estado"},
+          "severidad": {"type": "string", "enum": ["MEDIA", "ALTA"], "description": "MEDIA presupuesto/turno; ALTA obra/cobranza. Fija por tipo."},
+          "rol_destinatario": {"enum": ["GERENCIA", "SUPERVISOR_OBRAS"]}, "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"}, "recurso_id": {"type": "integer", "minimum": 1},
+          "recurso_codigo": {"type": ["string", "null"], "description": "PRE-<PK seis dígitos>, OB-<PK seis dígitos>, null para turno, folio externo de documento solo Gerencia; null si origen ausente."},
+          "obra": {"type": ["integer", "null"], "description": "PK de Obra como contexto autorizado; null sin referencia disponible."},
+          "titulo": {"type": "string"}, "descripcion": {"type": "string", "description": "Texto fijo del servidor, no descripción libre del negocio."},
+          "creado_en": {"type": "string", "format": "date-time"}, "atendida_por": {"type": ["integer", "null"]}, "atendida_en": {"$ref": "#/components/schemas/FechaNullable"},
+          "motivo_atencion": {"type": ["string", "null"], "maxLength": 2000}, "resuelta_en": {"$ref": "#/components/schemas/FechaNullable"},
+          "acciones_permitidas": {"type": "array", "maxItems": 1, "items": {"const": "ATENDER"}, "description": "Solo PENDIENTE con condición vigente permite ATENDER; de otro modo vacío."}
+        }
+      },
+      "Evento": {"type": "object", "additionalProperties": false, "required": ["id", "alerta", "tipo", "estado_anterior", "estado_nuevo", "actor", "motivo", "registrado_en"], "properties": {"id": {"type": "integer"}, "alerta": {"type": "integer"}, "tipo": {"enum": ["CREACION", "ATENCION", "RESOLUCION"]}, "estado_anterior": {"type": ["string", "null"], "enum": [null, "PENDIENTE", "ATENDIDA"]}, "estado_nuevo": {"$ref": "#/components/schemas/Estado"}, "actor": {"type": ["integer", "null"]}, "motivo": {"type": "string", "maxLength": 2000}, "registrado_en": {"type": "string", "format": "date-time"}}},
+      "PaginaAlertas": {"type": "object", "additionalProperties": false, "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"], "format": "uri"}, "previous": {"type": ["string", "null"], "format": "uri"}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Alerta"}}}},
+      "PaginaEventos": {"type": "object", "additionalProperties": false, "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"], "format": "uri"}, "previous": {"type": ["string", "null"], "format": "uri"}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Evento"}}}},
+      "ConteosEstado": {"type": "object", "additionalProperties": false, "required": ["PENDIENTE", "ATENDIDA", "RESUELTA"], "properties": {"PENDIENTE": {"type": "integer", "minimum": 0}, "ATENDIDA": {"type": "integer", "minimum": 0}, "RESUELTA": {"type": "integer", "minimum": 0}}},
+      "Resumen": {"type": "object", "additionalProperties": false, "required": ["generado_en", "zona_horaria", "por_estado", "activas", "por_tipo", "sincronizacion"], "properties": {
+        "generado_en": {"type": "string", "format": "date-time"}, "zona_horaria": {"const": "America/Santiago"}, "por_estado": {"$ref": "#/components/schemas/ConteosEstado"}, "activas": {"type": "integer", "minimum": 0},
+        "por_tipo": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "COBRANZA_VENCIDA"], "properties": {"PRESUPUESTO_PENDIENTE_GERENCIA": {"$ref": "#/components/schemas/ConteosEstado"}, "OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "COBRANZA_VENCIDA": {"$ref": "#/components/schemas/ConteosEstado"}}},
+          {"type": "object", "additionalProperties": false, "required": ["OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION"], "properties": {"OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "TURNO_PENDIENTE_REVISION": {"$ref": "#/components/schemas/ConteosEstado"}}}
+        ]},
+        "sincronizacion": {"type": "object", "additionalProperties": false, "required": ["ultima_correcta_en", "desactualizada"], "properties": {"ultima_correcta_en": {"$ref": "#/components/schemas/FechaNullable"}, "desactualizada": {"type": "boolean"}}}
+      }},
+      "Error": {"type": "object", "additionalProperties": true, "description": "Errores DRF por campo o detail. Nunca SQL ni secretos."}
+    }
+  }
+}
