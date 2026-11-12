@@ -340,7 +340,7 @@ No desarrollo UI, PDF SII/DTE, facturación electrónica, contabilidad formal, t
 - **SHA final del PR revisado:** `36af35d9fc7c570082e5c5464fb8d195e4405036`; cinco commits y 30 archivos; no se modificaron frontend, modelos ni migraciones.
 - **Backend CI:** verificado exitoso (`completed/success`) para dicho SHA antes del merge.
 - **Pruebas locales declaradas por OpenCode:** 48 de Reportes y 807 de regresión completa, ambas con cero fallidas.
-- **Postman:** el responsable confirmó la finalización de las pruebas y autorizó expresamente el merge, **sin informar cantidades exactas de passed/failed/skipped**. No registrar 0 fallidas en Postman sin esa evidencia específica.
+- **Postman:** el responsable confirmó posteriormente **237 passed y 0 failed** en la suite de SPEC-011. Este resultado fue comunicado por el responsable en la conversación el 12-11-2026, después del merge de PR #37; no se adjuntó exportación verificable del Runner ni recuento de skipped. Por tanto, **237/0 son resultados reportados por el ejecutor, no una ejecución independiente de GitHub CI**.
 - **API:** rutas `/api/reportes/catalogo/`, `/obras/`, `/rentabilidad/`, `/cobranzas/` y `/{tipo}/exportar/`; esta última produce CSV/XLSX/PDF según el tipo y rol.
 - **Dependencias y operación:** revisar `backend/docs/SPEC-011-IMPLEMENTACION.md` y `backend/requirements*.txt`; se actualizaron Docker, Compose y CI de pruebas. Reconstruir backend local tras traer cambios.
 - **Riesgos residuales:** throttle por proceso sin caché compartida, `HEAD` sin tamaño final de archivo, API privada de limpieza openpyxl fijada y desconexión proxy productiva no probada. Requieren seguimiento de despliegue.
