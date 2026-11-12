@@ -53,7 +53,7 @@ Ejemplo **sintético** BSON:
 ~~~javascript
 {
   _id: "evidencia_turno:123",
-  version_esquema: 2,
+  version_esquema: 1,
   origen: "EVIDENCIA_TURNO",
   evidencia_id: NumberLong("123"),
   obra_id: NumberLong("8"),
