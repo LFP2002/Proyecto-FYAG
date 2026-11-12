@@ -271,3 +271,14 @@ El informe inicial fue revisado favorablemente antes de cualquier commit/push/PR
 - Reconciliaciones automáticas del nuevo arranque: 2026-11-12T19:34:35Z (0.024143 s) y 19:35:35Z (0.015712 s), confirmando nuevamente la cadencia; ejecución --once: 0.021787 s. La base local seguía sin condiciones activas; no se añadieron datos demostrativos.
 - Suite Alertas posterior a integración: **48 aprobadas, 0 fallidas, 8.665 s**. Regresión completa posterior a integración: **721 aprobadas, 0 fallidas, 140.403 s**, sin errores de callbacks. Solo aparecen los avisos preexistentes de tests que generan deliberadamente JWT para usuarios inactivos.
 - No se identificaron incompatibilidades con el cambio de main ni problemas técnicos adicionales que requirieran alterar código de negocio. GitHub Actions remoto y Postman no se declaran aprobados por esta validación local.
+
+## 12. Sincronización final con main tras PR #31
+
+- Árbol limpio antes de git fetch origin. Nueva referencia origin/main: **7bc0470**, que integra el PR #31 y la retirada previa de frontend/.env mediante PR #29.
+- Merge seguro en feature/backend-009-alertas: **a581cf5123e0e1d94537eb2cc453bbfc93691af5**, sin conflictos ni reescritura de commits. Se incorpora frontend/AGENTS.md y se conservan las eliminaciones de frontend/README.md y frontend/.env exactamente como main; no se realizan cambios de frontend por iniciativa propia.
+- La sección 11 conserva evidencia histórica de la integración anterior (5e9c9c0). En el estado actual frontend/.env **ya no está versionado** y no se reincorpora; el diff del PR contra main no contiene archivos frontend ni cambios en SPEC-009.
+- Django check: sin problemas. makemigrations --check --dry-run: No changes detected. migrate --plan: No planned migration operations. Compose config: correcto.
+- Pruebas PostgreSQL posteriores al merge, ejecutadas secuencialmente: **48 de Alertas aprobadas, 0 fallidas, 9.028 s**; **721 de regresión aprobadas, 0 fallidas, 151.233 s**. Sin errores de callbacks; solo avisos preexistentes de fixtures JWT para usuarios inactivos.
+- Nuevo docker compose up -d --build exitoso sobre la base existente; proceso de migraciones sin operaciones pendientes y reconciliador iniciado automáticamente. Ciclos exitosos a 20:11:46Z, 20:12:46Z, 20:13:46Z y 20:14:46Z del 12-11-2026, sin condiciones activas en la base local. Ejecución --once correcta (0.022547 s).
+- No se detectaron incompatibilidades de backend ni se requirieron correcciones funcionales. El diff sigue limitado a SPEC-009 y sus integraciones necesarias; no se añaden credenciales, .env locales o artefactos de pruebas.
+- La publicación actualiza el PR #30; su merge permanece expresamente no autorizado. El resultado local no implica aprobación de GitHub Actions ni Postman.
