@@ -1,5 +1,7 @@
 # SPEC-004 — Gestión de Obras
 
+> **Estado vigente (11-11-2026): 004A Y 004B-1…004B-5 IMPLEMENTADOS E INTEGRADOS EN `main`.** [PR #8](https://github.com/LFP2002/Proyecto-FYAG/pull/8) implementó 004A. [PR #9](https://github.com/LFP2002/Proyecto-FYAG/pull/9), [#10](https://github.com/LFP2002/Proyecto-FYAG/pull/10), [#11](https://github.com/LFP2002/Proyecto-FYAG/pull/11), [#12](https://github.com/LFP2002/Proyecto-FYAG/pull/12) y [#13](https://github.com/LFP2002/Proyecto-FYAG/pull/13) implementaron respectivamente participantes, turnos y evidencias, gastos, validación de costos/cortesías y finalización. Las referencias posteriores a bloques «pendientes» son históricas. Los detalles ejecutables se encuentran en `backend/apps/obras/` y en SPEC-004B.
+
 ## 1. Estado, contexto y alcance
 
 **Estado: incremento 004A implementado e integrado en `main` mediante el PR #8

@@ -1,5 +1,7 @@
 # SPEC-003B — Gestión de presupuestos
 
+> **Estado vigente (11-11-2026): IMPLEMENTADA E INTEGRADA EN `main`.** SPEC-003B se integró mediante [PR #6](https://github.com/LFP2002/Proyecto-FYAG/pull/6) y la corrección de política de aprobación obligatoria de Gerencia mediante [PR #7](https://github.com/LFP2002/Proyecto-FYAG/pull/7). El encabezado histórico más abajo conserva la etapa previa a dichos merges; no constituye un estado de despliegue ni una dependencia pendiente. El contrato operativo implementado y sus controles se validan contra código y pruebas del repositorio.
+
 ## 1. Estado, contexto y alcance
 
 **Estado: implementada en el backend y cubierta por pruebas automatizadas.**

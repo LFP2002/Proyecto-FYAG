@@ -1,5 +1,7 @@
 # SPEC-004B — Costos reales, técnicos participantes, turnos y finalización de Obras
 
+> **Estado vigente (11-11-2026): IMPLEMENTADA E INTEGRADA EN `main` (004B-1 a 004B-5).** Los incrementos se entregaron en PR [#9](https://github.com/LFP2002/Proyecto-FYAG/pull/9), [#10](https://github.com/LFP2002/Proyecto-FYAG/pull/10), [#11](https://github.com/LFP2002/Proyecto-FYAG/pull/11), [#12](https://github.com/LFP2002/Proyecto-FYAG/pull/12) y [#13](https://github.com/LFP2002/Proyecto-FYAG/pull/13); en particular, finalización operativa y cierre de costos (004B-5) dejaron de estar pendientes después de #13. El resto de este documento se mantiene como especificación de decisiones históricas, no como una declaración del avance actual.
+
 ## 1. Estado, contexto y alcance
 
 **Estado: implementación parcial. 004B-1 (participantes), 004B-2 (turnos/evidencias/cierre administrativo B9), 004B-3 (materiales/gastos/devoluciones) y 004B-4 (completitud, control versionado y cortesías) están integrados en `main` mediante PR #9, #10, #11 y #12, con Backend CI aprobado.** **004B-5 (finalización) es la siguiente y última entrega del alcance de esta SPEC, aún no implementada.** Las decisiones de negocio B1–B9 fueron confirmadas por el equipo el 7 de noviembre de 2026. Esta SPEC no declara finalizado el conjunto de 004B ni equivale a aprobación formal externa de FYAG.
