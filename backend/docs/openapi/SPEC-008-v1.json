@@ -1,0 +1,68 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Auditoría global federada",
+    "version": "1.0.0",
+    "description": "Solo lectura PostgreSQL. No cubre ClienteEvento ni logs de autenticación inexistentes. Gerencia: Comercial/Obras/Finanzas; Supervisor: Obras excepto historial de categorías; AF: Finanzas; TI: Usuarios; Técnico: sin acceso. La implementación no cambia permisos de los dominios originales."
+  },
+  "paths": {
+    "/api/auditoria/eventos/": {
+      "description": "GET/HEAD/OPTIONS. Otros métodos: 405 para un principal autorizado. Con cursor, no enviar ningún otro parámetro, ni repetir cursor. TTL fijo de 15 minutos desde fecha_corte. Orden: creado_en DESC, fuente ASC, evento_id DESC. Sin count. No hay snapshot transaccional perfecto entre requests; PK reservadas y confirmadas tarde pueden omitirse hasta actualizar el feed.",
+      "get": {
+        "operationId": "listarEventosAuditoria",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "modulo", "in": "query", "schema": {"type": "string", "enum": ["COMERCIAL", "OBRAS", "FINANZAS", "USUARIOS"]}},
+          {"name": "fuente", "in": "query", "schema": {"$ref": "#/components/schemas/Fuente"}},
+          {"name": "tipo", "in": "query", "schema": {"type": "string", "maxLength": 24}, "description": "Tipo literal válido en las fuentes seleccionadas. Presupuesto deriva CREACION o CAMBIO_ESTADO."},
+          {"name": "actor", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}},
+          {"name": "recurso_tipo", "in": "query", "schema": {"$ref": "#/components/schemas/RecursoTipo"}},
+          {"name": "recurso_id", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "description": "Requiere recurso_tipo. Recurso inexistente o sin resultados autorizados: 200 vacío, sin metadata del recurso."},
+          {"name": "desde", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "Inicio civil inclusivo Santiago. Si falta: hasta menos 29 días. Máximo 366 días inclusivos."},
+          {"name": "hasta", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "Fin civil inclusivo Santiago. Si falta: hoy en Santiago. El límite SQL es el inicio civil del día siguiente, no 86400 segundos."},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 50, "default": 25}},
+          {"name": "cursor", "in": "query", "schema": {"type": "string", "maxLength": 8192}, "description": "Opaco y firmado, no cifrado ni credencial. Usar como único parámetro. Vinculado a identidad/rol/versión de sesión, filtros, límite, corte, última clave y marcas PK por fuente autorizada."}
+        ],
+        "responses": {
+          "200": {"description": "Página de eventos autorizados; Cache-Control private, no-store.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pagina"}}}},
+          "400": {"description": "Validación de query o cursor inválido/expirado. Cursor usa code=cursor_invalido.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "401": {"description": "JWT ausente, vencido, usuario inactivo o sesión revocada."},
+          "403": {"description": "Rol, módulo o fuente no autorizados. No revela existencia de recursos."},
+          "405": {"description": "Método no admitido."},
+          "500": {"description": "Fallo interno con X-Correlation-ID y correlacion, sin SQL, tokens, cookies ni snapshots.", "content": {"application/json": {"schema": {"type": "object", "required": ["detail", "correlacion"], "properties": {"detail": {"type": "string"}, "correlacion": {"type": "string", "format": "uuid"}}}}}}
+        }
+      },
+      "head": {"operationId": "cabeceraEventosAuditoria", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Misma autorización/validación que GET; sin cuerpo."}, "401": {"description": "Sesión inválida."}, "403": {"description": "No autorizado."}}},
+      "options": {"operationId": "metadatosEventosAuditoria", "security": [{"bearerAuth": []}], "responses": {"200": {"description": "Metadatos HTTP, sin datos de eventos."}, "401": {"description": "Sesión inválida."}, "403": {"description": "No autorizado."}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT versionado FYAG"}},
+    "schemas": {
+      "Fuente": {"type": "string", "enum": ["PRESUPUESTO_EVENTO", "OBRA_EVENTO", "PARTICIPANTE_EVENTO", "CATEGORIA_SERVICIO_EVENTO", "TURNO_EVENTO", "COSTO_OBRA_EVENTO", "FINANZAS_EVENTO", "USUARIO_EVENTO"]},
+      "RecursoTipo": {"type": "string", "enum": ["PRESUPUESTO", "OBRA", "PARTICIPANTE", "CATEGORIA_SERVICIO", "TURNO", "GASTO", "CONTROL_COSTOS", "CORTESIA", "DOCUMENTO", "CIERRE_SIN_COBRO", "PAGO", "USUARIO"]},
+      "Snapshot": {"type": "object", "additionalProperties": {"type": ["string", "integer", "boolean", "null"]}, "description": "Whitelist por fuente+rol y tipos estrictos. Sin arrays/fotos, rutas privadas, hashes, tokens ni JSON crudo. Importes como strings de dos decimales; cantidades tres y duraciones seis. Contraseñas: objeto vacío. Ver informe de implementación para las claves permitidas."},
+      "Evento": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "evento_id", "fuente", "modulo", "recurso_tipo", "recurso_id", "tipo", "actor", "actor_etiqueta", "motivo", "creado_en", "datos_anteriores", "datos_nuevos"],
+        "properties": {
+          "id": {"type": "string", "description": "<fuente>:<evento_id>"},
+          "evento_id": {"type": "integer", "minimum": 1},
+          "fuente": {"$ref": "#/components/schemas/Fuente"},
+          "modulo": {"type": "string", "enum": ["COMERCIAL", "OBRAS", "FINANZAS", "USUARIOS"]},
+          "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"},
+          "recurso_id": {"type": "integer", "minimum": 1},
+          "tipo": {"type": "string"},
+          "actor": {"type": "integer", "minimum": 1},
+          "actor_etiqueta": {"type": ["string", "null"], "description": "Atribución laboral, no snapshot histórico de nombre. Solo TI para Usuarios; otros roles reciben null cuando no consta permiso para identificar al actor."},
+          "motivo": {"type": "string"},
+          "creado_en": {"type": "string", "format": "date-time"},
+          "datos_anteriores": {"$ref": "#/components/schemas/Snapshot"},
+          "datos_nuevos": {"$ref": "#/components/schemas/Snapshot"}
+        }
+      },
+      "Pagina": {"type": "object", "additionalProperties": false, "required": ["results", "next_cursor", "has_more", "fecha_corte", "zona_horaria"], "properties": {"results": {"type": "array", "maxItems": 50, "items": {"$ref": "#/components/schemas/Evento"}}, "next_cursor": {"type": ["string", "null"]}, "has_more": {"type": "boolean"}, "fecha_corte": {"type": "string", "format": "date-time"}, "zona_horaria": {"const": "America/Santiago"}}},
+      "Error": {"type": "object", "additionalProperties": true, "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}, "description": "Errores de validación pueden estar agrupados por parámetro; no incluyen datos del evento ni secretos."}
+    }
+  }
+}
