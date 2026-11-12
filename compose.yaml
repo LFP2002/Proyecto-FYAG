@@ -22,8 +22,43 @@ services:
       - .env
 
     depends_on:
-      - postgres
-      - mongodb
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      migraciones:
+        condition: service_completed_successfully
+
+  migraciones:
+    build:
+      context: ./backend
+    command: python manage.py migrate --noinput
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  alertas_reconciliador:
+    build:
+      context: ./backend
+    command: python manage.py reconciliar_alertas
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      FYAG_ALERTAS_INTERVALO_SEGUNDOS: ${FYAG_ALERTAS_INTERVALO_SEGUNDOS:-60}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migraciones:
+        condition: service_completed_successfully
 
 
   postgres:
@@ -32,6 +67,12 @@ services:
     container_name: fyag_postgres
 
     restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
     environment:
       POSTGRES_DB: ${POSTGRES_DB}

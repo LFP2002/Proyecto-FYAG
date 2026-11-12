@@ -69,6 +69,8 @@ def _evento(turno, tipo, actor, motivo, antes):
     nuevos["version_costos"] = control.version_actual
     TurnoObraEvento.objects.create(turno=turno, tipo=tipo, registrado_por=actor,
         motivo=motivo, datos_anteriores=antes, datos_nuevos=nuevos)
+    from apps.alertas.services import notificar_despues_commit
+    notificar_despues_commit("TURNO_PENDIENTE_REVISION", turno.pk)
 
 
 @base._operacion
