@@ -1,8 +1,18 @@
 # SPEC-008 — Auditoría global federada, exclusivamente de lectura
 
-**Estado: contrato de diseño propuesto, pendiente de implementación por OpenCode y de validación funcional.** Este documento forma parte del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26) (solo documentación). **No existe** `/api/auditoria/eventos/` en `main`. El contrato público se congela antes de programar el frontend. La programación, migraciones, pruebas ejecutables y commits de código corresponden a OpenCode, sujeto a revisión.
+**Estado: especificada para implementación por OpenCode; NO implementada ni integrada.** Este documento forma parte del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26) (solo documentación). **No existe** `/api/auditoria/eventos/` en `main`. El contrato público se congela antes de programar el frontend. La programación, migraciones, pruebas ejecutables y commits de código corresponden a OpenCode, sujeto a revisión.
 
-## 1. Principios no negociables
+## 1. Estado, contexto comprobado y precedencia
+
+Proyecto FYAG (Django 5, DRF, PostgreSQL, autenticación JWT versionada). `main` ya contiene eventos por dominio, sus permisos y endpoints de historial independientes, pero `apps.auditoria` no tiene API registrada en `backend/config/urls.py`. Esta SPEC añade únicamente una **lectura federada**; su implementación no depende de MongoDB ni sustituye la auditoría por origen.
+
+**Precedencia:** prevalecen las restricciones de identidad y acceso de SPEC-002A/002B y SPEC-006B/006C, y las reglas de proyección de SPEC-003, SPEC-004/004B y SPEC-007. Una divergencia se documenta y revisa antes de codificar, nunca se resuelve entregando más información.
+
+## 2. Objetivo y entregables
+
+Ofrecer a los perfiles autorizados una secuencia temporal de eventos heterogéneos sin consultar cada módulo desde React, con filtros estables, autorización por fuente, paginación y tratamiento seguro de información. Entregables: endpoint DRF de solo lectura, normalizadores/adaptadores, permisos, tests PostgreSQL, OpenAPI versionado, documentación de integración y colección Postman revisada. No incluye UI ni exportación.
+
+## 3. Principios e invariantes de integridad
 
 1. `PostgreSQL` es la fuente única de los eventos ya persistidos; la API no hace doble escritura, migraciones retrospectivas ni replica auditoría en MongoDB.
 2. Cada app de dominio es dueña de sus eventos. El módulo `apps.auditoria` **únicamente lee, normaliza, filtra y compone**; no modifica ninguna entidad ni añade efectos laterales a `GET`.
@@ -10,7 +20,7 @@
 4. Eventos históricos pertenecen al pasado y son inmutables desde esta API. Ninguna operación de auditoría reconstruye hechos ausentes ni suplanta un registro oficial de seguridad.
 5. El contrato de error y respuesta será estable y documentado; el frontend solo consume JSON. Los datos sintéticos del ejemplo no pueden incorporarse como fixtures del backend productivo.
 
-## 2. Adaptadores de origen y normalización
+## 4. Modelo de lectura, adaptadores y normalización
 
 | `fuente` exacta | Modelo existente | `modulo` | `recurso_tipo` | ID del recurso | Actor | `tipo` público |
 |---|---|---|---|---|---|---|
@@ -29,7 +39,7 @@ Para `CostoObraEvento` y `FinanzasEvento`, la relación no nula identifica un ú
 
 **Cobertura explícitamente parcial:** no existe `ClienteEvento` como historial completo de Clientes; tampoco bitácora duradera de login, emisión JWT ni todas las lecturas de PII. No marcar auditoría “completa” más allá de las ocho fuentes definidas.
 
-## 3. Matriz RBAC y proyección mínima
+## 5. Matriz de autorización y visibilidad
 
 | Rol | Fuentes y profundidad permitida |
 |---|---|
@@ -45,7 +55,7 @@ El campo `actor_etiqueta` es un nombre de visualización mínimo de atribución 
 
 Todas las subconsultas y proyecciones se ajustan por rol **en el backend**, sin confiar en la barra de navegación React, encabezados arbitrarios, querys de cliente o `is_superuser`.
 
-## 4. Contrato HTTP público v1
+## 6. Contrato REST público v1
 
 `GET /api/auditoria/eventos/`
 
@@ -97,7 +107,7 @@ Formato 200, ejemplo **no real**:
 
 `actor_etiqueta` puede ser null si su obtención no está autorizada; todos los demás campos mantienen su tipo. Una lista sin datos retorna `200 {"results":[],"next_cursor":null,"has_more":false,"fecha_corte":"...","zona_horaria":"America/Santiago"}`. No declarar un `count` exacto global sin medir su costo; la UI pagina por `next_cursor`.
 
-## 5. Paginación y consistencia PostgreSQL
+## 7. Concurrencia, paginación y consistencia PostgreSQL
 
 El orden total será: `creado_en DESC, fuente ASC, evento_id DESC`. El adaptador obtiene por fuente solo las filas necesarias del rango autorizado, con consultas y proyecciones acotadas; fusiona resultados determinísticamente. No materializar todo el histórico en memoria ni resolver cada evento con queries N+1.
 
@@ -105,7 +115,7 @@ Un cursor firmado y con TTL de 15 minutos debe incluir filtros normalizados, `fe
 
 **Límite de consistencia declarado:** un watermark de secuencia más fecha de corte NO garantiza snapshot transaccional de varias solicitudes HTTP si otra transacción reservó ID antes de la primera página y confirma después. Por ello este contrato garantiza orden estable y ausencia de duplicados de los elementos publicados, **no** promete cobertura exacta de transacciones concurrentes aún no confirmadas; al actualizar el feed, el cliente inicia una nueva consulta. Si el producto exige completitud point-in-time, se deberá diseñar materialización o un mecanismo específico, no falsificar un snapshot SQL prolongado. Documentar pruebas para esa diferencia.
 
-## 6. Errores
+## 8. Errores y validación
 
 - `200` lectura válida (incluso sin registros).
 - `400` query desconocida, duplicada, formato, rango, cursor corrupto/expirado o filtros incoherentes; `code` estable para cursor.
@@ -116,7 +126,7 @@ Un cursor firmado y con TTL de 15 minutos debe incluir filtros normalizados, `fe
 
 La API de auditoría no tendrá operaciones de creación, edición, restauración ni borrado de eventos.
 
-## 7. Arquitectura recomendada sin modificar fuentes
+## 9. Arquitectura, dependencias y migraciones
 
 - `apps.auditoria/views.py`: validación de filtros, permisos, respuesta; autenticar mediante `VersionedJWTAuthentication` por configuración DRF.
 - `apps.auditoria/services.py`: coordinador de consultas, merge de ocho fuentes, keyset/cursor; mantener adaptadores de fuente separados para testear reglas de redacción.
@@ -125,7 +135,7 @@ La API de auditoría no tendrá operaciones de creación, edición, restauració
 - `apps.auditoria/urls.py` conectado en `config.urls` solo cuando exista la implementación real.
 - **No migraciones nuevas obligatorias** en esta fase: se basa en modelos ya existentes. Un índice adicional requiere profiling/EXPLAIN y migración independiente justificada. No introducir tablas nuevas por comodidad.
 
-## 8. Pruebas de aceptación y entrega
+## 10. Matriz mínima de pruebas y criterios de aceptación
 
 1. Fixtures de las ocho fuentes, incluyendo `PRESUPUESTO_EVENTO` sin `tipo`, eventos de Costo con GASTO/CONTROL_COSTOS/CORTESIA y Finanzas con DOCUMENTO/CIERRE/PAGO; ID público sin colisiones.
 2. Cada rol ve exactamente lo autorizado, **sin** snapshots de otra fuente; user con `is_staff/is_superuser` no escala, actor histórico inactivo no desaparece.
@@ -138,3 +148,25 @@ La API de auditoría no tendrá operaciones de creación, edición, restauració
 9. OpenCode entrega diff, informe, pruebas reales y limitaciones **para revisión antes de commit o PR**. Cada commit y PR posterior deberá describir el trabajo ejecutado; el merge se hace solo tras autorización explícita.
 
 **Definición de terminado:** endpoint real integrado en `main` después de aprobación, CI + Postman sin fallas y contrato fijo consumible por el equipo frontend. Esta SPEC, por sí misma, es solo diseño.
+
+## 11. Fuera de alcance
+
+No hay escrituras, correcciones, eliminación de eventos, generación de eventos globales, login-history retroactivo, recolección de accesos/descargas, exportación PDF/CSV/XLSX, réplicas MongoDB, reporting financiero ni cambios en la lógica de dominio. El registro de cambios de Clientes es incompleto y no debe comunicarse de otro modo.
+
+## 12. Entrega y flujo de integración
+
+1. Revisar esta SPEC con el responsable y establecer contrato estable antes de programar.
+2. **OpenCode implementa** en rama de código separada desde `main`, sin modificar el PR documental ni el frontend. Puede corregir documentación contractual solo mediante cambio explícito y revisado.
+3. OpenCode ejecuta pruebas locales y **entrega un informe técnico completo de lo realizado**: archivos, decisiones, migraciones, contratos, evidencias, riesgos y cobertura. No afirmar pruebas no ejecutadas.
+4. Con revisión favorable, OpenCode realiza commits descriptivos, push y PR de implementación con descripción completa. ChatGPT revisa el diff real, seguridad, migraciones, contratos y GitHub Actions en el repositorio, sin asumir que CI pasó.
+5. Cuando corresponda, ChatGPT entrega **colección Postman completa**, importable y sin credenciales. El responsable ejecuta Postman y comunica resultados. Resolver errores en la rama y repetir comprobaciones antes de fusionar.
+6. El merge requiere **autorización explícita** del responsable, revisión y CI aprobado. Solo entonces modificar estado a «implementada e integrada». Informar cualquier SPEC subida a GitHub y el comando de actualización local de su rama.
+
+## 13. Fuentes internas verificadas
+
+- `backend/config/{settings.py,urls.py}`, `backend/apps/auditoria/`.
+- `backend/apps/comercial/models.py`, `backend/apps/comercial/serializers_presupuestos.py`.
+- `backend/apps/obras/{models.py,serializers.py,serializers_turnos.py,serializers_costos.py,serializers_gastos.py,permissions.py}`.
+- `backend/apps/finanzas/{models.py,serializers_documentos.py,permissions.py}`.
+- `backend/apps/usuarios/{models.py,serializers_usuarios.py,authentication.py}`.
+- SPEC-002A/002B, SPEC-003, SPEC-004/004B, SPEC-006B/006C, SPEC-007 y `.github/workflows/backend-ci.yml`.
