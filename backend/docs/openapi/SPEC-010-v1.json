@@ -1,0 +1,93 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Dashboard gerencial",
+    "version": "1.0.0",
+    "description": "Fachada PostgreSQL exclusivamente de lectura para GERENCIA. No es utilidad contable, ingreso cobrado ni proyección de costos. JWT versionado, rol persistido, Cache-Control private/no-store y Vary Authorization. Snapshot REPEATABLE READ READ ONLY por respuesta, sin consistencia prometida entre solicitudes."
+  },
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/dashboard/resumen/": {
+      "get": {
+        "operationId": "resumenDashboardGerencial",
+        "description": "Conteos operativos y cobranza actuales sin filtro histórico; rentabilidad exclusivamente de las mismas Obras actualmente FINALIZADAS cuyo finalizado_en cae en el periodo y no supera el instante de generación. Presupuesto neto desde redondeo HALF_UP por línea; costo desde CierreCostosObra. Cortesía no reduce costos. Cartera bruta de documentos VIGENTE y pagos activos, mediante con_cobranza. No hay joins que multipliquen documentos o cierres por cada ítem/pago.",
+        "parameters": [
+          {"$ref": "#/components/parameters/Desde"},
+          {"$ref": "#/components/parameters/Hasta"}
+        ],
+        "responses": {
+          "200": {"description": "Resumen coherente en un único snapshot SQL. Ceros explícitos sin datos.", "headers": {"Cache-Control": {"schema": {"const": "private, no-store"}}, "Vary": {"schema": {"type": "string"}, "description": "Incluye Authorization."}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Resumen"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Integridad"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasResumenDashboard", "description": "Igual autorización, filtros y comprobaciones que GET, sin cuerpo.", "parameters": [{"$ref": "#/components/parameters/Desde"}, {"$ref": "#/components/parameters/Hasta"}], "responses": {"200": {"description": "Sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "409": {"$ref": "#/components/responses/Integridad"}, "500": {"$ref": "#/components/responses/Interno"}}},
+      "options": {"description": "Metadatos autenticados, sin indicadores ni escrituras.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    },
+    "/api/dashboard/serie-obras/": {
+      "get": {
+        "operationId": "serieMensualObrasFinalizadas",
+        "description": "Exactamente meses puntos consecutivos en orden ascendente. Agrupación SQL por mes civil Santiago de finalizado_en y estado FINALIZADA, no por creado_en. Huecos en cero. Último mes parcial hasta el instante de generación; sin finalizaciones futuras ni métricas económicas.",
+        "parameters": [{"$ref": "#/components/parameters/Meses"}],
+        "responses": {
+          "200": {"description": "Serie de Obras finalizadas.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Serie"}, "example": {"metrica": "OBRAS_FINALIZADAS", "zona_horaria": "America/Santiago", "puntos": [{"mes": "2026-09", "cantidad": 0}, {"mes": "2026-10", "cantidad": 0}, {"mes": "2026-11", "cantidad": 0}]}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasSerieObras", "description": "Igual validación que GET, sin cuerpo.", "parameters": [{"$ref": "#/components/parameters/Meses"}], "responses": {"200": {"description": "Sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "500": {"$ref": "#/components/responses/Interno"}}},
+      "options": {"description": "Metadatos solo Gerencia.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    },
+    "/api/dashboard/obras-activas/": {
+      "get": {
+        "operationId": "listarObrasEnProcesoDashboard",
+        "description": "Solo EN_PROCESO, no SUSPENDIDA. Página fija 25, creado_en DESC/id DESC. Relaciones y líneas de presupuestos de la página prefetched; nombres laborales permitidos a Gerencia. No descripciones privadas, RUT, email, tarifas, costos parciales ni avances ficticios. Count/página/ítems dentro del mismo snapshot por respuesta.",
+        "parameters": [{"$ref": "#/components/parameters/Page"}],
+        "responses": {
+          "200": {"description": "Página DRF, incluidas respuestas vacías.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaObras"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "500": {"$ref": "#/components/responses/Interno"}
+        }
+      },
+      "head": {"operationId": "cabecerasObrasActivas", "description": "Igual validación que GET, sin cuerpo.", "parameters": [{"$ref": "#/components/parameters/Page"}], "responses": {"200": {"description": "Sin cuerpo."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "500": {"$ref": "#/components/responses/Interno"}}},
+      "options": {"description": "Metadatos solo Gerencia.", "responses": {"200": {"description": "Metadatos privados."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT FYAG con sesion_version"}},
+    "parameters": {
+      "Desde": {"name": "desde", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "YYYY-MM-DD, requiere hasta. Máximo 366 días inclusivos; desde<=hasta. Sin ambos: primer día del mes situado cinco meses antes del actual de Santiago."},
+      "Hasta": {"name": "hasta", "in": "query", "schema": {"type": "string", "format": "date"}, "description": "YYYY-MM-DD, requiere desde; no posterior a hoy Santiago. Sin ambos: hoy local. Frontera SQL exclusiva al inicio civil del siguiente día, no suma de 86400 segundos."},
+      "Meses": {"name": "meses", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 12, "default": 6}, "description": "Decimal sin signos, fracciones ni ceros iniciales; no repetido. Solo este parámetro."},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807, "default": 1}, "description": "Decimal sin signos ni ceros iniciales. Inválido/fuera de rango: 400 con campo page; no last ni page_size. Solo este parámetro."}
+    },
+    "responses": {
+      "Validacion": {"description": "Parámetro desconocido/repetido/vacío o mal formado, rango inválido o página fuera de rango. JSON por campo.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorValidacion"}}}},
+      "Sesion": {"description": "JWT ausente, vencido, revocado o usuario inactivo. No se incorporan sesiones por cookie."},
+      "Permiso": {"description": "Rol persistido distinto de GERENCIA, también en HEAD/OPTIONS. Flags/grupos/claims no elevan permisos."},
+      "Metodo": {"description": "POST/PUT/PATCH/DELETE no admitidos para Gerencia."},
+      "Integridad": {"description": "Falla segura de origen, sin sumatorias parciales ni costos ficticios. Solo resumen calcula rentabilidad.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["cierre_costos_inconsistente", "saldo_inconsistente", "importe_fuera_rango"]}, "detail": {"type": "string"}}}}}},
+      "Interno": {"description": "Mensaje genérico sin SQL, traceback o datos sensibles. X-Correlation-ID opaco.", "headers": {"X-Correlation-ID": {"schema": {"type": "string", "format": "uuid"}}}, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["detail", "correlacion"], "properties": {"detail": {"type": "string"}, "correlacion": {"type": "string", "format": "uuid"}}}}}}
+    },
+    "schemas": {
+      "Importe": {"type": "string", "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{2}$", "description": "Decimal exacto con dos decimales, sin floats ni notación exponencial. CLP; distinguir neto de bruto por nombre del campo."},
+      "Margen": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)\\.[0-9]{2}$", "description": "Presupuesto neto menos costo real neto de las mismas Obras; puede ser negativo. No ingreso, utilidad contable o margen proyectado."},
+      "EstadosObra": {"type": "object", "additionalProperties": false, "required": ["PLANIFICADA", "EN_PROCESO", "SUSPENDIDA", "FINALIZADA", "CANCELADA"], "properties": {"PLANIFICADA": {"type": "integer", "minimum": 0}, "EN_PROCESO": {"type": "integer", "minimum": 0}, "SUSPENDIDA": {"type": "integer", "minimum": 0}, "FINALIZADA": {"type": "integer", "minimum": 0}, "CANCELADA": {"type": "integer", "minimum": 0}}},
+      "Resumen": {
+        "type": "object", "additionalProperties": false,
+        "required": ["generado_en", "zona_horaria", "moneda", "periodo", "operacion", "rentabilidad_cerrada_periodo", "cobranza_actual"],
+        "properties": {
+          "generado_en": {"type": "string", "format": "date-time", "description": "Inicio de la observación de esta respuesta, ISO con offset Santiago."},
+          "zona_horaria": {"const": "America/Santiago"}, "moneda": {"const": "CLP"},
+          "periodo": {"type": "object", "additionalProperties": false, "required": ["desde", "hasta"], "properties": {"desde": {"type": "string", "format": "date"}, "hasta": {"type": "string", "format": "date"}}},
+          "operacion": {"type": "object", "additionalProperties": false, "required": ["obras_por_estado_actual", "presupuestos_pendientes_gerencia_actual", "obras_finalizadas_periodo"], "properties": {"obras_por_estado_actual": {"$ref": "#/components/schemas/EstadosObra"}, "presupuestos_pendientes_gerencia_actual": {"type": "integer", "minimum": 0}, "obras_finalizadas_periodo": {"type": "integer", "minimum": 0}}},
+          "rentabilidad_cerrada_periodo": {"type": "object", "additionalProperties": false, "required": ["obras_con_cierre", "presupuesto_neto", "costo_real_neto", "margen_real_neto"], "properties": {"obras_con_cierre": {"type": "integer", "minimum": 0}, "presupuesto_neto": {"$ref": "#/components/schemas/Importe"}, "costo_real_neto": {"$ref": "#/components/schemas/Importe"}, "margen_real_neto": {"$ref": "#/components/schemas/Margen"}}},
+          "cobranza_actual": {"type": "object", "additionalProperties": false, "required": ["documentos_vigentes", "monto_documentado_bruto", "abonado", "saldo", "saldo_vencido"], "properties": {"documentos_vigentes": {"type": "integer", "minimum": 0}, "monto_documentado_bruto": {"$ref": "#/components/schemas/Importe"}, "abonado": {"$ref": "#/components/schemas/Importe"}, "saldo": {"$ref": "#/components/schemas/Importe"}, "saldo_vencido": {"$ref": "#/components/schemas/Importe"}}}
+        }
+      },
+      "Serie": {"type": "object", "additionalProperties": false, "required": ["metrica", "zona_horaria", "puntos"], "properties": {"metrica": {"const": "OBRAS_FINALIZADAS"}, "zona_horaria": {"const": "America/Santiago"}, "puntos": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "object", "additionalProperties": false, "required": ["mes", "cantidad"], "properties": {"mes": {"type": "string", "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])$"}, "cantidad": {"type": "integer", "minimum": 0}}}}}},
+      "ObraActiva": {"type": "object", "additionalProperties": false, "required": ["id", "codigo", "cliente", "cliente_nombre", "categoria_nombre", "estado", "tecnico_responsable", "tecnico_nombre", "fecha_programada", "presupuesto_neto"], "properties": {
+        "id": {"type": "integer", "minimum": 1}, "codigo": {"type": "string", "pattern": "^OB-[0-9]{6,}$"}, "cliente": {"type": "integer", "minimum": 1}, "cliente_nombre": {"type": "string"}, "categoria_nombre": {"type": "string"}, "estado": {"const": "EN_PROCESO"}, "tecnico_responsable": {"type": ["integer", "null"]}, "tecnico_nombre": {"type": ["string", "null"]}, "fecha_programada": {"type": ["string", "null"], "format": "date"}, "presupuesto_neto": {"$ref": "#/components/schemas/Importe"}
+      }},
+      "PaginaObras": {"type": "object", "additionalProperties": false, "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"], "format": "uri", "description": "URL al mismo origen y endpoint, con page."}, "previous": {"type": ["string", "null"], "format": "uri"}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/ObraActiva"}}}},
+      "ErrorValidacion": {"type": "object", "additionalProperties": true, "description": "Errores DRF por parámetro o query. No incluye datos de negocio ni secretos."}
+    }
+  }
+}
