@@ -1,6 +1,6 @@
 # SPEC-011 — Reportes y exportaciones reales (backend)
 
-**Estado: DEFINIDA PARA IMPLEMENTACIÓN; NO IMPLEMENTADA EN `main`.** El módulo Django `apps.reportes` existe como esqueleto sin endpoints registrados. El prototipo React `frontend/src/pages/Reportes.jsx` simula descargas y datos; no constituye una API real. Esta especificación congela el contrato funcional y de seguridad para OpenCode. **Este PR documental no instala bibliotecas, crea tablas, expone rutas ni genera documentos.**
+**Estado: IMPLEMENTADA E INTEGRADA EN `main` mediante [PR #37](https://github.com/LFP2002/Proyecto-FYAG/pull/37).** El módulo `apps.reportes` ofrece las cinco rutas REST definidas y las exportaciones auténticas CSV, XLSX y PDF. El contrato OpenAPI se encuentra en `backend/docs/openapi/SPEC-011-v1.json`. El frontend continúa bajo responsabilidad de sus colaboradores; el prototipo anterior no equivale a integración frontend. Las secciones contractuales siguientes documentan las reglas del backend integrado.
 
 ## 1. Objetivo, contexto y precedencia
 
@@ -332,3 +332,17 @@ No desarrollo UI, PDF SII/DTE, facturación electrónica, contabilidad formal, t
 - `frontend/src/pages/Reportes.jsx` (prototipo, fuera de alcance), `specs/008-011-mapa-backend-pendiente.md`.
 
 **Definición de «backend listo para frontend»:** contrato aprobado, cinco rutas funcionales con tres formatos reales, tests PostgreSQL/CI y Postman satisfactorios, esquema OpenAPI publicado y PR de implementación fusionado en `main`. Esta SPEC escrita **no equivale** a implementación.
+
+## 14. Estado de integración verificado (12-11-2026)
+
+- **Contrato documental:** PR [#36](https://github.com/LFP2002/Proyecto-FYAG/pull/36), fusionado en `main` antes de implementar.
+- **Código de implementación:** PR [#37](https://github.com/LFP2002/Proyecto-FYAG/pull/37), fusionado en `main` con commit `b9b9082c988eda083e61b1422b73fe7e063495fc`.
+- **SHA final del PR revisado:** `36af35d9fc7c570082e5c5464fb8d195e4405036`; cinco commits y 30 archivos; no se modificaron frontend, modelos ni migraciones.
+- **Backend CI:** verificado exitoso (`completed/success`) para dicho SHA antes del merge.
+- **Pruebas locales declaradas por OpenCode:** 48 de Reportes y 807 de regresión completa, ambas con cero fallidas.
+- **Postman:** el responsable confirmó la finalización de las pruebas y autorizó expresamente el merge, **sin informar cantidades exactas de passed/failed/skipped**. No registrar 0 fallidas en Postman sin esa evidencia específica.
+- **API:** rutas `/api/reportes/catalogo/`, `/obras/`, `/rentabilidad/`, `/cobranzas/` y `/{tipo}/exportar/`; esta última produce CSV/XLSX/PDF según el tipo y rol.
+- **Dependencias y operación:** revisar `backend/docs/SPEC-011-IMPLEMENTACION.md` y `backend/requirements*.txt`; se actualizaron Docker, Compose y CI de pruebas. Reconstruir backend local tras traer cambios.
+- **Riesgos residuales:** throttle por proceso sin caché compartida, `HEAD` sin tamaño final de archivo, API privada de limpieza openpyxl fijada y desconexión proxy productiva no probada. Requieren seguimiento de despliegue.
+
+Las referencias anteriores actualizan el estado del documento; no reescriben los requisitos técnicos que ya fueron aprobados e implementados.
