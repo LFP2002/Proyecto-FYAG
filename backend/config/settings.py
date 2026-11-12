@@ -134,6 +134,9 @@ LANGUAGE_CODE = "es-cl"
 
 TIME_ZONE = "America/Santiago"
 
+# Proceso independiente de Alertas. No se inicia desde AppConfig ni runserver.
+ALERTAS_INTERVALO_SEGUNDOS = int(os.getenv("FYAG_ALERTAS_INTERVALO_SEGUNDOS", "60"))
+
 USE_I18N = True
 
 USE_TZ = True

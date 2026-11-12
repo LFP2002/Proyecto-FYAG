@@ -213,11 +213,15 @@ def _snapshot(obra):
 
 def _evento_obra(obra, tipo, usuario, anterior, *,
                  previos=None, nuevos=None, motivo=""):
-    return ObraEvento.objects.create(
+    evento = ObraEvento.objects.create(
         obra=obra, tipo=tipo, estado_anterior=anterior,
         estado_nuevo=obra.estado, datos_anteriores=previos or {},
         datos_nuevos=nuevos or {}, registrado_por=usuario, motivo=motivo,
     )
+    if anterior != obra.estado:
+        from apps.alertas.services import notificar_despues_commit
+        notificar_despues_commit("OBRA_SUSPENDIDA", obra.pk)
+    return evento
 
 
 def _categoria_evento(categoria, tipo, usuario, *, previos=None,

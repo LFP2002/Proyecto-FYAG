@@ -85,7 +85,14 @@ def datos(serializer_class, payload):
 
 
 def evento(**kwargs):
-    return FinanzasEvento.objects.create(**kwargs)
+    registro = FinanzasEvento.objects.create(**kwargs)
+    documento_id = registro.documento_id
+    if registro.pago_id:
+        documento_id = kwargs["pago"].documento_id
+    if documento_id:
+        from apps.alertas.services import notificar_despues_commit
+        notificar_despues_commit("COBRANZA_VENCIDA", documento_id)
+    return registro
 
 
 @operacion

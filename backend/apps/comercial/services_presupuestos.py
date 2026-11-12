@@ -263,6 +263,8 @@ def _transicionar(
     actual.estado = destino
     actual.save(update_fields=["estado", "actualizado_en"])
     _evento(actual, anterior, usuario, motivo)
+    from apps.alertas.services import notificar_despues_commit
+    notificar_despues_commit("PRESUPUESTO_PENDIENTE_GERENCIA", actual.pk)
     return actual
 
 
