@@ -14,7 +14,10 @@ def campo_importe():
     return DecimalField(max_digits=38, decimal_places=2)
 
 
-def con_cobranza(queryset):
+def con_cobranza(queryset, *, hoy=None):
+    # Fecha opcional para fachadas con un único corte civil por snapshot.
+    # Los callers existentes conservan exactamente el reloj y fórmula originales.
+    hoy = hoy_santiago() if hoy is None else hoy
     pagos = PagoDocumento.objects.filter(documento_id=OuterRef("pk"), activo=True).order_by().values("documento_id").annotate(total=Sum("monto", output_field=campo_importe())).values("total")
     return queryset.annotate(
         abonado_calculado=Coalesce(Subquery(pagos, output_field=campo_importe()), Value(Decimal("0.00")), output_field=campo_importe()),
@@ -22,7 +25,7 @@ def con_cobranza(queryset):
         saldo_calculado=ExpressionWrapper(F("monto_total") - F("abonado_calculado"), output_field=campo_importe()),
     ).annotate(estado_cobranza_calculado=Case(
         When(saldo_calculado=0, then=Value("PAGADA")),
-        When(fecha_vencimiento__lt=hoy_santiago(), then=Value("VENCIDA")),
+        When(fecha_vencimiento__lt=hoy, then=Value("VENCIDA")),
         When(abonado_calculado__gt=0, then=Value("PARCIAL")),
         default=Value("PENDIENTE"), output_field=CharField(),
     ))
