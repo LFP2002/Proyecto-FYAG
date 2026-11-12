@@ -1,6 +1,6 @@
 # SPEC-009 — Alertas operativas y financieras: detección, atención y reconciliación (backend)
 
-**Estado: DEFINIDA PARA IMPLEMENTACIÓN; NO IMPLEMENTADA EN MAIN.** Revisión contractual para OpenCode. La aplicación Django apps.alertas está registrada, pero actualmente solo contiene esqueletos y no está incluida en backend/config/urls.py. Esta SPEC no crea endpoints por sí misma.
+**Estado: IMPLEMENTADA E INTEGRADA EN `main` mediante PR #30.** Los endpoints, modelos, migraciones, control de acceso y reconciliación automática se encuentran implementados en `backend/apps/alertas/`, con rutas registradas en `backend/config/urls.py`. Este documento conserva el contrato funcional aprobado; las evidencias de integración se registran en el apartado 14.
 
 ## 1. Contexto confirmado y precedencia
 
@@ -238,9 +238,23 @@ No se implementan UI React, notificaciones externas, modificación administrativ
 
 ## 13. Fuentes internas verificadas
 
-- backend/apps/alertas/ (actual esqueleto), backend/config/{settings.py,urls.py}, compose.yaml.
+- backend/apps/alertas/ (implementación integrada), backend/config/{settings.py,urls.py}, compose.yaml.
 - backend/apps/comercial/{models.py,services_presupuestos.py}.
 - backend/apps/obras/{models.py,services.py,services_turnos.py}.
 - backend/apps/finanzas/{models.py,consultas_cobranzas.py,services_documentos.py,services_pagos.py,validaciones.py}.
 - backend/apps/usuarios/{models.py,authentication.py}; SPEC-006B/006C.
 - specs/003b-gestion-presupuestos.md, specs/004-gestion-obras.md, specs/004b-costos-finalizacion.md, specs/007-finanzas-cobranzas.md, specs/008-auditoria-global-api.md.
+
+## 14. Estado de implementación y validación de integración
+
+- **PR de contrato:** [#28](https://github.com/LFP2002/Proyecto-FYAG/pull/28), integrado en `main`.
+- **PR de implementación:** [#30](https://github.com/LFP2002/Proyecto-FYAG/pull/30), fusionado con commit `01d801490a471622924ee2444db17da1b42fe377`.
+- **API implementada:** `GET /api/alertas/`, `GET /api/alertas/resumen/`, `GET /api/alertas/{id}/`, `GET /api/alertas/{id}/historial/` y `POST /api/alertas/{id}/atender/`.
+- **Persistencia y operación:** dos nuevas migraciones, eventos de atención, restricciones PostgreSQL, callbacks postcommit y proceso reconciliador independiente habilitado desde Docker Compose.
+- **Pruebas locales declaradas por OpenCode:** 48 pruebas de Alertas y 721 pruebas Django/PostgreSQL completas, 0 fallidas.
+- **GitHub Actions:** workflow Backend CI del SHA `dab472ebb1cbd092cb88540dae269059a3919ef7` finalizado en `success`, comprobado antes del merge.
+- **Postman:** el responsable confirmó **201 pruebas aprobadas y 0 fallidas** en el recorrido automático de SPEC-009. Los cuatro escenarios manuales opcionales, que requerían datos existentes de Obras, Turnos y Cobranzas, **no se ejecutaron**; su lógica dispone de pruebas Django automatizadas, pero no deben declararse comprobados manualmente.
+- **Riesgos documentados:** consistencia eventual del reconciliador ante incidencias fugaces y posible desplazamiento de paginación numérica por escrituras concurrentes. No se declara una garantía de historial completo sin outbox.
+- **Frontend:** la implementación de interfaces queda fuera de SPEC-009 y corresponde al equipo frontend sobre sus propias especificaciones; backend contractualmente disponible en `main`.
+
+Este apartado registra hechos de integración, sin reemplazar el detalle de `backend/docs/SPEC-009-IMPLEMENTACION.md` ni alterar contratos, rutas o permisos.
