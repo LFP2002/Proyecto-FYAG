@@ -1,6 +1,6 @@
 # SPEC-010 — Dashboard gerencial: indicadores reales y contratos REST
 
-**Estado: DEFINIDA PARA IMPLEMENTACIÓN; NO IMPLEMENTADA EN `main`.** La aplicación `apps.dashboard` existe únicamente como esqueleto, sin rutas en `backend/config/urls.py`. Esta SPEC fija el contrato del backend y no entrega endpoints hasta que OpenCode los implemente, pruebe y se fusione su PR. El frontend lo desarrollarán los compañeros y no forma parte de este incremento.
+**Estado: IMPLEMENTADA E INTEGRADA EN `main` mediante PR [#34](https://github.com/LFP2002/Proyecto-FYAG/pull/34).** El módulo `apps.dashboard` entrega los tres endpoints REST descritos en esta SPEC y está registrado en `backend/config/urls.py`. El contrato está disponible para el equipo frontend; las interfaces React se desarrollan por separado. La evidencia verificada del merge figura al final de este documento.
 
 ## 1. Contexto, objetivo y precedencia
 
@@ -224,7 +224,7 @@ No presentar el Dashboard como indicador de utilidad contable ni construir un ra
 
 ## 10. Archivos y referencias comprobadas
 
-- `backend/apps/dashboard/` (esqueleto actual), `backend/config/urls.py`, `backend/config/settings.py`.
+- `backend/apps/dashboard/` (implementado en `main` mediante PR #34), `backend/config/urls.py`, `backend/config/settings.py`.
 - `backend/apps/obras/{models.py,serializers.py}`, `backend/apps/comercial/{models.py,calculos.py}`.
 - `backend/apps/finanzas/{models.py,consultas_cobranzas.py,views_pagos.py,validaciones.py}`.
 - `backend/apps/usuarios/{models.py,authentication.py}`, SPEC-006B/006C.
@@ -232,4 +232,19 @@ No presentar el Dashboard como indicador de utilidad contable ni construir un ra
 - `frontend/src/pages/Dashboard.jsx` (prototipo sin contrato productivo), `specs/005a-frontend-autenticacion.md`, `specs/005b-frontend-comercial.md`, `specs/005c-frontend-obras.md`.
 - `.github/workflows/backend-ci.yml`.
 
-**Definición de «lista para frontend»:** tres endpoints implementados y fusionados en `main`, respuestas conforme a esta SPEC, roles y cálculos verificados, pruebas PostgreSQL/CI y Postman aprobadas, contrato OpenAPI publicado. El documento por sí solo **no** habilita la API.
+**Estado de disponibilidad para frontend:** los tres endpoints ya están implementados y fusionados en `main`; los contratos y campos se publican en `backend/docs/openapi/SPEC-010-v1.json`. El frontend puede integrarse usando la API real, sin replicar cálculos financieros ni modificar el backend.
+
+## 11. Evidencia de implementación e integración (12-11-2026)
+
+- **SPEC contractual:** PR [#33](https://github.com/LFP2002/Proyecto-FYAG/pull/33), integrada previamente en `main`.
+- **Implementación:** PR [#34](https://github.com/LFP2002/Proyecto-FYAG/pull/34), fusionado mediante commit `694163f75d865ad2000e76ac61557056bd670171`.
+- **Commit final revisado de la rama de implementación:** `c6a2bd5e09172ad78163d68ca0af08d6bc74480d` (14 archivos modificados, sin frontend, dependencias ni migraciones nuevas).
+- **API registrada:** `GET /api/dashboard/resumen/`, `GET /api/dashboard/serie-obras/` y `GET /api/dashboard/obras-activas/`.
+- **Pruebas locales declaradas por OpenCode:** 38 de Dashboard y 759 de regresión completa; 0 fallidas en ambos recorridos.
+- **GitHub Actions:** workflow Backend CI del SHA `c6a2bd5e09172ad78163d68ca0af08d6bc74480d` finalizado en `success`, verificado antes del merge.
+- **Postman:** responsable confirmó **396 aserciones aprobadas y 0 fallidas** en SPEC-010. El total de aserciones aprobadas puede ser menor que las comprobaciones máximas posibles de la colección, según datos y escenarios opcionales disponibles; no afirmar que los escenarios condicionales omitidos se ejecutaron.
+- **Contrato/OpenAPI y operación:** ver `backend/docs/openapi/SPEC-010-v1.json` y `backend/docs/SPEC-010-IMPLEMENTACION.md`.
+- **Límites reconocidos:** snapshot coherente por respuesta HTTP, no entre distintas solicitudes; paginación por número susceptible a desplazamiento bajo concurrencia; duración de lecturas con históricos amplios exige seguimiento de planes, recursos y MVCC.
+- **Sin frontend en este PR:** sus compañeros pueden integrar la API publicada con las autorizaciones del usuario, preservando separación de responsabilidades.
+
+Las secciones anteriores preservan las decisiones y criterios contractuales originales y describen el procedimiento que se siguió; este apartado documenta el estado final verificado después del merge.
