@@ -1,0 +1,156 @@
+{
+  "info": {
+    "name": "FYAG SPEC-012B local",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Seleccionar manualmente archivo real en Body form-data File. Importar no transfiere archivos ni rutas. Token/IDs de QA deben configurarse."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "obra_id",
+      "value": ""
+    },
+    {
+      "key": "documento_id",
+      "value": ""
+    },
+    {
+      "key": "adjunto_id",
+      "value": ""
+    },
+    {
+      "key": "idempotency_key",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Listado SQL (sin depender de Mongo/scanner) — documento_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/adjuntos/documentos-cobro/{{documento_id}}/",
+        "description": "Listado SQL (sin depender de Mongo/scanner)"
+      }
+    },
+    {
+      "name": "Subir adjunto privado — documento_id",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": "{{base_url}}/api/adjuntos/documentos-cobro/{{documento_id}}/",
+        "description": "Subir adjunto privado",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "archivo",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listado SQL (sin depender de Mongo/scanner) — obra_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/adjuntos/obras/{{obra_id}}/",
+        "description": "Listado SQL (sin depender de Mongo/scanner)"
+      }
+    },
+    {
+      "name": "Subir adjunto privado — obra_id",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}"
+          }
+        ],
+        "url": "{{base_url}}/api/adjuntos/obras/{{obra_id}}/",
+        "description": "Subir adjunto privado",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "archivo",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Detalle SQL privado — adjunto_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/adjuntos/{{adjunto_id}}/",
+        "description": "Detalle SQL privado"
+      }
+    },
+    {
+      "name": "Descarga autenticada con tamaño/SHA-256 verificados antes de transmitir — adjunto_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/adjuntos/{{adjunto_id}}/descargar/",
+        "description": "Descarga autenticada con tamaño/SHA-256 verificados antes de transmitir"
+      }
+    },
+    {
+      "name": "Leer notas Mongo tras comprobar SQL — adjunto_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/adjuntos/{{adjunto_id}}/anotaciones/",
+        "description": "Leer notas Mongo tras comprobar SQL"
+      }
+    },
+    {
+      "name": "Actualizar notas con revisión CAS — adjunto_id",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/api/adjuntos/{{adjunto_id}}/anotaciones/",
+        "description": "Actualizar notas con revisión CAS",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"revision\":0,\"descripcion\":\"Vista frontal\"}"
+        }
+      }
+    }
+  ]
+}
