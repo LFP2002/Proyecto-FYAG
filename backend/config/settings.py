@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "apps.dashboard.apps.DashboardConfig",
     "apps.reportes.apps.ReportesConfig",
     "apps.documentos.apps.DocumentosConfig",
+    "apps.adjuntos.apps.AdjuntosConfig",
 ]
 
 MIDDLEWARE = [
@@ -85,6 +86,9 @@ LOGGING = {
             "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
         },
         "apps.documentos.services": {
+            "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
+        },
+        "apps.adjuntos.services": {
             "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
         },
     },
@@ -176,6 +180,9 @@ DOCUMENTOS_MONGO = {
     "timeout_ms": 2000,
 }
 TEST_RUNNER = "apps.documentos.testing.DocumentalTestRunner"
+
+ADJUNTOS_ROOT = Path(os.getenv("FYAG_ADJUNTOS_ROOT", "/var/lib/fyag/adjuntos"))
+ADJUNTOS_SCANNER = {"host": os.getenv("FYAG_CLAMD_HOST", "clamav"), "puerto": os.getenv("FYAG_CLAMD_PORT", "3310"), "timeout": 15}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
