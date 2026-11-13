@@ -1,0 +1,50 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object", "additionalProperties": false,
+    "required": ["_id", "version_esquema", "origen", "evidencia_id", "obra_id", "turno_id", "tipo_mime", "tamano_bytes", "sha256", "creado_en", "sincronizado_en", "descripcion", "etiquetas", "atributos", "revision", "anotado_en", "anotado_por_id"],
+    "properties": {
+      "_id": {"bsonType": "string", "pattern": "^evidencia_turno:[1-9][0-9]{0,18}$"},
+      "version_esquema": {"bsonType": "int", "enum": [1]},
+      "origen": {"enum": ["EVIDENCIA_TURNO"]},
+      "evidencia_id": {"bsonType": "long", "minimum": 1},
+      "obra_id": {"bsonType": "long", "minimum": 1},
+      "turno_id": {"bsonType": "long", "minimum": 1},
+      "tipo_mime": {"enum": ["image/jpeg", "image/png", "image/webp"]},
+      "tamano_bytes": {"bsonType": "long", "minimum": 1, "maximum": 5242880},
+      "sha256": {"bsonType": "string", "pattern": "^[0-9a-f]{64}$"},
+      "creado_en": {"bsonType": "date"},
+      "sincronizado_en": {"bsonType": "date"},
+      "descripcion": {"bsonType": "string", "maxLength": 1000, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+      "etiquetas": {"bsonType": "array", "maxItems": 12, "uniqueItems": true, "items": {"bsonType": "string", "minLength": 1, "maxLength": 40, "pattern": "^[^<>$\\x00-\\x1f\\x7f]*$"}},
+      "atributos": {
+        "bsonType": "object", "maxProperties": 12, "additionalProperties": false,
+        "properties": {
+          "ubicacion_general": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "vista": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "componente": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "condicion": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "tipo_evidencia": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "fase_trabajo": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "iluminacion": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "orientacion": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "equipo_tipo": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "zona_tecnica": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "requiere_revision": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+          "estado_visual": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"}
+        }
+      },
+      "revision": {"bsonType": ["int", "long"], "minimum": 0},
+      "anotado_en": {"bsonType": ["date", "null"]},
+      "anotado_por_id": {"bsonType": ["long", "null"], "minimum": 1}
+    }
+  },
+  "$expr": {"$and": [
+    {"$lte": [{"$bsonSize": "$$ROOT"}, 16384]},
+    {"$lte": [{"$bsonSize": "$atributos"}, 4096]},
+    {"$eq": ["$_id", {"$concat": ["evidencia_turno:", {"$toString": "$evidencia_id"}]}]},
+    {"$or": [
+      {"$and": [{"$eq": ["$revision", 0]}, {"$eq": ["$descripcion", ""]}, {"$eq": ["$etiquetas", []]}, {"$eq": ["$atributos", {}]}, {"$eq": ["$anotado_en", null]}, {"$eq": ["$anotado_por_id", null]}]},
+      {"$and": [{"$gt": ["$revision", 0]}, {"$eq": [{"$type": "$anotado_en"}, "date"]}, {"$eq": [{"$type": "$anotado_por_id"}, "long"]}]}
+    ]}
+  ]}
+}

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'database/**'
       - 'compose.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+      - 'database/**'
       - 'compose.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
@@ -84,6 +86,42 @@ jobs:
         working-directory: backend
         run: python manage.py makemigrations --check --dry-run
 
+      - name: Iniciar Mongo QA autenticado y bootstrap idempotente
+        env:
+          FYAG_MONGO_DB: fyag_documentos_test
+          FYAG_MONGO_USER: fyag_ci_app
+          FYAG_MONGO_TEST_USER: fyag_ci_app
+          FYAG_MONGO_TEST_ROOT_USER: fyag_ci_bootstrap
+        run: |
+          # Secretos efímeros generados por run; no valores reales en Git.
+          ROOT_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(36))')
+          APP_PASSWORD=$(python -c 'import secrets; print(secrets.token_urlsafe(36))')
+          echo "::add-mask::$ROOT_PASSWORD"
+          echo "::add-mask::$APP_PASSWORD"
+          echo "FYAG_MONGO_TEST_ROOT_PASSWORD=$ROOT_PASSWORD" >> "$GITHUB_ENV"
+          echo "FYAG_MONGO_TEST_PASSWORD=$APP_PASSWORD" >> "$GITHUB_ENV"
+          echo "FYAG_MONGO_TEST_ROOT_USER=$FYAG_MONGO_TEST_ROOT_USER" >> "$GITHUB_ENV"
+          echo "FYAG_MONGO_TEST_USER=$FYAG_MONGO_TEST_USER" >> "$GITHUB_ENV"
+          echo "FYAG_MONGO_TEST_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          echo "FYAG_MONGO_TEST_PORT=27017" >> "$GITHUB_ENV"
+          export MONGO_INITDB_ROOT_USERNAME="$FYAG_MONGO_TEST_ROOT_USER"
+          export MONGO_INITDB_ROOT_PASSWORD="$ROOT_PASSWORD"
+          export FYAG_MONGO_PASSWORD="$APP_PASSWORD"
+          docker run -d --name fyag_mongo_ci --tmpfs /data/db --tmpfs /data/configdb \
+            -p 127.0.0.1:27017:27017 \
+            -e MONGO_INITDB_ROOT_USERNAME -e MONGO_INITDB_ROOT_PASSWORD \
+            -e FYAG_MONGO_DB -e FYAG_MONGO_USER -e FYAG_MONGO_PASSWORD \
+            -v "$PWD/database:/opt/fyag/database:ro" \
+            -v "$PWD/backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro" \
+            -v "$PWD/database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro" mongo:8.0
+          for i in $(seq 1 60); do
+            if docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/health_mongodb.js; then break; fi
+            sleep 2
+          done
+          docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/health_mongodb.js
+          docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/usuarios_mongodb.js
+          docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/usuarios_mongodb.js
+
       - name: Aplicar migraciones sobre PostgreSQL limpio
         working-directory: backend
         run: python manage.py migrate --noinput
@@ -91,3 +129,7 @@ jobs:
       - name: Ejecutar suite completa
         working-directory: backend
         run: python manage.py test
+
+      - name: Cerrar Mongo QA efímero
+        if: always()
+        run: docker rm -f fyag_mongo_ci || true
