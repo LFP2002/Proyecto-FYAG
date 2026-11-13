@@ -1,6 +1,6 @@
 # SPEC-012 — Integración MongoDB y gestión documental real (backend)
 
-**Estado: CONTRATO REVISADO EN PR DOCUMENTAL; PENDIENTE DE APROBACIÓN E IMPLEMENTACIÓN.** Revisión de SPEC-012 posterior al Informe 2 y a la integración de SPEC-011 (PR #37). No afirma que exista un módulo de adjuntos de facturas ni que ya se almacenen imágenes de usuarios. **Este documento no ejecuta limpieza, cambia infraestructura ni crea endpoints por sí mismo.**
+**Estado: CONTRATO DOCUMENTAL APROBADO E INTEGRADO EN `main` mediante PR #39; PENDIENTE DE IMPLEMENTACIÓN 012A.** Revisión de SPEC-012 posterior al Informe 2 y a la integración de SPEC-011 (PR #37). No afirma que exista un módulo de adjuntos de facturas ni que ya se almacenen imágenes de usuarios. **Este documento no ejecuta limpieza, cambia infraestructura ni crea endpoints por sí mismo.**
 
 ## 1. Objetivo y decisiones revisadas
 
