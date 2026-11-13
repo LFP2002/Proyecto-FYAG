@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "apps.alertas.apps.AlertasConfig",
     "apps.dashboard.apps.DashboardConfig",
     "apps.reportes.apps.ReportesConfig",
+    "apps.documentos.apps.DocumentosConfig",
 ]
 
 MIDDLEWARE = [
@@ -81,6 +82,9 @@ LOGGING = {
     "handlers": {"reportes_consola": {"class": "logging.StreamHandler"}},
     "loggers": {
         "apps.reportes.services": {
+            "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
+        },
+        "apps.documentos.services": {
             "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
         },
     },
@@ -161,6 +165,17 @@ STATIC_URL = "static/"
 
 # Almacenamiento privado de evidencias: no asociar a MEDIA_URL ni static().
 EVIDENCIAS_ROOT = Path(os.getenv("FYAG_EVIDENCIAS_ROOT", BASE_DIR / "private_evidencias"))
+
+# Cliente documental perezoso: configuración ausente no impide el backend SQL.
+DOCUMENTOS_MONGO = {
+    "host": os.getenv("FYAG_MONGO_HOST", "mongodb"),
+    "puerto": os.getenv("FYAG_MONGO_PORT", "27017"),
+    "db": os.getenv("FYAG_MONGO_DB", "fyag_documentos"),
+    "usuario": os.getenv("FYAG_MONGO_USER", ""),
+    "password": os.getenv("FYAG_MONGO_PASSWORD", ""),
+    "timeout_ms": 2000,
+}
+TEST_RUNNER = "apps.documentos.testing.DocumentalTestRunner"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
