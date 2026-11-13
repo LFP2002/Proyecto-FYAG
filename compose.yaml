@@ -13,9 +13,12 @@ services:
     volumes:
       - ./backend:/app
       - evidencias_data:/var/lib/fyag/evidencias
+      - adjuntos_data:/var/lib/fyag/adjuntos
 
     environment:
       FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
+      FYAG_ADJUNTOS_ROOT: /var/lib/fyag/adjuntos
+      FYAG_CLAMD_HOST: clamav
       MONGO_INITDB_ROOT_USERNAME: ""
       MONGO_INITDB_ROOT_PASSWORD: ""
 
@@ -123,6 +126,7 @@ services:
       - mongodb_data:/data/db
       - ./database:/opt/fyag/database:ro
       - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro
       - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
 
   documentos_reconciliador:
@@ -161,6 +165,7 @@ services:
     volumes:
       - ./database:/opt/fyag/database:ro
       - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro
       - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "/opt/fyag/database/health_mongodb.js"]
@@ -169,7 +174,65 @@ services:
       retries: 12
 
 
+  adjuntos_reconciliador:
+    build:
+      context: ./backend
+    command: python manage.py reconciliar_adjuntos_mongodb --continuo
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migraciones:
+        condition: service_completed_successfully
+
+  # Sin puerto host ni acceso al volumen de archivos. Solo INSTREAM privado.
+  clamav: &clamav
+    image: clamav/clamav:1.5.4-debian
+    restart: unless-stopped
+    environment:
+      CLAMD_CONF_StreamMaxLength: 9M
+      CLAMD_CONF_MaxFileSize: 9M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_MaxScanTime: 10000
+      CLAMD_CONF_MaxRecursion: 8
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+      CLAMD_CONF_MaxThreads: 2
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 90s
+
+  clamav_test:
+    <<: *clamav
+    profiles: ["test"]
+    restart: "no"
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "true"
+      CLAMD_CONF_StreamMaxLength: 9M
+      CLAMD_CONF_MaxFileSize: 9M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_MaxScanTime: 10000
+      CLAMD_CONF_MaxRecursion: 8
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_AlertEncrypted: "yes"
+      CLAMD_CONF_MaxThreads: 2
+
 volumes:
   postgres_data:
   mongodb_data:
   evidencias_data:
+  adjuntos_data:

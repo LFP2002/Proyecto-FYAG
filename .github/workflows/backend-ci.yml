@@ -7,6 +7,7 @@ on:
       - 'backend/**'
       - 'database/**'
       - 'compose.yaml'
+      - 'compose.adjuntos-qa.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
   push:
@@ -15,6 +16,7 @@ on:
       - 'backend/**'
       - 'database/**'
       - 'compose.yaml'
+      - 'compose.adjuntos-qa.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
 
@@ -29,7 +31,7 @@ jobs:
   backend:
     name: Django / PostgreSQL
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     # Valores públicos exclusivos de CI; nunca usar en producción.
     env:
@@ -113,6 +115,7 @@ jobs:
             -e FYAG_MONGO_DB -e FYAG_MONGO_USER -e FYAG_MONGO_PASSWORD \
             -v "$PWD/database:/opt/fyag/database:ro" \
             -v "$PWD/backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro" \
+            -v "$PWD/backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro" \
             -v "$PWD/database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro" mongo:8.0
           for i in $(seq 1 60); do
             if docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/health_mongodb.js; then break; fi
@@ -121,6 +124,25 @@ jobs:
           docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/health_mongodb.js
           docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/usuarios_mongodb.js
           docker exec fyag_mongo_ci mongosh --quiet /opt/fyag/database/usuarios_mongodb.js
+
+      - name: Iniciar ClamAV QA privado sin puertos host
+        run: |
+          mkdir -p "$RUNNER_TEMP/fyag-clamd"
+          chmod 777 "$RUNNER_TEMP/fyag-clamd"
+          docker run -d --name fyag_clamd_ci --network none --memory 2g --cpus 2 \
+            -e CLAMAV_NO_FRESHCLAMD=true \
+            -e CLAMD_CONF_LocalSocketMode=666 \
+            -e CLAMD_CONF_StreamMaxLength=9M -e CLAMD_CONF_MaxFileSize=9M \
+            -e CLAMD_CONF_MaxScanSize=32M -e CLAMD_CONF_MaxScanTime=10000 \
+            -e CLAMD_CONF_MaxRecursion=8 -e CLAMD_CONF_MaxThreads=2 \
+            -e CLAMD_CONF_AlertExceedsMax=yes -e CLAMD_CONF_AlertEncrypted=yes \
+            -v "$RUNNER_TEMP/fyag-clamd:/tmp" clamav/clamav:1.5.4-debian
+          echo "FYAG_CLAMD_TEST_SOCKET=$RUNNER_TEMP/fyag-clamd/clamd.sock" >> "$GITHUB_ENV"
+          for i in $(seq 1 90); do
+            if docker exec fyag_clamd_ci clamdcheck.sh; then break; fi
+            sleep 2
+          done
+          docker exec fyag_clamd_ci clamdcheck.sh
 
       - name: Aplicar migraciones sobre PostgreSQL limpio
         working-directory: backend
@@ -132,4 +154,4 @@ jobs:
 
       - name: Cerrar Mongo QA efímero
         if: always()
-        run: docker rm -f fyag_mongo_ci || true
+        run: docker rm -f fyag_mongo_ci fyag_clamd_ci || true
