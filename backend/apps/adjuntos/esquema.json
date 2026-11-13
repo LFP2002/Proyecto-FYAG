@@ -1,0 +1,37 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object", "additionalProperties": false,
+    "required": ["_id", "version_esquema", "adjunto_id", "tipo", "destino_id", "mime", "tamano_bytes", "registrado_en", "sincronizado_en", "descripcion", "etiquetas", "atributos", "revision", "anotado_en", "anotado_por_id"],
+    "properties": {
+      "_id": {"bsonType": "string", "pattern": "^adjunto:[1-9][0-9]{0,18}$"},
+      "version_esquema": {"bsonType": "int", "enum": [1]},
+      "adjunto_id": {"bsonType": "long", "minimum": 1},
+      "tipo": {"enum": ["RESPALDO_FACTURA", "INFORME_TECNICO"]},
+      "destino_id": {"bsonType": "long", "minimum": 1},
+      "mime": {"enum": ["application/pdf", "image/jpeg", "image/png"]},
+      "tamano_bytes": {"bsonType": "long", "minimum": 1, "maximum": 8388608},
+      "registrado_en": {"bsonType": "date"},
+      "sincronizado_en": {"bsonType": "date"},
+      "descripcion": {"bsonType": "string", "maxLength": 1000, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"},
+      "etiquetas": {"bsonType": "array", "maxItems": 12, "uniqueItems": true, "items": {"bsonType": "string", "minLength": 1, "maxLength": 40, "pattern": "^[^<>$\\x00-\\x1f\\x7f]*$"}},
+      "atributos": {"bsonType": "object", "maxProperties": 12, "additionalProperties": {"bsonType": ["string", "bool"], "maxLength": 200, "pattern": "^[^<>\\x00-\\x1f\\x7f]*$"}},
+      "revision": {"bsonType": ["int", "long"], "minimum": 0},
+      "anotado_en": {"bsonType": ["date", "null"]},
+      "anotado_por_id": {"bsonType": ["long", "null"], "minimum": 1}
+    },
+    "oneOf": [
+      {"properties": {"tipo": {"enum": ["RESPALDO_FACTURA"]}, "atributos": {"additionalProperties": false, "properties": {"estado_documental": {}, "legibilidad": {}, "orientacion": {}, "caras": {}, "requiere_revision": {}, "tipo_copia": {}, "integridad_visual": {}, "soporte": {}, "idioma": {}, "calidad_imagen": {}, "color": {}, "observacion_tecnica": {}}}}},
+      {"properties": {"tipo": {"enum": ["INFORME_TECNICO"]}, "atributos": {"additionalProperties": false, "properties": {"ubicacion_general": {}, "vista": {}, "componente": {}, "condicion": {}, "tipo_evidencia": {}, "fase_trabajo": {}, "iluminacion": {}, "orientacion": {}, "equipo_tipo": {}, "zona_tecnica": {}, "requiere_revision": {}, "estado_visual": {}}}}}
+    ]
+  },
+  "$expr": {"$and": [
+    {"$lte": [{"$bsonSize": "$$ROOT"}, 16384]},
+    {"$lte": [{"$bsonSize": "$atributos"}, 4096]},
+    {"$eq": ["$_id", {"$concat": ["adjunto:", {"$toString": "$adjunto_id"}]}]},
+    {"$or": [{"$eq": ["$mime", "application/pdf"]}, {"$lte": ["$tamano_bytes", 5242880]}]},
+    {"$or": [
+      {"$and": [{"$eq": ["$revision", 0]}, {"$eq": ["$descripcion", ""]}, {"$eq": ["$etiquetas", []]}, {"$eq": ["$atributos", {}]}, {"$eq": ["$anotado_en", null]}, {"$eq": ["$anotado_por_id", null]}]},
+      {"$and": [{"$gt": ["$revision", 0]}, {"$eq": [{"$type": "$anotado_en"}, "date"]}, {"$eq": [{"$type": "$anotado_por_id"}, "long"]}]}
+    ]}
+  ]}
+}
