@@ -24,9 +24,11 @@
   if (target.getRole(role)) target.updateRole(role, {privileges, roles: []});
   else target.createRole({role, privileges, roles: []});
   if (target.getUser(env.FYAG_MONGO_USER)) {
-    target.updateUser(env.FYAG_MONGO_USER, {pwd: env.FYAG_MONGO_PASSWORD, roles: [{role, db: nombre}]});
+    // Una ampliación de esquema no debe rotar credenciales existentes.
+    target.updateUser(env.FYAG_MONGO_USER, {roles: [{role, db: nombre}]});
   } else {
     target.createUser({user: env.FYAG_MONGO_USER, pwd: env.FYAG_MONGO_PASSWORD, roles: [{role, db: nombre}]});
   }
   load((env.FYAG_MONGO_SCRIPTS_DIR || "/opt/fyag/database") + "/init_mongodb.js");
+  load((env.FYAG_MONGO_SCRIPTS_DIR || "/opt/fyag/database") + "/adjuntos_mongodb.js");
 })();

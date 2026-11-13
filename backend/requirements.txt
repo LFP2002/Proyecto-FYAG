@@ -11,3 +11,5 @@ reportlab==5.1.0
 # Dependencias nuevas transitivas fijadas para reproducibilidad de exportación.
 et-xmlfile==2.0.0
 charset-normalizer==3.5.2
+# Inspección estructural de PDFs sin reescritura, también usado por QA de Reportes.
+pypdf==7.0.1

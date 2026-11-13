@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/dashboard/", include("apps.dashboard.urls")),
     path("api/reportes/", include("apps.reportes.urls")),
     path("api/documentos-metadata/", include("apps.documentos.urls")),
+    path("api/adjuntos/", include("apps.adjuntos.urls")),
 ]

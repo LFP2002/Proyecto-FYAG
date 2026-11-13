@@ -1,0 +1,115 @@
+# Laboratorio de recuperación 012B: proyecto separado, sin puertos host.
+# No ejecutar down -v; conservar volúmenes/respaldos para revisión.
+services:
+  postgres_qa: &postgres_qa
+    image: postgres:18
+    environment:
+      POSTGRES_DB: fyag_adjuntos_qa
+      POSTGRES_USER: fyag_adjuntos_qa
+      POSTGRES_PASSWORD: ${FYAG_ADJUNTOS_QA_PASSWORD:?Clave efimera QA requerida}
+    volumes:
+      - postgres_qa:/var/lib/postgresql
+      - backup_qa:/backup
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  mongo_qa: &mongo_qa
+    image: mongo:8.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${FYAG_MONGO_TEST_ROOT_USER:?}
+      MONGO_INITDB_ROOT_PASSWORD: ${FYAG_MONGO_TEST_ROOT_PASSWORD:?}
+      FYAG_MONGO_DB: fyag_documentos_test
+      FYAG_MONGO_USER: ${FYAG_MONGO_TEST_USER:?}
+      FYAG_MONGO_PASSWORD: ${FYAG_MONGO_TEST_PASSWORD:?}
+      FYAG_ADJUNTOS_RECOVERY_QA: "1"
+    volumes:
+      - mongo_qa:/data/db
+      - backup_qa:/backup
+      - ./database:/opt/fyag/database:ro
+      - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro
+      - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "/opt/fyag/database/health_mongodb.js"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  app_qa: &app_qa
+    build:
+      context: ./backend
+      args:
+        REQUIREMENTS_FILE: requirements-test.txt
+    command: python -c "import time; time.sleep(86400)"
+    env_file: [.env]
+    environment: &app_environment
+      POSTGRES_DB: fyag_adjuntos_qa
+      POSTGRES_USER: fyag_adjuntos_qa
+      POSTGRES_PASSWORD: ${FYAG_ADJUNTOS_QA_PASSWORD:?}
+      POSTGRES_HOST: postgres_qa
+      POSTGRES_PORT: 5432
+      FYAG_MONGO_HOST: mongo_qa
+      FYAG_MONGO_DB: fyag_documentos_test
+      FYAG_MONGO_USER: ${FYAG_MONGO_TEST_USER:?}
+      FYAG_MONGO_PASSWORD: ${FYAG_MONGO_TEST_PASSWORD:?}
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+      FYAG_ADJUNTOS_ROOT: /var/lib/fyag/adjuntos
+      FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
+      FYAG_CLAMD_HOST: clamav_test
+      DJANGO_ALLOWED_HOSTS: testserver,localhost,127.0.0.1
+    volumes:
+      - ./backend:/app
+      - adjuntos_qa:/var/lib/fyag/adjuntos
+      - evidencias_qa:/var/lib/fyag/evidencias
+      - backup_qa:/backup
+    networks: [default, scanner]
+    depends_on:
+      postgres_qa: {condition: service_healthy}
+      mongo_qa: {condition: service_healthy}
+  postgres_restore_qa:
+    <<: *postgres_qa
+    profiles: [restore]
+    volumes:
+      - postgres_restore_qa:/var/lib/postgresql
+      - backup_qa:/backup
+  mongo_restore_qa:
+    <<: *mongo_qa
+    profiles: [restore]
+    volumes:
+      - mongo_restore_qa:/data/db
+      - backup_qa:/backup
+      - ./database:/opt/fyag/database:ro
+      - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro
+      - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
+  app_restore_qa:
+    <<: *app_qa
+    profiles: [restore]
+    environment:
+      <<: *app_environment
+      POSTGRES_HOST: postgres_restore_qa
+      FYAG_MONGO_HOST: mongo_restore_qa
+    volumes:
+      - ./backend:/app
+      - adjuntos_restore_qa:/var/lib/fyag/adjuntos
+      - evidencias_restore_qa:/var/lib/fyag/evidencias
+      - backup_qa:/backup
+    depends_on:
+      postgres_restore_qa: {condition: service_healthy}
+      mongo_restore_qa: {condition: service_healthy}
+networks:
+  scanner:
+    external: true
+    name: ${FYAG_ADJUNTOS_QA_SCANNER_NETWORK:-proyecto-fyag_default}
+volumes:
+  postgres_qa:
+  mongo_qa:
+  adjuntos_qa:
+  evidencias_qa:
+  backup_qa:
+  postgres_restore_qa:
+  mongo_restore_qa:
+  adjuntos_restore_qa:
+  evidencias_restore_qa:
