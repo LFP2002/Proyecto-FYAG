@@ -1,0 +1,63 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "FYAG — Metadatos documentales SPEC-012A", "version": "1.0.0", "description": "MongoDB es autoridad solo de anotaciones; PostgreSQL de identidad, evidencia y pertenencia. Solo GERENCIA/SUPERVISOR_OBRAS. No binarios, rutas, hashes ni funciones 012B. Proyección eventual por reconciliador independiente. Identificadores JSON enteros positivos BIGINT; en JavaScript usar parser JSON sin pérdida para IDs fuera de Number.MAX_SAFE_INTEGER."},
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/documentos-metadata/": {
+      "get": {
+        "operationId": "listarDocumentosMetadata",
+        "description": "Valida Obra SQL antes de Mongo. Proyecciones existentes verificadas contra EvidenciaTurno y TurnoObra SQL. No reconstruye fichas pendientes incidentalmente. Orden creado_en DESC, evidencia_id DESC; 25 filas fijas. Todos los candidatos se verifican por lotes para no incluir BSON huérfano en count. Sin consulta de etiquetas. Rechaza query vacía, desconocida, repetida o con valores vacíos; format no está permitido.",
+        "parameters": [{"$ref": "#/components/parameters/Obra"}, {"$ref": "#/components/parameters/Page"}],
+        "responses": {"200": {"description": "Página de documentos existentes; count no equivale al número de fotos pendientes de proyectar.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pagina"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "503": {"$ref": "#/components/responses/NoDisponible"}}
+      },
+      "head": {"description": "Mismos filtros, autorización y validaciones de GET, sin cuerpo.", "parameters": [{"$ref": "#/components/parameters/Obra"}, {"$ref": "#/components/parameters/Page"}], "responses": {"200": {"description": "Headers privados."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "503": {"$ref": "#/components/responses/NoDisponible"}}},
+      "options": {"description": "Autenticación y RBAC antes de metadata; no consulta documentos.", "responses": {"200": {"description": "Metadatos DRF."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    },
+    "/api/documentos-metadata/evidencias/{id}/": {
+      "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "description": "ID SQL ASCII positivo sin signos, notación científica o ceros iniciales. Nunca _id Mongo."}],
+      "get": {
+        "operationId": "detalleDocumentoMetadata",
+        "description": "Sin query. Verifica evidencia SQL y que su obra coincide con la del turno antes de consultar Mongo. Si ficha pendiente:409 explícito, no 404 ambiguo ni upsert incidental.",
+        "responses": {"200": {"description": "Ficha documental real.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Documento"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}, "503": {"$ref": "#/components/responses/NoDisponible"}}
+      },
+      "patch": {
+        "operationId": "anotarDocumentoMetadata",
+        "description": "Solo application/json UTF-8 estricto (tipo incorrecto:400). Sin query. Objeto hasta32KiB de entrada, sin claves duplicadas en ningún nivel, NaN, null o campos desconocidos. revision obligatoria y al menos un campo documental. Cada campo presente se reemplaza completo; ausentes se conservan. CAS atómico por revisión: dos PATCH de la misma revisión no se pisan. Ante 409 consultar GET y resolver explícitamente, no reintentar con revisión vieja. No permite modificar campos técnicos ni estado/trabajo de un turno. No almacenar PII, personas, credenciales, finanzas, enlaces o archivos en anotaciones.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Anotacion"}, "example": {"revision": 0, "descripcion": "Estado inicial del equipo", "etiquetas": ["antes", "exterior"], "atributos": {"vista": "frontal", "requiere_revision": true}}}}},
+        "responses": {"200": {"description": "Ficha con revisión incrementada, fechas de anotación/responsable internos no expuestos.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Documento"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}, "503": {"$ref": "#/components/responses/NoDisponible"}}
+      },
+      "head": {"description": "GET sin cuerpo; misma autorización/consulta, sin query.", "responses": {"200": {"description": "Headers privados."}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "409": {"$ref": "#/components/responses/Conflicto"}, "503": {"$ref": "#/components/responses/NoDisponible"}}},
+      "options": {"responses": {"200": {"description": "Metadatos autenticados, sin consulta de BSON."}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT FYAG versionado"}},
+    "parameters": {
+      "Obra": {"name": "obra", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "description": "Entero positivo ASCII sin signos, exponentes o ceros iniciales."},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807, "default": 1}, "description": "Página fija25; inválida o fuera de rango:400. Vacío admite solo página1."}
+    },
+    "responses": {
+      "Validacion": {"description": "JSON/valores/query inválidos; errores por campo sin eco de datos privados.", "content": {"application/json": {"schema": {"type": "object"}}}},
+      "Sesion": {"description": "JWT ausente/expirado/revocado, actividad o sesion_version no vigente."},
+      "Permiso": {"description": "Solo GERENCIA/SUPERVISOR_OBRAS persistidos; sin bypass por flags/claims."},
+      "NoEncontrado": {"description": "Recurso SQL no disponible, antes de consultar Mongo; mensaje genérico."},
+      "Metodo": {"description": "Método no permitido para actor autorizado. Listado GET/HEAD/OPTIONS; detalle además PATCH."},
+      "Conflicto": {"description": "Proyección pendiente o revisión obsoleta, no indisponibilidad de Mongo.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["metadata_pendiente_sincronizacion", "revision_obsoleta"]}, "detail": {"type": "string"}}}}}},
+      "NoDisponible": {"description": "Mongo desconectado, credenciales inválidas, bootstrap/índice faltante o BSON/fuente corruptos. No 200 vacío. No Retry-After fijo sin estimación fiable; reintentar con backoff. Módulos SQL independientes.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"const": "documentos_no_disponibles"}, "detail": {"type": "string"}}}}}}
+    },
+    "schemas": {
+      "Descripcion": {"type": "string", "maxLength": 1000, "description": "NFKC, trim y blancos colapsados; sin controles/zero-width, HTML activo ni patrones sensibles. Solo anotación técnica, no descripción laboral oficial."},
+      "Etiquetas": {"type": "array", "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 40}, "description": "NFKC/blancos/casefold; letras, números, espacio, _ y -. Duplicadas normalizadas:400. Salida orden lexicográfico determinista."},
+      "ValorAtributo": {"oneOf": [{"type": "string", "maxLength": 200}, {"type": "boolean"}]},
+      "Atributos": {"type": "object", "maxProperties": 12, "additionalProperties": false, "description": "Objeto plano, máximo4096bytes de JSON UTF-8 compacto ensure_ascii=false. Claves técnicas cerradas que cumplen [a-z][a-z0-9_]{0,39}. Sin nombres/personas, emails/RUT, finanzas, tokens, paths, URLs o contenido binario. Sin null/arrays/anidamiento ni claves de operadores Mongo.", "properties": {
+        "ubicacion_general": {"$ref": "#/components/schemas/ValorAtributo"}, "vista": {"$ref": "#/components/schemas/ValorAtributo"}, "componente": {"$ref": "#/components/schemas/ValorAtributo"}, "condicion": {"$ref": "#/components/schemas/ValorAtributo"}, "tipo_evidencia": {"$ref": "#/components/schemas/ValorAtributo"}, "fase_trabajo": {"$ref": "#/components/schemas/ValorAtributo"}, "iluminacion": {"$ref": "#/components/schemas/ValorAtributo"}, "orientacion": {"$ref": "#/components/schemas/ValorAtributo"}, "equipo_tipo": {"$ref": "#/components/schemas/ValorAtributo"}, "zona_tecnica": {"$ref": "#/components/schemas/ValorAtributo"}, "requiere_revision": {"$ref": "#/components/schemas/ValorAtributo"}, "estado_visual": {"$ref": "#/components/schemas/ValorAtributo"}
+      }},
+      "Anotacion": {"type": "object", "additionalProperties": false, "required": ["revision"], "anyOf": [{"required": ["descripcion"]}, {"required": ["etiquetas"]}, {"required": ["atributos"]}], "properties": {"revision": {"type": "integer", "minimum": 0, "maximum": 9223372036854775806}, "descripcion": {"$ref": "#/components/schemas/Descripcion"}, "etiquetas": {"$ref": "#/components/schemas/Etiquetas"}, "atributos": {"$ref": "#/components/schemas/Atributos"}}},
+      "Documento": {"type": "object", "additionalProperties": false, "required": ["evidencia_id", "obra_id", "turno_id", "tipo_mime", "tamano_bytes", "creado_en", "descripcion", "etiquetas", "atributos", "revision", "sincronizado_en"], "properties": {
+        "evidencia_id": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "obra_id": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "turno_id": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "tipo_mime": {"enum": ["image/jpeg", "image/png", "image/webp"]}, "tamano_bytes": {"type": "integer", "minimum": 1, "maximum": 5242880}, "creado_en": {"type": "string", "format": "date-time", "description": "UTC con precisión BSON milisegundo."}, "sincronizado_en": {"type": "string", "format": "date-time"}, "descripcion": {"$ref": "#/components/schemas/Descripcion"}, "etiquetas": {"$ref": "#/components/schemas/Etiquetas"}, "atributos": {"$ref": "#/components/schemas/Atributos"}, "revision": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}
+      }},
+      "Pagina": {"type": "object", "additionalProperties": false, "required": ["count", "next", "previous", "results", "proyeccion", "fuente_autoritativa"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"], "format": "uri"}, "previous": {"type": ["string", "null"], "format": "uri"}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Documento"}}, "proyeccion": {"const": "EVENTUAL"}, "fuente_autoritativa": {"const": "POSTGRESQL"}}}
+    }
+  },
+  "x-privacy-headers": {"Cache-Control": "private, no-store", "Vary": "Authorization", "X-Content-Type-Options": "nosniff", "X-Correlation-ID": "UUID generado por servidor"}
+}
