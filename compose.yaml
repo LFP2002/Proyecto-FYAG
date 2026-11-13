@@ -16,6 +16,8 @@ services:
 
     environment:
       FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
 
     ports:
       - "8000:8000"
@@ -26,8 +28,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongodb:
-        condition: service_started
       migraciones:
         condition: service_completed_successfully
 
@@ -39,6 +39,9 @@ services:
       - ./backend:/app
     env_file:
       - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +59,8 @@ services:
       - .env
     environment:
       FYAG_ALERTAS_INTERVALO_SEGUNDOS: ${FYAG_ALERTAS_INTERVALO_SEGUNDOS:-60}
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,14 +100,73 @@ services:
 
     restart: unless-stopped
 
+    command: ["mongod", "--auth", "--bind_ip_all"]
+
     environment:
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_INITDB_DATABASE: fyag_documentos
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?Configurar root Mongo local}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?Configurar password root Mongo local}
+      FYAG_MONGO_DB: fyag_documentos
+      FYAG_MONGO_USER: ${FYAG_MONGO_USER:?Configurar usuario aplicacion Mongo}
+      FYAG_MONGO_PASSWORD: ${FYAG_MONGO_PASSWORD:?Configurar password aplicacion Mongo}
+
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "/opt/fyag/database/health_mongodb.js"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
     ports:
-      - "${MONGO_HOST_PORT}:27017"
+      - "127.0.0.1:${MONGO_HOST_PORT}:27017"
 
     volumes:
       - mongodb_data:/data/db
+      - ./database:/opt/fyag/database:ro
+      - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
+
+  documentos_reconciliador:
+    build:
+      context: ./backend
+    command: python manage.py reconciliar_documentos_mongodb --continuo
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migraciones:
+        condition: service_completed_successfully
+
+  # Motor efímero y autenticado EXCLUSIVO QA; no comparte volumen ni credenciales.
+  mongodb_test:
+    image: mongo:8.0
+    profiles: ["test"]
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${FYAG_MONGO_TEST_ROOT_USER:?Configurar root QA}
+      MONGO_INITDB_ROOT_PASSWORD: ${FYAG_MONGO_TEST_ROOT_PASSWORD:?Configurar password root QA}
+      FYAG_MONGO_DB: fyag_documentos_test
+      FYAG_MONGO_USER: ${FYAG_MONGO_TEST_USER:?Configurar usuario QA}
+      FYAG_MONGO_PASSWORD: ${FYAG_MONGO_TEST_PASSWORD:?Configurar password QA}
+    volumes:
+      - ./database:/opt/fyag/database:ro
+      - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "/opt/fyag/database/health_mongodb.js"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 
 volumes:

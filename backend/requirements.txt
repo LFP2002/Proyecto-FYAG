@@ -2,7 +2,7 @@ Django>=5.2,<5.3
 djangorestframework
 djangorestframework-simplejwt
 psycopg[binary]
-pymongo
+pymongo==4.20.0
 django-cors-headers
 python-dotenv
 Pillow>=12.0,<13
