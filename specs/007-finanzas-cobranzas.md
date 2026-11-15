@@ -238,3 +238,10 @@ Este PR **solo define documentación** y no habilita ningún endpoint. El workfl
 - `backend/apps/comercial/{models.py,calculos.py,services_presupuestos.py,permissions.py}`.
 - `backend/apps/obras/{models.py,services_finalizacion.py,services_costos.py,permissions.py}`.
 - `backend/apps/finanzas/`, `backend/config/{urls.py,settings.py}` y `.github/workflows/backend-ci.yml`.
+
+## 12. Seguimiento frontend y observaciones de QA local (14-11-2026)
+
+- `frontend/src/pages/Cobranzas.jsx` está conectado localmente como vista de lectura para GERENCIA/ADMINISTRATIVO_FINANZAS, con filtros y paginación servidor; el trabajo concreto queda registrado en `specs/014-frontend-cobranzas.md`. No habilita los endpoints de escritura de 007B.
+- Suite frontend local del worktree: 159 pruebas aprobadas; build aprobado. No se ejecutó E2E de finanzas con cuentas reales ni Frontend CI en esta sesión.
+- Durante QA, la API de Obras ofreció cero presupuestos. El único presupuesto local observado está `APROBADO_GERENCIA`; la creación de Obra exige `APROBADO_CLIENTE` y que todavía no esté asociado. El flujo restante es envío al cliente y registro de su aprobación conforme a SPEC-003B; no es un defecto del selector de Obras ni debe corregirse alterando manualmente su estado.
+- Esta nota no afirma que la integración frontend esté publicada: sigue en un worktree local, sin commit, push, PR ni merge.

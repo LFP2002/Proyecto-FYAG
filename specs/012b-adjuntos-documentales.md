@@ -125,3 +125,10 @@ Bootstrap autenticado e idempotente y usuario aplicación de mínimo privilegio 
 specs/012-integracion-mongodb.md; backend/apps/documentos/; backend/apps/finanzas/models.py, permissions.py, views_documentos.py, urls.py; backend/apps/obras/evidencias.py, views_turnos.py, services_turnos.py; compose.yaml; backend/requirements.txt y backend/docs/SPEC-012-IMPLEMENTACION.md.
 
 Esta SPEC define requisitos; no afirma que 012B esté implementada ni que el Docker local se haya verificado remotamente.
+
+## 11. Seguimiento y discrepancia del checkout local (14-11-2026)
+
+- No se implementó UI frontend de adjuntos documentales en este worktree. La descarga de fotos de turnos 005C-2 es un flujo distinto y no debe confundirse con `RESPALDO_FACTURA`/`INFORME_TECNICO` de 012B.
+- En la revisión local de `origin/main`, `backend/config/urls.py` incluye `apps.adjuntos.urls` y `backend/apps/adjuntos/urls.py` define rutas de destino, detalle, descarga y anotaciones. Esto contradice la declaración documental «No implementada» de esta SPEC y requiere reconciliación formal antes de cualquier integración frontend.
+- La presencia de rutas en el checkout no certifica aprobación de SPEC, disponibilidad operativa, scanner/almacenamiento configurado ni cumplimiento integral de todos los requisitos 012B. No se llamó ni modificó endpoint de adjuntos.
+- Para desbloquear frontend: el responsable y backend deben confirmar estado real de implementación, OpenAPI, permisos/proyecciones, estabilidad del contrato y aprobación del alcance frontend. No se inventó una interfaz ni un contrato.

@@ -57,7 +57,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     emit('anonymous', null, notice);
   }
 
-  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal } = {}) {
+  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal, responseType } = {}) {
     // No enviar credenciales a URLs externas, ni seguir redirecciones de API.
     if (typeof path !== 'string' || !path.startsWith('/api/') || path.includes('\\') || path.startsWith('/api//')
         || !new URL(path, 'https://request.invalid').pathname.startsWith('/api/')) {
@@ -66,15 +66,18 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     const requestHeaders = new Headers(headers);
     requestHeaders.delete('Authorization');
     requestHeaders.delete('X-CSRFToken');
-    requestHeaders.set('Accept', 'application/json');
-    if (body !== undefined) requestHeaders.set('Content-Type', 'application/json');
+    const wantsBlob = responseType === 'blob' || responseType === 'blob-response';
+    requestHeaders.set('Accept', wantsBlob ? '*/*' : 'application/json');
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isFormData) requestHeaders.set('Content-Type', 'application/json');
+    if (isFormData) requestHeaders.delete('Content-Type');
     if (token) requestHeaders.set('Authorization', `Bearer ${token}`);
     if (csrfToken) requestHeaders.set('X-CSRFToken', csrfToken);
     let response;
     try {
       response = await fetchImpl(origin ? `${origin}${path}` : path, {
         method, headers: requestHeaders, credentials: origin ? 'include' : 'same-origin', redirect: 'error',
-        cache: 'no-store', signal, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        cache: 'no-store', signal, ...(body !== undefined ? { body: isFormData ? body : JSON.stringify(body) } : {}),
       });
     } catch {
       throw new ApiError(0, 'No hay conexión con el servidor. Comprueba tu conexión e inténtalo nuevamente.');
@@ -87,7 +90,11 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
           const data = await response.json();
           const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
-            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page']) allowed.add(field);
+            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]']) allowed.add(field);
+          }
+          if (path.startsWith('/api/alertas/')) {
+            for (const field of ['motivo', 'estado', 'tipo', 'recurso_tipo', 'recurso_id', 'desde', 'hasta', 'page']) allowed.add(field);
+            if (['alerta_ya_atendida', 'alerta_resuelta', 'alerta_desactualizada'].includes(data?.code)) code = data.code;
           }
           if (path.startsWith('/api/usuarios/')) {
             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
@@ -104,6 +111,16 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });
     }
     if (response.status === 204) return null;
+    if (wantsBlob) {
+      try {
+        const blob = await response.blob();
+        const contentType = response.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase() || '';
+        const typedBlob = contentType ? new Blob([blob], { type: contentType }) : blob;
+        return responseType === 'blob-response'
+          ? { blob: typedBlob, contentType, contentDisposition: response.headers.get('Content-Disposition') || '' }
+          : typedBlob;
+      } catch { throw new ApiError(502, 'El servidor devolvió una respuesta inesperada.'); }
+    }
     try {
       return await response.json();
     } catch {

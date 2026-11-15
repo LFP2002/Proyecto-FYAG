@@ -70,7 +70,8 @@ for (const [role, label] of [
     assert.ok(html.includes(label));
     if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo borrador/);
     else if (role === 'SUPERVISOR_OBRAS') assert.match(html, /Nueva obra/);
-    else assert.match(html, /Pendiente de integración/);
+    else if (role === 'GERENCIA') assert.match(html, /Dashboard gerencial/);
+    else if (role === 'TECNICO') assert.match(html, /Mis obras/);
     assert.match(html, /Salir/);
     assert.doesNotMatch(html, /Guardar|Aprobar|Registrar pago|Registrar en bitácora/);
     if (role === 'TECNICO') assert.doesNotMatch(html, /Gerencia|Cobranzas|Presupuestos|Usuarios y roles/);

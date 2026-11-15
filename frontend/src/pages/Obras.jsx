@@ -6,13 +6,13 @@ import { canReadObras, canReadTeam, emptyFilters, filterErrors, OBRA_STATES, ord
 import Categories from '../obras/Categories.jsx';
 import NewObra from '../obras/ObraForm.jsx';
 import ObraDetail from '../obras/ObraDetail.jsx';
-import { Feedback, Field, focusError, ObraStatus, Pager, PendingSection, RefreshButton, useOperational } from '../obras/ui.jsx';
+import { Feedback, Field, focusError, ObraStatus, Pager, RefreshButton, useOperational } from '../obras/ui.jsx';
 
 export default function Obras() {
   const { user } = useAuth(), api = useOperational();
   const [query, setQuery] = useState({ filters: { ...emptyFilters }, page: 1 });
   const [draft, setDraft] = useState({ ...emptyFilters }), [errors, setErrors] = useState({});
-  const [data, setData] = useState(null), [selected, setSelected] = useState(null), [creating, setCreating] = useState(false), [categories, setCategories] = useState(false), [expanded, setExpanded] = useState(false);
+  const [data, setData] = useState(null), [selected, setSelected] = useState(null), [selectedSection, setSelectedSection] = useState('resumen'), [creating, setCreating] = useState(false), [categories, setCategories] = useState(false), [expanded, setExpanded] = useState(false);
   const refreshFlight = useRef(false);
   const path = user.role === T ? `${obraPath()}mis-obras/` : obraPath();
   const read = () => { setData(null); return api.load('list', collectionPath(path, query.page, query.filters), (result) => {
@@ -32,7 +32,7 @@ export default function Obras() {
   const blocked = api.busy || api.loading || api.locked;
   if (!canReadObras(user.role)) return <p role="alert">No tienes acceso a Obras.</p>;
   if (categories && canReadTeam(user.role)) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
-  if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} onBack={() => { setSelected(null); void read(); }} /></section>;
+  if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} initialTab={selectedSection} onBack={() => { setSelected(null); setSelectedSection('resumen'); void read(); }} /></section>;
   return <section className="commercial-page obras-page">
     <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : 'Planificación y seguimiento operativo.'} />
     <div className="budget-toolbar">
@@ -51,13 +51,13 @@ export default function Obras() {
     </form>}
     <Feedback api={api} />
     <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label={user.role === T ? 'Mis obras asignadas' : 'Listado de obras'} tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Código', 'Cliente', 'Categoría', 'Responsable', 'Estado', 'Programación', 'Detalle'].map((label) => <th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>
-      {data?.results.map((obra) => <tr key={obra.id}><td className="commercial-code">{obra.codigo} · #{obra.id}</td><td className="commercial-description">{obra.cliente_nombre} · #{obra.cliente}</td><td>{obra.categoria_nombre} · #{obra.categoria_servicio}</td><td>{obra.tecnico_nombre || 'Sin asignar'}{obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</td><td><ObraStatus state={obra.estado} /></td><td>{shortDate(obra.fecha_programada)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={blocked || creating} onClick={() => setSelected(obra.id)}>Ver obra</button></td></tr>)}
+      {data?.results.map((obra) => <tr key={obra.id}><td className="commercial-code">{obra.codigo} · #{obra.id}</td><td className="commercial-description">{obra.cliente_nombre} · #{obra.cliente}</td><td>{obra.categoria_nombre} · #{obra.categoria_servicio}</td><td>{obra.tecnico_nombre || 'Sin asignar'}{obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</td><td><ObraStatus state={obra.estado} /></td><td>{shortDate(obra.fecha_programada)}</td><td><div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={blocked || creating} onClick={() => { setSelectedSection('resumen'); setSelected(obra.id); }}>Ver obra</button>{user.role === T && <button className="btn btn-fyag-primary btn-sm" disabled={blocked || creating} onClick={() => { setSelectedSection('turnos'); setSelected(obra.id); }}>Ver mis turnos</button>}</div></td></tr>)}
     </tbody></table></div>
-      {data && !data.count && <div className="commercial-empty"><h2>No hay obras para esta consulta.</h2><p>Prueba con otros filtros.</p></div>}
+      {data && !data.count && <div className="commercial-empty"><h2>{user.role === T ? 'No tienes obras asignadas.' : 'No hay obras para esta consulta.'}</h2><p>{user.role === T ? 'Los turnos aparecerán dentro de cada obra cuando te asignen a una.' : 'Prueba con otros filtros.'}</p></div>}
       <Pager label="Paginación de obras" data={data} page={query.page} setPage={(page) => setQuery({ ...query, page })} disabled={blocked || creating} />
       {api.error?.status === 404 && query.page !== 1 && <button className="btn btn-outline-secondary m-3" onClick={() => setQuery({ ...query, page: 1 })}>Volver a la primera página</button>}
     </div>
-    {creating && user.role === S && <NewObra onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); setSelected(id); }} />}
-    {user.role === T && <PendingSection>Mis turnos: pendiente de integración frontend en 005C-2.</PendingSection>}
+    {creating && user.role === S && <NewObra onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); setSelectedSection('resumen'); setSelected(id); }} />}
+
   </section>;
 }

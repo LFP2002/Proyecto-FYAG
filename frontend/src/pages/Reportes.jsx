@@ -1,48 +1,40 @@
-import { useApp } from '../context/AppContext';
-import { fm, pctTxt } from '../utils/format';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui';
+import { Pager } from '../comercial/ui.jsx';
+import { decimalString, positiveInteger, readPage, strictObject, useApi } from '../integrations/useApi.js';
 
-const REPORTES = [
-  { title: 'Reporte de obras', desc: 'Estado, avance y técnico responsable.', roles: ['gerencia'] },
-  { title: 'Reporte de rentabilidad', desc: 'Presupuesto vs costo real y margen.', roles: ['gerencia'] },
-  { title: 'Reporte de cobranza', desc: 'Estados de pago y monto cobrado.', roles: ['gerencia', 'finanzas'] }
-];
-const FORMATOS = ['PDF', 'Excel', 'CSV'];
-
-export default function Reportes() {
-  const { role, obrasC, flash } = useApp();
-  return (
-    <section>
-      <PageHead title="Reportes" sub={role === 'gerencia' ? 'Reportes ejecutivos.' : 'Reporte de cobranza.'} />
-      <div className="row g-3 mb-3">
-        {REPORTES.filter((r) => r.roles.includes(role)).map((r) => (
-          <div key={r.title} className="col-md-4">
-            <div className="card-fyag h-100">
-              <h2>{r.title}</h2>
-              <p className="note mb-3">{r.desc}</p>
-              <div className="d-flex flex-wrap gap-2">
-                {FORMATOS.map((f) => <button key={f} className="btn btn-sm btn-outline-secondary" onClick={() => flash(`${r.title} (${f}) generado.`)}>Descargar {f}</button>)}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {role === 'gerencia' && (
-        <div className="card-fyag">
-          <h2>Rentabilidad por obra</h2>
-          <div style={{ marginTop: 12 }}>
-            {obrasC.filter((o) => o.presupuesto > 0).map((o) => {
-              const p = (o.margen / o.presupuesto) * 100;
-              return (
-                <div key={o.id} className="pg">
-                  <div className="pg-l"><span><strong>{o.id}</strong> · {o.cliente}</span><span><strong className={p >= 0 ? 'fyag-pos' : 'fyag-neg'}>{pctTxt(p)}</strong> · {fm(o.margen)}</span></div>
-                  <div className="track"><div className="fill green" style={{ width: Math.max(0, Math.min(100, p)) + '%' }} /></div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </section>
-  );
+const CATALOG='/api/reportes/catalogo/'; const FORMATS=['csv','xlsx','pdf'];
+const VALID_FILTERS=new Set(['desde','hasta','cliente','estado','fecha_base','page']);
+const FORMAT_MIME={csv:'text/csv',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pdf:'application/pdf'};
+function catalogShape(v,role){strictObject(v,['moneda','zona_horaria','formatos','reportes']);if(v.moneda!=='CLP'||v.zona_horaria!=='America/Santiago'||!Array.isArray(v.formatos)||v.formatos.some(x=>!FORMATS.includes(x))||!Array.isArray(v.reportes))throw new Error('Catálogo de reportes inválido.');const allowed=role==='ADMINISTRATIVO_FINANZAS'?['cobranzas']:role==='GERENCIA'?['obras','rentabilidad','cobranzas']:[];if(v.reportes.some(x=>!allowed.includes(x.tipo)))throw new Error('Catálogo contiene reporte no autorizado.');for(const x of v.reportes){strictObject(x,['tipo','titulo','filtros','formatos']);if(typeof x.titulo!=='string'||!Array.isArray(x.filtros)||x.filtros.some(f=>!VALID_FILTERS.has(f))||!Array.isArray(x.formatos)||x.formatos.some(f=>!FORMATS.includes(f)))throw new Error('Entrada de catálogo inválida.');}return v;}
+function dateValid(v){if(!v)return true;if(!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;const d=new Date(`${v}T00:00:00Z`);return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===v;}
+function validateEnvelope(v,type){strictObject(v,['count','next','previous','results','totales','periodo','moneda','fecha_corte']);if(!Number.isSafeInteger(v.count)||v.count<0||!Array.isArray(v.results)||v.results.length>25||v.moneda!=='CLP')throw new Error('Página de reporte inválida.');strictObject(v.periodo,['desde','hasta']);const numeric=type==='obras'?['obras']:type==='rentabilidad'?['obras']:['documentos'];const decimal=type==='obras'?['presupuesto_neto']:type==='rentabilidad'?['presupuesto_neto','costo_real_neto','margen_neto']:['monto_documentado_bruto','abonado','saldo','saldo_vencido'];strictObject(v.totales,[...numeric,...decimal]);if(v.totales[numeric[0]]!==v.count||decimal.some(k=>!decimalString(v.totales[k],k==='margen_neto')))throw new Error('Totales de reporte inválidos.');for(const row of v.results){if(!row||typeof row!=='object'||Array.isArray(row))throw new Error('Fila inválida.');if(type==='obras'){strictObject(row,['obra','codigo_obra','cliente','cliente_nombre','categoria_nombre','estado','tecnico_responsable','tecnico_nombre','fecha_programada','creado_en','finalizado_en','presupuesto_neto']);if(!positiveInteger(row.obra)||!decimalString(row.presupuesto_neto))throw new Error('Fila de obra inválida.');}if(type==='rentabilidad'){strictObject(row,['obra','codigo_obra','cliente','cliente_nombre','finalizado_en','moneda','presupuesto_neto','costo_real_neto','margen_neto','tiene_cortesia_sin_cobro']);if(!positiveInteger(row.obra)||row.moneda!=='CLP'||!['presupuesto_neto','costo_real_neto'].every(k=>decimalString(row[k]))||!decimalString(row.margen_neto,true))throw new Error('Fila de rentabilidad inválida.');}if(type==='cobranzas'){strictObject(row,['documento','obra','codigo_obra','cliente','cliente_nombre','tipo_documento','folio_externo','fecha_emision','fecha_vencimiento','moneda','monto_documentado_bruto','abonado','saldo','estado_cobranza']);if(!positiveInteger(row.documento)||typeof row.folio_externo!=='string'||row.moneda!=='CLP'||!['monto_documentado_bruto','abonado','saldo'].every(k=>decimalString(row[k])))throw new Error('Fila de cobranza inválida.');}}
+ return v;}
+function buildQuery(type,filters,page,format){const p=new URLSearchParams();for(const [key,value] of Object.entries(filters)){if(value!==''&&value!=null){if(!VALID_FILTERS.has(key))throw new Error('Filtro no permitido.');p.set(key,value);}}if(format)p.set('formato',format);else if(page>1)p.set('page',String(page));return p.size?`?${p}`:'';}
+function validateReportPageLinks(value,type,filters){const pathname=`/api/reportes/${type}/`;for(const link of [value.next,value.previous]){if(!link)continue;const url=new URL(link,globalThis.location?.origin||'http://localhost');const actual=new URLSearchParams(url.search);actual.delete('page');const expected=new URLSearchParams(buildQuery(type,filters,1,''));if(url.origin!==(globalThis.location?.origin||'http://localhost')||url.pathname!==pathname||[...url.searchParams.keys()].some(k=>!VALID_FILTERS.has(k))||[...url.searchParams.keys()].some(k=>url.searchParams.getAll(k).length!==1||!url.searchParams.get(k))||actual.toString()!==expected.toString())throw new Error('El servidor devolvió una página no segura.');}}
+function safeFilename(disposition,type,format){const match=disposition?.match(/filename="(fyag-(?:obras|rentabilidad|cobranzas)-\d{8}-\d{6}\.(?:csv|xlsx|pdf))"/i);if(!match||!match[1].endsWith(`.${format}`)||!match[1].startsWith(`fyag-${type}-`))throw new Error('El servidor devolvió un nombre de archivo inválido.');return match[1];}
+function filtersFor(type){return type==='obras'?['desde','hasta','cliente','estado','fecha_base']:type==='rentabilidad'?['desde','hasta','cliente']:['desde','hasta','cliente','estado'];}
+const label=(key)=>({desde:'Desde',hasta:'Hasta',cliente:'ID de cliente',estado:'Estado actual',fecha_base:'Fecha base'}[key]||key);
+export default function Reportes(){
+ const {user,request}=useAuth();const api=useApi();const [catalog,setCatalog]=useState(null),[selected,setSelected]=useState(''),[filters,setFilters]=useState({desde:'',hasta:'',cliente:'',estado:'',fecha_base:'CREACION'}),[page,setPage]=useState(1),[data,setData]=useState(null),[downloading,setDownloading]=useState(''),[downloadError,setDownloadError]=useState('');
+ const active=catalog?.reportes.find(x=>x.tipo===selected);const formats=active?.formatos||[];const path=selected?`/api/reportes/${selected}/`:'';const listUrl=active?path+buildQuery(selected,filters,page,''):'';
+ const [from,to]=[filters.desde,filters.hasta];const datesError=(!!from!==!!to)||!dateValid(from)||!dateValid(to)||(from&&to&&from>to);const rangeDays=from&&to?(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86400000+1:0;const rangeError=rangeDays>366;const invalidId=!!filters.cliente&&!/^[1-9][0-9]{0,18}$/.test(filters.cliente);const blocked=api.loading||api.busy;
+ useEffect(()=>{if(!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role))return;void api.load('catalog',CATALOG,(v)=>{const result=catalogShape(v,user.role);setCatalog(result);setSelected((current)=>result.reportes.some(x=>x.tipo===current)?current:(result.reportes[0]?.tipo||''));});},[user?.id,user?.role]);
+ useEffect(()=>{setPage(1);setData(null);},[selected]);
+ useEffect(()=>{if(!active)return;setData(null);if(datesError||rangeError||invalidId)return;void api.load('report',listUrl,(v)=>{validateReportPageLinks(v,selected,filters);setData(validateEnvelope(v,selected));});},[listUrl,selected,datesError,rangeError,invalidId]);
+ function setFilter(key,value){setPage(1);setFilters(prev=>({...prev,[key]:value}));}
+ async function download(format){if(!selected||downloading||blocked||datesError||rangeError)return;setDownloading(format);setDownloadError('');let objectUrl;try{const filePath=`/api/reportes/${selected}/exportar/${buildQuery(selected,filters,1,format)}`;const result=await request(filePath,{responseType:'blob-response'});const blob=result.blob;const mime=FORMAT_MIME[format];if(result.contentType!==mime||blob.type.toLowerCase()!==mime)throw new Error('El tipo de archivo descargado no coincide con el formato.');const filename=safeFilename(result.contentDisposition,selected,format);objectUrl=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=objectUrl;anchor.download=filename;anchor.rel='noopener';document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);}catch(error){setDownloadError(error.message||'No se pudo recibir el archivo. No se confirmó ninguna descarga.');if(objectUrl)URL.revokeObjectURL(objectUrl);}finally{setDownloading('');}}
+ if(!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role))return <section><PageHead title="Reportes"/><p role="alert">No tienes permiso para consultar reportes.</p></section>;
+ return <section className="commercial-page"><PageHead title="Reportes" sub="Consultas y exportaciones auténticas desde el backend."/>
+ {api.error&&<div className="alert alert-warning" role="alert">{api.error.status===403?'Acceso denegado.':api.error.status===409?'El origen del reporte requiere revisión; no se muestran totales parciales.':api.error.status===413?'La exportación supera los límites de filas o tamaño.':api.error.status===429?`Límite de exportación. Reintenta en ${api.error.retryAfter||'el tiempo indicado por el servidor'}.`:api.error.message}</div>}
+ {downloadError&&<div className="alert alert-warning" role="alert">{downloadError}</div>}
+ {catalog&&<><div className="d-flex flex-wrap gap-2 mb-3"><label className="form-label">Tipo de reporte<select className="form-select" value={selected} disabled={blocked} onChange={(e)=>setSelected(e.target.value)}>{catalog.reportes.map(r=><option key={r.tipo} value={r.tipo}>{r.titulo}</option>)}</select></label><button className="btn btn-outline-secondary align-self-end" disabled={blocked} onClick={()=>{void api.load('catalog',CATALOG,(v)=>setCatalog(catalogShape(v,user.role)));if(active)void api.reconcile(()=>api.load('report',listUrl,(v)=>{setData(validateEnvelope(v,selected));return true;}));}}>Actualizar</button></div>
+ {active&&<><div className="d-flex flex-wrap gap-2 mb-3 align-items-end">{active.filtros.map(key=><label className="form-label" key={key}>{label(key)}{key==='estado'?<select className="form-select" value={filters.estado} disabled={blocked} onChange={e=>setFilter(key,e.target.value)}><option value="">Todos</option>{(selected==='obras'?['PLANIFICADA','EN_PROCESO','SUSPENDIDA','FINALIZADA','CANCELADA']:['PENDIENTE','PARCIAL','PAGADA','VENCIDA']).map(x=><option key={x}>{x}</option>)}</select>:key==='fecha_base'?<select className="form-select" value={filters.fecha_base||'CREACION'} disabled={blocked} onChange={e=>setFilter(key,e.target.value)}><option value="CREACION">Creación</option><option value="FINALIZACION">Finalización</option></select>:<input className="form-control" type={key==='desde'||key==='hasta'?'date':'text'} inputMode={key==='cliente'?'numeric':undefined} value={filters[key]} disabled={blocked} onChange={e=>setFilter(key,e.target.value)}/>}</label>)}
+ {formats.map(format=><button key={format} className="btn btn-outline-secondary" disabled={blocked||!!downloading||datesError||rangeError} onClick={()=>void download(format)}>{downloading===format?'Preparando…':`Descargar ${format.toUpperCase()}`}</button>)}</div>
+ {datesError&&<p className="text-danger" role="alert">Ingresa Desde y Hasta juntos, en fecha válida y orden ascendente.</p>}{rangeError&&<p className="text-danger" role="alert">El rango máximo es 366 días.</p>}{invalidId&&<p className="text-danger" role="alert">El ID de cliente debe ser entero positivo sin ceros iniciales.</p>}
+ {data&&<><p className="commercial-help">Periodo {data.periodo.desde}–{data.periodo.hasta} · corte {new Date(data.fecha_corte).toLocaleString('es-CL')} · {data.count} registros · CLP</p><p className="commercial-help">{selected==='rentabilidad'?'Rentabilidad de obras finalizadas: el margen neto no representa utilidad contable ni ingreso cobrado.':selected==='obras'?'El presupuesto neto no equivale a ingresos y este reporte no presenta porcentajes de avance.':'Cartera actual de documentos vigentes; no es reconstrucción histórica.'}</p><div className="card-fyag"><h2>Totales del conjunto filtrado</h2><dl className="d-flex flex-wrap gap-4">{Object.entries(data.totales).map(([key,value])=><div key={key}><dt>{label(key)||key.replaceAll('_',' ')}</dt><dd>{value}</dd></div>)}</dl></div><div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label={`Reporte ${selected}`} tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{Object.keys(data.results[0]||{}).map(k=><th key={k}>{label(k)||k.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{data.results.map((row,index)=><tr key={row.obra||row.documento||index}>{Object.entries(row).map(([key,value])=><td key={key}>{value===null?'—':typeof value==='boolean'?value?'Sí':'No':String(value)}</td>)}</tr>)}</tbody></table></div>{data.count===0&&<p className="commercial-empty">No hay filas para este periodo y filtros.</p>}<Pager data={data} page={page} setPage={setPage} disabled={blocked||!!downloading||datesError||rangeError||invalidId} label={`Paginación del reporte ${selected}`}/></div></>}
+ </>}
+ </>}
+ </section>;
 }
