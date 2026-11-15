@@ -276,13 +276,26 @@ La obra terminada **no equivale a facturada/pagada**, y el frontend no debe calc
 
 **Nota histórica:** los encabezados de algunas SPEC-004/004B describen etapas anteriores como pendientes, aunque las API de esos bloques están integradas. Su texto es marco histórico; la disponibilidad real de rutas se verificó en `backend/apps/obras/` en `main` al redactar 005C.
 
-## 13. Seguimiento de implementación frontend local (14-11-2026)
+## 13. Seguimiento local de implementación y correcciones (17-11-2026)
 
-**Estado de publicación:** cambios de código y esta actualización documental están únicamente en el worktree local de `feature/frontend-005c2-turnos`. No hay commit, push, PR ni aprobación de merge registrados aquí. La actualización de este registro no convierte por sí sola el trabajo en una entrega aprobada ni sustituye CI/E2E.
+**Publicación:** baseline de `feature/frontend-005c-integracion-modulos` en `6ad817a` está publicado en esa rama remota. Las correcciones de esta revisión siguen en el worktree local, sin commit/push; no consta PR ni aprobación de merge y `main` no se modificó.
 
-- **005C-1 — fichas/operación:** el checkout local contiene listado, ficha, filtros, participantes, categorías, transiciones y las proyecciones existentes para G/S/AF/T.
-- **005C-2 — turnos/evidencia:** `frontend/src/obras/Turnos.jsx` conecta GET paginado, inicio, cierre/subsanación, revisión/corrección/cierre administrativo y descarga autenticada Blob de evidencia. Desde `Mis obras`, Técnico puede abrir directamente «Ver mis turnos» para una Obra asignada; si el backend devuelve cero Obras, se informa que los turnos se muestran dentro de cada Obra y aún no hay asignación visible.
-- **005C-3 — costos:** `frontend/src/obras/Costos.jsx` consume gastos, control, resumen e historial; habilita escrituras documentadas para Supervisor, lectura completa para Gerencia, resumen mínimo para AF, cortesía y finalización con motivo. El backend mantiene autoridad sobre validación, cálculos y elegibilidad. No agrega factura, pago, cancelación ni reapertura.
-- **Verificación local registrada:** `npm test` aprobó 159 pruebas; `npm run build` aprobó; `git diff --check` no mostró errores y `git diff --name-only -- backend` estuvo vacío. No se ejecutó Frontend CI ni E2E autenticado de estos módulos.
-- **Verificación del entorno local:** durante el diagnóstico del estado vacío de Técnico, el endpoint `GET /api/obras/mis-obras/?page=1` respondió 200; la base local tenía 0 Obras, 0 membresías activas del Técnico y 0 turnos. Se confirmó además un presupuesto en estado `APROBADO_GERENCIA` y 0 presupuestos elegibles para crear Obras; el endpoint exige `APROBADO_CLIENTE` y que el presupuesto no tenga Obra. No se modificaron esos datos.
-- **Pendiente para cerrar 005C:** revisión humana del diff, E2E con datos/cuentas de desarrollo autorizados y aprobación/publicación de cada SPEC/entrega según el flujo de esta guía. No actualizar el encabezado histórico de estado a «integrado en main» hasta comprobar PR, merge y CI reales.
+- **005C-1 — fichas/operación:** listado, ficha, filtros, participantes, categorías, transiciones y proyecciones de G/S/AF/T.
+- **005C-2 — turnos/evidencia:** `frontend/src/obras/Turnos.jsx` conecta GET paginado, inicio, cierre/subsanación, revisión/corrección/cierre administrativo y descarga autenticada Blob. Técnico puede abrir «Ver mis turnos» desde una Obra asignada. En el diagnóstico local, API devolvió cero Obras; BD tenía cero Obras, membresías activas de Técnico y turnos. Sin Obra asignada no hay contexto de turnos.
+- **005C-3 — costos:** `frontend/src/obras/Costos.jsx` consume gastos, control, resumen e historial con permisos contractuales. «Materiales y gastos» presenta captura/listado; «Costos» presenta resumen, control, historial económico, cortesía y finalización. Las dos pestañas ya no duplican contenido; se carga cada sección según la pestaña y el rol. No hay facturación, pagos, cancelación ni reapertura.
+- **Reportes:** filtros, consultas, paginación y exportaciones están limitados por el tipo y el catálogo de la respuesta. Cambiar tipo conserva solo filtros compatibles, vuelve a página 1 y descarta respuestas anteriores. Export omite `page`, valida formato y filtros; para `fecha_base=FINALIZACION` exige `estado=FINALIZADA`. Pruebas de export usan Blob simulado, no backend real.
+- **Dashboard:** regex ISO de dígitos, validación civil de fecha/calendario, pareja de fechas, tope de 366 días y no permitir futuro; borra snapshots de resumen/serie/obras activas al refrescar para no presentar valores anteriores como vigentes.
+- **Alertas:** historial paginado vuelve a consultar al cambiar página. `useApi.safePage` aplica allowlist por ruta; valida origen/ruta, filtros contractuales, unicidad, valores y página positiva.
+- **Cobranzas:** lista y resumen se vinculan a la selección de filtros/página y solo se publican en conjunto; cargas, selecciones nuevas y errores ocultan snapshots anteriores.
+- **Verificación local:** `npm test` aprobó 165 pruebas; `npm run build` aprobó; `git diff --check` limpio; `git diff --name-only -- backend` vacío. Grupos focalizados aprobados: integraciones 11, Costos 4, Obras 32. No se ejecutaron Frontend CI ni E2E con backend real.
+- El presupuesto disponible observado en QA está `APROBADO_GERENCIA`; crear Obra requiere `APROBADO_CLIENTE` y no tener Obra asociada. El selector vacío coincide con el contrato; no se alteraron registros.
+
+## 14. Módulos aún pendientes y bloqueos de alcance/contrato (17-11-2026)
+
+- **Finanzas — alta/detalle de documentos, pagos, historiales, reversión/anulación:** la UI actual es cartera/resumen de lectura. SPEC-014 excluye estas escrituras; antes de implementarlas hace falta una extensión frontend aprobada e integrada. No representar emisión de DTE ni movimiento de fondos.
+- **Adjuntos:** no hay UI local para cargar/listar/ver/descargar respaldos de factura o informes técnicos. 012B sigue siendo propuesta documental pendiente; rutas del checkout no acreditan aprobación frontend ni verificación integral de permisos, scanner y almacenamiento.
+- **Metadatos documentales:** no se conectó consulta/edición CAS de anotaciones. SPEC-012A explícitamente excluye frontend en su entrega. Requiere contrato UI/RBAC aprobado, recarga ante 409 y no sobrescribir revisiones ajenas.
+- **Auditoría global:** no hay pantalla frontend. SPEC-008 no incluye UI y su estado declarado de API contradice rutas/vista presentes en el checkout observado; reconciliar estado real, OpenAPI y permisos, y aprobar SPEC frontend antes de programar.
+- No se inventaron contratos ni se cambió `backend/`. Para cerrar la integración quedan revisión humana del diff y validación E2E autorizada; no afirmar merge/CI hasta comprobarlos.
+
+

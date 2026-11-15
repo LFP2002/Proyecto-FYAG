@@ -5,7 +5,7 @@ import { Pager } from '../comercial/ui.jsx';
 import { decimalString, positiveInteger, readPage, strictObject, useApi } from '../integrations/useApi.js';
 
 const STATES = ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA'];
-const URL = '/api/finanzas/cobranzas/';
+const COLLECTION_URL = '/api/finanzas/cobranzas/';
 const SUMMARY = '/api/finanzas/cobranzas/resumen/';
 function queryString(filters, page, includePage) {
   const params = new URLSearchParams();
@@ -22,7 +22,7 @@ function safeNext(value, filters) {
     const actualFilters = new URLSearchParams(url.search); actualFilters.delete('page');
     const expectedFilters = new URLSearchParams(queryString(filters, 1, false));
     const page = url.searchParams.get('page');
-    if (url.origin !== origin || url.pathname !== URL || [...url.searchParams.keys()].some((key) => !allowed.has(key))
+    if (url.origin !== origin || url.pathname !== COLLECTION_URL || [...url.searchParams.keys()].some((key) => !allowed.has(key))
         || [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length !== 1 || !url.searchParams.get(key))
         || actualFilters.toString() !== expectedFilters.toString() || (page && !/^[1-9][0-9]*$/.test(page))) throw new Error('invalid');
     return Number(page || 1);
@@ -52,19 +52,25 @@ function FilterField({ name, title, value, onChange, type = 'text' }) {
 }
 export default function Cobranzas() {
   const { user } = useAuth(); const api = useApi();
-  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [filters, setFilters] = useState({ estado:'', cliente:'', obra:'', fecha_vencimiento_desde:'', fecha_vencimiento_hasta:'', fecha_emision_desde:'', fecha_emision_hasta:'' }), [page,setPage]=useState(1);
-  const url=useMemo(()=>URL+queryString(filters,page,true),[filters,page]);
+  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState({ estado:'', cliente:'', obra:'', fecha_vencimiento_desde:'', fecha_vencimiento_hasta:'', fecha_emision_desde:'', fecha_emision_hasta:'' }), [page,setPage]=useState(1);
+  const generation=React.useRef(0);
+  const url=useMemo(()=>COLLECTION_URL+queryString(filters,page,true),[filters,page]);
   const summaryUrl=useMemo(()=>SUMMARY+queryString(filters,1,false),[filters]);
-  const reloadList=()=>{
-    if(invalidId||invalidDates){setData(null);return Promise.resolve(false);}
-    return api.load('cobranzas',url,(result)=>{const next=safeNext(result.next,filters),previous=safeNext(result.previous,filters);setData({...readPage(result,URL),results:result.results.map(rowShape),next:next?`?page=${next}`:null,previous:previous?`?page=${previous}`:null});});
+  const currentSnapshotKey=`${url}\n${summaryUrl}`;
+  const reload=async()=>{
+    const current=++generation.current;
+    setData(null);setSummary(null);setSnapshotKey(null);
+    if(invalidId||invalidDates)return false;
+    let listSnapshot=null,summarySnapshot=null;
+    const [listOk,summaryOk]=await Promise.all([
+      api.load('cobranzas',url,(result)=>{const next=safeNext(result.next,filters),previous=safeNext(result.previous,filters);listSnapshot={...readPage(result,COLLECTION_URL),results:result.results.map(rowShape),next:next?`?page=${next}`:null,previous:previous?`?page=${previous}`:null};}),
+      api.load('resumen',summaryUrl,(result)=>{summarySnapshot=summaryShape(result);})
+    ]);
+    if(current!==generation.current)return false;
+    if(!listOk||!summaryOk||!listSnapshot||!summarySnapshot){setData(null);setSummary(null);return false;}
+    setData(listSnapshot);setSummary(summarySnapshot);setSnapshotKey(currentSnapshotKey);return true;
   };
-  const reloadSummary=()=>{
-    if(invalidId||invalidDates){setSummary(null);return Promise.resolve(false);}
-    return api.load('resumen',summaryUrl,(result)=>setSummary(summaryShape(result)));
-  };
-  const reload=async()=>{const [a,b]=await Promise.all([reloadList(),reloadSummary()]);return a&&b;};
-  useEffect(()=>{void reloadList();},[url]); useEffect(()=>{void reloadSummary();},[summaryUrl]);
+  useEffect(()=>{void reload();},[url,summaryUrl]);
   const blocked=api.loading||api.busy;
   const invalidId = ['cliente','obra'].some((key)=>filters[key]&&!/^[1-9][0-9]{0,18}$/.test(filters[key]));
   const invalidDates = ['fecha_emision','fecha_vencimiento'].some((field)=>!!filters[`${field}_desde`]!==!!filters[`${field}_hasta`]||(filters[`${field}_desde`]&&filters[`${field}_hasta`]&&filters[`${field}_desde`]>filters[`${field}_hasta`]));
@@ -81,11 +87,11 @@ export default function Cobranzas() {
       {['fecha_emision','fecha_vencimiento'].map((field)=><React.Fragment key={field}><FilterField name={`${field}_desde`} title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} desde`} type="date" value={filters[`${field}_desde`]} onChange={(v)=>change(`${field}_desde`,v)} /><FilterField name={`${field}_hasta`} title="hasta" type="date" value={filters[`${field}_hasta`]} onChange={(v)=>change(`${field}_hasta`,v)} /></React.Fragment>)}
     </div>
     {invalidId&&<p className="text-danger" role="alert">Los IDs de Cliente y Obra deben ser enteros positivos sin ceros iniciales.</p>}{invalidDates&&<p className="text-danger" role="alert">Completa cada par de fechas y conserva el orden desde/hasta.</p>}
-    {summary&&<div className="kpis">{[['Documentos',String(summary.documentos)],['Documentado bruto CLP',summary.monto_documentado_total],['Abonado CLP',summary.abonado_total],['Saldo CLP',summary.saldo_total],['Saldo vencido CLP',summary.saldo_vencido]].map(([label,value])=><div key={label} className="kpi"><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>}
+    {snapshotKey===currentSnapshotKey&&summary&&<div className="kpis">{[['Documentos',String(summary.documentos)],['Documentado bruto CLP',summary.monto_documentado_total],['Abonado CLP',summary.abonado_total],['Saldo CLP',summary.saldo_total],['Saldo vencido CLP',summary.saldo_vencido]].map(([label,value])=><div key={label} className="kpi"><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>}
     {api.loading&&<p role="status">Cargando cartera…</p>}
-    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label="Cartera de cobranzas" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Folio externo','Obra','Cliente','Emisión','Vencimiento','Neto CLP','Impuesto CLP','Bruto CLP','Abonado CLP','Saldo CLP','Estado'].map((x)=><th scope="col" key={x}>{x}</th>)}</tr></thead><tbody>{data?.results.map((row)=><tr key={row.id}><td>{row.folio_externo}</td><td>{row.origen.codigo_obra} · #{row.origen.obra}</td><td>{row.origen.cliente.nombre_legal}</td><td>{row.fecha_emision}</td><td>{row.fecha_vencimiento}</td><td>{row.monto_neto}</td><td>{row.monto_impuesto}</td><td>{row.monto_total}</td><td>{row.cobranza.abonado}</td><td>{row.cobranza.saldo}</td><td>{row.cobranza.estado}</td></tr>)}</tbody></table></div>
-      {data&&!data.count&&<p className="commercial-empty">No hay documentos vigentes para esos filtros.</p>}
-      <Pager data={data} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />
+    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label="Cartera de cobranzas" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Folio externo','Obra','Cliente','Emisión','Vencimiento','Neto CLP','Impuesto CLP','Bruto CLP','Abonado CLP','Saldo CLP','Estado'].map((x)=><th scope="col" key={x}>{x}</th>)}</tr></thead><tbody>{(snapshotKey===currentSnapshotKey?data?.results:null)?.map((row)=><tr key={row.id}><td>{row.folio_externo}</td><td>{row.origen.codigo_obra} · #{row.origen.obra}</td><td>{row.origen.cliente.nombre_legal}</td><td>{row.fecha_emision}</td><td>{row.fecha_vencimiento}</td><td>{row.monto_neto}</td><td>{row.monto_impuesto}</td><td>{row.monto_total}</td><td>{row.cobranza.abonado}</td><td>{row.cobranza.saldo}</td><td>{row.cobranza.estado}</td></tr>)}</tbody></table></div>
+      {snapshotKey===currentSnapshotKey&&data&&!data.count&&<p className="commercial-empty">No hay documentos vigentes para esos filtros.</p>}
+      <Pager data={snapshotKey===currentSnapshotKey?data:null} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />
     </div>
     <p className="commercial-help">FYAG registra documentos externos; no emite DTE ni procesa pagos. Totales y estados vienen de Finanzas.</p>
   </section>;

@@ -123,8 +123,16 @@ Criterios de aceptaci├│n: cartera real y resumen consultan API; paginaci├�
 - `frontend/AGENTS.md`, `frontend/src/app.jsx`, `frontend/src/data/constants.js`.
 - `frontend/src/auth/{AuthContext.jsx,client.js}`, `frontend/src/comercial/{api.js,ui.jsx,scope.js}`.
 
+## 12. Verificación de correcciones locales (14-11-2026)
+
+- Cobranzas invalida las cifras de lista/resumen al iniciar consultas y solo publica ambas respuestas cuando las dos corresponden a la clave actual de filtros+página. Fallos, filtros inválidos y respuestas tardías dejan el snapshot oculto.
+- `frontend/tests/integrations-domain.test.js` prueba el fallo de lectura tras cargar cifras previas. La última suite completa pasó 165 pruebas; build pasó; diff check limpio y `backend/` intacto. No se ejecutó E2E/Frontend CI.
+
 ## 11. Seguimiento de implementación local (14-11-2026)
 
 - En el worktree local existe `frontend/src/pages/Cobranzas.jsx`, montado para GERENCIA y ADMINISTRATIVO_FINANZAS. Consulta `/api/finanzas/cobranzas/` y `/api/finanzas/cobranzas/resumen/`, con filtros/paginación de servidor y solo lectura; no implementa altas, pagos, reversos ni detalle no aprobado.
 - `frontend/tests/integrations-domain.test.js` incluye pruebas de consultas/roles para Cobranzas. La suite completa local aprobó 159 pruebas y `npm run build` aprobó el 14-11-2026; CI y E2E de UI con cuentas reales no se ejecutaron.
-- Los cambios siguen locales, sin commit/push/PR/merge. El estado de aprobación/integración documental de esta SPEC no cambia por esta nota; revisar y autorizar antes de publicar.
+- Correcciones locales: la tabla y resumen se limpian al iniciar una consulta y solo se publican juntos tras validar ambas respuestas; si falla cualquiera, no se conservan cifras anteriores ni se muestra un snapshot parcial.
+- Regresión añadida en `frontend/tests/integrations-domain.test.js` para fallo de lectura tras una respuesta previa. Suite completa más reciente: 165 aprobadas; `npm run build` aprobado; `git diff --check` limpio; `git diff --name-only -- backend` vacío. No se ejecutó E2E ni Frontend CI.
+- Los cambios siguen locales en `feature/frontend-005c-integracion-modulos`, sin commit/push/PR/merge. El estado de aprobación/integración documental de esta SPEC no cambia por esta nota.
+- Finanzas de escritura (alta/detalle de documentos, pagos, historiales, reversión/anulación) permanece pendiente: SPEC-014 autoriza solo cartera/resumen de lectura y excluye estas acciones. Requiere ampliación frontend aprobada antes de implementarse.

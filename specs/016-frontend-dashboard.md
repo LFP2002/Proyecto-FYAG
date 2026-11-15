@@ -93,8 +93,16 @@ Archivos candidatos posteriores: `frontend/src/pages/Dashboard.jsx` (reescritura
 - `specs/010-dashboard-backend.md`; `backend/docs/openapi/SPEC-010-v1.json`; `backend/apps/dashboard/`.
 - `frontend/AGENTS.md`, `frontend/src/app.jsx`, `frontend/src/data/constants.js`, `frontend/src/auth/{AuthContext.jsx,client.js}`, `frontend/src/comercial/{ui.jsx,scope.js}`.
 
+## 12. Verificación de fechas y datos locales (14-11-2026)
+
+- `validDashboardRange()` usa regex ISO de dígitos, valida día civil/calendario, fechas emparejadas, máximo 366 días y no permite fecha final futura.
+- Resumen, serie y obras activas se vacían antes de una carga/refresh; errores no dejan cifras de un filtro anterior presentadas como actuales. Regresiones de fecha en `frontend/tests/integrations-domain.test.js`.
+- Suite completa local: 165 aprobadas; build aprobado; diff check limpio y backend sin cambios. No se ejecutaron E2E ni Frontend CI.
+
 ## 11. Seguimiento de implementación local (14-11-2026)
 
 - El worktree local contiene `frontend/src/pages/Dashboard.jsx`, montado solo para GERENCIA; consulta `/api/dashboard/resumen/`, `/api/dashboard/serie-obras/` y `/api/dashboard/obras-activas/`, sin mocks ni agregación financiera en React.
 - `frontend/tests/integrations-domain.test.js` cubre las consultas Dashboard. La suite local completa aprobó 159 pruebas y el build aprobó; E2E autenticado y Frontend CI no se ejecutaron.
-- El código permanece local, sin commit/push/PR/merge. Esta anotación registra implementación presente, pero no cambia el estado de aprobación documental borrador descrito arriba.
+- Correcciones locales: la expresión de fecha ISO reconoce dígitos y comprueba fecha civil real, límite hasta hoy y rango máximo inclusivo. Resumen, serie y obras activas se limpian antes de recargar para no presentar cifras antiguas si la API falla.
+- Pruebas en `frontend/tests/integrations-domain.test.js` cubren fechas válidas, formato/calendario inválido y fecha futura. Última suite completa: 165 aprobadas; build aprobado; diff check limpio; backend sin cambios. No se ejecutó E2E ni Frontend CI.
+- El código permanece local en `feature/frontend-005c-integracion-modulos`, sin commit/push/PR/merge. Suite completa más reciente: 165 pruebas aprobadas; build aprobado; diff check limpio y backend intacto. No se ejecutaron E2E ni Frontend CI. Esta anotación registra implementación presente, pero no cambia el estado de aprobación documental borrador descrito arriba.

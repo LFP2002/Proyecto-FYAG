@@ -130,8 +130,16 @@ Pruebas automatizadas frontend:
 - `backend/apps/alertas/{urls.py,views.py,serializers.py,catalogo.py,permissions.py}` y `backend/config/urls.py`.
 - `frontend/AGENTS.md`, `frontend/src/app.jsx`, `frontend/src/data/constants.js`, `frontend/src/auth/{AuthContext.jsx,client.js}`, `frontend/src/comercial/{ui.jsx,scope.js}`.
 
+## 12. Verificación de paginación local (14-11-2026)
+
+- La selección de alerta carga el historial y un cambio de `historyPage` solicita `/api/alertas/{id}/historial/?page=N`; el control no avanza cuando no existen eventos.
+- `useApi.safePage()` permite únicamente los filtros/página contractuales de Alertas y comprueba origen/path, parámetros únicos, tipos, pareja/rango de fechas e IDs positivos; pruebas rechazan origen externo y query duplicada.
+- Suite completa local: 165 aprobadas; build aprobado; diff check limpio y backend sin cambios. No se ejecutaron E2E ni Frontend CI.
+
 ## 11. Seguimiento de implementación local (14-11-2026)
 
 - El worktree local contiene `frontend/src/pages/Alertas.jsx`, montado para GERENCIA y SUPERVISOR_OBRAS. La UI consume resumen/listado, filtros, paginación, detalle/historial y atención motivada según las acciones permitidas por la API, reutilizando `useAuth().request`.
 - `frontend/tests/integrations-domain.test.js` prueba consultas y matriz por rol; la suite completa local aprobó 159 pruebas y el build aprobó. No se ejecutó E2E de navegador contra cuentas reales ni Frontend CI.
-- Implementación no publicada: sin commit, push, PR ni merge. Se conserva el estado de aprobación/integración documental indicado al inicio de esta SPEC; este registro no lo altera.
+- Correcciones locales: el historial de una alerta vuelve a consultarse al seleccionar otra página (`?page=N`); `useApi.safePage()` permite los filtros propios de `/api/alertas/` manteniendo las comprobaciones de mismo origen, endpoint, parámetros únicos y página positiva. El control de paginación se deshabilita si no hay eventos.
+- Regresiones en `frontend/tests/integrations-domain.test.js` verifican historial de página 2, filtros paginados y rechazo de origen externo/parámetros duplicados. Última suite completa: 165 aprobadas; build aprobado; `git diff --check` limpio; diff de backend vacío. E2E y Frontend CI no ejecutados.
+- Implementación no publicada: permanece en `feature/frontend-005c-integracion-modulos`, sin commit, push, PR ni merge. Suite completa más reciente: 165 pruebas aprobadas; build aprobado; diff check limpio y backend intacto. No se ejecutó Frontend CI ni E2E autenticado. Se conserva el estado de aprobación/integración documental indicado al inicio de esta SPEC; este registro no lo altera.

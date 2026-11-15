@@ -48,10 +48,12 @@ export default function Alertas() {
   const [reason, setReason] = useState(''), [attending, setAttending] = useState(false);
   const role = user.role, listPath = '/api/alertas/';
   const query = useMemo(() => ({ ...filters, ...(page > 1 ? { page: String(page) } : {}) }), [filters, page]);
-  const dateRangeInvalid = (!!filters.desde !== !!filters.hasta) || (!!filters.desde && !!filters.hasta && filters.desde > filters.hasta);
-  const dateRangeTooWide = filters.desde && filters.hasta && (Date.parse(`${filters.hasta}T00:00:00Z`) - Date.parse(`${filters.desde}T00:00:00Z`)) / 86400000 > 365;
+  const validDate=(value)=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
+  const dateRangeInvalid = (!!filters.desde !== !!filters.hasta) || (!!filters.desde && !!filters.hasta && (!validDate(filters.desde)||!validDate(filters.hasta)||filters.desde > filters.hasta));
+  const dateRangeTooWide = !dateRangeInvalid&&filters.desde&&filters.hasta&&(Date.parse(`${filters.hasta}T00:00:00Z`)-Date.parse(`${filters.desde}T00:00:00Z`))/86400000>365;
   const idInvalid = !!filters.recurso_id && (!filters.recurso_tipo || !/^[1-9][0-9]{0,18}$/.test(filters.recurso_id));
   const listUrl = useMemo(() => safePage(listPath, page, filters), [page, filters]);
+  const historyPath = selected ? `/api/alertas/${selected}/historial/` : '';
   const reloadSummary = () => api.load('summary', '/api/alertas/resumen/', (value) => setSummary(summaryShape(value, role)));
   const reloadList = () => {
     if (dateRangeInvalid || dateRangeTooWide || idInvalid) { setPageData(null); return Promise.resolve(false); }
@@ -60,17 +62,17 @@ export default function Alertas() {
   const reload = async () => { const [a,b] = await Promise.all([reloadSummary(), reloadList()]); return a && b; };
   useEffect(() => { setPageData(null); void reloadList(); }, [listUrl]);
   useEffect(() => { void reloadSummary(); }, [role]);
+  useEffect(() => { if (!selected) return; setHistory(null); const suffix=historyPage>1?`?page=${historyPage}`:'';void api.load('history',`${historyPath}${suffix}`,(value)=>setHistory(readPage(value,historyPath))); }, [historyPath, historyPage]);
   const blocked = api.busy || api.loading || api.locked || attending;
   async function choose(id) {
     setSelected(id); setDetail(null); setHistory(null); setHistoryPage(1);
     await api.load('detail', `/api/alertas/${id}/`, (value) => setDetail(alertRow(value, role)));
-    await api.load('history', `/api/alertas/${id}/historial/`, (value) => setHistory(readPage(value, `/api/alertas/${id}/historial/`)));
   }
   async function reloadSelected() {
     if (!selected) return true;
     const [d,h] = await Promise.all([
       api.load('detail', `/api/alertas/${selected}/`, (value) => setDetail(alertRow(value, role))),
-      api.load('history', `/api/alertas/${selected}/historial/${historyPage > 1 ? `?page=${historyPage}` : ''}`, (value) => setHistory(readPage(value, `/api/alertas/${selected}/historial/`)))
+      api.load('history', `${historyPath}${historyPage > 1 ? `?page=${historyPage}` : ''}`, (value) => setHistory(readPage(value, historyPath)))
     ]);
     return d && h;
   }
@@ -83,7 +85,7 @@ export default function Alertas() {
         setDetail(alertRow(saved, role)); setReason('');
         await api.requiredLoad('list', listUrl, (v) => setPageData({ ...readPage(v, listPath), results: v.results.map((row) => alertRow(row, role)) }));
         await api.requiredLoad('summary', '/api/alertas/resumen/', (v) => setSummary(summaryShape(v, role)));
-        await api.requiredLoad('history', `/api/alertas/${selected}/historial/${historyPage > 1 ? `?page=${historyPage}` : ''}`, (v) => setHistory(readPage(v, `/api/alertas/${selected}/historial/`)));
+        await api.requiredLoad('history', `${historyPath}${historyPage > 1 ? `?page=${historyPage}` : ''}`, (v) => setHistory(readPage(v, historyPath)));
       });
     } finally { setAttending(false); }
   }
@@ -109,7 +111,7 @@ export default function Alertas() {
     {selected && <article className="card-fyag commercial-detail"><div className="commercial-section-head"><h2>{detail?.titulo||`Alerta #${selected}`}</h2><button className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>{setSelected(null);setDetail(null);}}>Cerrar</button></div>
       {detail&&<><p>{detail.descripcion}</p><p>{detail.tipo} · {detail.severidad} · {detail.estado} · {detail.recurso_tipo} {detail.recurso_codigo||`#${detail.recurso_id}`}</p>{detail.motivo_atencion&&<p>Motivo de atención: {detail.motivo_atencion}</p>}
       {detail.acciones_permitidas.includes('ATENDER')&&<form className="commercial-form" onSubmit={attend}><label className="form-label" htmlFor="alert-reason">Motivo para atender</label><textarea id="alert-reason" className="form-control" value={reason} maxLength={2000} required disabled={blocked} onChange={(e)=>setReason(e.target.value)} /><button className="btn btn-fyag-primary mt-2" disabled={blocked||!reason.trim()}>Atender alerta</button></form>}</>}
-      <section className="commercial-history"><h3>Historial</h3><ol>{history?.results.map((event)=><li key={event.id}>{event.tipo}: {event.estado_anterior||'—'} → {event.estado_nuevo} · {new Date(event.registrado_en).toLocaleString('es-CL')} {event.motivo}</li>)}</ol><Pager data={history} page={historyPage} setPage={setHistoryPage} disabled={blocked} label="Paginación del historial" /></section>
+      <section className="commercial-history"><h3>Historial</h3><ol>{history?.results.map((event)=><li key={event.id}>{event.tipo}: {event.estado_anterior||'—'} → {event.estado_nuevo} · {new Date(event.registrado_en).toLocaleString('es-CL')} {event.motivo}</li>)}</ol><Pager data={history} page={historyPage} setPage={setHistoryPage} disabled={blocked || !history?.results?.length} label="Paginación del historial" /></section>
     </article>}
   </section>;
 }

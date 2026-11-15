@@ -110,9 +110,18 @@ Archivos candidatos: `frontend/src/pages/Reportes.jsx` (reescritura), `frontend/
 - `specs/011-reportes-backend.md`; `backend/docs/openapi/SPEC-011-v1.json`; `backend/apps/reportes/`.
 - `frontend/AGENTS.md`, `frontend/src/app.jsx`, `frontend/src/data/constants.js`, `frontend/src/auth/{AuthContext.jsx,client.js}`, `frontend/src/comercial/{ui.jsx,scope.js}`.
 
+## 12. Filtros y exportación: regresión local (14-11-2026)
+
+- Listado, paginación y export usan filtros permitidos por la intersección del tipo y del catálogo recibido. Al cambiar de reporte se reinicia página/datos y conservan solo filtros compatibles; las respuestas tardías del reporte anterior se descartan.
+- Exportaciones envían query sin `page`, con formato habilitado por catálogo, filtros del tipo, IDs/fechas validados y `FINALIZADA` requerida al pedir obras por fecha de finalización. CSV/XLSX/PDF se ejercitaron con Blob simulado en tests, no se validaron contra el backend real.
+- Suite completa local: 165 pruebas aprobadas; build aprobado; diff check limpio y backend sin cambios. E2E y Frontend CI no se ejecutaron.
+
 ## 11. Seguimiento de implementación local (14-11-2026)
 
 - El worktree local contiene `frontend/src/pages/Reportes.jsx`, montado para GERENCIA y ADMINISTRATIVO_FINANZAS, con catálogo y listados JSON autorizados por el rol; se conserva la proyección mínima de AF y no se calculan importes/totales en React.
 - El AuthClient local ahora tiene soporte retrocompatible para Blob y metadatos de respuesta; `frontend/tests/auth-client.test.js` lo cubre. La cobertura de Reportes en `frontend/tests/integrations-domain.test.js` verifica catálogo/listado JSON, no certifica exportación CSV/XLSX/PDF contra servidor real.
 - Suite completa local: 159 pruebas aprobadas; `npm run build` aprobado. No se ejecutaron E2E ni Frontend CI. Código y nota permanecen locales, sin commit/push/PR/merge.
+- Correcciones locales: filtros y exportaciones aplican whitelist por tipo; al cambiar reporte se conservan solo filtros compatibles, se reinicia la página y se descartan respuestas/datos anteriores. El cambio de tipo se bloquea durante descarga.
+- Regresiones en `frontend/tests/integrations-domain.test.js` cubren los tres formatos de exportación, exclusividad de filtros, cambio de tipo, finalización de Obras y respuestas obsoletas. Última suite completa: 165 aprobadas; build aprobado; `git diff --check` limpio; backend sin cambios. Las exportaciones se probaron contra simulador frontend, no E2E backend; Frontend CI no ejecutado.
+- El código permanece en `feature/frontend-005c-integracion-modulos`, sin commit/push/PR/merge. Suite completa más reciente: 165 pruebas aprobadas; build aprobado; diff check limpio y backend intacto. No se ejecutó Frontend CI. Las descargas se ejercitaron con Blob simulado en pruebas frontend; la validación de archivos CSV/XLSX/PDF contra respuestas reales del backend y E2E autenticado no se ejecutaron.
 - El estado de SPEC-017 sigue siendo el borrador documental indicado arriba; esta nota de avance local no equivale a aprobación ni activa por sí sola la fase 2 de exportación.
