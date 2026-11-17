@@ -149,6 +149,57 @@ test('Cobranzas recibe callbacks de pago y actualiza lista administrativa, carte
   try{const root=ui.renderer.root;await click(root,'Consultar / administrar');await paymentForm(root);const before=backend.calls.length;await submit(root,'Registro de pago informado');const reads=backend.calls.slice(before).filter((c)=>c.method==='GET');for(const prefix of ['/api/finanzas/documentos/?','/api/finanzas/cobranzas/','/api/finanzas/cobranzas/resumen/'])assert.ok(reads.some((c)=>c.path.startsWith(prefix)),prefix);assert.match(text(ui.renderer.toJSON()),/75\.00/);}finally{await ui.close();}
 });
 
+test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin permitir cargas ni PATCH',async()=>{
+  for(const role of ['GERENCIA','ADMINISTRATIVO_FINANZAS']){
+    const backend=financeBackend(),historical={...doc(),estado:'REVERTIDO',cobranza:null};
+    backend.documents=[historical];
+    const file={id:44,tipo:'RESPALDO_FACTURA',destino:{documento_cobro:11},nombre_visible:'factura-historica.pdf',
+      mime:'application/pdf',tamano_bytes:25,estado:'DISPONIBLE',registrado_por:9,registrado_en:'2026-11-17T12:00:00Z'};
+    const calls=[];
+    const request=(path,options={})=>{
+      if(!path.startsWith('/api/adjuntos/'))return backend.request(path,options);
+      calls.push({path,...options});
+      if(path==='/api/adjuntos/documentos-cobro/11/?page=1')return Promise.resolve({count:1,next:null,previous:null,results:[file]});
+      if(path==='/api/adjuntos/44/anotaciones/')return Promise.resolve({adjunto_id:44,tipo:'RESPALDO_FACTURA',destino_id:11,
+        mime:file.mime,tamano_bytes:file.tamano_bytes,registrado_en:file.registrado_en,sincronizado_en:file.registrado_en,
+        descripcion:'Respaldo histórico',etiquetas:[],atributos:{},revision:1});
+      throw new Error(`Ruta documental no esperada: ${path}`);
+    };
+    const ui=await mount(FinanceDocument,request,role,{document:historical,onClose(){}});
+    try{
+      const root=ui.renderer.root;
+      assert.equal(calls.length,0,'la sección debe cargar solo al abrirse');
+      await click(root,'Consultar respaldos documentales');
+      assert.ok(calls.some((c)=>c.path==='/api/adjuntos/documentos-cobro/11/?page=1'));
+      assert.match(text(ui.renderer.toJSON()),/factura-historica\.pdf/);
+      assert.equal(root.findAllByType('button').some((b)=>text(b)==='Subir archivo privado'),false);
+      await click(root,'Anotaciones');
+      assert.match(text(ui.renderer.toJSON()),/Consulta de solo lectura/);
+      assert.equal(root.findAllByType('button').some((b)=>text(b)==='Guardar anotaciones'),false);
+      assert.equal(calls.filter((c)=>['POST','PATCH'].includes(c.method)).length,0);
+      await click(root,'Ocultar respaldos documentales');
+      assert.equal(root.findAllByProps({'aria-label':'Adjuntos de factura externa'}).length,0);
+    }finally{await ui.close();}
+  }
+});
+test('Factura vigente: Finanzas puede subir respaldos y Gerencia solo consultarlos',async()=>{
+  for(const role of ['GERENCIA','ADMINISTRATIVO_FINANZAS']){
+    const backend=financeBackend(),calls=[];
+    const request=(path,options={})=>{
+      if(path==='/api/adjuntos/documentos-cobro/11/?page=1'){
+        calls.push({path,...options});return Promise.resolve({count:0,next:null,previous:null,results:[]});
+      }
+      return backend.request(path,options);
+    };
+    const ui=await mount(FinanceDocument,request,role,{document:doc(),onClose(){}});
+    try{
+      await click(ui.renderer.root,'Consultar respaldos documentales');
+      assert.equal(calls.length,1);
+      assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Subir archivo privado'),role==='ADMINISTRATIVO_FINANZAS');
+    }finally{await ui.close();}
+  }
+});
+
 const attachment=(id=4,obra=7)=>({id,tipo:'INFORME_TECNICO',destino:{obra},nombre_visible:`informe-${obra}.pdf`,mime:'application/pdf',tamano_bytes:20,estado:'DISPONIBLE',registrado_por:9,registrado_en:'2026-11-17T12:00:00Z'});
 const annotation=(id=4,obra=7,revision=0)=>({adjunto_id:id,tipo:'INFORME_TECNICO',destino_id:obra,mime:'application/pdf',tamano_bytes:20,registrado_en:'2026-11-17T12:00:00Z',sincronizado_en:'2026-11-17T12:00:00Z',descripcion:'Vista frontal',etiquetas:[],atributos:{},revision});
 function attachmentsBackend(){const state={calls:[],revision:0,conflict:false,lost:false};state.request=async(path,opts={})=>{state.calls.push({path,...opts});if(path.startsWith('/api/adjuntos/obras/')){const obra=Number(path.split('/')[4]);if(opts.method==='POST'){if(state.lost){state.lost=false;throw new ApiError(0,'Carga incierta');}return attachment(4,obra);}return {count:1,next:null,previous:null,results:[attachment(4,obra)]};}if(path.endsWith('/anotaciones/')){if(opts.method==='PATCH'){if(state.conflict)throw new ApiError(409,'Revisión obsoleta');state.revision+=1;}return annotation(4,7,state.revision);}if(path.endsWith('/descargar/'))return new Blob(['archivo sintético'],{type:'application/pdf'});return attachment();};return state;}
