@@ -36,12 +36,12 @@ export default function Adjuntos(props) {
   if (!allowed.includes(user.role) || !positiveInteger(Number(props.destinationId))) return null;
   return <AttachmentScreen key={`${user.id}:${user.role}:${props.type}:${props.destinationId}`} {...props}/>;
 }
-function AttachmentScreen({type,destinationId,canUpload}) {
+function AttachmentScreen({type,destinationId,canUpload,readOnly=false}) {
   const {user}=useAuth(),api=useApi();
   const [rows,setRows]=useState(null),[page,setPage]=useState(1),[selected,setSelected]=useState(null),[file,setFile]=useState(null);
   const [message,setMessage]=useState(''),[intent,setIntent]=useState(null),[detail,setDetail]=useState(null),[metadata,setMetadata]=useState(null),[form,setForm]=useState(null);
   const intention=useRef(null),fileRef=useRef(null),pending=useRef(false);
-  const canEdit=type==='RESPALDO_FACTURA'?user.role==='ADMINISTRATIVO_FINANZAS':['SUPERVISOR_OBRAS','TECNICO'].includes(user.role);
+  const canEdit=!readOnly&&(type==='RESPALDO_FACTURA'?user.role==='ADMINISTRATIVO_FINANZAS':['SUPERVISOR_OBRAS','TECNICO'].includes(user.role));
   const path=type==='RESPALDO_FACTURA'?`/api/adjuntos/documentos-cobro/${destinationId}/`:`/api/adjuntos/obras/${destinationId}/`;
   const project=(value)=>attachment(value,type,destinationId);
   const reload=()=>{setRows(null);return api.load('attachments',`${path}?page=${page}`,(data)=>setRows({...readPage(data,path),results:data.results.map(project)}));};
