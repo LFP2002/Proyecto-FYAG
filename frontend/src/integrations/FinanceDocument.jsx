@@ -4,6 +4,7 @@ import { ApiError } from '../auth/client.js';
 import { safePage, useApi } from './useApi.js';
 import { financialDocument, financialEvent, financialPage, financialPayment } from './finance.js';
 import { isoDate, todayInSantiago } from './dates.js';
+import Adjuntos from './Adjuntos.jsx';
 
 const confirm = (text) => (globalThis.confirm || globalThis.window?.confirm)?.(text) === true;
 const EMPTY = { monto:'',fecha_pago:'',medio:'TRANSFERENCIA',referencia_respaldo:'',observacion:'' };
@@ -16,6 +17,7 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
   const { user } = useAuth(), api = useApi();
   const [detail,setDetail] = useState(null), [payments,setPayments] = useState(null), [docEvents,setDocEvents] = useState(null), [payEvents,setPayEvents] = useState(null);
   const [paymentPage,setPaymentPage] = useState(1), [docPage,setDocPage] = useState(1), [historyPage,setHistoryPage] = useState(1);
+  const [showAttachments,setShowAttachments] = useState(false);
   const [form,setForm] = useState(EMPTY), [reason,setReason] = useState(''), [reference,setReference] = useState('');
   const [message,setMessage] = useState(''), [intent,setIntent] = useState(null), [pending,setPending] = useState(false);
   const intention = useRef(null), submitting = useRef(false);
@@ -94,6 +96,13 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
       {!api.locked&&[400,403,404,405,422].includes(api.error?.status)&&<button type="button" className="btn btn-outline-secondary" disabled={pending} onClick={()=>{intention.current=null;setIntent(null);api.setError(null);setMessage('Intención rechazada descartada. Corrige el contenido antes de un nuevo registro explícito.');}}>Nueva intención tras rechazo</button>}
     </div>}
     {detail&&<dl className="commercial-facts"><div><dt>Estado</dt><dd>{detail.estado}</dd></div><div><dt>Total documento externo</dt><dd>{detail.monto_total} CLP</dd></div><div><dt>Registrado</dt><dd>{detail.registrado_en}</dd></div><div><dt>Saldo / estado</dt><dd>{detail.cobranza?.saldo??'No aplica'} · {detail.cobranza?.estado??'—'}</dd></div></dl>}
+    {detail&&<section aria-label="Respaldos documentales del documento financiero" className="my-3">
+      <button type="button" className="btn btn-outline-secondary btn-sm" disabled={pending||api.busy} onClick={()=>setShowAttachments((visible)=>!visible)}>{showAttachments?'Ocultar respaldos documentales':'Consultar respaldos documentales'}</button>
+      {showAttachments&&<>
+        {detail.estado==='REVERTIDO'&&<p className="commercial-help">Documento revertido: sus respaldos permanecen disponibles para consulta histórica, sin nuevas cargas ni edición de anotaciones.</p>}
+        <Adjuntos type="RESPALDO_FACTURA" destinationId={doc.id} canUpload={writable&&detail.estado==='VIGENTE'&&!blocked} readOnly={detail.estado==='REVERTIDO'}/>
+      </>}
+    </section>}
     {writable&&detail?.estado==='VIGENTE'&&<form className="commercial-form" onSubmit={submitPayment} aria-label="Registro de pago informado"><h4>Registrar pago real informado externamente</h4><p>No transfiere dinero. Una intención conserva exactamente su clave y contenido hasta confirmar sus relecturas.</p>
       <div className="obras-form-grid">{[['monto','Monto decimal'],['fecha_pago','Fecha de pago'],['referencia_respaldo','Referencia externa del pago'],['observacion','Observación del pago']].map(([key,label])=><label className="form-label" key={key}>{label}<input className="form-control" type={key==='fecha_pago'?'date':'text'} value={form[key]} disabled={blocked} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}
       <label className="form-label">Medio<select className="form-select" value={form.medio} disabled={blocked} onChange={(e)=>setForm({...form,medio:e.target.value})}>{['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].map((value)=><option key={value}>{value}</option>)}</select></label></div>
