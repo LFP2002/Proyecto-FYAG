@@ -106,7 +106,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
       </>}
       {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} /><Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} /><EventList title="Historial de participantes" data={memberHistory} /><Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} /></>}
       {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} />}
-      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} />}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={user.role === S || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
+      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} />}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
       {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {form && <form className="commercial-form obras-action-form" noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>

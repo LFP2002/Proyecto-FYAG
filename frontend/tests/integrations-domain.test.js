@@ -96,6 +96,36 @@ test('Dashboard acepta fechas ISO válidas y rechaza formato roto, calendario in
   assert.equal(validDashboardRange({desde:'2026-12-01',hasta:'2026-12-02'},'2026-11-30'),false);
 });
 
+test('Dashboard descarta resumen tardío tras rango inválido y retira cifras ante error', async () => {
+  const calls = [], base = apiFor('GERENCIA', calls);
+  let resolveLate, fail = false, first = true;
+  const late = new Promise((resolve) => { resolveLate = resolve; });
+  const request = async (path, options) => {
+    if (path.startsWith('/api/dashboard/resumen/')) {
+      if (first) { first = false; return late; }
+      if (fail) throw new ApiError(503, 'Resumen no disponible');
+      const value = await base('/api/dashboard/resumen/', options);
+      return { ...value, rentabilidad_cerrada_periodo: { ...value.rentabilidad_cerrada_periodo, presupuesto_neto: '98765.43' } };
+    }
+    return base(path, options);
+  };
+  const session = { status: 'authenticated', user: { id: 9, username: 'Gerencia', role: 'GERENCIA' } };
+  const client = { getSnapshot: () => session, subscribe: () => () => {}, restore: async () => {}, request };
+  let renderer;
+  await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, React.createElement(Dashboard))); await flush(); });
+  const date = async (value) => act(async () => { renderer.root.findAllByType('input')[0].props.onChange({ target: { value } }); await flush(); });
+  try {
+    await date('2026-02-30');
+    await act(async () => { const value = await base('/api/dashboard/resumen/'); resolveLate({ ...value, rentabilidad_cerrada_periodo: { ...value.rentabilidad_cerrada_periodo, presupuesto_neto: '12345.67' } }); await flush(); });
+    assert.doesNotMatch(text(renderer.toJSON()), /12345\.67/);
+    await date('');
+    assert.match(text(renderer.toJSON()), /98765\.43/);
+    fail = true; await click(renderer, 'Actualizar');
+    assert.doesNotMatch(text(renderer.toJSON()), /98765\.43|12345\.67/);
+    assert.match(text(renderer.toJSON()), /Resumen no disponible/);
+  } finally { await act(async () => renderer.unmount()); }
+});
+
 test('dashboard consulta los tres endpoints y despliega respuestas reales, sin mock', { timeout: 15000 }, async () => {
   const { renderer, calls } = await mount(Dashboard, 'GERENCIA');
   try { assert.ok(calls.some((c) => c.path === '/api/dashboard/resumen/')); assert.ok(calls.some((c) => c.path === '/api/dashboard/serie-obras/?meses=6')); assert.ok(calls.some((c) => c.path === '/api/dashboard/obras-activas/')); assert.match(text(renderer.toJSON()), /Obras finalizadas por mes/); assert.doesNotMatch(text(renderer.toJSON()), /Margen proyectado|Exportación generada/); } finally { await act(async () => renderer.unmount()); }

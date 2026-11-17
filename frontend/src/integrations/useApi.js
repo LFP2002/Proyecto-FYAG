@@ -41,12 +41,14 @@ export function useApi() {
   }
 
   async function reconcile(operation) {
+    const scope = scopeRef.current;
     setError(null);
-    if (await operation()) { scopeRef.current?.reconciled(); setLocked(false); return true; }
+    if (await operation() && scope && scopeRef.current === scope) { scope.reconciled(); setLocked(false); return true; }
     return false;
   }
 
-  return { load, requiredLoad, write, reconcile, error, setError, busy, loading, locked };
+  const cancelRead = (key) => scopeRef.current?.cancelRead(key);
+  return { load, requiredLoad, write, reconcile, cancelRead, error, setError, busy, loading, locked };
 }
 
 export function readPage(value, path, max = 25) {
@@ -75,7 +77,7 @@ export function safePage(link, path) {
             ? ['desde','hasta','cliente','estado']
             : path === '/api/finanzas/cobranzas/'
             ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
-            : [];
+             : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if (url.origin !== origin || url.pathname !== path || [...url.searchParams.keys()].some((key) => !allowed.has(key))
         || [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length !== 1 || url.searchParams.get(key) === '')) throw new Error('invalid');
@@ -103,6 +105,7 @@ export function safePage(link, path) {
       if((value('cliente')&&!validId(value('cliente')))||(value('obra')&&!validId(value('obra')))||!datePair('fecha_emision_desde','fecha_emision_hasta')||!datePair('fecha_vencimiento_desde','fecha_vencimiento_hasta'))throw new Error('invalid');
       if(value('estado')&&!['PENDIENTE','PARCIAL','PAGADA','VENCIDA'].includes(value('estado')))throw new Error('invalid');
     }
+    if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;
   } catch { throw new ApiError(502, 'El servidor devolvió una página no segura.'); }
 }

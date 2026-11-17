@@ -21,6 +21,7 @@ export function createScope({ timeoutMs = 30000 } = {}) {
     get locked() { return writing || uncertain; },
     get uncertain() { return uncertain; },
     reconciled() { uncertain = false; },
+    cancelRead(key) { generations.set(key, (generations.get(key) || 0) + 1); },
     dispose() { alive = false; controllers.forEach((c) => c.abort()); },
     async read(key, operation, apply) {
       const generation = (generations.get(key) || 0) + 1;
@@ -42,11 +43,15 @@ export function createScope({ timeoutMs = 30000 } = {}) {
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const result = await bounded(operation, controller.signal);
-        if (alive) { await apply(result); return true; }
+        if (alive) {
+          try { await apply(result); }
+          catch (error) { uncertain = true; throw error; }
+          return true;
+        }
         return false;
       } catch (error) {
         if (!alive) return false;
-        if (alive && (error.status === 0 || error.status === 409 || error.status >= 500)) uncertain = true;
+        if (alive && (typeof error?.status !== 'number' || error.status === 0 || error.status === 409 || error.status >= 500)) uncertain = true;
         throw error;
       } finally { clearTimeout(timer); writing = false; controllers.delete(controller); }
     },

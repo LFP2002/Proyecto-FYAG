@@ -4,7 +4,6 @@ import { PageHead } from '../components/ui';
 import { Pager } from '../comercial/ui.jsx';
 import { decimalString, positiveInteger, readPage, strictObject, useApi } from '../integrations/useApi.js';
 import Adjuntos from '../integrations/Adjuntos.jsx';
-import FinanceDocument from '../integrations/FinanceDocument.jsx';
 import FinanceAdmin from '../integrations/FinanceAdmin.jsx';
 
 const STATES = ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA'];
@@ -55,15 +54,16 @@ function FilterField({ name, title, value, onChange, type = 'text' }) {
 }
 export default function Cobranzas() {
   const { user } = useAuth(); const api = useApi();
+  const canRead = ['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role);
   const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState({ estado:'', cliente:'', obra:'', fecha_vencimiento_desde:'', fecha_vencimiento_hasta:'', fecha_emision_desde:'', fecha_emision_hasta:'' }), [page,setPage]=useState(1), [selectedDocument,setSelectedDocument]=useState(null);
   const generation=React.useRef(0);
   const url=useMemo(()=>COLLECTION_URL+queryString(filters,page,true),[filters,page]);
   const summaryUrl=useMemo(()=>SUMMARY+queryString(filters,1,false),[filters]);
-  const currentSnapshotKey=`${url}\n${summaryUrl}`;
+  const currentSnapshotKey=`${user.id}:${user.role}\n${url}\n${summaryUrl}`;
   const reload=async()=>{
     const current=++generation.current;
     setData(null);setSummary(null);setSnapshotKey(null);
-    if(invalidId||invalidDates)return false;
+    if(!canRead||invalidId||invalidDates)return false;
     let listSnapshot=null,summarySnapshot=null;
     const [listOk,summaryOk]=await Promise.all([
       api.load('cobranzas',url,(result)=>{const next=safeNext(result.next,filters),previous=safeNext(result.previous,filters);listSnapshot={...readPage(result,COLLECTION_URL),results:result.results.map(rowShape),next:next?`?page=${next}`:null,previous:previous?`?page=${previous}`:null};}),
@@ -73,7 +73,8 @@ export default function Cobranzas() {
     if(!listOk||!summaryOk||!listSnapshot||!summarySnapshot){setData(null);setSummary(null);return false;}
     setData(listSnapshot);setSummary(summarySnapshot);setSnapshotKey(currentSnapshotKey);return true;
   };
-  useEffect(()=>{void reload();},[url,summaryUrl]);
+  useEffect(()=>{void reload();},[url,summaryUrl,user.id,user.role]);
+  function invalidateFinancial() { generation.current+=1;api.cancelRead('cobranzas');api.cancelRead('resumen');setData(null);setSummary(null);setSnapshotKey(null);setSelectedDocument(null); }
   const blocked=api.loading||api.busy;
   const invalidId = ['cliente','obra'].some((key)=>filters[key]&&!/^[1-9][0-9]{0,18}$/.test(filters[key]));
   const invalidDates = ['fecha_emision','fecha_vencimiento'].some((field)=>!!filters[`${field}_desde`]!==!!filters[`${field}_hasta`]||(filters[`${field}_desde`]&&filters[`${field}_hasta`]&&filters[`${field}_desde`]>filters[`${field}_hasta`]));
@@ -97,8 +98,8 @@ export default function Cobranzas() {
       {snapshotKey===currentSnapshotKey&&data&&!data.count&&<p className="commercial-empty">No hay documentos vigentes para esos filtros.</p>}
       <Pager data={snapshotKey===currentSnapshotKey?data:null} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />
     </div>
-    {selectedDocument && <Adjuntos type="RESPALDO_FACTURA" destinationId={selectedDocument} canUpload={user.role==='ADMINISTRATIVO_FINANZAS'} />}
-    <FinanceAdmin />
+    {selectedDocument && <Adjuntos type="RESPALDO_FACTURA" destinationId={selectedDocument} canUpload={user.role==='ADMINISTRATIVO_FINANZAS'&&data?.results.some((row)=>row.id===selectedDocument&&row.estado==='VIGENTE')} />}
+    <FinanceAdmin onChanged={reload} onMutationStart={invalidateFinancial} />
     <p className="commercial-help">FYAG registra documentos externos y pagos ya informados; no emite DTE, no procesa cobros ni realiza transferencias. Totales y estados vienen del backend.</p>
   </section>;
 }

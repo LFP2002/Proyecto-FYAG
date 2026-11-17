@@ -36,6 +36,24 @@ async function unmount(renderer) { await act(async () => renderer.unmount()); }
 
 const gasto = { id: 4, obra: 1, tipo: 'MATERIAL', descripcion: 'Cable', unidad: 'metro', cantidad: '2.000', cantidad_devuelta: '0.000', costo_unitario_neto: '12.50', subtotal: '25.00', fecha_gasto: '2026-11-12', referencia_respaldo: '', observacion: '', vigente: true, anulado_por: null, anulado_en: null, motivo_anulacion: '', registrado_por: 2, creado_en: '2026-11-12T12:00:00Z', actualizado_en: '2026-11-12T12:00:00Z' };
 
+for (const failedRead of ['resumen', 'control']) test(`Costos: POST confirmado y relectura ${failedRead} fallida conserva formulario y bloquea reenvío`, async () => {
+  const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
+  backend.readFailure = (path) => backend.expenses.length > 0 && path === `/api/obras/1/costos/${failedRead}/`;
+  const renderer = await mount(backend);
+  try {
+    await openExpenses(renderer);
+    for (const [field, value] of Object.entries({ descripcion: 'Cable', unidad: 'metro', cantidad: '2.000', costo_unitario_neto: '12.50', fecha_gasto: '2026-11-12' })) await input(renderer, `obras-gasto-${field}`, value);
+    const form = renderer.root.findAllByType('form').find((node) => text(node).includes('Registrar material'));
+    await act(async () => { await form.props.onSubmit({ preventDefault() {} }); await flush(); });
+    assert.equal(backend.expenses.length, 1);
+    assert.equal(renderer.root.findByProps({ id: 'obras-gasto-descripcion' }).props.value, 'Cable');
+    assert.equal(buttons(renderer, 'Registrar gasto')[0].props.disabled, true);
+    await act(async () => { await form.props.onSubmit({ preventDefault() {} }); await flush(); });
+    assert.equal(backend.calls.filter((call) => call.method === 'POST').length, 1);
+    assert.doesNotMatch(text(renderer.root), /Resumen económico|Control de rubros|Historial de costos/);
+  } finally { await unmount(renderer); }
+});
+
 test('005C-3 Supervisor registra gasto con decimales string y actualiza datos remotos', async () => {
   const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
   const renderer = await mount(backend);

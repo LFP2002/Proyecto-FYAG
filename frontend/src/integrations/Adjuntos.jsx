@@ -1,76 +1,107 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ApiError } from '../auth/client.js';
-import { readPage, useApi } from './useApi.js';
+import { positiveInteger, readPage, safePage, strictObject, useApi } from './useApi.js';
 
-const MIME = new Set(['application/pdf', 'image/jpeg', 'image/png']);
-const MAX_PDF = 8 * 1024 * 1024, MAX_IMAGE = 5 * 1024 * 1024;
+const MIME = new Set(['application/pdf','image/jpeg','image/png']);
 function validateFile(file) {
   if (!file || !MIME.has(file.type)) return 'Selecciona un archivo PDF, JPEG o PNG.';
-  if (file.size < 1 || file.size > (file.type === 'application/pdf' ? MAX_PDF : MAX_IMAGE)) return 'El archivo está vacío o supera el límite permitido.';
-  return '';
+  return file.size < 1 || file.size > (file.type === 'application/pdf' ? 8 : 5) * 1024 * 1024 ? 'El archivo está vacío o supera el límite permitido.' : '';
 }
-function validAttachment(row) {
-  if (!row || !Number.isSafeInteger(row.id) || row.id < 1 || typeof row.tipo !== 'string' || typeof row.nombre_visible !== 'string'
-    || !MIME.has(row.mime) || !Number.isSafeInteger(row.tamano_bytes) || typeof row.estado !== 'string' || typeof row.registrado_en !== 'string') throw new ApiError(502, 'Respuesta documental inválida.');
+function attachment(row, type, destinationId) {
+  strictObject(row,['id','tipo','destino','nombre_visible','mime','tamano_bytes','estado','registrado_por','registrado_en']);
+  const target = type === 'RESPALDO_FACTURA' ? 'documento_cobro' : 'obra';
+  strictObject(row.destino,[target]);
+  if (!positiveInteger(row.id) || row.tipo !== type || row.destino[target] !== Number(destinationId) || typeof row.nombre_visible !== 'string'
+      || !MIME.has(row.mime) || !positiveInteger(row.tamano_bytes) || row.estado !== 'DISPONIBLE') throw new ApiError(502,'Respuesta documental inválida.');
   return row;
 }
-function download(blob, name) {
-  if (!MIME.has(blob.type)) throw new Error('El servidor devolvió un tipo documental no permitido.');
-  const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = name.replace(/[\\/\x00-\x1f]/g, '_'); a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+function annotation(value, row, type, destinationId) {
+  strictObject(value,['adjunto_id','tipo','destino_id','mime','tamano_bytes','registrado_en','sincronizado_en','descripcion','etiquetas','atributos','revision']);
+  if (value.adjunto_id !== row.id || value.tipo !== type || value.destino_id !== Number(destinationId) || !Number.isSafeInteger(value.revision) || value.revision < 0
+      || typeof value.descripcion !== 'string' || !Array.isArray(value.etiquetas) || !value.etiquetas.every((tag)=>typeof tag==='string')
+      || !value.atributos || typeof value.atributos !== 'object' || Array.isArray(value.atributos)) throw new ApiError(502,'Anotaciones documentales inválidas.');
+  return value;
 }
-export default function Adjuntos({ type, destinationId, canUpload }) {
-  const { request, user } = useAuth(), api = useApi();
-  const [rows, setRows] = useState(null), [page, setPage] = useState(1), [selected, setSelected] = useState(null);
-  const [file, setFile] = useState(null), [message, setMessage] = useState(''), [pendingKey, setPendingKey] = useState(null), [detail, setDetail] = useState(null), [metadata, setMetadata] = useState(null), [metadataForm, setMetadataForm] = useState(null);
-  const path = type === 'RESPALDO_FACTURA' ? `/api/adjuntos/documentos-cobro/${destinationId}/` : `/api/adjuntos/obras/${destinationId}/`;
-  const fileRef = useRef(null);
-  const reload = () => api.load('attachments', `${path}${page > 1 ? `?page=${page}` : ''}`, (data) => setRows({ ...readPage(data, path), results: data.results.map(validAttachment) }));
-  useEffect(() => { setRows(null); setSelected(null); void reload(); }, [path, page, user?.id, user?.role]);
-  async function upload(event) {
-    event.preventDefault();
-    const issue = validateFile(file); if (issue) { setMessage(issue); return; }
-    const key = pendingKey || globalThis.crypto?.randomUUID?.(); if(!key){setMessage('Este navegador no permite generar una clave segura de idempotencia.');return;} setPendingKey(key); setMessage('');
-    const body = new FormData(); body.append('archivo', file, file.name);
-    const ok = await api.write(path, 'POST', body, async () => {
-      await api.requiredLoad('attachments', `${path}${page > 1 ? `?page=${page}` : ''}`, (data) => setRows({ ...readPage(data, path), results: data.results.map(validAttachment) }));
-      setPendingKey(null); setFile(null); if (fileRef.current) fileRef.current.value = '';
-    }, { headers: { 'Idempotency-Key': key } });
-    if (!ok) setMessage(api.error?.status===503?'El escáner o el almacenamiento no está disponible; la carga falló de forma segura.':api.error?.status===409?'Conflicto de carga/idempotencia; actualiza antes de intentar de nuevo.':api.error?.status===422?'El archivo fue rechazado por validación de contenido.':api.error?.status===413?'El archivo supera el máximo permitido.':'No se confirmó la carga. Si el resultado fue incierto, conserva la misma clave y archivo para un reintento seguro.');
+const editForm = (value) => ({descripcion:value.descripcion,etiquetas:value.etiquetas.join(', '),atributos:JSON.stringify(value.atributos,null,2)});
+function download(blob,row) {
+  if (blob.type !== row.mime || !MIME.has(blob.type)) throw new ApiError(502,'El tipo descargado no coincide con el registro.');
+  const url=URL.createObjectURL(blob), link=document.createElement('a');
+  link.href=url;link.download=row.nombre_visible.replace(/[\\/\x00-\x1f]/g,'_');link.rel='noopener';document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+export default function Adjuntos(props) {
+  const { user }=useAuth();
+  const allowed=props.type==='RESPALDO_FACTURA'?['ADMINISTRATIVO_FINANZAS','GERENCIA']:props.type==='INFORME_TECNICO'?['GERENCIA','SUPERVISOR_OBRAS','TECNICO']:[];
+  if (!allowed.includes(user.role) || !positiveInteger(Number(props.destinationId))) return null;
+  return <AttachmentScreen key={`${user.id}:${user.role}:${props.type}:${props.destinationId}`} {...props}/>;
+}
+function AttachmentScreen({type,destinationId,canUpload}) {
+  const {user}=useAuth(),api=useApi();
+  const [rows,setRows]=useState(null),[page,setPage]=useState(1),[selected,setSelected]=useState(null),[file,setFile]=useState(null);
+  const [message,setMessage]=useState(''),[intent,setIntent]=useState(null),[detail,setDetail]=useState(null),[metadata,setMetadata]=useState(null),[form,setForm]=useState(null);
+  const intention=useRef(null),fileRef=useRef(null),pending=useRef(false);
+  const canEdit=type==='RESPALDO_FACTURA'?user.role==='ADMINISTRATIVO_FINANZAS':['SUPERVISOR_OBRAS','TECNICO'].includes(user.role);
+  const path=type==='RESPALDO_FACTURA'?`/api/adjuntos/documentos-cobro/${destinationId}/`:`/api/adjuntos/obras/${destinationId}/`;
+  const project=(value)=>attachment(value,type,destinationId);
+  const reload=()=>{setRows(null);return api.load('attachments',`${path}?page=${page}`,(data)=>setRows({...readPage(data,path),results:data.results.map(project)}));};
+  function clearSelection(){api.cancelRead('attachment-selection');api.cancelRead('attachment-download');setSelected(null);setDetail(null);setMetadata(null);setForm(null);setMessage('');}
+  useEffect(()=>{clearSelection();void reload();},[page]);
+  async function upload(event,retry=false) {
+    event?.preventDefault();if(!canEdit||!canUpload||pending.current||api.busy||(!retry&&api.locked))return;
+    const issue=validateFile(intention.current?.file||file);if(issue){setMessage(issue);return;}
+    pending.current=true;setMessage('');
+    try{
+      if(retry&&api.locked&&!await api.reconcile(reload))return;
+      const current=intention.current||{key:globalThis.crypto?.randomUUID?.(),file};
+      if(!current.key){setMessage('No se pudo generar una clave segura de idempotencia.');return;}
+      intention.current=current;setIntent(current);
+      const body=new FormData();body.append('archivo',current.file,current.file.name);
+      await api.write(path,'POST',body,async(value)=>{
+        project(value);
+        if(!await reload())throw new ApiError(502,'La carga pudo completarse, pero no se confirmó el listado. Conserva la intención y el archivo.');
+        intention.current=null;setIntent(null);setFile(null);if(fileRef.current)fileRef.current.value='';setMessage('Archivo aceptado y listado confirmado.');
+      },{headers:{'Idempotency-Key':current.key}});
+    }finally{pending.current=false;}
   }
-  async function inspect(row) {
-    setSelected(row.id); setDetail(null); setMessage('');
-    try { const value = await request(`/api/adjuntos/${row.id}/`); setDetail(validAttachment(value)); }
-    catch (error) { setMessage(error.message || 'No se pudo consultar el detalle.'); }
-  }
+  async function inspect(row){clearSelection();setSelected(row);await api.load('attachment-selection',`/api/adjuntos/${row.id}/`,(value)=>{const next=project(value);if(next.id!==row.id)throw new ApiError(502,'Adjunto inesperado.');setDetail(next);});}
   async function loadMetadata(row) {
-    setSelected(row.id); setMetadata(null); setMetadataForm(null); setMessage('');
-    try { const value = await request(`/api/adjuntos/${row.id}/anotaciones/`); if (!Number.isSafeInteger(value.revision) || !Array.isArray(value.etiquetas) || !value.atributos || typeof value.atributos !== 'object') throw new Error('Anotaciones documentales inválidas.'); setMetadata(value); setMetadataForm({ descripcion: value.descripcion || '', etiquetas: value.etiquetas.join(', '), atributos: JSON.stringify(value.atributos, null, 2) }); }
-    catch (error) { setMessage(error.status === 503 ? 'MongoDB no disponible; las anotaciones no se consultaron.' : error.status === 409 ? 'Las anotaciones todavía no se sincronizaron.' : error.status === 403 ? 'No tienes permiso para editar estas anotaciones.' : error.message || 'No se pudieron consultar anotaciones.'); }
+    clearSelection();setSelected(row);
+    const read=()=>api.load('attachment-selection',`/api/adjuntos/${row.id}/anotaciones/`,(value)=>{const next=annotation(value,row,type,destinationId);setMetadata(next);setForm(editForm(next));});
+    // Releer notas reconcilia solamente su CAS, nunca una carga pendiente.
+    return intention.current ? read() : api.reconcile(read);
   }
   async function saveMetadata(event) {
-    event.preventDefault(); if (!metadata || !metadataForm) return;
-    let atributos; try { atributos = JSON.parse(metadataForm.atributos); } catch { setMessage('Atributos debe ser un objeto JSON válido.'); return; }
-    if (!atributos || typeof atributos !== 'object' || Array.isArray(atributos)) { setMessage('Atributos debe ser un objeto JSON.'); return; }
-    const result = await request(`/api/adjuntos/${metadata.adjunto_id}/anotaciones/`, { method: 'PATCH', body: { revision: metadata.revision, descripcion: metadataForm.descripcion, etiquetas: metadataForm.etiquetas.split(',').map((x) => x.trim()).filter(Boolean), atributos } }).catch((error) => { setMessage(error.status === 409 ? 'Revisión obsoleta. Vuelve a consultar antes de editar; no se sobrescribió ningún cambio.' : error.status === 503 ? 'MongoDB no disponible. El cambio no se confirmó.' : error.message); return null; });
-    if (result) { setMetadata(result); setMetadataForm({ descripcion: result.descripcion || '', etiquetas: result.etiquetas.join(', '), atributos: JSON.stringify(result.atributos, null, 2) }); setMessage('Anotaciones actualizadas.'); }
+    event.preventDefault();if(!canEdit||!metadata||!selected||api.busy||api.locked||pending.current||intention.current)return;
+    let attributes;try{attributes=JSON.parse(form.atributos);}catch{setMessage('Atributos debe ser un objeto JSON válido.');return;}
+    if(!attributes||typeof attributes!=='object'||Array.isArray(attributes)){setMessage('Atributos debe ser un objeto JSON.');return;}
+    const row=selected,revision=metadata.revision;pending.current=true;setMessage('');api.cancelRead('attachment-selection');
+    try{
+      await api.write(`/api/adjuntos/${row.id}/anotaciones/`,'PATCH',{revision,descripcion:form.descripcion,etiquetas:form.etiquetas.split(',').map((x)=>x.trim()).filter(Boolean),atributos:attributes},async(value)=>{
+        const next=annotation(value,row,type,destinationId);if(next.revision!==revision+1)throw new ApiError(502,'Revisión documental inesperada.');setMetadata(next);setForm(editForm(next));setMessage('Anotaciones actualizadas.');
+      });
+    }finally{pending.current=false;}
   }
-  async function downloadFile(row) {
-    setMessage('');
-    try { const blob = await request(`/api/adjuntos/${row.id}/descargar/`, { responseType: 'blob' }); if (blob.type !== row.mime) throw new Error('El tipo descargado no coincide con el registro.'); download(blob, row.nombre_visible); }
-    catch (error) { setMessage(error.message || 'No se pudo descargar el archivo privado.'); }
-  }
-  return <section className="card-fyag p-3 my-3" aria-label={type === 'RESPALDO_FACTURA' ? 'Adjuntos de factura externa' : 'Informes técnicos adjuntos'}>
-    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2"><h3>{type === 'RESPALDO_FACTURA' ? 'Respaldos de factura externa' : 'Informes técnicos'}</h3><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading} onClick={() => void reload()}>Actualizar adjuntos</button></div>
-    {api.error && <p className="alert alert-warning" role="alert">{api.error.status === 503 ? 'Servicio de archivos temporalmente no disponible; la carga no se considera exitosa.' : api.error.status === 413 ? 'El archivo supera el límite del servidor.' : api.error.status === 422 ? 'El contenido fue rechazado por las validaciones de seguridad.' : api.error.status === 409 ? 'Conflicto documental: actualiza la lista y revisa el estado antes de reintentar.' : api.error.status === 403 ? 'No tienes permiso para esta operación.' : api.error.message}</p>}
-    {message && <p role="alert" className="alert alert-warning">{message}</p>}
-    {canUpload && <form className="commercial-form mb-3" onSubmit={upload}><label className="form-label" htmlFor={`adjunto-${type}-${destinationId}`}>Subir PDF, JPEG o PNG</label><input ref={fileRef} id={`adjunto-${type}-${destinationId}`} className="form-control" type="file" accept="application/pdf,image/jpeg,image/png" disabled={api.busy || api.locked} onChange={(e) => { setFile(e.target.files?.[0] || null); setPendingKey(null); setMessage(''); }} /><button className="btn btn-fyag-primary mt-2" type="submit" disabled={!file || api.busy || api.locked}>{api.busy ? 'Subiendo…' : 'Subir archivo privado'}</button><p className="commercial-help">La API valida el archivo y el escáner antimalware; un fallo del escáner no cuenta como subida exitosa.</p></form>}
-    {rows && !rows.count && <p>No hay adjuntos registrados.</p>}
-    <ul className="list-group">{rows?.results.map((row) => <li className="list-group-item d-flex flex-wrap justify-content-between gap-2" key={row.id}><span>{row.nombre_visible} · {row.mime} · {Math.ceil(row.tamano_bytes / 1024)} KiB · {row.estado}</span><span className="d-flex gap-2"><button className="btn btn-outline-secondary btn-sm" type="button" onClick={() => void inspect(row)}>Detalle</button><button className="btn btn-outline-secondary btn-sm" type="button" onClick={() => void loadMetadata(row)}>Anotaciones</button><button className="btn btn-outline-secondary btn-sm" type="button" onClick={() => void downloadFile(row)}>Descargar privado</button></span></li>)}</ul>
-    {detail && selected && <div className="mt-2" role="status">Detalle del adjunto #{detail.id} · destino {detail.destino.documento_cobro || detail.destino.obra} · registrado {detail.registrado_en}</div>}
-    {metadata && metadataForm && <form className="commercial-form mt-3" onSubmit={saveMetadata}><h4>Anotaciones técnicas · revisión {metadata.revision}</h4>{user.role !== 'GERENCIA' && <><label className="form-label" htmlFor={`adj-desc-${metadata.adjunto_id}`}>Descripción</label><textarea id={`adj-desc-${metadata.adjunto_id}`} className="form-control" maxLength={1000} value={metadataForm.descripcion} onChange={(e)=>setMetadataForm({...metadataForm,descripcion:e.target.value})}/><label className="form-label mt-2" htmlFor={`adj-tags-${metadata.adjunto_id}`}>Etiquetas separadas por coma</label><input id={`adj-tags-${metadata.adjunto_id}`} className="form-control" value={metadataForm.etiquetas} onChange={(e)=>setMetadataForm({...metadataForm,etiquetas:e.target.value})}/><label className="form-label mt-2" htmlFor={`adj-attrs-${metadata.adjunto_id}`}>Atributos técnicos JSON</label><textarea id={`adj-attrs-${metadata.adjunto_id}`} rows={4} className="form-control" value={metadataForm.atributos} onChange={(e)=>setMetadataForm({...metadataForm,atributos:e.target.value})}/><button className="btn btn-fyag-primary mt-2" type="submit">Guardar anotaciones</button></>}{user.role === 'GERENCIA' && <p>Consulta de solo lectura.</p>}</form>}
-    {rows && <nav className="commercial-pager" aria-label="Paginación de adjuntos"><button className="btn btn-outline-secondary btn-sm" type="button" disabled={api.loading || page <= 1} onClick={() => setPage(page - 1)}>Anterior</button><span>Página {page} · {rows.count} registros</span><button className="btn btn-outline-secondary btn-sm" type="button" disabled={api.loading || !rows.next} onClick={() => setPage(page + 1)}>Siguiente</button></nav>}
+  const blocked=api.busy||api.locked||!!intent;
+  return <section className="card-fyag p-3 my-3" aria-label={type==='RESPALDO_FACTURA'?'Adjuntos de factura externa':'Informes técnicos adjuntos'}>
+    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2"><h3>{type==='RESPALDO_FACTURA'?'Respaldos de factura externa':'Informes técnicos'}</h3><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading||api.busy} onClick={()=>{setMessage('');void reload();}}>Actualizar adjuntos</button></div>
+    {api.error&&<p className="alert alert-warning" role="alert">{({403:'No tienes permiso para esta operación.',404:'Adjunto o destino no disponible.',409:'Conflicto documental o revisión CAS obsoleta/pendiente: reconsulta antes de editar, sin sobrescribir.',413:'El archivo supera el máximo permitido.',422:'Archivo rechazado por validación de contenido.',503:'Scanner, almacenamiento o MongoDB no disponible. El resultado no se considera confirmado.'})[api.error.status]||api.error.message}</p>}
+    {api.locked&&<p role="alert">Escrituras bloqueadas hasta reconsultar la revisión; una carga incierta conserva la misma clave y archivo.</p>}
+    {message&&<p role="status" className="alert alert-info">{message}</p>}
+    {canUpload&&canEdit&&<form className="commercial-form mb-3" onSubmit={upload}><label className="form-label" htmlFor={`adjunto-${type}-${destinationId}`}>Subir PDF, JPEG o PNG</label><input ref={fileRef} id={`adjunto-${type}-${destinationId}`} className="form-control" type="file" accept="application/pdf,image/jpeg,image/png" disabled={blocked} onChange={(e)=>{setFile(e.target.files?.[0]||null);setMessage('');}}/>
+      <button className="btn btn-fyag-primary mt-2" disabled={!file||blocked}>Subir archivo privado</button><p>La API valida contenido, dimensiones y antimalware; no se confirma éxito sin relectura.</p>
+    </form>}
+    {intent&&<><p>Se conserva la intención de carga sin cambiar archivo ni clave.</p><button type="button" className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={()=>void upload(null,true)}>Reconsultar y reintentar misma carga</button>
+      {!api.locked&&[400,403,404,413,415,422].includes(api.error?.status)&&<button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={()=>{intention.current=null;setIntent(null);api.setError(null);setMessage('Carga rechazada descartada; selecciona explícitamente otro archivo si corresponde.');}}>Nueva intención tras rechazo de archivo</button>}</>}
+    {rows&&!rows.count&&<p>No hay adjuntos registrados.</p>}
+    <ul className="list-group">{rows?.results.map((row)=><li className="list-group-item d-flex flex-wrap justify-content-between gap-2" key={row.id}><span>{row.nombre_visible} · {row.mime} · {Math.ceil(row.tamano_bytes/1024)} KiB · {row.estado}</span><span className="d-flex gap-2">
+      <button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={()=>void inspect(row)}>Detalle</button><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={()=>void loadMetadata(row)}>Anotaciones</button><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={()=>void api.load('attachment-download',`/api/adjuntos/${row.id}/descargar/`,(blob)=>download(blob,row),{responseType:'blob'})}>Descargar privado</button>
+    </span></li>)}</ul>
+    {detail&&<p role="status">Detalle del adjunto #{detail.id} · destino {detail.destino.documento_cobro||detail.destino.obra} · registrado {detail.registrado_en}</p>}
+    {selected&&<button type="button" className="btn btn-outline-secondary mt-2" disabled={api.busy||api.loading} onClick={()=>void loadMetadata(selected)}>Reconsultar anotaciones seleccionadas</button>}
+    {metadata&&form&&<form className="commercial-form mt-3" onSubmit={saveMetadata} aria-label="Anotaciones de adjunto"><h4>Adjunto #{metadata.adjunto_id} · Anotaciones técnicas · revisión {metadata.revision}</h4>
+      {canEdit?<><label className="form-label">Descripción<textarea className="form-control" maxLength={1000} disabled={blocked} value={form.descripcion} onChange={(e)=>setForm({...form,descripcion:e.target.value})}/></label><label className="form-label">Etiquetas separadas por coma<input className="form-control" disabled={blocked} value={form.etiquetas} onChange={(e)=>setForm({...form,etiquetas:e.target.value})}/></label><label className="form-label">Atributos técnicos JSON<textarea className="form-control" rows={4} disabled={blocked} value={form.atributos} onChange={(e)=>setForm({...form,atributos:e.target.value})}/></label><button className="btn btn-fyag-primary mt-2" disabled={blocked}>Guardar anotaciones</button></>:<><p>Consulta de solo lectura.</p><p>{metadata.descripcion}</p><p>{metadata.etiquetas.join(', ')}</p><pre>{JSON.stringify(metadata.atributos,null,2)}</pre></>}
+    </form>}
+    {rows&&<nav className="commercial-pager" aria-label="Paginación de adjuntos"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading||api.busy||!!intent||!rows.previous} onClick={()=>setPage(safePage(rows.previous,path))}>Anterior</button><span>Página {page} · {rows.count} registros</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading||api.busy||!!intent||!rows.next} onClick={()=>setPage(safePage(rows.next,path))}>Siguiente</button></nav>}
   </section>;
 }
