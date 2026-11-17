@@ -45,7 +45,8 @@ export default function Costos({ obra, onFinalized, section = 'costs' }) {
       if (expensesView) results.push(await api.requiredLoad('expenses', expensesPath, (data) => { const result = readPage(data, `${base}gastos/`); setExpenses({ ...result, results: result.results.map(projectExpense) }); }));
       if (costsView) results.push(await api.requiredLoad('history', historyPath, (data) => setHistory(readPage(data, `${base}costos/historial/`))));
     }
-    if (results.every(Boolean)) { setForm(null); setIssue(''); setMotive(''); }
+    // requiredLoad resolves only after each refresh applies successfully; it throws on failure.
+    if (results.length) { setForm(null); setIssue(''); setMotive(''); }
   }
 
   async function saveExpense(event) {

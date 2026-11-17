@@ -7,6 +7,8 @@ import { ObraFields } from './ObraForm.jsx';
 import { EventList, Feedback, Field, focusError, ObraStatus, PagedSelect, Pager, PendingSection, RefreshButton, useOperational } from './ui.jsx';
 import Turnos from './Turnos.jsx';
 import Costos from './Costos.jsx';
+import EvidenceMetadata from '../integrations/EvidenceMetadata.jsx';
+import Adjuntos from '../integrations/Adjuntos.jsx';
 
 export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
@@ -73,7 +75,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     if (['desasignar', 'cambiar-tecnico', 'suspender'].includes(type) && !window.confirm(avisoRelevo)) return;
     await api.write(path, method, payload, afterWrite);
   }
-  const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
+  const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...([G, S, T].includes(user.role) ? [['documentos', 'Documentos y evidencias']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
   return <article className="card-fyag commercial-detail">
     <div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>
     <Feedback api={api} />
@@ -104,6 +106,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
       </>}
       {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} /><Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} /><EventList title="Historial de participantes" data={memberHistory} /><Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} /></>}
       {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} />}
+      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} />}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={user.role === S || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
       {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {form && <form className="commercial-form obras-action-form" noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>

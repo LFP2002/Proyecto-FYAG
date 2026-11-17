@@ -72,10 +72,10 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
 
 test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {
   assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
-  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios']);
+  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios', 'auditoria']);
   assert.equal(NAV.GERENCIA.includes('usuarios'), false);
   assert.deepEqual(NAV.TECNICO, ['obras']);
-  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas']);
+  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas', 'auditoria']);
   assert.ok(NAV.GERENCIA.includes('clientes'));
   for (const role of Object.keys(NAV)) assert.ok(NAV[role].includes(DEFMOD[role]));
 });

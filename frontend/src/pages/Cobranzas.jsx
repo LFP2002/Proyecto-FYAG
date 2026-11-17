@@ -3,6 +3,9 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui';
 import { Pager } from '../comercial/ui.jsx';
 import { decimalString, positiveInteger, readPage, strictObject, useApi } from '../integrations/useApi.js';
+import Adjuntos from '../integrations/Adjuntos.jsx';
+import FinanceDocument from '../integrations/FinanceDocument.jsx';
+import FinanceAdmin from '../integrations/FinanceAdmin.jsx';
 
 const STATES = ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA'];
 const COLLECTION_URL = '/api/finanzas/cobranzas/';
@@ -52,7 +55,7 @@ function FilterField({ name, title, value, onChange, type = 'text' }) {
 }
 export default function Cobranzas() {
   const { user } = useAuth(); const api = useApi();
-  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState({ estado:'', cliente:'', obra:'', fecha_vencimiento_desde:'', fecha_vencimiento_hasta:'', fecha_emision_desde:'', fecha_emision_hasta:'' }), [page,setPage]=useState(1);
+  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState({ estado:'', cliente:'', obra:'', fecha_vencimiento_desde:'', fecha_vencimiento_hasta:'', fecha_emision_desde:'', fecha_emision_hasta:'' }), [page,setPage]=useState(1), [selectedDocument,setSelectedDocument]=useState(null);
   const generation=React.useRef(0);
   const url=useMemo(()=>COLLECTION_URL+queryString(filters,page,true),[filters,page]);
   const summaryUrl=useMemo(()=>SUMMARY+queryString(filters,1,false),[filters]);
@@ -78,10 +81,11 @@ export default function Cobranzas() {
   async function refresh(){const ok=await reload();if(ok)api.reconcile(async()=>true);}
   if (!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role)) return <section><PageHead title="Cobranzas"/><p role="alert">No tienes permiso para consultar cobranzas.</p></section>;
   return <section className="commercial-page">
-    <PageHead title="Cobranzas" sub="Cartera y saldos calculados por el backend; esta pantalla es de consulta." />
+    <PageHead title="Cobranzas" sub="Cartera y saldos calculados por el backend; las operaciones administrativas se registran solo para Finanzas." />
     {api.error&&<div className="alert alert-warning" role="alert">{api.error.status===403?'Acceso denegado.':api.error.message}</div>}
     <div className="d-flex flex-wrap gap-2 mb-3 align-items-end">
       <button type="button" className="btn btn-outline-secondary" disabled={blocked} onClick={()=>void refresh()}>Actualizar</button>
+      {selectedDocument&&<button type="button" className="btn btn-outline-secondary" onClick={()=>setSelectedDocument(null)}>Cerrar detalle</button>}
       <label className="form-label">Estado<select className="form-select" value={filters.estado} disabled={blocked} onChange={(e)=>change('estado',e.target.value)}><option value="">Todos</option>{STATES.map((s)=><option key={s}>{s}</option>)}</select></label>
       {['cliente','obra'].map((key)=><FilterField key={key} name={key} title={`${key==='cliente'?'Cliente':'Obra'} ID`} value={filters[key]} onChange={(v)=>change(key,v)} />)}
       {['fecha_emision','fecha_vencimiento'].map((field)=><React.Fragment key={field}><FilterField name={`${field}_desde`} title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} desde`} type="date" value={filters[`${field}_desde`]} onChange={(v)=>change(`${field}_desde`,v)} /><FilterField name={`${field}_hasta`} title="hasta" type="date" value={filters[`${field}_hasta`]} onChange={(v)=>change(`${field}_hasta`,v)} /></React.Fragment>)}
@@ -89,10 +93,12 @@ export default function Cobranzas() {
     {invalidId&&<p className="text-danger" role="alert">Los IDs de Cliente y Obra deben ser enteros positivos sin ceros iniciales.</p>}{invalidDates&&<p className="text-danger" role="alert">Completa cada par de fechas y conserva el orden desde/hasta.</p>}
     {snapshotKey===currentSnapshotKey&&summary&&<div className="kpis">{[['Documentos',String(summary.documentos)],['Documentado bruto CLP',summary.monto_documentado_total],['Abonado CLP',summary.abonado_total],['Saldo CLP',summary.saldo_total],['Saldo vencido CLP',summary.saldo_vencido]].map(([label,value])=><div key={label} className="kpi"><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>}
     {api.loading&&<p role="status">Cargando cartera…</p>}
-    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label="Cartera de cobranzas" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Folio externo','Obra','Cliente','Emisión','Vencimiento','Neto CLP','Impuesto CLP','Bruto CLP','Abonado CLP','Saldo CLP','Estado'].map((x)=><th scope="col" key={x}>{x}</th>)}</tr></thead><tbody>{(snapshotKey===currentSnapshotKey?data?.results:null)?.map((row)=><tr key={row.id}><td>{row.folio_externo}</td><td>{row.origen.codigo_obra} · #{row.origen.obra}</td><td>{row.origen.cliente.nombre_legal}</td><td>{row.fecha_emision}</td><td>{row.fecha_vencimiento}</td><td>{row.monto_neto}</td><td>{row.monto_impuesto}</td><td>{row.monto_total}</td><td>{row.cobranza.abonado}</td><td>{row.cobranza.saldo}</td><td>{row.cobranza.estado}</td></tr>)}</tbody></table></div>
+    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label="Cartera de cobranzas" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Folio externo','Obra','Cliente','Emisión','Vencimiento','Neto CLP','Impuesto CLP','Bruto CLP','Abonado CLP','Saldo CLP','Estado','Adjuntos'].map((x)=><th scope="col" key={x}>{x}</th>)}</tr></thead><tbody>{(snapshotKey===currentSnapshotKey?data?.results:null)?.map((row)=><tr key={row.id}><td><button className="btn btn-link p-0" type="button" onClick={()=>setSelectedDocument(row.id)}>{row.folio_externo}</button></td><td>{row.origen.codigo_obra} · #{row.origen.obra}</td><td>{row.origen.cliente.nombre_legal}</td><td>{row.fecha_emision}</td><td>{row.fecha_vencimiento}</td><td>{row.monto_neto}</td><td>{row.monto_impuesto}</td><td>{row.monto_total}</td><td>{row.cobranza.abonado}</td><td>{row.cobranza.saldo}</td><td>{row.cobranza.estado}</td><td><button type="button" className="btn btn-outline-secondary btn-sm" onClick={()=>setSelectedDocument(row.id)}>Adjuntos</button></td></tr>)}</tbody></table></div>
       {snapshotKey===currentSnapshotKey&&data&&!data.count&&<p className="commercial-empty">No hay documentos vigentes para esos filtros.</p>}
       <Pager data={snapshotKey===currentSnapshotKey?data:null} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />
     </div>
-    <p className="commercial-help">FYAG registra documentos externos; no emite DTE ni procesa pagos. Totales y estados vienen de Finanzas.</p>
+    {selectedDocument && <Adjuntos type="RESPALDO_FACTURA" destinationId={selectedDocument} canUpload={user.role==='ADMINISTRATIVO_FINANZAS'} />}
+    <FinanceAdmin />
+    <p className="commercial-help">FYAG registra documentos externos y pagos ya informados; no emite DTE, no procesa cobros ni realiza transferencias. Totales y estados vienen del backend.</p>
   </section>;
 }

@@ -5,14 +5,14 @@ import { createServer } from 'vite';
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 
-let server, AuthProvider, Alertas, Cobranzas, Dashboard, Reportes, validDashboardRange, safePage;
+let server, AuthProvider, Alertas, Cobranzas, Dashboard, Reportes, validDashboardRange, todayInSantiago, safePage;
 test.before(async () => {
   server = await createServer({ configFile: false, esbuild: { jsx: 'automatic' }, server: { middlewareMode: true, ws: false, hmr: false }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
   ({ AuthProvider } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ safePage } = await server.ssrLoadModule('/src/integrations/useApi.js'));
   ({ default: Alertas } = await server.ssrLoadModule('/src/pages/Alertas.jsx'));
   ({ default: Cobranzas } = await server.ssrLoadModule('/src/pages/Cobranzas.jsx'));
-  ({ default: Dashboard, validDashboardRange } = await server.ssrLoadModule('/src/pages/Dashboard.jsx'));
+  ({ default: Dashboard, validDashboardRange, todayInSantiago } = await server.ssrLoadModule('/src/pages/Dashboard.jsx'));
   ({ default: Reportes } = await server.ssrLoadModule('/src/pages/Reportes.jsx'));
   globalThis.window = { location: { origin: 'http://localhost' } };
   globalThis.document = { body: { appendChild() {} }, createElement: () => ({ click() {}, remove() {} }) };
@@ -89,6 +89,7 @@ test('Reportes exporta los tres formatos con filtros permitidos por tipo solamen
 });
 
 test('Dashboard acepta fechas ISO válidas y rechaza formato roto, calendario inválido y rango futuro', () => {
+  assert.equal(todayInSantiago(new Date('2026-11-15T02:30:00Z')), '2026-11-14');
   assert.equal(validDashboardRange({desde:'2026-11-01',hasta:'2026-11-30'},'2026-11-30'),true);
   assert.equal(validDashboardRange({desde:'2026-2-01',hasta:'2026-11-30'},'2026-11-30'),false);
   assert.equal(validDashboardRange({desde:'2026-02-30',hasta:'2026-03-01'},'2026-11-30'),false);

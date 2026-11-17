@@ -31,11 +31,11 @@ export function useApi() {
     if (!await load(key, path, apply, options)) throw new ApiError(502, 'La operación pudo completarse, pero no se confirmó la lectura. Actualiza los datos antes de continuar.');
   }
 
-  async function write(path, method, body, apply) {
+  async function write(path, method, body, apply, requestOptions = {}) {
     const scope = scopeRef.current;
     if (!scope || scope.locked) return false;
     setBusy(true); setError(null);
-    try { return await scope.write((signal) => request(path, { method, body, signal }), apply); }
+    try { return await scope.write((signal) => request(path, { ...requestOptions, method, body, signal }), apply); }
     catch (cause) { if (scopeRef.current === scope) setError(cause); return false; }
     finally { if (scopeRef.current === scope) { setBusy(false); setLocked(scope.locked); } }
   }
