@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../auth/client.js';
 import { createScope } from '../comercial/scope.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { paginationURL, samePageFilters } from './pagination.js';
+import { civilRange } from './dates.js';
 
 export function useApi() {
   const { request, user } = useAuth();
@@ -51,22 +53,21 @@ export function useApi() {
   return { load, requiredLoad, write, reconcile, cancelRead, error, setError, busy, loading, locked };
 }
 
-export function readPage(value, path, max = 25) {
+export function readPage(value, path, max = 25, filters = null) {
   if (!value || !Number.isSafeInteger(value.count) || value.count < 0 || !Array.isArray(value.results)
       || value.results.length > max || !('next' in value) || !('previous' in value)) {
     throw new ApiError(502, 'El servidor devolvió una página inesperada.');
   }
   for (const key of ['next', 'previous']) {
     if (value[key] !== null && typeof value[key] !== 'string') throw new ApiError(502, 'El servidor devolvió una página inesperada.');
-    if (value[key]) safePage(value[key], path);
+    if (value[key]) safePage(value[key], path, filters);
   }
   return value;
 }
 
-export function safePage(link, path) {
+export function safePage(link, path, filters = null) {
   try {
-    const origin = globalThis.location?.origin || 'http://localhost';
-    const url = new URL(link, origin);
+    const url = paginationURL(link, path);
     const pathFilters = path === '/api/alertas/'
       ? ['estado','tipo','recurso_tipo','recurso_id','desde','hasta']
       : path === '/api/reportes/obras/'
@@ -79,14 +80,14 @@ export function safePage(link, path) {
             ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
-    if (url.origin !== origin || url.pathname !== path || [...url.searchParams.keys()].some((key) => !allowed.has(key))
+    if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
         || [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length !== 1 || url.searchParams.get(key) === '')) throw new Error('invalid');
+    if (filters !== null && !samePageFilters(url, filters)) throw new Error('Filtros incompatibles.');
     const pageText=url.searchParams.get('page')||'1',page=Number(pageText);
     if(!/^[1-9][0-9]*$/.test(pageText)||!Number.isSafeInteger(page)||page<1)throw new Error('invalid');
     const value=(key)=>url.searchParams.get(key);
-    const validId=(input)=>/^[1-9][0-9]{0,18}$/.test(input||'');
-    const validDate=(input)=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(input||''))return false;const date=new Date(`${input}T00:00:00Z`);return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===input;};
-    const datePair=(from,to)=>{const a=value(from),b=value(to);if(!!a!==!!b)return false;if(!a)return true;if(!validDate(a)||!validDate(b)||a>b)return false;return (Date.parse(`${b}T00:00:00Z`)-Date.parse(`${a}T00:00:00Z`))/86400000+1<=366;};
+    const validId=(input)=>/^[1-9][0-9]{0,18}$/.test(input||'')&&BigInt(input)<=9223372036854775807n;
+    const datePair=(from,to)=>{const a=value(from),b=value(to);if(!!a!==!!b)return false;return !a||civilRange(a,b);};
     if(path==='/api/alertas/'){
       if(value('estado')&&!['PENDIENTE','ATENDIDA','RESUELTA','TODAS'].includes(value('estado')))throw new Error('invalid');
       if(value('tipo')&&!['PRESUPUESTO_PENDIENTE_GERENCIA','OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION','COBRANZA_VENCIDA'].includes(value('tipo')))throw new Error('invalid');
@@ -99,7 +100,7 @@ export function safePage(link, path) {
       if(value('fecha_base')&&!['CREACION','FINALIZACION'].includes(value('fecha_base')))throw new Error('invalid');
       if(path.endsWith('/rentabilidad/')&&(value('estado')||value('fecha_base')))throw new Error('invalid');
       if(path.endsWith('/cobranzas/')&&value('fecha_base'))throw new Error('invalid');
-      if(path.endsWith('/obras/')&&value('fecha_base')==='FINALIZACION'&&value('estado')&&value('estado')!=='FINALIZADA')throw new Error('invalid');
+      if(path.endsWith('/obras/')&&value('fecha_base')==='FINALIZACION'&&value('estado')!=='FINALIZADA')throw new Error('invalid');
     }
     if(path==='/api/finanzas/cobranzas/'){
       if((value('cliente')&&!validId(value('cliente')))||(value('obra')&&!validId(value('obra')))||!datePair('fecha_emision_desde','fecha_emision_hasta')||!datePair('fecha_vencimiento_desde','fecha_vencimiento_hasta'))throw new Error('invalid');

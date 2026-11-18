@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import socket
 from tempfile import TemporaryDirectory
-from threading import Barrier, Thread
+from threading import Barrier, Event, Thread
 from unittest.mock import patch
 from uuid import uuid4
 import zipfile
@@ -532,6 +532,22 @@ class AdjuntosMongoTests(AdjuntosBase):
         finally:
             db.command({"collMod": metadata.COL, "validationLevel": "strict"})
 
+    def test_notas_informe_no_heredan_restriccion_de_factura_ni_estado_de_carga(self):
+        self.reconciliar()
+        self.obra.refresh_from_db()  # preparar() inicia la Obra mediante otro objeto.
+        revision = 0
+        for estado in ("SUSPENDIDA", "FINALIZADA", "CANCELADA", "PLANIFICADA"):
+            Obra.objects.filter(pk=self.obra.pk).update(estado=estado,
+                iniciado_en=None if estado == "PLANIFICADA" else self.obra.iniciado_en,
+                finalizado_en=timezone.now() if estado == "FINALIZADA" else None,
+                cancelado_en=timezone.now() if estado == "CANCELADA" else None)
+            for actor in (self.supervisor, self.tecnico):
+                self.autenticar(actor)
+                r = self.client.patch(self.notas, {"revision": revision, "descripcion": "Vista técnica"}, format="json")
+                self.assertEqual(r.status_code, 200, (estado, actor.rol, r.data))
+                revision += 1
+                self.assertEqual(r.data["revision"], revision)
+
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class AdjuntosFinanzasTests(FinanzasBase, AdjuntosBase):
@@ -543,6 +559,123 @@ class AdjuntosFinanzasTests(FinanzasBase, AdjuntosBase):
         r = self.registrar(); self.assertEqual(r.status_code, 201, r.data)
         self.doc_id = r.data["id"]
         self.factura = BASE+f"documentos-cobro/{self.doc_id}/"
+
+    def notas_factura(self):
+        conf = settings.DOCUMENTOS_MONGO
+        self.assertEqual(conf["db"], "fyag_documentos_test")
+        admin = MongoClient(conf["host"], conf["puerto"], username=os.environ["FYAG_MONGO_TEST_ROOT_USER"],
+            password=os.environ["FYAG_MONGO_TEST_ROOT_PASSWORD"], authSource="admin", tz_aware=True)
+        self.addCleanup(admin.close)
+        col = admin[conf["db"]][metadata.COL]
+        col.delete_many({})
+        self.addCleanup(lambda: col.delete_many({}))
+        adj = self.aceptado(archivo=pdf(), ruta=self.factura)
+        metadata.sincronizar(adj)
+        return adj, col, BASE+f"{adj.pk}/anotaciones/"
+
+    def revertir_factura(self):
+        from apps.finanzas.services_documentos import revertir_documento
+        return revertir_documento(self.doc_id,
+            {"motivo": "Corrección QA", "referencia_rectificacion_externa": "Nota externa QA"}, self.finanzas)
+
+    def test_notas_factura_vigente_y_revertida_solo_lectura_sin_cambiar_bson(self):
+        adj, col, url = self.notas_factura()
+        r = self.client.patch(url, {"revision": 0, "descripcion": "Copia legible"}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["revision"], 1)
+        self.autenticar(self.gerencia)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.patch(url, {"revision": 1, "descripcion": "Otro"}, format="json").status_code, 403)
+        before = col.find_one({"adjunto_id": adj.pk})
+        self.revertir_factura()
+        self.autenticar(self.finanzas)
+        with patch("apps.adjuntos.metadata.coleccion", side_effect=AssertionError("Rechazar antes de Mongo")):
+            rejected = self.client.patch(url, {"revision": 1, "descripcion": "Otro"}, format="json")
+        self.assertEqual(rejected.status_code, 409, rejected.data)
+        self.assertEqual(rejected.data["code"], "documento_no_vigente")
+        self.assertEqual(col.find_one({"adjunto_id": adj.pk}), before)
+        self.assertEqual(self.subir(archivo=pdf(), ruta=self.factura).status_code, 409)
+        for actor in (self.finanzas, self.gerencia):
+            self.autenticar(actor)
+            self.assertEqual(self.client.get(self.factura).data["count"], 1)
+            self.assertEqual(self.client.get(BASE+f"{adj.pk}/").status_code, 200)
+            self.assertEqual(self.client.get(url).data["revision"], 1)
+            self.descargar(adj)
+        self.assertEqual(self.client.patch(url, {"revision": 1, "descripcion": "Otro"}, format="json").status_code, 403)
+        self.assertEqual(col.find_one({"adjunto_id": adj.pk}), before)
+
+    def test_reversion_confirmada_entre_autorizacion_y_cas_no_modifica_mongo(self):
+        adj, col, url = self.notas_factura()
+        before = col.find_one({"adjunto_id": adj.pk})
+        validar = metadata.validar_documento
+        calls = 0
+        def validar_y_revertir(value, item):
+            nonlocal calls
+            result = validar(value, item)
+            calls += 1
+            if calls == 2:
+                self.assertFalse(connection.in_atomic_block)
+                self.revertir_factura()  # Commit real después de leer/validar Mongo, antes del CAS.
+            return result
+        with patch("apps.adjuntos.metadata.validar_documento", side_effect=validar_y_revertir):
+            r = self.client.patch(url, {"revision": 0, "descripcion": "Vista legible"}, format="json")
+        self.assertEqual(r.status_code, 409, r.data)
+        self.assertEqual(r.data["code"], "documento_no_vigente")
+        self.assertEqual(col.find_one({"adjunto_id": adj.pk}), before)
+
+    def test_rechazo_historico_preserva_401_403_404(self):
+        adj, _, url = self.notas_factura()
+        self.revertir_factura()
+        body = {"revision": 0, "descripcion": "Vista"}
+        self.client.credentials()
+        self.assertEqual(self.client.patch(url, body, format="json").status_code, 401)
+        self.autenticar(self.supervisor)
+        self.assertEqual(self.client.patch(url, body, format="json").status_code, 403)
+        self.autenticar(self.finanzas)
+        self.assertEqual(self.client.patch(BASE+f"{adj.pk+1000}/anotaciones/", body, format="json").status_code, 404)
+
+    def test_reversion_despues_ultima_autorizacion_puede_solaparse_con_cas(self):
+        # Evidencia determinista de la ventana documentada, NO de serialización.
+        from apps.finanzas.models import DocumentoCobro
+        adj, col, url = self.notas_factura()
+        authorized, resume = Event(), Event()
+        original = services.autorizado
+        calls = 0
+        def autorizar_y_pausar(*args, **kwargs):
+            nonlocal calls
+            result = original(*args, **kwargs)
+            calls += 1
+            # Permiso DRF y vista pasan token como tercer argumento; metadata
+            # vuelve a autorizar sin token justo antes del CAS (tercera lectura).
+            if len(args) == 2 and kwargs.get("editar"):
+                self.assertFalse(connection.in_atomic_block)
+                authorized.set()
+                if not resume.wait(10):
+                    raise AssertionError("QA no liberó el CAS")
+            return result
+        def editar():
+            close_old_connections()
+            try:
+                client = APIClient()
+                client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(self.finanzas)}")
+                return client.patch(url, {"revision": 0, "descripcion": "Copia legible"}, format="json")
+            finally:
+                close_old_connections()
+        with patch("apps.adjuntos.services.autorizado", side_effect=autorizar_y_pausar), ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(editar)
+            try:
+                self.assertTrue(authorized.wait(10), "PATCH no alcanzó la autorización final")
+                self.revertir_factura()
+                self.assertEqual(DocumentoCobro.objects.get(pk=self.doc_id).estado, "REVERTIDO")
+                self.assertEqual(col.find_one({"adjunto_id": adj.pk})["revision"], 0)
+            finally:
+                resume.set()
+            response = future.result(timeout=15)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(calls, 3)
+        self.assertEqual(col.find_one({"adjunto_id": adj.pk})["revision"], 1)
+        # Tras acabar el solapamiento ninguna nueva solicitud puede editar.
+        self.assertEqual(self.client.patch(url, {"revision": 1, "descripcion": "Otro"}, format="json").status_code, 409)
 
     def test_factura_pdf_roles_reversion_historica_sin_mutar_importes(self):
         from apps.finanzas.models import DocumentoCobro

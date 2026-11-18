@@ -70,7 +70,7 @@ paths["/api/adjuntos/{id}/descargar/"] = {"parameters": [ident], "get": {"summar
     "responses": {"200": {"description": "PDF original o píxeles saneados JPEG/PNG", "headers": {**headers, "Content-Disposition": {"schema": {"type": "string"}}}, "content": {mime: {"schema": {"type": "string", "format": "binary"}} for mime in ("application/pdf", "image/jpeg", "image/png")}}, **error}}}
 paths["/api/adjuntos/{id}/anotaciones/"] = {"parameters": [ident],
     "get": {"summary": "Leer notas Mongo tras comprobar SQL", "responses": {"200": respuesta(ref("Anotaciones")), **error}},
-    "patch": {"summary": "Actualizar notas con revisión CAS", "description": "AF factura; Supervisor/miembro activo informe (sin requisito de estado de subida). Gerencia solo lectura. Reemplaza solo campos presentes; sin mutar archivo o SQL.",
+    "patch": {"summary": "Actualizar notas con revisión CAS", "description": "AF solo factura VIGENTE: estado SQL revalidado antes del CAS; factura REVERTIDO devuelve 409 documento_no_vigente sin cambiar notas/revisión. Históricos conservan GET/listado/descarga. Supervisor/miembro activo informe sin requisito de estado de subida. Gerencia solo lectura (PATCH 403). Sin atomicidad distribuida: una reversión posterior a la última comprobación SQL puede solaparse con un CAS ya autorizado. Reemplaza solo campos presentes; sin mutar archivo o SQL.",
         "requestBody": {"required": True, "content": {"application/json": {"schema": ref("PatchAnotaciones")}}}, "responses": {"200": respuesta(ref("Anotaciones")), **error}}}
 for item in paths.values():
     for method, operation in item.items():

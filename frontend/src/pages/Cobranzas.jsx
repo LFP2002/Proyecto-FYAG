@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui';
 import { Pager } from '../comercial/ui.jsx';
-import { decimalString, positiveInteger, readPage, strictObject, useApi } from '../integrations/useApi.js';
+import { decimalString, positiveInteger, readPage, safePage, strictObject, useApi } from '../integrations/useApi.js';
 import Adjuntos from '../integrations/Adjuntos.jsx';
 import FinanceAdmin from '../integrations/FinanceAdmin.jsx';
 
@@ -17,18 +17,7 @@ function queryString(filters, page, includePage) {
 }
 function safeNext(value, filters) {
   if (!value) return null;
-  try {
-    const origin = globalThis.location?.origin || 'http://localhost';
-    const url = new URL(value, origin);
-    const allowed = new Set(['page','estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']);
-    const actualFilters = new URLSearchParams(url.search); actualFilters.delete('page');
-    const expectedFilters = new URLSearchParams(queryString(filters, 1, false));
-    const page = url.searchParams.get('page');
-    if (url.origin !== origin || url.pathname !== COLLECTION_URL || [...url.searchParams.keys()].some((key) => !allowed.has(key))
-        || [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length !== 1 || !url.searchParams.get(key))
-        || actualFilters.toString() !== expectedFilters.toString() || (page && !/^[1-9][0-9]*$/.test(page))) throw new Error('invalid');
-    return Number(page || 1);
-  } catch { throw new Error('La paginación del servidor no es segura.'); }
+  return safePage(value, COLLECTION_URL, filters);
 }
 function rowShape(row) {
   strictObject(row, ['id','naturaleza','origen','tipo_documento','folio_externo','fecha_emision','fecha_vencimiento','monto_neto','monto_impuesto','monto_total','referencia_respaldo','estado','registrado_por','registrado_en','revertido_por','revertido_en','motivo_reversion','referencia_rectificacion_externa','cobranza']);

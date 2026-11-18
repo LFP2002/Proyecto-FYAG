@@ -21,9 +21,8 @@ function EvidenceScreen({obraId}) {
   const path=`/api/documentos-metadata/?obra=${obraId}&page=${page}`;
   const fields=(value)=>({descripcion:value.descripcion,etiquetas:value.etiquetas.join(', '),atributos:JSON.stringify(value.atributos,null,2)});
   function list(value) {
-    readPage(value,'/api/documentos-metadata/');
+    readPage(value,'/api/documentos-metadata/',25,{obra:obraId});
     if(value.proyeccion!=='EVENTUAL'||value.fuente_autoritativa!=='POSTGRESQL')throw new ApiError(502,'Listado de metadatos inválido.');
-    for(const link of [value.next,value.previous])if(link&&new URL(link,'http://localhost').searchParams.get('obra')!==String(obraId))throw new ApiError(502,'Página de otra Obra.');
     return {...value,results:value.results.map((item)=>validItem(item,obraId))};
   }
   const reload=()=>{setData(null);return api.load('metadata',path,(value)=>setData(list(value)));};

@@ -1,1 +1,9 @@
-/* Los estilos de esta página ya están cubiertos por dashboard.css y ui.css */
+/* Solo Usuarios: las tablas compartidas conservan su contrato y estilos. */
+.usuarios-page .usuarios-table-region { min-width: 0; max-width: 100%; overflow-x: auto; }
+.usuarios-page .usuarios-table-region:focus-visible { outline: 2px solid var(--fyag-blue); outline-offset: 2px; }
+.usuarios-page .trow { display: grid; grid-template-columns: var(--cols); align-items: center; border-bottom: 1px solid var(--fyag-line); }
+.usuarios-page .trow > div { min-width: 0; padding: 12px; overflow-wrap: anywhere; }
+.usuarios-page .thead { background: #f3f6fa; font-weight: 700; }
+.usuarios-page .commercial-fields { display: grid; }
+.usuarios-page :is(.form-control, .form-select) { max-width: 100%; min-width: 0; }
+.usuarios-page :is(h2, p, label, .btn) { overflow-wrap: anywhere; }

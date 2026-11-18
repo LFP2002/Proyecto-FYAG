@@ -1,5 +1,26 @@
 # SPEC-012B — Implementación local de adjuntos privados
 
+> **Aclaración pre-merge PR #44, 17-11-2026:** se conserva el informe histórico inferior. Estado contractual actual en SPEC-012B §12: AF edita notas de factura solo VIGENTE; REVERTIDO conserva lecturas y rechaza PATCH con 409 `documento_no_vigente` sin cambiar BSON/CAS. Informes técnicos no cambian. Se revalida SQL al autorizar y antes del CAS, fuera de transacciones SQL; no se promete atomicidad distribuida frente a reversión solapada tras la última comprobación. Replay idéntico previo no crea una carga y conserva 200. La evidencia histórica inferior no certifica esta corrección; resultados nuevos se añaden tras ejecutar QA.
+
+### Evidencia nueva pre-merge — 17-11-2026
+
+- HEAD local inicial y sin mover: `e4113419f5b97b1d0aaffb08debf28b335338534`; referencia remota `efa33327eca2285496d871f482660867926ea2e9`. Se conservaron en el working tree los cuatro archivos de esa diferencia remota; no se ejecutó merge/rebase ni se crearon commits.
+- Laboratorio real `fyag-pr44-qa-20261117a`, únicamente `compose.premerge-qa.yaml`: PostgreSQL 18/Mongo 8 autenticado en tmpfs, ClamAV 1.5.4 con firmas 28178 del 09-11-2026, backend Python 3.13.18/Django 5.2.19. Docker inspect verificó red interna exclusiva, sin puertos host, volúmenes persistentes ni mounts de datos FYAG; solo código/esquemas read-only.
+- `python manage.py check`: sin incidencias; `makemigrations --check --dry-run`: No changes detected. No se modifican modelos/migraciones ni servicios financieros.
+- Primera pasada relevante `test apps.adjuntos apps.finanzas --noinput`: **112 pruebas OK, 43.489 s**. Incluye nuevas pruebas de VIGENTE/REVERTIDO, lectura histórica, BSON/revisión intactos, 401/403/404 y reversión SQL real entre autorización y CAS. El hook de intercalado controla el momento de la reversión; no simula Mongo ni el servicio financiero y no prueba atomicidad distribuida.
+- Primera suite completa: **872 pruebas OK, 224.366 s**, antes de agregar una regresión adicional de edición de informes en estados terminales/planificado. La validación final de esa prueba se registra por separado, no se atribuye a esta primera pasada.
+- Repetición con la nueva regresión: **873 pruebas, 1 error de fixture, 213.626 s**. La instancia en memoria de Obra conservaba `iniciado_en=null` después de prepararla mediante otro objeto; el CHECK SQL de coherencia rechazó SUSPENDIDA. Se corrigió exclusivamente la fixture mediante `refresh_from_db()`, sin relajar restricciones ni modificar producción.
+- Suite relevante final tras corregir fixture: **113 pruebas OK, 46.793 s**; incluye edición de informes por Supervisor/Técnico en SUSPENDIDA/FINALIZADA/CANCELADA/PLANIFICADA con revisión CAS incremental, sin conceder nuevas cargas.
+- Suite backend completa definitiva `test --noinput`: **873 pruebas OK, 232.186 s** (869 de referencia + 4 nuevas). Motores QA reales, incluyendo ClamAV/EICAR, CAS, finanzas, autenticación, Obras/turnos/evidencias/costos, auditoría, Dashboard, Alertas y exportaciones CSV/XLSX/PDF; no equivale a recorrido de navegador.
+- Frontend final `npm test`: **204 aprobadas, 0 fallos/canceladas/omitidas, 2862.4925 ms** (Node 24.18.0/npm 12.0.2). Incluye 200 pruebas de la referencia remota y 4 nuevas sobre proxy/split-origin, enlaces maliciosos y navegación adelante/atrás con filtros de Cobranzas/Reportes/012A. Respuestas sintéticas, no integración navegador/API.
+- `npm run build`: **OK**, Vite 6.4.5, 99 módulos, **2.01 s**. JS 370.59 kB (gzip 108.16), CSS 253.95 kB (gzip 35.41). `npm ci` ejecutado; npm informó postinstall de esbuild bloqueado por política local, sin impedir tests ni build; no se relajó esa política.
+- Primera ejecución de la nueva prueba UI de paginación: 203/204 por aserción que confundía cartera con `/resumen/`; corregida seleccionando pathname exacto. Fixtures ajustadas a una factura vigente por Obra; no se cambiaron tests previos para ocultar errores.
+- `npm audit --json` y `npm audit`: **4 altas, salida 1**; `npm audit --omit=dev`: **0, salida 0**. Causa única picomatch/ReDoS GHSA-fc5q-39xc-vjpf, sin versión corregida publicada al consultar. Árbol, versiones/exposición y motivo para no degradar Vite en SPEC-014, sección pre-merge. package.json/lock sin cambios; no se ejecutó audit fix/force.
+- `git diff --check`: sin errores de whitespace (advertencias locales LF/CRLF). OpenAPI regenerado desde el generador; Postman no cambió. Las SPEC solo reciben aclaraciones adicionales respecto de la referencia remota; no se borran sus antecedentes.
+- **PENDIENTE crítico:** recorrido React/API real, cookies/CORS HTTPS split-origin, descargas desde navegador y revisión visual 375/768/1280 px. Procedimiento exacto en `SPEC-012B-OPERACION.md`. Las pruebas backend reales incluyen dominios y exportaciones, pero no sustituyen ese recorrido manual. Dependencias dev altas siguen abiertas. **No listo para merge.**
+- Sin commit/push/merge/rebase/PR nuevo, sin cambios a main ni datos FYAG existentes; las únicas escrituras de prueba son fixtures en motores QA nuevos y archivos temporales.
+- Laboratorio propio detenido al terminar mediante `docker compose ... -p fyag-pr44-qa-20261117a stop`, sin down/prune ni borrado de volúmenes. Los tmpfs QA son efímeros; servicios FYAG originales no se detuvieron ni recrearon. Configuración secreta temporal permanece fuera del repositorio; no se imprime ni versiona.
+
 ## Estado y alcance
 
 Implementación en `feature/backend-012b-adjuntos`, basada en `30213ec` (PR #42).
@@ -203,6 +224,126 @@ entrega; requieren revisión y publicación/ejecución expresamente autorizadas.
 
 ## Riesgos residuales
 
+### Revalidación final reconciliada PR #44 (17-11-2026)
+
+Rama `feature/frontend-005c-integracion-modulos`: HEAD actualizado por
+fast-forward protegido de `e4113419f5b97b1d0aaffb08debf28b335338534` a
+`efa33327eca2285496d871f482660867926ea2e9` (cuatro commits; fetch realizado).
+El árbol ya contenía esos commits: no se reescribieron/reaplicaron archivos.
+Comparación SHA-256 de todo el árbol y patch contra remoto antes/después idénticos;
+staging vacío y main conservado en `567d8aebdf95ef2f78aaf55a31857669bcf1f185`.
+Adjuntos.jsx, FinanceDocument.jsx y su test coinciden con remoto; SPEC-014 conserva
+el contenido remoto como prefijo. Respaldo recuperable externo conservado:
+`C:\Users\jugue\AppData\Local\Temp\opencode\fyag-pr44-backup-20261117-181222`
+(19 archivos locales, índice, patches, bundle e inventario SHA-256 verificados).
+
+| Comprobación posterior a reconciliación | Resultado |
+| --- | --- |
+| `npm ci` | 71 instalados/72 auditados; lock sin cambios; aviso esbuild postinstall bloqueado por política local |
+| `npm test` | **204/204**, cero fallos, **3397,2057 ms** |
+| `npm run build` | **OK**, Vite 6.4.5, 99 módulos, **1,74 s** |
+| Inventario Rollup externo | 92 módulos runtime, cero módulos Vite/picomatch/fdir/tinyglobby; build adicional 1,24 s |
+| `npm audit` | **4 high**, salida 1; vulnerabilidad abierta, no corregida |
+| `npm audit --omit=dev` | **0**, salida 0 |
+| Django `check` | Sin problemas |
+| `makemigrations --check --dry-run` | No changes detected |
+| Suite backend completa | **874 pruebas OK, 244,157 s**; 873 anteriores + una prueba concurrente nueva |
+
+Laboratorio independiente `fyag-pr44-final-20261117`: PostgreSQL/Mongo con tmpfs,
+scanner propio, red interna, sin volúmenes FYAG ni puertos host de motores.
+La suite terminó antes de sembrar datos para navegador. La prueba nueva acredita
+la ventana posterior a la tercera autorización (SPEC-012B §12), no atomicidad
+distribuida. Finanzas no fue modificado. No se ejecutó commit/push/merge ni se
+modificó main. Los antecedentes de otras ejecuciones se conservan.
+
+**Navegador real y dictamen:** recorrido Edge/CDP en QA HTTP loopback ejecutado,
+matriz detallada/evidencia y pasos manuales en SPEC-012B-OPERACION §«Ejecución
+real de navegador de cierre». Cinco roles con sesión real, paginación G/AF,
+pago AF por formulario (201), históricos/CAS/PDF/PNG por fetch autenticado,
+CSRF negativo403, Mongo/scanner realmente detenidos (503 aislados) y offline UI.
+Sin excepciones JS; errores de red negativos esperados registrados.
+
+**NO APTO para merge**: picomatch sigue vulnerable sin aceptación de riesgo;
+Usuarios TI desborda a375/a768 (scrollWidth929/933); falta HTTPS split-origin;
+descarga por botones de exportación solo acreditó HTTP200, no entrega al disco;
+resta recorrido operativo completo y todas las pantallas/paginaciones por UI.
+La navegación TI fallida del primer runner era un selector erróneo y se confirmó
+posteriormente; los dos desbordes sí son fallos de producto y no se ocultaron.
+Los ficheros CSV/XLSX/PDF obtenidos por fetch auxiliar sí se guardaron/parsearon,
+sin confundir eso con aprobación de sus botones o revisión visual en Excel.
+También debe acordarse expresamente la garantía SQL/Mongo documentada antes de
+exigir un orden global absoluto. No se amplió el contrato para aparentar cumplirlo.
+
+### Actualización del seguimiento funcional tras reanudación (17-11-2026)
+
+El dictamen anterior se conserva como histórico. **Se resolvieron Usuarios TI y
+la entrega real de descargas**: regiones accesibles de scroll local, estilos solo
+en Usuarios, regresión CDP versionable a375/768/1280, cinco archivos recibidos por
+botones con eventos Browser completed y parsing. No hubo cambios en Table/layout
+compartidos ni en la lógica de descarga React. Se amplió la evidencia UI de TI,
+turnos/fotos/revisión, gastos/costos, documentos/pagos/anulación/reversión/cierre
+sin cobro y CAS de dos pestañas. La matriz completa distingue lecturas, escrituras,
+fetch auxiliar, fallos inyectados y pendientes en SPEC-012B-OPERACION.
+
+Tras reiniciar Docker los tmpfs estaban vacíos. Se verificó aislamiento y se
+reconstruyó solo el laboratorio mínimo para pendientes, sin repetir operaciones
+financieras ni cambios de cuentas ya confirmados. UI de reanudación: página2 TI,
+relevo S200, Técnico404 sin ficha retenida, revalidación de nueva versión y cierre
+operativo S200. Scanner detenido y Mongo pausado provocaron503 desde botones,
+manteniendo descargas200; unpause conservó revisión0. Ningún motor FYAG ajeno
+fue utilizado o detenido.
+
+Última validación frontend: **204/204,3602.6882ms**, build **1.90s**; audit completo
+**4high/salida1**, runtime **0/salida0**. Inventario actual:92módulos runtime,
+ninguno de tooling afectado. Backend check y dry-run actuales limpios. El backend
+runtime/tests sigue byte a byte igual al de **874OK/244.157s**; no se reejecutó la
+suite completa sobre el Mongo de fixtures navegador ni se atribuye una nueva
+ejecución. Package/lock permanecen sin cambios.
+
+**NO APTO continúa**: falta decisión formal de riesgo picomatch, HTTPS sin
+excepción de certificado y el recorrido integral/paginaciones/variantes UI aún
+parciales. HTTPS same-site funcional sí pasó, con cookies Secure/HttpOnly/Strict y
+CORS explícito; la excepción SPKI y ERR_CERT_AUTHORITY_INVALID están registrados,
+no son confianza TLS validada. No se declara una vulnerabilidad solucionada.
+
+### Cierre dirigido posterior del recorrido pendiente
+
+Se completó por UI un flujo nuevo Cliente#2 → PRE-000002 y aprobaciones →
+OB-000002/participante → turno#2 y foto → revisión/gasto/costos → finalización →
+documento externo folio441117212424 → pago5.00 → cartera/reporte saldo11895.00.
+Journal externo:13pasos,36medidas responsive y un solo POST de documento/pago.
+Se agregaron11combinaciones dirigidas (página2 Presupuestos/Obras/Reportes,
+auditoría cursor/filtros,409 presupuesto utilizado,012A edición/relectura,
+cortesía S, catálogo G y lectura restringida S) con21medidas responsive más.
+No se repitieron operaciones históricas ni se atribuyeron fixtures a acciones UI.
+
+No cambió código productivo: se conservan los resultados automáticos previos
+solo si sus hashes/commit coinciden. Auditoría npm repetida:4high y runtime0,
+sin parche oficial ni cambios de lock. Riesgo formal preparado para decisión en
+SPEC-014, todavía no aprobado. Edge nuevo sin flags de excepción confirma
+ERR_CERT_AUTHORITY_INVALID en la cadena autofirmada; se documentaron CA/SAN,
+almacenes consultados y pasos concretos para intervención autorizada del operador.
+No se instaló ninguna raíz. La matriz y el dictamen más recientes están en
+SPEC-012B-OPERACION §«Cierre dirigido del recorrido UI pendiente»: **NO APTO**
+hasta TLS confiable y decisión expresa de riesgo. PR permanece sin publicación.
+
+### Autorización posterior para publicar el PR Draft (17-11-2026)
+
+El responsable aceptó temporalmente GHSA-fc5q-39xc-vjpf/CVE-2026-112366 **solo en
+desarrollo y QA**, con revisión semanal, riesgo residual vigente y caducidad
+propuesta de30días (17-12-2026) sujeta a nueva evaluación. El registro formal de
+SPEC-014 cita la autorización conversacional, sin inventar firma ni ticket;
+las4alertas siguen visibles y la vulnerabilidad no se declara solucionada.
+
+No se autoriza instalar CA raíz, modificar confianza Windows o desactivar TLS.
+Validar HTTPS con cadena confiable permanece como requisito de despliegue, no
+como aprobación derivada del QA funcional/SPKI. No se cambia configuración TLS.
+
+Se autoriza commit y push normal exclusivamente a la rama del PR#44 existente,
+manteniéndolo Draft. Las conclusiones anteriores de NO APTO para merge/despliegue
+no prohíben esta publicación limitada para auditoría. No se autorizan merge,
+push a main, force push, eliminar ramas, crear otro PR o convertirlo a Ready.
+
 - Antivirus no garantiza ausencia de amenazas; requiere actualización y monitoreo
   de firmas. QA congela firmas de imagen para reproducibilidad, no para producción.
 - No cuarentena pública, eliminación/retención legal ni reparación automática.
@@ -214,3 +355,14 @@ entrega; requieren revisión y publicación/ejecución expresamente autorizadas.
   humana, no limpieza automática.
 - CI remoto y selección de archivos Postman deben ejecutarse tras publicación
   expresamente autorizada; no equivalen a pruebas locales.
+
+### Validación repetida antes del commit autorizado
+
+En QA exclusivo `fyag-pr44-publish-20261117`, sin puertos host y con PostgreSQL y
+Mongo en tmpfs: Django check limpio, dry-run sin cambios, migraciones aplicadas
+solo al laboratorio nuevo y migrate --check OK; **874 pruebas backend OK en
+222.740 s**. Frontend: npm ci OK sin cambio de lock, **204/204 pruebas OK en
+3697.3954 ms** y build OK en **2.03 s** (99 módulos). Audit runtime: **0**;
+audit completo: exactamente **4 high/salida 1** de la cadena picomatch autorizada,
+sin hallazgos nuevos. Detalle en el acta final de operación. No se modifica
+confianza TLS ni se equiparan pruebas locales con aprobación de CI o producción.
