@@ -12,6 +12,7 @@ export function obrasBackend(role = S) {
     technicians: [{ id: 7, nombre: 'Técnico principal' }, { id: 8, nombre: 'Técnico adicional' }],
     obras: [{ id: 1, codigo: 'OB-000001', presupuesto: 10, presupuesto_codigo: 'PRE-000010', cliente: 4, cliente_nombre: 'Cliente operativo', categoria_servicio: 1, categoria_nombre: 'Categoría histórica', descripcion: 'Descripción operativa privada', tecnico_responsable: 7, tecnico_nombre: 'Técnico principal', fecha_programada: '2026-11-20', iniciado_en: null, estado: 'PLANIFICADA', finalizado_en: null, cancelado_en: null, creado_por: 2, creado_en: time, actualizado_en: time }],
     members: [{ id: 101, obra: 1, tecnico: 7, tecnico_nombre: 'Técnico principal', activo: true, es_responsable: true, origen_registro: 'OPERACION', asignado_por: 2, asignado_en: time, motivo_asignacion: 'Inicial', desasignado_por: null, desasignado_en: null, motivo_desasignacion: '' }, { id: 102, obra: 1, tecnico: 8, tecnico_nombre: 'Técnico adicional', activo: false, es_responsable: false, origen_registro: 'MIGRACION_004B', asignado_por: null, asignado_en: null, motivo_asignacion: '', desasignado_por: 2, desasignado_en: time, motivo_desasignacion: 'Retirado' }],
+    turnos: [], expenses: [], costEvents: [], control: { id: 1, obra: 1, materiales_estado: 'PENDIENTE', materiales_justificacion: '', otros_estado: 'PENDIENTE', otros_justificacion: '', version_actual: 0, version_validada: null, validado_por: null, validado_en: null, costos_validados: false, creado_en: time, actualizado_en: time }, courtesy: null,
     events: [{ id: 1, obra: 1, tipo: 'CREACION', estado_anterior: null, estado_nuevo: 'PLANIFICADA', datos_anteriores: {}, datos_nuevos: { descripcion: 'Descripción operativa privada' }, registrado_por: 2, motivo: 'Inicial', creado_en: time }],
     memberEvents: [], categoryEvents: [], allowed: new Set([1]),
   };
@@ -25,10 +26,10 @@ export function obrasBackend(role = S) {
   const assertRole = (roles) => { if (!roles.includes(backend.role)) throw new ApiError(403, 'Acceso denegado.'); };
   backend.request = async (path, options = {}) => {
     const method = options.method || 'GET', body = options.body;
-    backend.calls.push({ path, method, body: clone(body), signal: options.signal });
+    backend.calls.push({ path, method, body: typeof FormData !== 'undefined' && body instanceof FormData ? body : clone(body), signal: options.signal });
     if (method !== 'GET' && backend.failure) throw backend.failure;
     if (method === 'GET' && backend.readFailure?.(path)) throw new ApiError(500, 'Relectura fallida.');
-    if (/\/(turnos|gastos|costos|finalizar|cancelar)(\/|\?)/.test(path)) throw new Error(`Fuera de 005C-1: ${path}`);
+
     const url = new URL(path, 'http://localhost'), route = url.pathname;
     if (route === '/api/obras/presupuestos-disponibles/') { assertRole([S]); return paginate(backend.budgets, url); }
     if (route === '/api/obras/tecnicos-disponibles/') { assertRole([S]); return paginate(backend.technicians, url); }
@@ -51,7 +52,49 @@ export function obrasBackend(role = S) {
       const obra = backend.obras.find((o) => o.id === Number(match[1])), suffix = match[2];
       if (!obra || (backend.role === T && !backend.allowed.has(obra.id))) throw new ApiError(404, 'Recurso no disponible.');
       if (!suffix && method === 'GET') return project(obra);
-      if (method === 'GET') {
+      if (suffix === 'costos/resumen/' && method === 'GET') {
+        assertRole([G, S, AF]);
+        const summary = { obra: obra.id, materiales_total: '0.00', otros_total: '0.00', mano_obra_total: '0.00', costo_total: '0.00', costos_validados: backend.control.costos_validados, cortesia_sin_cobro: !!backend.courtesy };
+        if (backend.role !== AF) Object.assign(summary, { materiales_estado: backend.control.materiales_estado, otros_estado: backend.control.otros_estado, materiales_justificacion: backend.control.materiales_justificacion, otros_justificacion: backend.control.otros_justificacion, version_actual: backend.control.version_actual, version_validada: backend.control.version_validada, validado_por: backend.control.validado_por, validado_en: backend.control.validado_en, cortesia_justificacion: backend.courtesy?.justificacion ?? null, provisional: !backend.control.costos_validados || obra.estado === 'SUSPENDIDA' });
+        return summary;
+      }
+      if (suffix === 'costos/control/' && method === 'GET') { assertRole([G, S]); return clone(backend.control); }
+      if (suffix === 'costos/control/' && method === 'PATCH') { assertRole([S]); Object.assign(backend.control, body, { version_actual: backend.control.version_actual + 1, version_validada: null, costos_validados: false }); backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: 1, cortesia: null, tipo: 'DECLARACION', registrado_por: 2, motivo: body.motivo, datos_anteriores: {}, datos_nuevos: clone(backend.control), creado_en: time }); return clone(backend.control); }
+      if (suffix === 'costos/validar/' && method === 'POST') { assertRole([S]); if (!body.motivo?.trim()) throw new ApiError(400, 'Motivo obligatorio.'); backend.control.costos_validados = true; backend.control.version_validada = backend.control.version_actual; backend.control.validado_por = 2; backend.control.validado_en = time; backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: 1, cortesia: null, tipo: 'VALIDACION', registrado_por: 2, motivo: body.motivo, datos_anteriores: {}, datos_nuevos: clone(backend.control), creado_en: time }); return clone(backend.control); }
+      if (suffix === 'cortesia-sin-cobro/' && method === 'POST') { assertRole([S]); if (backend.courtesy && !body.motivo) throw new ApiError(400, 'Motivo obligatorio.'); backend.courtesy = { justificacion: body.justificacion }; backend.control.version_actual++; backend.control.costos_validados = false; backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: null, cortesia: 1, tipo: 'CORTESIA', registrado_por: 2, motivo: body.motivo || body.justificacion, datos_anteriores: {}, datos_nuevos: { justificacion: body.justificacion }, creado_en: time }); return clone(backend.courtesy); }
+      if (suffix.startsWith('costos/historial/') && method === 'GET') { assertRole([G, S]); return paginate(backend.costEvents, url); }
+      if (suffix === 'gastos/' && method === 'GET') { assertRole([G, S]); return paginate(backend.expenses, url); }
+      if (suffix === 'gastos/' && method === 'POST') { assertRole([S]); const item = { id: backend.expenses.length + 1, obra: obra.id, ...clone(body), cantidad_devuelta: '0.000', subtotal: '25.00', vigente: true, anulado_por: null, anulado_en: null, motivo_anulacion: '', registrado_por: 2, creado_en: time, actualizado_en: time }; backend.expenses.unshift(item); backend.control.version_actual++; backend.control.costos_validados = false; return clone(item); }
+      const expenseMatch = suffix.match(/^gastos\/(\d+)(?:\/(devolver|anular))?\/$/);
+      if (expenseMatch && method !== 'GET') { assertRole([S]); const item = backend.expenses.find((entry) => entry.id === Number(expenseMatch[1])); if (!item) throw new ApiError(404, 'No disponible.'); if (method === 'PATCH') Object.assign(item, body); else if (expenseMatch[2] === 'devolver') item.cantidad_devuelta = body.cantidad; else if (expenseMatch[2] === 'anular') { item.vigente = false; item.motivo_anulacion = body.motivo; } backend.control.version_actual++; backend.control.costos_validados = false; return clone(item); }
+      if (suffix === 'finalizar/' && method === 'POST') { assertRole([S]); if (!backend.control.costos_validados || obra.estado !== 'EN_PROCESO') throw new ApiError(409, 'Costos incompletos.'); obra.estado = 'FINALIZADA'; obra.finalizado_en = time; return project(obra); }
+      if (suffix === 'turnos/' && method === 'GET') {
+        assertRole([G, S, T]);
+        return paginate(backend.turnos.filter((turno) => turno.obra === obra.id && (backend.role !== T || turno.tecnico === 8)), url);
+      }
+      if (suffix === 'turnos/iniciar/' && method === 'POST') {
+        assertRole([T]);
+        if (obra.estado !== 'EN_PROCESO') throw new ApiError(409, 'Estado incompatible.');
+        const turno = { turno_id: backend.turnos.length + 1, obra: obra.id, tecnico: 8, iniciado_en: '2026-11-12T12:00:00Z', terminado_en: null, duracion_segundos: null, duracion_ajustada_segundos: null, descripcion_trabajo: '', estado_revision: 'ABIERTO', modo_cierre: null, cerrado_por: null, observacion: '', fotos: [] };
+        backend.turnos.push(turno); return clone(turno);
+      }
+      const turnoMatch = suffix.match(/^turnos\/(\d+)\/(finalizar|subsanar|revisar|corregir|cerrar-administrativamente)\/$/);
+      if (turnoMatch && method === 'POST') {
+        const turno = backend.turnos.find((entry) => entry.turno_id === Number(turnoMatch[1]) && entry.obra === obra.id);
+        if (!turno) throw new ApiError(404, 'Turno no disponible.');
+        const action = turnoMatch[2]; assertRole(action === 'finalizar' || action === 'subsanar' ? [T] : [S]);
+        if (action === 'finalizar' || action === 'subsanar' || action === 'cerrar-administrativamente') {
+          const description = body instanceof FormData ? body.get('descripcion_trabajo') : body.descripcion_trabajo;
+          if (description) turno.descripcion_trabajo = description;
+          turno.estado_revision = 'PENDIENTE_REVISION'; turno.terminado_en = '2026-11-12T13:00:00Z';
+          turno.modo_cierre = action === 'cerrar-administrativamente' ? 'SUPERVISOR' : 'TECNICO';
+        } else if (action === 'revisar') {
+          turno.estado_revision = body.decision === 'VALIDAR' ? 'VALIDADO' : 'OBSERVADO';
+          turno.observacion = body.decision === 'OBSERVAR' ? body.motivo : '';
+          turno.observacion_revision = body.motivo; turno.costo_hora_neto = body.costo_hora_neto || null; turno.costo_mano_obra = '10.00';
+        }
+        return clone(turno);
+      }      if (method === 'GET') {
         assertRole([G, S]);
         if (suffix === 'historial/') return paginate(backend.events.filter((e) => e.obra === obra.id), url);
         if (suffix === 'participantes/historial/') return paginate(backend.memberEvents, url);

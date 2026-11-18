@@ -93,7 +93,7 @@ function Detail({ id, onBack }) {
     setMode(null);
   };
   const own = user.id === id, disabled = api.busy || api.loading || api.locked;
-  return <section className="commercial-page">
+  return <section className="commercial-page usuarios-page">
     <button className="btn btn-outline-secondary" disabled={api.busy} onClick={onBack}>Volver a usuarios</button>
     <button className="btn btn-outline-secondary ms-2" disabled={api.busy || api.loading} onClick={refresh}>Actualizar</button>
     <Feedback api={api} />
@@ -124,7 +124,7 @@ function UsuariosTI() {
   useEffect(() => { if (!selected) { setData(null); void load(); } }, [page, filters.rol, filters.activo, selected]);
   const disabled = api.busy || api.loading || api.locked;
   if (selected) return <Detail key={selected} id={selected} onBack={() => setSelected(null)} />;
-  return <section className="commercial-page">
+  return <section className="commercial-page usuarios-page">
     <PageHead title="Usuarios y roles" sub="Administración exclusiva de TI. Los cambios se confirman en PostgreSQL con auditoría." />
     <div className="d-flex flex-wrap gap-2 mb-3">
       <button className="btn btn-fyag-primary" disabled={disabled} onClick={() => setCreating(true)}>Nueva cuenta</button>
@@ -135,14 +135,14 @@ function UsuariosTI() {
     <Feedback api={api} />
     {api.error?.status === 404 && page > 1 && <button className="btn btn-outline-secondary" onClick={() => setPage(1)}>Primera página</button>}
     {creating && <AccountForm mode="crear" api={api} onCancel={() => setCreating(false)} onSaved={async (account) => { await api.requiredLoad('usuarios', usersPath(page, filters), (result) => setData(readUsers(result))); setCreating(false); setSelected(account.id); }} />}
-    <div className="card-fyag flush mb-3"><Table label="Cuentas de usuario" min="780px" columns="1fr 1.4fr 1.3fr 100px 110px" head={['Alias', 'Correo', 'Rol', 'Estado', 'Detalle']}>
+    <div className="card-fyag flush mb-3"><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="780px" columns="minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.3fr) 100px 110px" head={['Alias', 'Correo', 'Rol', 'Estado', 'Detalle']}>
       {data?.results.map((account) => <div key={account.id} className="trow" role="row"><div role="cell">{account.username}</div><div role="cell">{account.email}</div><div role="cell">{ROLES[account.rol].short}</div><div role="cell">{account.is_active ? 'Activa' : 'Inactiva'}</div><div role="cell"><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={() => setSelected(account.id)}>Ver cuenta #{account.id}</button></div></div>)}
-    </Table></div>
+    </Table></div></div>
     {data && !data.count && <p>No hay cuentas para estos filtros.</p>}
     {data && <Pager {...{ data, page, setPage }} disabled={api.busy || api.loading} label="Páginas de usuarios" />}
-    <section className="card-fyag p-3"><h2>Matriz de permisos</h2><Table label="Matriz de cinco roles" min="900px" columns="1.4fr repeat(5, 1fr)" head={['Módulo', 'Gerencia', 'Finanzas', 'Supervisor', 'Técnico', 'TI']}>
+    <section className="card-fyag p-3"><h2>Matriz de permisos</h2><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de matriz de permisos" tabIndex={0}><Table label="Matriz de cinco roles" min="900px" columns="minmax(0, 1.4fr) repeat(5, minmax(0, 1fr))" head={['Módulo', 'Gerencia', 'Finanzas', 'Supervisor', 'Técnico', 'TI']}>
       {MATRIX.map((row) => <div className="trow" role="row" key={row[0]}>{row.map((value, index) => <div role="cell" key={index}>{value}</div>)}</div>)}
-    </Table></section>
+    </Table></div></section>
   </section>;
 }
 

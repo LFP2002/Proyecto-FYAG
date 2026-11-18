@@ -170,3 +170,10 @@ No hay escrituras, correcciones, eliminación de eventos, generación de eventos
 - `backend/apps/finanzas/{models.py,serializers_documentos.py,permissions.py}`.
 - `backend/apps/usuarios/{models.py,serializers_usuarios.py,authentication.py}`.
 - SPEC-002A/002B, SPEC-003, SPEC-004/004B, SPEC-006B/006C, SPEC-007 y `.github/workflows/backend-ci.yml`.
+
+## 14. Seguimiento frontend local y discrepancia de verificación (14-11-2026)
+
+- No se implementó una vista frontend de Auditoría global en este worktree; `frontend/src/app.jsx` no monta una pantalla de feed `/api/auditoria/eventos/` y no se añadió una ruta de navegación para ella.
+- Durante la revisión local, `backend/config/urls.py` y `backend/apps/auditoria/urls.py` contienen la ruta `/api/auditoria/eventos/` y una vista `EventosAuditoriaView`, aunque el estado de esta SPEC afirma que no existe en `main`. Esto es una discrepancia entre el texto documental y el checkout verificado; no se declara aquí qué versión se desplegó ni se altera el contrato congelado.
+- Antes de implementar UI, el responsable/backend debe reconciliar el estado de SPEC, la integración efectiva del backend/OpenAPI y autorización del contrato frontend. No se inventó pantalla ni esquema.
+- Suites frontend locales ejecutadas en el worktree: 159 aprobadas; build aprobado. No hay cobertura E2E de Auditoría ni Frontend CI en este registro.

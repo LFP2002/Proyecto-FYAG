@@ -1,0 +1,95 @@
+# Standalone: nunca combinar con compose.yaml ni compose.adjuntos-qa.yaml.
+# Proyecto único por ejecución; sin container_name, puertos fijos, redes externas,
+# volúmenes persistentes ni .env de FYAG. Secretos efímeros vía --env-file externo.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: fyag_pr44_qa
+      POSTGRES_USER: fyag_pr44_qa
+      POSTGRES_PASSWORD: ${QA_POSTGRES_PASSWORD:?}
+    tmpfs: [/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U fyag_pr44_qa -d fyag_pr44_qa']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  mongo:
+    image: mongo:8.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: qa_bootstrap
+      MONGO_INITDB_ROOT_PASSWORD: ${QA_MONGO_ROOT_PASSWORD:?}
+      FYAG_MONGO_DB: fyag_documentos_test
+      FYAG_MONGO_USER: qa_app
+      FYAG_MONGO_PASSWORD: ${QA_MONGO_PASSWORD:?}
+    tmpfs: [/data/db, /data/configdb]
+    volumes:
+      - ./database:/opt/fyag/database:ro
+      - ./backend/apps/documentos/esquema.json:/opt/fyag/esquema.json:ro
+      - ./backend/apps/adjuntos/esquema.json:/opt/fyag/adjuntos_esquema.json:ro
+      - ./database/usuarios_mongodb.js:/docker-entrypoint-initdb.d/10-fyag.js:ro
+    healthcheck:
+      test: [CMD, mongosh, --quiet, /opt/fyag/database/health_mongodb.js]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  clamav:
+    image: clamav/clamav:1.5.4-debian
+    environment:
+      CLAMAV_NO_FRESHCLAMD: 'true'
+      CLAMD_CONF_StreamMaxLength: 9M
+      CLAMD_CONF_MaxFileSize: 9M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_MaxScanTime: 10000
+      CLAMD_CONF_MaxRecursion: 8
+      CLAMD_CONF_AlertExceedsMax: 'yes'
+      CLAMD_CONF_AlertEncrypted: 'yes'
+      CLAMD_CONF_MaxThreads: 2
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: [CMD, clamdcheck.sh]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+  backend:
+    build:
+      context: ./backend
+      args:
+        REQUIREMENTS_FILE: requirements-test.txt
+    environment:
+      DJANGO_SECRET_KEY: ${QA_DJANGO_SECRET:?}
+      JWT_SIGNING_KEY: ${QA_JWT_SECRET:?}
+      DJANGO_DEBUG: 'False'
+      DJANGO_ALLOWED_HOSTS: testserver,localhost,127.0.0.1,backend
+      POSTGRES_DB: fyag_pr44_qa
+      POSTGRES_USER: fyag_pr44_qa
+      POSTGRES_PASSWORD: ${QA_POSTGRES_PASSWORD:?}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      FYAG_MONGO_HOST: mongo
+      FYAG_MONGO_DB: fyag_documentos_test
+      FYAG_MONGO_USER: qa_app
+      FYAG_MONGO_PASSWORD: ${QA_MONGO_PASSWORD:?}
+      FYAG_MONGO_TEST_HOST: mongo
+      FYAG_MONGO_TEST_PORT: '27017'
+      FYAG_MONGO_TEST_USER: qa_app
+      FYAG_MONGO_TEST_PASSWORD: ${QA_MONGO_PASSWORD:?}
+      FYAG_MONGO_TEST_ROOT_USER: qa_bootstrap
+      FYAG_MONGO_TEST_ROOT_PASSWORD: ${QA_MONGO_ROOT_PASSWORD:?}
+      FYAG_CLAMD_HOST: clamav
+      FYAG_CLAMD_TEST_HOST: clamav
+      FYAG_EVIDENCIAS_ROOT: /qa/evidencias
+      FYAG_ADJUNTOS_ROOT: /qa/adjuntos
+    tmpfs: [/qa]
+    volumes:
+      - ./backend:/app:ro
+    command: [python, -c, 'import time; time.sleep(86400)']
+    depends_on:
+      postgres: {condition: service_healthy}
+      mongo: {condition: service_healthy}
+      clamav: {condition: service_healthy}
+networks:
+  default:
+    internal: true

@@ -5,10 +5,14 @@ import { collectionPath, memberPath, obraPath, readPage } from './api.js';
 import { actionLabels, AF, canEditObra, canReadTeam, emptyObra, G, obraErrors, obraPayload, operationFor, projectObra, shortDate, S, T, timestamp, validId } from './domain.js';
 import { ObraFields } from './ObraForm.jsx';
 import { EventList, Feedback, Field, focusError, ObraStatus, PagedSelect, Pager, PendingSection, RefreshButton, useOperational } from './ui.jsx';
+import Turnos from './Turnos.jsx';
+import Costos from './Costos.jsx';
+import EvidenceMetadata from '../integrations/EvidenceMetadata.jsx';
+import Adjuntos from '../integrations/Adjuntos.jsx';
 
-export default function ObraDetail({ id, onBack }) {
+export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
-  const [obra, setObra] = useState(null), [tab, setTab] = useState('resumen'), [form, setForm] = useState(null), [errors, setErrors] = useState({});
+  const [obra, setObra] = useState(null), [tab, setTab] = useState(initialTab), [form, setForm] = useState(null), [errors, setErrors] = useState({});
   const [members, setMembers] = useState(null), [memberPage, setMemberPage] = useState(1), [active, setActive] = useState('');
   const [history, setHistory] = useState(null), [historyPage, setHistoryPage] = useState(1);
   const [memberHistory, setMemberHistory] = useState(null), [memberHistoryPage, setMemberHistoryPage] = useState(1);
@@ -71,7 +75,7 @@ export default function ObraDetail({ id, onBack }) {
     if (['desasignar', 'cambiar-tecnico', 'suspender'].includes(type) && !window.confirm(avisoRelevo)) return;
     await api.write(path, method, payload, afterWrite);
   }
-  const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
+  const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...([G, S, T].includes(user.role) ? [['documentos', 'Documentos y evidencias']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
   return <article className="card-fyag commercial-detail">
     <div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>
     <Feedback api={api} />
@@ -88,7 +92,7 @@ export default function ObraDetail({ id, onBack }) {
         </dl>
         {user.role !== AF && <p className="commercial-long-text">{obra.descripcion}</p>}
         {editable && <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => open('editar')}>Editar obra</button><button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => open('cambiar-tecnico')}>Cambiar responsable</button>{operationFor(user.role, obra) && <button className="btn btn-fyag-primary" disabled={disabled || !!form} onClick={() => open(operationFor(user.role, obra))}>{actionLabels[operationFor(user.role, obra)]}</button>}</div>}
-        {user.role === S && <PendingSection>Finalización operativa: pendiente de integración frontend en 005C-3.</PendingSection>}
+
       </>}
       {tab === 'tecnicos' && team && <>
         <div className="budget-toolbar"><Field name="miembros_activo" label="Participantes" value={active} options={[[ '', 'Todos' ], ['true', 'Activos'], ['false', 'Históricos / inactivos']]} disabled={disabled || !!form} onChange={(value) => { setActive(value); setMemberPage(1); }} />{editable && <button className="btn btn-fyag-primary" disabled={disabled || !!form} onClick={() => open('asignar')}>Asignar participante</button>}</div>
@@ -101,9 +105,10 @@ export default function ObraDetail({ id, onBack }) {
         <Pager label="Paginación de participantes" data={members} page={memberPage} setPage={setMemberPage} disabled={disabled || !!form} />
       </>}
       {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} /><Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} /><EventList title="Historial de participantes" data={memberHistory} /><Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} /></>}
-      {tab === 'turnos' && <PendingSection>Turnos y evidencia privada: pendiente de integración frontend en 005C-2.</PendingSection>}
-      {tab === 'gastos' && team && <PendingSection>Materiales y gastos: pendiente de integración frontend en 005C-3.</PendingSection>}
-      {tab === 'costos' && user.role !== T && <PendingSection>Costos y cierre operativo: pendiente de integración frontend en 005C-3.</PendingSection>}
+      {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} />}
+      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} />}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
+      {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
+      {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {form && <form className="commercial-form obras-action-form" noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
         {form.type === 'editar' ? <ObraFields form={form.data} setForm={(data) => setForm({ ...form, data })} original={obra} errors={errors} disabled={api.busy || !editable} /> : <div className="obras-form-grid">
           {['cambiar-tecnico', 'asignar'].includes(form.type) && <PagedSelect name={form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable'} label={form.type === 'asignar' ? 'Técnico participante' : 'Nuevo responsable'} path={`${obraPath()}tecnicos-disponibles/`} value={form.type === 'asignar' ? form.data.tecnico : form.data.tecnico_responsable} selectedLabel={form.member?.tecnico_nombre} onChange={(value) => setForm({ ...form, data: { ...form.data, [form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']: value } })} disabled={api.busy || !editable} error={errors[form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']} />}

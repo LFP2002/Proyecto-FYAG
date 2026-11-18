@@ -100,3 +100,9 @@ Sustituir el inicio de sesión simulado por el mecanismo real de Django JWT, y p
 - Resultado de pruebas reportado durante la revisión: 48 tests de frontend y 508 tests de backend. La verificación visual del usuario confirmó acceso con identidad/rol correctos; esto **no sustituye** una prueba E2E automatizada de todos los escenarios.
 - El PR actualizó herramientas de desarrollo a Vite `^6.4.5` y `@vitejs/plugin-react` `^4.3.4`. El paso CI `npm audit --omit=dev` terminó correctamente; no se atribuye a ese resultado la auditoría de todas las dependencias de desarrollo.
 - La conexión de Clientes y Presupuestos no forma parte de 005A: queda definida en `specs/005b-frontend-comercial.md`.
+
+## 11. Seguimiento local posterior (14-11-2026)
+
+- En el worktree local de `feature/frontend-005c2-turnos`, `frontend/src/auth/client.js` conserva el flujo de sesión 005A y fue ampliado para respuestas Blob/binarias autenticadas y `FormData`, reutilizando refresh, CSRF, same-origin y el mismo cliente. No se declara integrado en `main` ni publicado.
+- Evidencia de pruebas del worktree, antes de actualizar este registro: `npm test` aprobó 159 pruebas; `npm run build` aprobó. No equivale a Frontend CI ni a E2E con backend.
+- La ampliación está cubierta también por `frontend/tests/auth-client.test.js`; revisar ese diff junto con las descargas que la utilizan antes de aprobar publicación.

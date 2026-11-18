@@ -27,6 +27,7 @@ export function useCommercial() {
   }
   async function requiredLoad(key, path, apply) {
     if (!await load(key, path, apply)) throw new ApiError(502, 'La escritura pudo aplicarse, pero falta confirmar los datos. Reconsulta antes de continuar.');
+    return true;
   }
   async function write(path, method, body, apply) {
     const scope = ref.current;

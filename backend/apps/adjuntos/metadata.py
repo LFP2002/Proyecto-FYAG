@@ -144,6 +144,10 @@ def editar(adjunto, actor, data, correlacion):
         validar_documento(anterior, adjunto)
         nuevo = {**anterior, **cambios, "revision": revision+1, "anotado_en": datetime.now(timezone.utc), "anotado_por_id": Int64(actor.pk)}
         validar_documento(nuevo, adjunto)
+        # Releer SQL, no el objeto/estado de entrada, justo antes del CAS.
+        # No hay transacción distribuida: una reversión posterior a esta
+        # comprobación puede solaparse con un CAS ya autorizado (SPEC-012B §12).
+        services.autorizado(actor, adjunto.pk, editar=True)
         doc = col.find_one_and_update({"_id": anterior["_id"], "revision": revision},
             {"$set": {**cambios, "anotado_en": nuevo["anotado_en"], "anotado_por_id": nuevo["anotado_por_id"]}, "$inc": {"revision": 1}}, return_document=ReturnDocument.AFTER)
         if doc is None:

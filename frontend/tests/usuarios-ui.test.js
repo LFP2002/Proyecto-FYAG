@@ -77,7 +77,7 @@ test('TI monta exclusivamente Usuarios y Gerencia pierde menú/consultas adminis
     try {
       if (role === 'ADMINISTRADOR_TI') {
         const nav = renderer.root.findByProps({ id: 'fyag-modules-nav' });
-        assert.deepEqual(nav.findAllByType('button').map(text), ['Usuarios y roles']);
+        assert.deepEqual(nav.findAllByType('button').map(text), ['Usuarios y roles', 'Auditoría']);
         assert.ok(api.calls.some((call) => call.path.startsWith('/api/usuarios/')));
       } else {
         assert.equal(api.calls.length, 0);

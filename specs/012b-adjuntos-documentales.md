@@ -125,3 +125,53 @@ Bootstrap autenticado e idempotente y usuario aplicación de mínimo privilegio 
 specs/012-integracion-mongodb.md; backend/apps/documentos/; backend/apps/finanzas/models.py, permissions.py, views_documentos.py, urls.py; backend/apps/obras/evidencias.py, views_turnos.py, services_turnos.py; compose.yaml; backend/requirements.txt y backend/docs/SPEC-012-IMPLEMENTACION.md.
 
 Esta SPEC define requisitos; no afirma que 012B esté implementada ni que el Docker local se haya verificado remotamente.
+
+## 11. Seguimiento y discrepancia del checkout local (14-11-2026)
+
+- No se implementó UI frontend de adjuntos documentales en este worktree. La descarga de fotos de turnos 005C-2 es un flujo distinto y no debe confundirse con `RESPALDO_FACTURA`/`INFORME_TECNICO` de 012B.
+- En la revisión local de `origin/main`, `backend/config/urls.py` incluye `apps.adjuntos.urls` y `backend/apps/adjuntos/urls.py` define rutas de destino, detalle, descarga y anotaciones. Esto contradice la declaración documental «No implementada» de esta SPEC y requiere reconciliación formal antes de cualquier integración frontend.
+- La presencia de rutas en el checkout no certifica aprobación de SPEC, disponibilidad operativa, scanner/almacenamiento configurado ni cumplimiento integral de todos los requisitos 012B. No se llamó ni modificó endpoint de adjuntos.
+- Para desbloquear frontend: el responsable y backend deben confirmar estado real de implementación, OpenAPI, permisos/proyecciones, estabilidad del contrato y aprobación del alcance frontend. No se inventó una interfaz ni un contrato.
+
+## 12. Aclaración autorizada pre-merge del PR #44 — 17-11-2026
+
+Esta revisión conserva los antecedentes anteriores: el código backend de 012B y sus rutas están presentes en `origin/main`; las declaraciones históricas de propuesta/no implementación no describen el checkout actual. La existencia del código no acredita despliegue, QA actual ni autorización de merge.
+
+**Respaldo histórico:** cuando el DocumentoCobro persistido está `REVERTIDO`, AF/Gerencia conservan listado, detalle, descarga y GET de anotaciones. AF no puede modificar anotaciones ni crear nuevas cargas. PATCH devuelve **409 `documento_no_vigente`**, sin consultar/escribir Mongo ni incrementar revisión; Gerencia sigue recibiendo 403 para PATCH. Se preservan 401 para sesión inválida y 403/404 según rol/existencia, antes de comprobar el estado. El tipo/estado nunca se toma del body de React. Informes técnicos conservan exactamente sus permisos y edición por membresía, sin exigir el estado de carga para las notas.
+
+El replay idéntico de una carga ya confirmada conserva su semántica histórica (200, mismo ID y bytes verificados): no es una nueva carga ni modifica archivos/notas. Una clave nueva sobre REVERTIDO continúa rechazada con 409.
+
+**Concurrencia:** se comprueba el estado SQL al autorizar PATCH y se revalida inmediatamente antes del CAS Mongo. Si una reversión se confirma antes de esa última comprobación, PATCH se rechaza sin cambios. No se ejecuta Mongo bajo `atomic`/locks SQL, no se modifica el servicio financiero ni el CAS y no existe atomicidad distribuida: una reversión solapada después de la última comprobación puede terminar antes de un CAS ya autorizado. No se intenta compensar/borrar notas ni deshacer la reversión. Lecturas posteriores muestran la revisión realmente confirmada, ahora histórica e ineditable. Un orden global estricto entre motores requeriría un diseño adicional expresamente aprobado; esta revisión no lo promete.
+
+Aceptación adicional: AF edita VIGENTE con CAS; AF no edita REVERTIDO y BSON completo permanece idéntico; Gerencia solo lee; históricos se listan/descargan; nuevas cargas rechazadas; replay previo preservado; informes técnicos sin regresiones; reversión entre autorización y CAS detectada por revalidación SQL. Pruebas reales solo en PostgreSQL/Mongo/ClamAV QA aislados.
+
+### Precisión de cierre: orden efectivo y ventana demostrada
+
+Hay **tres** autorizaciones: permiso DRF, vista (ambas con token) y
+`metadata.editar` (relectura SQL sin token inmediatamente antes del CAS). La
+última ocurre después de leer/validar el BSON y antes de `find_one_and_update`.
+El CAS serializa revisiones de ese documento Mongo, no estados PostgreSQL:
+revisión obsoleta => 409; revisión actual => incremento único y 200.
+
+`test_reversion_despues_ultima_autorizacion_puede_solaparse_con_cas` pausa el
+hilo PATCH después de la tercera autorización, comprueba que no hay transacción
+SQL abierta, confirma una reversión real en el otro hilo y libera el CAS:
+PATCH 200/revisión 1; siguiente PATCH 409. Prueba focalizada: **1 OK, 0,790 s**.
+El intento inicial pausaba la segunda autorización y obtuvo correctamente 409;
+se corrigió el punto de sincronización, no el contrato ni los servicios.
+
+La frase anterior «reversión entre autorización y CAS detectada» aplica solo
+si precede a la última relectura SQL; no cubre la ventana posterior demostrada.
+Para prohibir absolutamente esa ventana hacen falta un contrato de ordenamiento
+y coordinación durable entre motores (o una autoridad transaccional única),
+fuera de este incremento. No se mantienen locks SQL mientras Mongo responde.
+
+Para evitar ambigüedad sobre «iniciada antes»: el inicio HTTP de PATCH por sí solo
+no reserva autorización. Si la reversión ya se confirmó cuando se hace la última
+relectura SQL, se devuelve409 sin CAS. Si esa última autorización observó VIGENTE
+y la reversión se confirma después, ambas solicitudes están solapadas y el CAS
+ya autorizado puede confirmar200 (o409 por revisión obsoleta). Una solicitud nueva
+tras la reversión confirmada no puede editar:409 para AF; se preservan los
+rechazos previos de sesión/rol/existencia. La revisión protege un documento Mongo,
+no establece un orden transaccional entre PostgreSQL y MongoDB. El seguimiento
+funcional no modificó esta garantía ni `services_documentos.py`.

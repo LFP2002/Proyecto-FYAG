@@ -19,11 +19,11 @@ export const ROLE_NOTE = {
 };
 
 export const NAV = {
-  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes'],
-  ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes'],
-  SUPERVISOR_OBRAS: ['obras', 'alertas'],
+  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'auditoria'],
+  ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes', 'auditoria'],
+  SUPERVISOR_OBRAS: ['obras', 'alertas', 'auditoria'],
   TECNICO: ['obras'],
-  ADMINISTRADOR_TI: ['usuarios']
+  ADMINISTRADOR_TI: ['usuarios', 'auditoria']
 };
 
 export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras', ADMINISTRADOR_TI: 'usuarios' };
@@ -36,7 +36,8 @@ export const MODS = {
   cobranzas: { label: 'Cobranzas', icon: 'M3 6h18v12H3zM3 10h18M7 15h3' },
   alertas: { label: 'Alertas', icon: 'M12 3l10 18H2zM12 10v5M12 18h.01' },
   reportes: { label: 'Reportes', icon: 'M5 20V10M12 20V4M19 20v-7M3 20h18' },
-  usuarios: { label: 'Usuarios y roles', icon: 'M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6zM9.5 12l2 2 3.5-4' }
+  usuarios: { label: 'Usuarios y roles', icon: 'M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6zM9.5 12l2 2 3.5-4' },
+  auditoria: { label: 'Auditoría', icon: 'M4 5h16M4 12h16M4 19h16M7 5v.01M7 12v.01M7 19v.01' }
 };
 
 export const PRE_E = {

@@ -59,8 +59,10 @@ def autorizado(actor, ident, token=None, editar=False):
     adjunto = AdjuntoDocumento.objects.filter(pk=ident).first()
     if adjunto is None:
         raise NotFound("Recurso no disponible.")
-    # La edición de notas no exige estado de carga; sí membresía activa.
-    parent(adjunto.tipo, adjunto.documento_cobro_id or adjunto.obra_id, actor, escribir=editar, estado=False)
+    # Solo facturas VIGENTE admiten notas. En informes se preserva la edición
+    # por membresía, independiente del estado permitido para nuevas cargas.
+    parent(adjunto.tipo, adjunto.documento_cobro_id or adjunto.obra_id, actor,
+        escribir=editar, estado=adjunto.tipo == "RESPALDO_FACTURA")
     return actor, adjunto
 
 

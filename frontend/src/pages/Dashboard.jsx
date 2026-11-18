@@ -1,139 +1,56 @@
-import { useApp } from '../context/AppContext';
-import { OBRA_CHIP } from '../data/constants';
-import { fm, pctTxt } from '../utils/format';
-import { Chip, Feed, Icon, PageHead, Table, Track } from '../components/ui';
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { PageHead } from '../components/ui';
+import { useApi, readPage, strictObject, decimalString, positiveInteger } from '../integrations/useApi.js';
+import { Pager } from '../comercial/ui.jsx';
+import { civilRange, todayInSantiago } from '../integrations/dates.js';
+export { todayInSantiago } from '../integrations/dates.js';
 
-const MESES = [['Abr', 2], ['May', 3], ['Jun', 4], ['Jul', 3], ['Ago', 5], ['Sep', 6]];
-const ORDEN = ['En proceso', 'Finalizada', 'Suspendida', 'Cancelada'];
-const LABEL = { 'En proceso': 'En proceso', Finalizada: 'Finalizadas', Suspendida: 'Suspendidas', Cancelada: 'Canceladas' };
-const COLOR = { 'En proceso': '#2f9e66', Finalizada: '#e8923a', Suspendida: '#d9534f', Cancelada: '#8a97a6' };
-const PERFILES = [
-  ['Administrador General / Gerencia', 'Visión global, indicadores y aprobación de presupuestos.'],
-  ['Administrativo / Finanzas', 'Gestión de clientes, presupuestos, estados de pago y reportes.'],
-  ['Supervisor de Obras', 'Creación de obras, asignación de técnicos y seguimiento de estados.'],
-  ['Técnico', 'Acceso restringido únicamente a obras asignadas. Sin acceso financiero.'],
-];
-
-export default function Dashboard() {
-  const { obrasC, pagos, alertasPend, logs, go, flash } = useApp();
-  const totalPres = obrasC.reduce((a, o) => a + o.presupuesto, 0);
-  const totalCosto = obrasC.reduce((a, o) => a + o.costo, 0);
-  const margen = totalPres - totalCosto;
-  const activas = obrasC.filter((o) => o.estado === 'En proceso').length;
-  const kpis = [
-    { label: 'Obras activas', value: String(activas), sub: `de ${obrasC.length} obras registradas`, color: '#2b5f94' },
-    { label: 'Presupuestos aprobados', value: fm(totalPres), sub: `${obrasC.length} obras registradas`, color: '#2f9e66' },
-    { label: 'Costo real acumulado', value: fm(totalCosto), sub: `${pctTxt(totalPres ? (totalCosto / totalPres) * 100 : 0)} del presupuesto`, color: '#e8923a' },
-    { label: 'Margen proyectado', value: fm(margen), sub: `${pctTxt(totalPres ? (margen / totalPres) * 100 : 0)} sobre presupuesto`, color: '#2f9e66', good: true },
-  ];
-  let acc = 0; const segs = [], legend = [];
-  ORDEN.forEach((k) => {
-    const n = obrasC.filter((o) => o.estado === k).length;
-    if (!n) return;
-    const a = (acc / obrasC.length) * 360; acc += n;
-    segs.push(`${COLOR[k]} ${a}deg ${(acc / obrasC.length) * 360}deg`);
-    legend.push({ k, n });
-  });
-  const sum = (est) => pagos.filter((p) => p.estado === est).reduce((a, p) => a + p.monto, 0);
-  const pFact = sum('Facturado'), pPag = sum('Pagado'), pTot = pFact + pPag;
-
-  return (
-    <section>
-      <PageHead title="Dashboard de Obras y Presupuestos" sub="Frío y Agroindustria SpA · Proyecto Beta · Actualizado hoy">
-        <button className="btn btn-outline-secondary" onClick={() => flash('Exportación generada.')}>Exportar</button>
-        <button className="btn btn-fyag-primary" onClick={() => go('reportes')}>Ver reportes</button>
-      </PageHead>
-      <div className="kpis">
-        {kpis.map((k) => (
-          <div key={k.label} className="kpi" style={{ borderTop: `3px solid ${k.color}` }}>
-            <div className="kpi-l">{k.label}</div>
-            <div className="kpi-v">{k.value}</div>
-            <div className={`kpi-s${k.good ? ' good' : ''}`}>{k.sub}</div>
-          </div>
-        ))}
-      </div>
-      <div className="row g-3 mb-3">
-        <div className="col-lg-8">
-          <div className="card-fyag h-100">
-            <h2>Obras ejecutadas por mes</h2>
-            <p className="note">Últimos 6 meses</p>
-            <div className="bars">
-              {MESES.map(([l, v]) => (
-                <div key={l} className="bar-col">
-                  <span className="bar-v">{v}</span>
-                  <div className="bar" style={{ height: Math.round((v / 6) * 140) }} />
-                  <span className="bar-l">{l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="col-lg-4">
-          <div className="card-fyag h-100">
-            <h2>Estado operativo de obras</h2>
-            <p className="note">Por estado</p>
-            <div className="donut-wrap">
-              <div className="donut" style={{ background: `conic-gradient(${segs.join(',')})` }}>
-                <div className="donut-hole"><strong>{obrasC.length}</strong><span>obras</span></div>
-              </div>
-              <div>{legend.map((l) => (<div key={l.k} className="lg"><span className="sw-dot" style={{ background: COLOR[l.k] }} />{LABEL[l.k]} ({l.n})</div>))}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="row g-3 mb-3">
-        <div className="col-lg-4">
-          <div className="card-fyag h-100">
-            <div className="card-h"><h2>Estado de pagos</h2><button className="btn btn-sm btn-outline-secondary" onClick={() => go('cobranzas')}>Ver pagos</button></div>
-            <div className="pg"><div className="pg-l"><span>Facturado</span><strong>{fm(pFact)}</strong></div><Track value={pTot ? (pFact / pTot) * 100 : 0} cls="amber" /></div>
-            <div className="pg"><div className="pg-l"><span>Pagado</span><strong>{fm(pPag)}</strong></div><Track value={pTot ? (pPag / pTot) * 100 : 0} cls="green" /></div>
-            <div className="pg-total"><span>Total movimientos</span><strong>{fm(pTot)}</strong></div>
-          </div>
-        </div>
-        <div className="col-lg-4">
-          <div className="card-fyag h-100">
-            <div className="card-h"><h2>Alertas</h2><button className="btn btn-sm btn-outline-secondary" onClick={() => go('alertas')}>Ver alertas</button></div>
-            {alertasPend.length === 0 && <p className="fyag-empty">Sin alertas pendientes.</p>}
-            {alertasPend.map((a) => (
-              <div key={a.id} className="alert-item">
-                <Icon d="M12 3l10 18H2zM12 10v5M12 18h.01" />
-                <div><strong>{a.id} · {a.cliente}</strong><p>{a.msg}</p></div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="col-lg-4">
-          <div className="card-fyag h-100">
-            <h2>Trazabilidad</h2>
-            {logs.slice(0, 6).map((g, i) => <Feed key={i} g={g} />)}
-          </div>
-        </div>
-      </div>
-      <div className="card-fyag flush">
-        <div className="card-h"><h2>Obras en curso</h2><button className="btn btn-sm btn-outline-secondary" onClick={() => go('obras')}>Ver todas</button></div>
-        <Table label="Obras" min="1000px" style={{ marginTop: 14 }} columns="80px 1.5fr 1.3fr 1fr 110px 1.2fr 110px 110px 110px" head={['ID', 'Cliente', 'Servicio', 'Técnico', 'Estado', 'Avance', 'Presupuesto', 'Costo real', 'Margen']}>
-          {obrasC.filter((o) => o.estado === 'En proceso').map((o) => (
-            <div key={o.id} className="trow" role="row">
-              <div role="cell"><strong>{o.id}</strong></div>
-              <div role="cell">{o.cliente}</div>
-              <div role="cell">{o.servicio}</div>
-              <div role="cell">{o.tecnico || 'Sin asignar'}</div>
-              <div role="cell"><Chip cls={OBRA_CHIP[o.estado]}>{o.estado}</Chip></div>
-              <div role="cell" className="mini"><Track small value={o.avance} /><span>{o.avance}%</span></div>
-              <div role="cell">{fm(o.presupuesto)}</div>
-              <div role="cell">{fm(o.costo)}</div>
-              <div role="cell" className={o.margen >= 0 ? 'fyag-pos' : 'fyag-neg'}>{fm(o.margen)}</div>
-            </div>
-          ))}
-        </Table>
-      </div>
-      <div className="card-fyag">
-        <h2>Perfiles definidos en el sistema</h2>
-        <div className="profiles">
-          {PERFILES.map(([t, d]) => (<div key={t} className="profile"><strong>{t}</strong><span>{d}</span></div>))}
-        </div>
-      </div>
-    </section>
-  );
+const STATES=['PLANIFICADA','EN_PROCESO','SUSPENDIDA','FINALIZADA','CANCELADA'];
+const SUMMARY='/api/dashboard/resumen/'; const SERIES='/api/dashboard/serie-obras/'; const ACTIVE='/api/dashboard/obras-activas/';
+const moneyKeys=['presupuesto_neto','costo_real_neto','margen_real_neto','monto_documentado_bruto','abonado','saldo','saldo_vencido'];
+function validateSummary(v){
+  strictObject(v,['generado_en','zona_horaria','moneda','periodo','operacion','rentabilidad_cerrada_periodo','cobranza_actual']);
+  strictObject(v.periodo,['desde','hasta']); strictObject(v.operacion,['obras_por_estado_actual','presupuestos_pendientes_gerencia_actual','obras_finalizadas_periodo']);
+  strictObject(v.operacion.obras_por_estado_actual,STATES); strictObject(v.rentabilidad_cerrada_periodo,['obras_con_cierre','presupuesto_neto','costo_real_neto','margen_real_neto']);
+  strictObject(v.cobranza_actual,['documentos_vigentes','monto_documentado_bruto','abonado','saldo','saldo_vencido']);
+  if(v.zona_horaria!=='America/Santiago'||v.moneda!=='CLP'||Object.values(v.operacion.obras_por_estado_actual).some(n=>!Number.isSafeInteger(n)||n<0)
+    ||['presupuestos_pendientes_gerencia_actual','obras_finalizadas_periodo','obras_con_cierre','documentos_vigentes'].some(k=>!Number.isSafeInteger(v.operacion[k]??v.rentabilidad_cerrada_periodo[k]??v.cobranza_actual[k]) || (v.operacion[k]??v.rentabilidad_cerrada_periodo[k]??v.cobranza_actual[k])<0)
+    ||moneyKeys.some(k=>!decimalString(v.rentabilidad_cerrada_periodo[k]??v.cobranza_actual[k],k==='margen_real_neto'))) throw new Error('Respuesta de Dashboard inválida.');
+  return v;
+}
+function validateSeries(v,months){strictObject(v,['metrica','zona_horaria','puntos']);if(v.metrica!=='OBRAS_FINALIZADAS'||v.zona_horaria!=='America/Santiago'||!Array.isArray(v.puntos)||v.puntos.length!==months)throw new Error('Serie del Dashboard inválida.');let prev='';for(const p of v.puntos){strictObject(p,['mes','cantidad']);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(p.mes)||p.mes<=prev||!Number.isSafeInteger(p.cantidad)||p.cantidad<0)throw new Error('Punto de serie inválido.');prev=p.mes;}return v;}
+function validateActivePage(v){readPage(v,ACTIVE);for(const x of v.results){strictObject(x,['id','codigo','cliente','cliente_nombre','categoria_nombre','estado','tecnico_responsable','tecnico_nombre','fecha_programada','presupuesto_neto']);if(!positiveInteger(x.id)||!positiveInteger(x.cliente)||x.estado!=='EN_PROCESO'||typeof x.codigo!=='string'||typeof x.cliente_nombre!=='string'||typeof x.categoria_nombre!=='string'||!decimalString(x.presupuesto_neto))throw new Error('Obra activa inválida.');}return v;}
+function asURL(path,params){const q=new URLSearchParams();Object.entries(params).forEach(([k,v])=>{if(v!=='')q.set(k,v);});return path+(q.size?`?${q}`:'');}
+export function validDashboardRange(dates,today=todayInSantiago()){if(!!dates.desde!==!!dates.hasta)return false;if(!dates.desde)return true;return civilRange(dates.desde,dates.hasta)&&dates.hasta<=today;}
+export default function Dashboard(){
+ const {user}=useAuth();
+ if(user.role!=='GERENCIA')return <section><PageHead title="Dashboard"/><p role="alert">No tienes permiso para el Dashboard.</p></section>;
+ return <DashboardScreen key={`${user.id}:${user.role}`}/>;
+}
+function DashboardScreen(){
+ const api=useApi(); const [summaryResult,setSummary]=useState(null),[seriesResult,setSeries]=useState(null),[activeResult,setActive]=useState(null),[months,setMonths]=useState('6'),[page,setPage]=useState(1),[dates,setDates]=useState({desde:'',hasta:''});
+ const summaryUrl=useMemo(()=>asURL(SUMMARY,dates),[dates]); const seriesUrl=useMemo(()=>`${SERIES}?meses=${months}`,[months]); const activeUrl=useMemo(()=>`${ACTIVE}${page>1?`?page=${page}`:''}`,[page]);
+ const rangeValid=validDashboardRange(dates);
+ const summary=rangeValid&&summaryResult?.path===summaryUrl?summaryResult.value:null,series=seriesResult?.path===seriesUrl?seriesResult.value:null,active=activeResult?.path===activeUrl?activeResult.value:null;
+ const loadSummary=()=>{api.cancelRead('summary');setSummary(null);return rangeValid?api.load('summary',summaryUrl,(v)=>setSummary({path:summaryUrl,value:validateSummary(v)})):Promise.resolve(false);};
+ const loadSeries=()=>{setSeries(null);return api.load('series',seriesUrl,(v)=>setSeries({path:seriesUrl,value:validateSeries(v,Number(months))}));};
+ const loadActive=()=>{setActive(null);return api.load('active',activeUrl,(v)=>setActive({path:activeUrl,value:validateActivePage(v)}));};
+  useEffect(()=>{setPage(1);void loadSummary();},[summaryUrl,rangeValid]); useEffect(()=>{void loadSeries();},[seriesUrl]); useEffect(()=>{void loadActive();},[activeUrl]);
+ async function refresh(){const r=await Promise.all([loadSummary(),loadSeries(),loadActive()]);if(r.every(Boolean))api.reconcile(async()=>true);}
+ const disabled=api.loading||api.busy;
+ return <section className="commercial-page">
+  <PageHead title="Dashboard gerencial" sub={summary?`Datos del servidor · corte ${new Date(summary.generado_en).toLocaleString('es-CL')} · America/Santiago`:'Indicadores reales de operación, cierres y cartera.'}><button className="btn btn-outline-secondary" disabled={disabled} onClick={()=>void refresh()}>Actualizar</button></PageHead>
+  {api.error&&<div className="alert alert-warning" role="alert">{api.error.status===403?'Acceso denegado.':api.error.status===409?'El origen reporta una inconsistencia; no se muestran totales parciales.':api.error.message}</div>}
+   <div className="d-flex flex-wrap gap-2 mb-3 align-items-end"><label className="form-label">Desde<input className="form-control" type="date" max={todayInSantiago()} value={dates.desde} onChange={(e)=>setDates({...dates,desde:e.target.value})}/></label><label className="form-label">Hasta<input className="form-control" type="date" max={todayInSantiago()} value={dates.hasta} onChange={(e)=>setDates({...dates,hasta:e.target.value})}/></label><label className="form-label">Meses finalizados<select className="form-select" value={months} onChange={(e)=>setMonths(e.target.value)}>{Array.from({length:12},(_,i)=>String(i+1)).map(m=><option key={m} value={m}>{m}</option>)}</select></label></div>
+  {!rangeValid&&<p className="alert alert-warning" role="alert">Desde y Hasta deben indicarse juntos, con un máximo de 366 días y hasta hoy.</p>}
+  {summary&&<><p className="commercial-help">Periodo aplicado a finalizaciones y rentabilidad: {summary.periodo.desde} a {summary.periodo.hasta}. Los conteos de estado y cobranza son actuales, sin filtro temporal.</p>
+   <div className="kpis">{[['En proceso',summary.operacion.obras_por_estado_actual.EN_PROCESO],['Presupuestos pendientes de Gerencia',summary.operacion.presupuestos_pendientes_gerencia_actual],['Obras finalizadas en periodo',summary.operacion.obras_finalizadas_periodo],['Cierres reales',summary.rentabilidad_cerrada_periodo.obras_con_cierre],['Documentos vigentes',summary.cobranza_actual.documentos_vigentes]].map(([label,value])=><div className="kpi" key={label}><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>
+   <div className="row g-3"><div className="col-lg-6"><div className="card-fyag"><h2>Estados actuales de Obras</h2>{STATES.map(s=><p key={s} className="d-flex justify-content-between"><span>{s.replaceAll('_',' ')}</span><strong>{summary.operacion.obras_por_estado_actual[s]}</strong></p>)}</div></div>
+   <div className="col-lg-6"><div className="card-fyag"><h2>Rentabilidad cerrada del periodo · CLP neto</h2><dl>{[['Presupuesto neto',summary.rentabilidad_cerrada_periodo.presupuesto_neto],['Costo real neto',summary.rentabilidad_cerrada_periodo.costo_real_neto],['Margen real neto',summary.rentabilidad_cerrada_periodo.margen_real_neto]].map(([k,v])=><div key={k} className="d-flex justify-content-between"><dt>{k}</dt><dd>{v}</dd></div>)}</dl><p className="commercial-help">Margen de Obras finalizadas con cierre real. No es utilidad contable ni ingreso cobrado.</p></div></div>
+   <div className="col-12"><div className="card-fyag"><h2>Cobranza actual · CLP bruto</h2><div className="d-flex flex-wrap gap-4">{[['Documentado bruto',summary.cobranza_actual.monto_documentado_bruto],['Abonado',summary.cobranza_actual.abonado],['Saldo',summary.cobranza_actual.saldo],['Saldo vencido',summary.cobranza_actual.saldo_vencido]].map(([k,v])=><p key={k}>{k}: <strong>{v}</strong></p>)}</div><p className="commercial-help">Cartera vigente calculada por Finanzas; abonos no se suman como documentos.</p></div></div></div>
+  </>}
+  {series&&<section className="card-fyag"><h2>Obras finalizadas por mes</h2><div className="d-flex flex-wrap gap-3 mt-3" role="list">{series.puntos.map(p=><div className="card-fyag" role="listitem" key={p.mes}><strong>{p.mes}</strong><p className="mb-0">{p.cantidad} finalizadas</p></div>)}</div></section>}
+  <section className="card-fyag flush"><div className="card-h"><h2>Obras en proceso</h2><span>{active?.count??0} registros</span></div><div className="table-responsive" role="region" aria-label="Obras en proceso" tabIndex={0}><table className="table table-hover commercial-table"><thead><tr>{['Código','Cliente','Categoría','Responsable','Programación','Presupuesto neto CLP'].map(k=><th key={k}>{k}</th>)}</tr></thead><tbody>{active?.results.map(o=><tr key={o.id}><td>{o.codigo}</td><td>{o.cliente_nombre} · #{o.cliente}</td><td>{o.categoria_nombre}</td><td>{o.tecnico_nombre||'Sin asignar'}</td><td>{o.fecha_programada||'Sin programar'}</td><td>{o.presupuesto_neto}</td></tr>)}</tbody></table></div><Pager data={active} page={page} setPage={setPage} disabled={disabled} label="Paginación de Obras en proceso"/></section>
+ </section>;
 }

@@ -30,6 +30,27 @@ function backend(overrides = {}) {
   return { client: createAuthClient({ fetchImpl }), calls };
 }
 
+test('cliente autenticado soporta multipart sin forzar Content-Type y respuesta Blob en mismas rutas API', async () => {
+  const calls = [];
+  const client = createAuthClient({ fetchImpl: async (path, options) => {
+    calls.push({ path, options });
+    if (path.endsWith('/csrf/')) return json({ csrfToken: 'csrf-test' });
+    if (path.endsWith('/login/')) return json({ access: 'access-test', csrfToken: 'csrf-test' });
+    if (path.endsWith('/me/')) return json(account);
+    if (path.endsWith('/fotos/9/')) return new Response(new Blob(['imagen'], { type: 'image/png' }), { status: 200, headers: { 'Content-Type': 'image/png' } });
+    return json({ ok: true });
+  } });
+  await client.login(credentials);
+  const form = new FormData(); form.append('descripcion_trabajo', 'Trabajo'); form.append('fotos[]', new Blob(['foto'], { type: 'image/png' }), 'foto.png');
+  await client.request('/api/obras/1/turnos/2/finalizar/', { method: 'POST', body: form });
+  const image = await client.request('/api/obras/1/turnos/2/fotos/9/', { responseType: 'blob' });
+  assert.equal(calls.at(-2).options.body, form);
+  assert.equal(calls.at(-2).options.headers.get('Content-Type'), null);
+  assert.equal(calls.at(-2).options.headers.get('Authorization'), 'Bearer access-test');
+  assert.equal(image.type, 'image/png');
+  assert.equal(await image.text(), 'imagen');
+});
+
 test('login real: normaliza email, no altera password y confirma identidad con /me', async () => {
   const { client, calls } = backend();
   assert.equal(client.getSnapshot().status, 'restoring');

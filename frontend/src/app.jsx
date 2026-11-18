@@ -11,6 +11,11 @@ import { canRead } from './comercial/domain.js';
 import Obras from './pages/Obras';
 import Usuarios from './pages/Usuarios';
 import { canReadObras } from './obras/domain.js';
+import Alertas from './pages/Alertas.jsx';
+import Cobranzas from './pages/Cobranzas.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Reportes from './pages/Reportes.jsx';
+import Auditoria from './pages/Auditoria.jsx';
 
 export default function App() {
   const { status, user } = useAuth();
@@ -20,6 +25,13 @@ export default function App() {
   }
   if (status !== 'authenticated' || !user) return <Login />;
   if (user.role === 'TECNICO') return <TecnicoApp key={`${user.id}:${user.role}`} />;
-  const Page = mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios : mod === 'obras' && canReadObras(user.role) ? Obras : canRead(user.role) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
+  const Page = mod === 'auditoria' ? Auditoria
+    : mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios
+    : mod === 'obras' && canReadObras(user.role) ? Obras
+      : mod === 'alertas' && ['GERENCIA', 'SUPERVISOR_OBRAS'].includes(user.role) ? Alertas
+        : mod === 'dashboard' && user.role === 'GERENCIA' ? Dashboard
+          : mod === 'reportes' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Reportes
+            : mod === 'cobranzas' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Cobranzas
+              : canRead(user.role) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
   return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
 }

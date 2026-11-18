@@ -241,13 +241,24 @@ test('escritura confirmada con relectura fallida no aparenta sincronización ni 
     assert.equal(b.calls.filter((c) => c.method === 'PATCH').length, 1); assert.match(text(renderer.root), /Cambio persistido/);
   } finally { await unmount(renderer); }
 });
+test('T abre Mis turnos desde la Obra asignada y consulta su listado paginado', async () => {
+  const b = obrasBackend(T); b.obras[0].estado = 'EN_PROCESO';
+  const renderer = await mount(b, T);
+  try {
+    await click(renderer, 'Ver mis turnos');
+    assert.match(text(renderer.root), /Turnos y evidencia/);
+    assert.ok(b.calls.some((call) => call.path === '/api/obras/1/turnos/?page=1'));
+    assert.equal(buttons(renderer, 'Iniciar turno').length, 1);
+    assert.doesNotMatch(text(renderer.root), /pendiente de integración frontend en 005C-2/i);
+  } finally { await unmount(renderer); }
+});
 test('T pierde acceso al revocarse membresía: 404 no conserva ficha anterior', async () => {
   const b = obrasBackend(T), renderer = await mount(b);
   try {
     await click(renderer, 'Ver obra'); assert.match(text(renderer.root), /Descripción operativa privada/);
     b.allowed.clear(); await click(renderer, 'Actualizar datos');
     assert.doesNotMatch(text(renderer.root), /Descripción operativa privada/); assert.match(text(renderer.root), /Recurso no disponible/);
-    await click(renderer, 'Volver al listado'); assert.match(text(renderer.root), /No hay obras/);
+    await click(renderer, 'Volver al listado'); assert.match(text(renderer.root), /No tienes obras asignadas/);
   } finally { await unmount(renderer); }
 });
 test('historial tardío de otra Obra queda abortado y no se mezcla al navegar', async () => {
@@ -318,6 +329,76 @@ test('responsable null solo en PLANIFICADA; Obras terminales no habilitan mutaci
     } finally { await unmount(renderer); }
   }
 });
+test('turnos: técnico inicia y cierra con multipart; revisión solo se ofrece a Supervisor', async () => {
+  const b = obrasBackend(T); b.obras[0].estado = 'EN_PROCESO';
+  const renderer = await mount(b, T);
+  try {
+    await click(renderer, 'Ver obra'); await click(renderer, 'Turnos');
+    await click(renderer, 'Iniciar turno');
+    assert.ok(b.calls.some((c) => c.path === '/api/obras/1/turnos/iniciar/' && c.method === 'POST' && Object.keys(c.body).length === 0));
+    const turno = b.turnos[0]; assert.equal(turno.estado_revision, 'ABIERTO');
+    await click(renderer, 'Cerrar mi turno'); await input(renderer, 'descripcion_trabajo', 'Reparación completada');
+    await act(async () => {
+      const file = new File(['png'], 'evidencia.png', { type: 'image/png' });
+      renderer.root.findByProps({ id: 'turno-fotos' }).props.onChange({ target: { files: [file] } }); await flush();
+    });
+    await submit(renderer);
+    const write = b.calls.find((c) => c.path === '/api/obras/1/turnos/1/finalizar/');
+    assert.ok(write.body instanceof FormData); assert.equal(write.body.get('descripcion_trabajo'), 'Reparación completada'); assert.equal(write.body.getAll('fotos[]').length, 1);
+    assert.equal(b.turnos[0].estado_revision, 'PENDIENTE_REVISION');
+    assert.equal(buttons(renderer, 'Revisar turno').length, 0);
+  } finally { await unmount(renderer); }
+});
+test('descarga de evidencia usa ruta autenticada same-origin y revoca el Blob URL', async () => {
+  const b = obrasBackend(S); b.obras[0].estado = 'EN_PROCESO';
+  b.turnos = [{ turno_id: 12, obra: 1, tecnico: 7, iniciado_en: '2026-11-12T12:00:00Z', terminado_en: '2026-11-12T13:00:00Z', descripcion_trabajo: 'Trabajo', estado_revision: 'PENDIENTE_REVISION', modo_cierre: 'TECNICO', fotos: [{ id: 91, tipo_mime: 'image/png', tamano: 25, descarga: 'https://external.invalid/private' }] }];
+  const baseRequest = b.request;
+  b.request = async (path, options) => path.endsWith('/fotos/91/') ? (b.calls.push({ path, method: options.method || 'GET', body: options.body }), new Blob(['foto'], { type: 'image/png' })) : baseRequest(path, options);
+  const renderer = await mount(b, S);
+  const originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL, revoked = [];
+  URL.createObjectURL = () => 'blob:test-evidencia'; URL.revokeObjectURL = (value) => revoked.push(value);
+  globalThis.document = { body: { appendChild() {} }, createElement: () => ({ click() {}, remove() {}, set href(value) { this.url = value; }, set download(value) { this.filename = value; } }) };
+  try {
+    await click(renderer, 'Ver obra'); await click(renderer, 'Turnos');
+    const button = buttons(renderer, 'Descargar evidencia privada')[0];
+    assert.ok(button);
+    await act(async () => { await button.props.onClick(); await flush(); });
+    assert.match(b.calls.at(-1).path, /^\/api\/obras\/1\/turnos\/12\/fotos\/91\/$/);
+    assert.equal(revoked.length, 0);
+    await new Promise((resolve) => setTimeout(resolve, 1050));
+    assert.deepEqual(revoked, ['blob:test-evidencia']);
+  } finally {
+    await unmount(renderer); delete globalThis.document;
+    URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke;
+  }
+});
+
+test('Supervisor revisa con tarifa string decimal y reconsulta el turno', async () => {
+  const b = obrasBackend(S); b.obras[0].estado = 'EN_PROCESO';
+  b.turnos = [{ turno_id: 11, obra: 1, tecnico: 7, iniciado_en: '2026-11-12T12:00:00Z', terminado_en: '2026-11-12T13:00:00Z', descripcion_trabajo: 'Trabajo realizado', estado_revision: 'PENDIENTE_REVISION', modo_cierre: 'TECNICO', fotos: [], costo_hora_neto: null, costo_mano_obra: null }];
+  const renderer = await mount(b, S);
+  try {
+    await click(renderer, 'Ver obra'); await click(renderer, 'Turnos'); await click(renderer, 'Revisar turno');
+    await input(renderer, 'motivo', 'Revisión completa'); await input(renderer, 'costo_hora_neto', '8000.00'); await submit(renderer);
+    const call = b.calls.find((c) => c.path.endsWith('/11/revisar/'));
+    assert.deepEqual(call.body, { decision: 'VALIDAR', motivo: 'Revisión completa', costo_hora_neto: '8000.00' });
+    assert.equal(b.turnos[0].estado_revision, 'VALIDADO'); assert.equal(buttons(renderer, 'Revisar turno').length, 0);
+  } finally { await unmount(renderer); }
+});
+test('roles de lectura y técnico no muestran acciones administrativas ni fotos no autorizadas', async () => {
+  for (const role of [G, AF]) {
+    const b = obrasBackend(role); b.obras[0].estado = 'EN_PROCESO';
+    if (role === G) b.turnos = [{ turno_id: 3, obra: 1, tecnico: 7, iniciado_en: '2026-11-12T12:00:00Z', terminado_en: '2026-11-12T13:00:00Z', descripcion_trabajo: 'Trabajo', estado_revision: 'PENDIENTE_REVISION', modo_cierre: 'TECNICO', costo_hora_neto: '8000.00', costo_mano_obra: '10.00', fotos: [] }];
+    const renderer = await mount(b, role);
+    try {
+      if (role === AF) continue;
+      await click(renderer, 'Ver obra'); await click(renderer, 'Turnos');
+      assert.equal(buttons(renderer, 'Iniciar turno').length, 0); assert.equal(buttons(renderer, 'Revisar turno').length, 0);
+      assert.match(text(renderer.root), /Costo mano de obra neto: 10.00/);
+    } finally { await unmount(renderer); }
+  }
+});
+
 test('reconsulta tras conflicto de participante respeta el principal actual sin repetir escritura', async () => {
   const b = obrasBackend(), renderer = await mount(b);
   try {

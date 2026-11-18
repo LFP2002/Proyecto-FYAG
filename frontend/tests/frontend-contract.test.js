@@ -19,6 +19,12 @@ async function allSource(directory) {
 test('fuentes productivas sin credenciales demo, selector de roles ni almacenamiento de tokens', async () => {
   const text = await allSource(root);
   assert.doesNotMatch(text, /DEMO_USERS|demo1234|Perfil de prueba|localStorage|sessionStorage|indexedDB|document\.cookie/);
+  const pages = await Promise.all(['Alertas.jsx','Cobranzas.jsx','Dashboard.jsx','Reportes.jsx'].map((name) => source(`pages/${name}`)));
+  assert.ok(pages.every((page) => !/useApp|obrasC|alertasAll|Exportación generada|estado de desviación/.test(page)));
+  assert.doesNotMatch(pages[0], /markAtendida/);
+  assert.doesNotMatch(pages[1], /pagoChange|showPagoForm|savePago/);
+  assert.doesNotMatch(pages[2], /pctTxt|margen proyectado|Math\.round\([^)]*(?:presupuesto|costo)/);
+  assert.doesNotMatch(pages[3], /flash\(|generado[.!]/);
 });
 
 test('imports respetan exactamente las mayúsculas de app y login en Linux', async () => {
@@ -49,20 +55,27 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /canRead\(user.role\)/);
   assert.match(app, /pages\/Obras/);
   assert.match(app, /canReadObras\(user.role\)/);
-  assert.doesNotMatch(app, /pages\/Cobranzas/);
+  assert.match(app, /pages\/Cobranzas/);
+  assert.match(app, /pages\/Alertas/);
+  assert.match(app, /pages\/Dashboard/);
+  assert.match(app, /pages\/Reportes/);
   assert.match(app, /mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI'/);
   const context = await source('context/AppContext.jsx');
   assert.doesNotMatch(context, /savePre|saveCli|crearObra|applyEstado|addCosto|pagoChange|savePago|switchRole|loginRole/);
   assert.match(await source('components/PendingIntegration.jsx'), /Pendiente de integración/);
+  assert.match(app, /mod === 'alertas'.*GERENCIA.*SUPERVISOR_OBRAS/s);
+  assert.match(app, /mod === 'dashboard'.*GERENCIA/s);
+  assert.match(app, /mod === 'reportes'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
+  assert.match(app, /mod === 'cobranzas'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
   assert.doesNotMatch(await source('pages/TecnicoApp.jsx'), /saveNota|addAvance|Guardar registro/);
 });
 
 test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {
   assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
-  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios']);
+  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios', 'auditoria']);
   assert.equal(NAV.GERENCIA.includes('usuarios'), false);
   assert.deepEqual(NAV.TECNICO, ['obras']);
-  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas']);
+  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas', 'auditoria']);
   assert.ok(NAV.GERENCIA.includes('clientes'));
   for (const role of Object.keys(NAV)) assert.ok(NAV[role].includes(DEFMOD[role]));
 });

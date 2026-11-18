@@ -2247,7 +2247,7 @@
       },
       "patch": {
         "summary": "Actualizar notas con revisión CAS",
-        "description": "AF factura; Supervisor/miembro activo informe (sin requisito de estado de subida). Gerencia solo lectura. Reemplaza solo campos presentes; sin mutar archivo o SQL.",
+        "description": "AF solo factura VIGENTE: estado SQL revalidado antes del CAS; factura REVERTIDO devuelve 409 documento_no_vigente sin cambiar notas/revisión. Históricos conservan GET/listado/descarga. Supervisor/miembro activo informe sin requisito de estado de subida. Gerencia solo lectura (PATCH 403). Sin atomicidad distribuida: una reversión posterior a la última comprobación SQL puede solaparse con un CAS ya autorizado. Reemplaza solo campos presentes; sin mutar archivo o SQL.",
         "requestBody": {
           "required": true,
           "content": {
