@@ -7,6 +7,19 @@ from django.views.decorators.debug import sensitive_variables
 from .credenciales import ESTADO_NO_DISPONIBLE, estado_credencial, es_personal
 
 
+def contexto_login_restringido(request):
+    """Solo el POST resuelto por Django a LoginView; nunca contexto implícito."""
+    if (request is None or getattr(request, "method", None) != "POST"
+        or getattr(request, "path_info", None) != "/api/auth/login/"):
+        return False
+    match = getattr(request, "resolver_match", None)
+    if match is None:
+        return False
+    from .views import LoginView
+    return (getattr(match, "url_name", None) == "login"
+            and getattr(getattr(match, "func", None), "view_class", None) is LoginView)
+
+
 class CredencialesModelBackend(ModelBackend):
     @sensitive_variables()
     def authenticate(self, request, username=None, password=None, **kwargs):
@@ -24,7 +37,7 @@ class CredencialesModelBackend(ModelBackend):
         state = estado_credencial(user)
         if not valid_password or not user.is_active or state == ESTADO_NO_DISPONIBLE:
             return None
-        if state != "PERSONAL" and request is not None and request.path != "/api/auth/login/":
+        if state != "PERSONAL" and not contexto_login_restringido(request):
             return None  # Ni admin Django ni otra ruta convierten temporal en sesión.
         return user
 

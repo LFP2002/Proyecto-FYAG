@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FYAG — SPEC-018 Fase A: credenciales y primer acceso",
-    "version": "1.1.0",
-    "description": "Backend Fase A. Solo desarrollo/QA; TTL temporal 86400 s y desafio 300 s configurables, NO RATIFICADOS PARA PRODUCCION. Entrega manual exclusivamente entre cuentas sinteticas QA. Sin bloqueos escalonados ni frontend implementado. No autoriza despliegue. Complementa SPEC-002A/002B/006B/006C."
+    "version": "1.1.1",
+    "description": "Backend SPEC-018 y contrato de consumo externo. Solo desarrollo/QA; TTL temporal 86400 s y desafio 300 s configurables, NO RATIFICADOS PARA PRODUCCION. Entrega manual exclusivamente entre cuentas sinteticas QA. No implementa React ni bloqueos escalonados ni autoriza despliegue. Complementa SPEC-002A/002B/006B/006C. Temporales solo se autentican con request POST resuelto a LoginView; sin request se deniegan."
   },
   "servers": [{"url": "/"}],
   "security": [{"Bearer": []}],
@@ -42,7 +42,41 @@
       "get": {"summary": "Detalle TI sin secretos", "responses": {
         "200": {"description": "Estado administrativo y de credencial separados", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}},
         "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}
-      }}
+      }},
+      "patch": {
+        "summary": "TI edita perfil; correo efectivo revoca sesion, incluido correo propio",
+        "description": "Solo email/username/first_name/last_name. No-op no audita ni revoca. Tras correo propio confirmado descartar sesion sin refresh ni relectura autenticada (006C).",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Perfil"}}}},
+        "responses": {"200": {"description": "Perfil confirmado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}}
+      }
+    },
+    "/api/usuarios/{id}/activar/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "post": {"summary": "TI activa administrativamente; conserva estado y TTL de credencial", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Motivo"}}}}, "responses": {"200": {"description": "Activacion explicita; no elimina cambio obligatorio", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+    },
+    "/api/usuarios/{id}/desactivar/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "post": {"summary": "TI desactiva con guardas ultima TI/Gerencia, autooperacion y obligaciones; revoca", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Motivo"}}}}, "responses": {"200": {"description": "Baja logica, no eliminacion", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+    },
+    "/api/usuarios/{id}/cambiar-rol/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "post": {"summary": "TI cambia entre los cinco roles actuales; guardas y version vigentes", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["rol", "motivo"], "properties": {"rol": {"$ref": "#/components/schemas/Rol"}, "motivo": {"type": "string", "minLength": 1, "maxLength": 2000}}}}}}, "responses": {"200": {"description": "Cambio confirmado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+    },
+    "/api/usuarios/{id}/historial/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "get": {"summary": "TI consulta eventos paginados sin secretos ni hashes", "parameters": [{"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1}}], "responses": {"200": {"description": "25 eventos por pagina, orden creado_en/id; snapshots de credenciales vacios", "content": {"application/json": {"schema": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer"}, "next": {"type": "string", "nullable": true}, "previous": {"type": "string", "nullable": true}, "results": {"type": "array", "items": {"$ref": "#/components/schemas/Evento"}}}}}}}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}}}
+    },
+    "/api/auth/csrf/": {
+      "get": {"security": [], "summary": "Obtener token CSRF y cookie; no autentica", "responses": {"200": {"description": "Conservar csrfToken en memoria, dejar cookie al navegador", "content": {"application/json": {"schema": {"type": "object", "required": ["csrfToken"], "properties": {"csrfToken": {"type": "string"}}}}}}}}
+    },
+    "/api/auth/me/": {
+      "get": {"summary": "Perfil operativo propio con access JWT valido; nunca con desafio", "responses": {"200": {"description": "Identidad y rol persistidos", "content": {"application/json": {"schema": {"type": "object", "required": ["id", "username", "email", "role"], "properties": {"id": {"type": "integer"}, "username": {"type": "string"}, "email": {"type": "string"}, "role": {"$ref": "#/components/schemas/Rol"}}}}}}, "401": {"$ref": "#/components/responses/SinSesion"}}}
+    },
+    "/api/auth/refresh/": {
+      "post": {"security": [{"CSRFHeader": [], "CSRFCookie": []}], "summary": "Rotar cookie refresh, revalidar estado PERSONAL/version/hash; nunca usar desafio", "description": "Body {}. Refresh solo desde cookie fyag_refresh, nunca JSON o Authorization. Ausencia, temporal, estado incoherente, version anterior o token usado: 401. Dos renovaciones concurrentes no deben rotar la misma cookie dos veces.", "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}, "responses": {"200": {"description": "Access nuevo y Set-Cookie refresh rotada, sin refresh en JSON", "content": {"application/json": {"schema": {"type": "object", "required": ["access"], "properties": {"access": {"type": "string"}}}}}}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "429": {"$ref": "#/components/responses/Limitado"}}}
+    },
+    "/api/auth/logout/": {
+      "post": {"security": [{"CSRFHeader": [], "CSRFCookie": []}], "summary": "Revocar refresh actual si existe y eliminar cookie, incluso tras login restringido", "description": "Body {}. No consume un desafio opaco: cancelacion del cliente borra memoria; el servidor limita por TTL y sustitucion/consumo/revocacion. No afirmar revocacion de desafio por logout.", "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}}, "responses": {"204": {"description": "Cookie eliminada; sin body"}, "403": {"$ref": "#/components/responses/Prohibido"}}}
     },
     "/api/usuarios/{id}/restablecer-clave/": {
       "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
@@ -107,6 +141,8 @@
     "schemas": {
       "Rol": {"type": "string", "enum": ["GERENCIA", "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS", "TECNICO", "ADMINISTRADOR_TI"]},
       "Alta": {"type": "object", "additionalProperties": false, "required": ["email", "username", "rol"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "username": {"type": "string", "minLength": 1, "maxLength": 150}, "rol": {"$ref": "#/components/schemas/Rol"}, "first_name": {"type": "string", "maxLength": 150}, "last_name": {"type": "string", "maxLength": 150}}},
+      "Perfil": {"type": "object", "additionalProperties": false, "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "username": {"type": "string", "minLength": 1, "maxLength": 150}, "first_name": {"type": "string", "maxLength": 150}, "last_name": {"type": "string", "maxLength": 150}}},
+      "Evento": {"type": "object", "required": ["id", "usuario_objetivo", "actor", "tipo", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"], "properties": {"id": {"type": "integer"}, "usuario_objetivo": {"type": "integer"}, "actor": {"type": "integer"}, "tipo": {"type": "string", "enum": ["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA", "CREACION_CREDENCIAL_TEMPORAL", "REEMISION", "CAMBIO_INICIAL"]}, "motivo": {"type": "string"}, "datos_anteriores": {"type": "object"}, "datos_nuevos": {"type": "object"}, "creado_en": {"type": "string", "format": "date-time"}}},
       "Motivo": {"type": "object", "additionalProperties": false, "required": ["motivo"], "properties": {"motivo": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Obligatorio no blanco; sin secretos"}}},
       "Usuario": {"type": "object", "required": ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"], "properties": {
         "id": {"type": "integer", "format": "int64", "readOnly": true}, "username": {"type": "string"}, "email": {"type": "string", "format": "email"}, "first_name": {"type": "string"}, "last_name": {"type": "string"}, "rol": {"$ref": "#/components/schemas/Rol"}, "is_active": {"type": "boolean"}, "date_joined": {"type": "string", "format": "date-time"},

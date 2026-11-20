@@ -145,3 +145,84 @@ Git en el directorio temporal aprobado `fyag-spec018-failclosed-20261120`.
   QA y NO RATIFICADOS PARA PRODUCCIÓN. Frontend, bloqueos escalonados, recuperación
   de única TI, retención de eventos, TLS confiable y despliegue siguen pendientes.
 - `main`, SPEC históricas, PR #45 y confianza TLS Windows deben permanecer intactos.
+
+## Complemento — contexto HTTP obligatorio y consumo externo
+
+Base de esta corrección: `d143d55680caec08e16cc89b02a13ef8abf86737`.
+Misma rama feature, 20-11-2026. Los resultados anteriores son históricos y no se
+reescriben. **Alcance corregido por el responsable: exclusivamente backend y docs;
+ningún archivo frontend fue modificado ni hubo cambios frontend que revertir.**
+
+### Hallazgo y solución
+
+La condición anterior denegaba temporales fuera de la ruta login solo si había
+request, de modo que `authenticate(request=None)` podía devolver la cuenta.
+Ahora se exige request presente, POST, path_info `/api/auth/login/`, resolución
+Django con nombre login y vista exactamente LoginView. Una URL escrita, admin,
+GET, otra vista o contexto incompleto no autorizan temporales. Se conserva el
+login Django personal sin request, JWT/refresh, bootstrap TI y la política de
+estado ausente/incoherente, sin reparar datos ni crear migraciones nuevas.
+El helper de tests proporciona el mismo contexto explícito, sin bypass productivo.
+
+### Archivos de esta entrega
+
+- `backend/apps/usuarios/backends.py`: única modificación de runtime.
+- `backend/apps/usuarios/tests/test_credenciales_018.py` y
+  `test_fail_closed_018.py`: helpers/contextos y versión documental.
+- `backend/apps/usuarios/tests/test_contexto_018.py`: seis pruebas nuevas de
+  contexto, personal/JWT, HTTP temporal con CSRF, estado ausente y CORS/cookies.
+- `backend/apps/usuarios/tests/test_integracion_018.py`: tres pruebas nuevas de
+  referencias/rutas OpenAPI, guardas estáticas de colección y recorrido HTTP de
+  sus 18 peticiones con CSRF real, sin ejecutar scripts Postman en Django.
+- `backend/docs/openapi/SPEC-018A-v1.json`: revisión documental 1.1.1, completa
+  consumo de sesión y administración existentes; no modifica contrato HTTP.
+- `backend/docs/postman/SPEC-018.postman_collection.json`: colección QA opt-in,
+  origen loopback efectivo, Vault, variables locales, sin redirects/reintentos.
+- `backend/docs/SPEC-018-INTEGRACION-FRONTEND.md`: guía externa de endpoints,
+  errores, permisos, JWT/CSRF/CORS/cookies, concurrencia y manejo de secretos.
+- `backend/docs/SPEC-018-FASE-A-CONTRATO.md` y este informe: enlaces/garantías y
+  evidencia nueva, sin alterar las SPEC históricas ni declarar Fase B implementada.
+
+### Verificación del complemento
+
+Laboratorio exclusivo `fyag-spec018-consumo-20261120`: PostgreSQL/Mongo efímeros,
+ClamAV dedicado, red interna sin puertos host; backend montado readonly. Secretos,
+validadores y manifiestos fuera del repositorio en directorio temporal aprobado.
+
+- Django check: 0 incidencias; makemigrations --check --dry-run: sin cambios.
+- migrate --noinput: todas las migraciones aplicadas únicamente al laboratorio;
+  migrate --check: salida 0. No se modificaron migraciones históricas.
+- Usuarios finales: **158/158 OK en 17.185 s**, nueve pruebas adicionales respecto
+  de la base de 149; incluye pruebas de bootstrap TI y regresión JWT/refresh.
+- OpenAPI validado con openapi-spec-validator 0.7.2, instalado solo en temporal
+  externo, sin dependencias nuevas del proyecto. JSON/referencias/rutas también
+  probados. Colección conforme al schema oficial Postman v2.1; ambos scripts
+  compilan mediante AsyncFunction de Node, sin instalar dependencias Node.
+  Seis escenarios prerequest con mock Node verificaron rechazo de destino externo,
+  falta de confirmación QA, URL divergente, userinfo engañoso y pasos fuera de orden,
+  además del arranque loopback autorizado. No equivale a Postman Runner.
+  Otro mock ejecutó postresponse en los 18 pasos y verificó limpieza/detención
+  ante 500 o response ausente cuando el script alcanza a ejecutarse; no verifica
+  el comportamiento del Runner ante cancelaciones o red sin invocar scripts.
+- Hashes congelados de 307 archivos Python/JSON backend (incluidos tests/contratos)
+  y manifiesto previo de 101 archivos frontend. Frontend idéntico; sin diff en
+  SPEC, migraciones ni reglas de Finanzas/Comercial/Obras.
+- PR #45 sigue open/Draft, head documental `9b34a10ca413ce9d64632d9a0cd63fbce83d71b6`,
+  body SHA256 `9fdb10b8875d148e577be57b6e3eafbfadcec30376bade6eb36e953265dd0eb1`.
+- main local/remoto conserva `1df5da1bffa57c7fe83b4f16adb2ca6b48a71a23`.
+- Regresión backend completa: **952/952 OK en 237.163 s**, sin fallos ni errores;
+  BD de tests destruida normalmente. Incluye PostgreSQL/Mongo/ClamAV, bootstrap,
+  JWT/refresh, concurrencia y regresión de negocio sin modificar sus reglas.
+  Código/tests/OpenAPI/colección cotejados con el manifiesto congelado; después
+  solo se completó este informe. Diff --check y escaneo de archivos de la entrega
+  sin hallazgos de secretos QA, JWT literales, tokens GitHub o claves privadas.
+
+### Límites de entrega
+
+No se ejecutaron Postman Runner ni navegador real; validación estática y recorrido
+Django no sustituyen esas verificaciones. No se ejecutaron tests/build frontend
+por restricción explícita. La guía explica que logout no consume desafíos y que
+el historial/runner Postman puede retener respuestas incluso con Vault/no-store.
+TTL y canal productivos, adaptación React por equipo externo, QA de navegador,
+bloqueos escalonados, recuperación institucional y despliegue siguen pendientes.
+Sin merge, despliegue, cambios en main o edición del PR documental #45.

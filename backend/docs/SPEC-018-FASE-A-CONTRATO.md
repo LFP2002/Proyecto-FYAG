@@ -90,6 +90,12 @@ pero sus tokens ya no sirven después del reset. No prometer orden de entrega HT
 
 ## Integración React posterior (no implementada aquí)
 
+Guía de consumo para el equipo externo y colección QA:
+[SPEC-018-INTEGRACION-FRONTEND.md](SPEC-018-INTEGRACION-FRONTEND.md).
+Las temporales solo autentican con request POST resuelto a LoginView en
+`/api/auth/login/`; sin request, admin, otras rutas o contexto incompleto se deniegan.
+Las personales conservan autenticación Django sin request. No hay bypass para tests.
+
 - `auth/client.js` y AuthContext: estado CAMBIO_OBLIGATORIO separado de authenticated;
   no `/me/`, refresh ni montaje de negocio; desafío solo en memoria, borrar al
   finalizar/cancelar/logout/cambiar identidad. No localStorage/sessionStorage/URL.

@@ -9,7 +9,8 @@ from django.conf import settings
 from django.contrib.auth.hashers import identify_hasher
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, override_settings
+from django.urls import resolve
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 from rest_framework.test import APIClient, APITestCase
@@ -24,6 +25,13 @@ from .test_administracion import AdminBase, NEW_PASSWORD, PASSWORD
 FIRST = "/api/auth/primer-cambio-clave/"
 
 
+def login_request():
+    """Contexto HTTP explícito, también en tests de servicios/concurrencia."""
+    request = RequestFactory().post("/api/auth/login/")
+    request.resolver_match = resolve(request.path_info)
+    return request
+
+
 class CredencialesBase(AdminBase):
     def emit(self, *, activate=True):
         issued = services.crear_usuario(self.new_data(), self.manager)
@@ -34,7 +42,7 @@ class CredencialesBase(AdminBase):
         return issued
 
     def challenge(self, issued):
-        return LoginSerializer().validate({"email": issued.usuario.email, "password": issued.credencial_temporal})
+        return LoginSerializer(context={"request": login_request()}).validate({"email": issued.usuario.email, "password": issued.credencial_temporal})
 
     def reset(self, target=None):
         return credenciales.restablecer_clave(target or self.target, {"motivo": "Recuperación QA"}, self.manager)
@@ -380,7 +388,7 @@ class ConfiguracionTTLTests(SimpleTestCase):
         from apps.usuarios.serializers_usuarios import CrearUsuarioSerializer, UsuarioLecturaSerializer
         schema = json.loads((settings.BASE_DIR / "docs/openapi/SPEC-018A-v1.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["openapi"], "3.0.3")
-        self.assertEqual(schema["info"]["version"], "1.1.0")
+        self.assertEqual(schema["info"]["version"], "1.1.1")
         self.assertEqual(set(schema["components"]["schemas"]["Usuario"]["properties"]["estado_credencial"]["enum"]),
                          {"PERSONAL", "INICIAL", "RECUPERACION", "NO_DISPONIBLE"})
         self.assertIn("seguridad_no_disponible", schema["components"]["responses"]["Conflicto"]["description"])

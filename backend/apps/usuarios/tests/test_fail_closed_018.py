@@ -21,7 +21,7 @@ from apps.usuarios.models import SeguridadCredencial, Usuario, UsuarioEvento
 from apps.usuarios.serializers import LoginSerializer, VersionedRefreshSerializer
 from apps.usuarios.tokens import AccessToken, RefreshToken
 from .test_administracion import NEW_PASSWORD, PASSWORD
-from .test_credenciales_018 import CredencialesBase, FIRST
+from .test_credenciales_018 import CredencialesBase, FIRST, login_request
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -107,7 +107,7 @@ class FailClosedTests(CredencialesBase, APITestCase):
     def test_backend_django_temporal_solo_admite_flujo_restringido(self):
         issued = self.emit()
         data = {"email": issued.usuario.email, "password": issued.credencial_temporal}
-        request = RequestFactory().post("/api/auth/login/")
+        request = login_request()
         self.assertIsNotNone(authenticate(request, **data))
         self.assertIsNone(authenticate(RequestFactory().post("/admin/login/"), **data))
         self.assertIsNone(CredencialesModelBackend().get_user(issued.usuario.pk))
