@@ -1,0 +1,14 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "FYAG SPEC-018C C2 — diseño futuro NO IMPLEMENTADO", "version": "0.0.0-propuesta", "description": "No consumir como API disponible. C1 no conecta login/JWT/refresh/reset. 423, recuperación única TI y sesiones pendientes de decisión. Sin endpoints integrados en este artefacto."},
+  "paths": {},
+  "x-futuro": [
+    {"metodo": "POST", "ruta": "/api/auth/login/", "estado": "NO_IMPLEMENTADO", "decision_pendiente": "401 genérico frente a 423 solo tras clave correcta; no enumeración", "respuestas_candidatas": ["BloqueoTemporalPropuesto", "SolicitarTIPropuesto"]},
+    {"metodo": "GET", "ruta": "/api/usuarios/{id}/", "estado": "AMPLIACION_NO_IMPLEMENTADA", "permiso": "ADMINISTRADOR_TI persistido, activo y sesión válida", "campos_candidatos": ["estado_acceso", "bloqueado_hasta"]},
+    {"metodo": "POST", "ruta": "/api/usuarios/{id}/restablecer-clave/", "estado": "RECUPERACION_C2_NO_IMPLEMENTADA", "decision_pendiente": "Verificación institucional, única TI y revocación de sesiones; conservar contrato Fase A"}
+  ],
+  "components": {"schemas": {
+    "BloqueoTemporalPropuesto": {"type": "object", "additionalProperties": false, "required": ["code", "detail", "disponible_desde"], "properties": {"code": {"const": "bloqueo_temporal"}, "detail": {"const": "Acceso temporalmente bloqueado."}, "disponible_desde": {"type": "string", "format": "date-time"}}},
+    "SolicitarTIPropuesto": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"const": "solicitar_ti"}, "detail": {"const": "Cuenta bloqueada por seguridad. Solicite a TI el restablecimiento de su contraseña."}}}
+  }}
+}

@@ -18,6 +18,14 @@ from django.core.exceptions import ImproperlyConfigured
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# SPEC-018C C1: política ratificada; motor sin conexión a login/JWT/endpoints.
+# Habilitación exclusivamente explícita en tests QA mediante override_settings.
+BLOQUEOS_C1_POLITICA = {
+    "intentos": 5, "ventana_segundos": 900, "duraciones_segundos": (900, 3600, 14400),
+    "reincidencia_segundos": 86400, "ciclo_ti": 4,
+}
+BLOQUEOS_C1_SIMULACION_HABILITADA = False
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
