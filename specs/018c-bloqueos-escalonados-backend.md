@@ -1,8 +1,8 @@
 # SPEC-018C — Bloqueos escalonados por intentos fallidos y recuperación TI (solo backend)
 
-> **Estado:** PROPUESTA DOCUMENTAL — 20-11-2026. **NO RATIFICADA PARA IMPLEMENTACIÓN NI PRODUCCIÓN** hasta resolver la sección 13.
+> **Estado:** POLÍTICA DE UMBRALES RATIFICADA POR EL RESPONSABLE — 20-11-2026. Los valores de la sección 4 están aprobados para diseño e implementación backend, **no constituyen autorización de despliegue en producción**. Recuperación de la única TI, comunicaciones de error, retención y otros puntos de la sección 13 siguen pendientes. No existe implementación de esta Fase C.
 > **Rama:** `docs/spec-018c-bloqueos-escalonados-backend` (desde `main`).
-> **Dependencias:** [SPEC-018](018-seguridad-credenciales-bloqueos.md) en PR [#45](https://github.com/LFP2002/Proyecto-FYAG/pull/45) y Fase A backend en PR [#46](https://github.com/LFP2002/Proyecto-FYAG/pull/46), commit `01bb982ac60c96f4e2558ccfd36b5022c5430637`, **ambos Draft/no fusionados** en la fecha de redacción.
+> **Dependencias:** SPEC-018 general en PR [#45](https://github.com/LFP2002/Proyecto-FYAG/pull/45) y Fase A backend en PR [#46](https://github.com/LFP2002/Proyecto-FYAG/pull/46), commit `01bb982ac60c96f4e2558ccfd36b5022c5430637`, **ambos Draft/no fusionados** en la fecha de redacción.
 > **Contrato de trabajo FYAG:** únicamente backend Django/DRF/PostgreSQL, documentación OpenAPI y pruebas automatizadas/Postman. **No modificar `frontend/`** salvo autorización expresa. El equipo frontend consumirá contratos API completamente documentados.
 
 ## 1. Requerimiento de negocio confirmado
@@ -39,23 +39,23 @@ Los estados de acceso son **independientes** de `SeguridadCredencial.estado` y d
 
 El vencimiento de un bloqueo temporal habilita un nuevo intento; no elimina eventos ni el historial de ciclos de bloqueos. La caducidad se mide en UTC con reloj del servidor y se presenta en zona `America/Santiago`.
 
-## 4. Umbrales PROPUESTOS — requieren aprobación explícita
+## 4. Umbrales RATIFICADOS — implementación backend autorizada con condiciones
 
-| Parámetro | Propuesta inicial | Estado |
+| Parámetro | Valor confirmado | Estado |
 | --- | --- | --- |
-| Intentos inválidos consecutivos | **5** | PENDIENTE |
-| Ventana móvil para contar fallos | **15 minutos** | PENDIENTE |
-| Primer ciclo de bloqueo | **15 minutos** | PENDIENTE |
-| Segundo ciclo | **60 minutos** | PENDIENTE |
-| Tercer ciclo | **240 minutos** | PENDIENTE |
-| Cuarto ciclo dentro de 24 h | **`REQUIERE_TI`** | PENDIENTE |
-| Ventana de reincidencia de ciclos | **24 horas** | PENDIENTE |
+| Intentos inválidos consecutivos | **5** | RATIFICADO 20-11-2026 |
+| Ventana móvil para contar fallos | **15 minutos** | RATIFICADO 20-11-2026 |
+| Primer ciclo de bloqueo | **15 minutos** | RATIFICADO 20-11-2026 |
+| Segundo ciclo | **60 minutos** | RATIFICADO 20-11-2026 |
+| Tercer ciclo | **240 minutos** | RATIFICADO 20-11-2026 |
+| Cuarto ciclo dentro de 24 h | **`REQUIERE_TI`** | RATIFICADO 20-11-2026 |
+| Ventana de reincidencia de ciclos | **24 horas** | RATIFICADO 20-11-2026 |
 | Intentos durante bloqueo | No reinician ni prolongan plazo | Propuesta técnica |
 | Recuperación definitiva | TI verifica identidad y reemite credencial temporal | Requerimiento funcional; detalle operativo pendiente |
 
-**Precisar:** el primer grupo de cinco fallos activa 15 min. Tras expirar, cinco fallos nuevos activan 60 min; el tercer grupo, 240 min; si ocurre un cuarto grupo de cinco dentro de 24 horas, requiere TI. Un login correcto fuera del bloqueo reinicia la racha de intentos fallidos, pero no borra eventos ni necesariamente el historial de reincidencias, conforme a la política finalmente aprobada. En esta versión se propone que el éxito **no** elimine la ventana de reincidencia de 24 horas, para evitar eludirla intercalando una autenticación válida.
+**Política confirmada:** el primer grupo de cinco fallos activa 15 min. Tras expirar, cinco fallos nuevos activan 60 min; el tercer grupo, 240 min; si ocurre un cuarto grupo de cinco dentro de 24 horas, requiere TI. El inicio y expiración exactos de la ventana de reincidencia, y cómo un login correcto afecta a la racha o a ciclos previos, requieren definición técnica explícita y pruebas que no debiliten los umbrales confirmados. La propuesta conservadora es mantener el historial de ciclos durante 24 h aunque ocurra un login correcto; documentar esta interpretación antes de implementarla.
 
-Los límites deben definirse en configuración de backend, con validación de tipos/rangos al iniciar y tests de frontera; **no** habilitar umbrales por defecto en producción antes de ratificarlos. Distinguir flag de activación y configuración de política aprobada. Si falta configuración obligatoria, fallar en arranque/validación, no «activar silenciosamente» seguridad débil.
+Los valores anteriores quedaron ratificados en esta conversación para el desarrollo del backend. Deben centralizarse en configuración validada y probarse en fronteras temporales. **La ratificación funcional no autoriza despliegue en producción:** falta aprobar recuperación institucional de única TI, mitigaciones contra bloqueo malicioso, política de errores y retención. Si falta configuración obligatoria o habilitación operativa, fallar en arranque/validación, no «activar silenciosamente» seguridad débil.
 
 ## 5. Modelo de persistencia propuesto
 
@@ -124,7 +124,7 @@ El requisito «solo TI recupera la cuenta» necesita un procedimiento excepciona
 **Usuarios y backend (Django/DRF/PostgreSQL):**
 1. Racha de fallos por cuenta existente y normalización email; identidad inexistente no revela existencia.
 2. Cuarto/quinto intento en misma ventana, frontera exacta del reloj y reinicio de ventana.
-3. Primer, segundo y tercer bloqueo con duraciones correctas; cuarto ciclo dentro de 24 h → requiere TI, solo tras aprobación de parámetros.
+3. Primer, segundo y tercer bloqueo con duraciones ratificadas; cuarto ciclo dentro de 24 h → requiere TI. Probar transiciones y fronteras exactas.
 4. Ningún intento durante bloqueo prolonga `bloqueado_hasta`; contraseñas correctas e incorrectas respetan bloqueo sin bypass.
 5. Un login válido fuera del bloqueo reinicia la racha, conserva historia de ciclos y no elimina evidencia.
 6. `429`, errores CSRF/JSON, errores de red y cuenta inexistente no incrementan el contador persistido de contraseña incorrecta.
@@ -147,13 +147,13 @@ El requisito «solo TI recupera la cuenta» necesita un procedimiento excepciona
 
 ## 11. Propuesta de arquitectura y entregas
 
-1. **Esta rama, documentación:** revisar y ratificar política, casos de único TI y respuestas, sin escribir backend.
+1. **Esta rama, documentación:** umbrales ratificados; conservar pendientes el caso de única TI, la política de respuestas y otras salvaguardas antes de habilitar operación real. No escribir backend en este PR.
 2. **Fase C1 backend:** migración y modelo de estados, contadores transaccionales y eventos; sin activar umbrales en producción. Puede exigir subfase después de ratificación.
 3. **Fase C2 backend:** integración de login, JWT/refresh/autenticación Django y reset TI; pruebas de seguridad y concurrencia.
 4. **Fase C3 QA:** documentación OpenAPI, Postman aislado, pruebas de regresión y CI con evidencia reproducible.
 5. **PR de implementación dedicado** posterior al PR #46 o correctamente apilado; **sin merge ni despliegue** hasta aprobación expresa.
 
-No crear rama implementadora desde un `main` que no incluya Fase A sin aclarar dependencia. Mantener commits de Fase C separados y no extender PR #46 con una política aún no aprobada.
+No crear rama implementadora desde un `main` que no incluya Fase A sin aclarar dependencia. Mantener commits de Fase C separados y no extender PR #46 con cambios de esta fase. Los umbrales están confirmados; otras reglas operativas siguen pendientes.
 
 ## 12. Riesgos y límites operacionales
 
@@ -164,9 +164,9 @@ No crear rama implementadora desde un `main` que no incluya Fase A sin aclarar d
 - **Integración:** equipos frontend deben basarse en OpenAPI, no inferir la política por temporizadores locales.
 - **Producción:** TLS confiable, cookie Secure/Strict, proxy y logging sin secretos, respaldo/restauración, monitoreo y pruebas de carga antes de habilitar.
 
-## 13. Decisiones que debe ratificar el responsable antes de programar bloqueos
+## 13. Política confirmada y decisiones operativas aún pendientes
 
-1. Confirmar o modificar **5 intentos**, ventana de **15 min**, bloques de **15/60/240 min**, **cuarto ciclo dentro de 24 h** → `REQUIERE_TI`.
+1. **RATIFICADO 20-11-2026:** **5 intentos**, ventana de **15 min**, bloques de **15/60/240 min**, **cuarto ciclo dentro de 24 h** → `REQUIERE_TI`. No volver a presentar estos parámetros como pendientes de aprobación.
 2. Confirmar que `REQUIERE_TI` exige **reemisión de credencial temporal** y primer cambio, sin desbloqueo simple.
 3. Decidir el alcance de bloqueo temporal sobre **access JWT ya emitidos**, refresh y sesiones existentes. Se recomienda revocación de sesiones ante bloqueo confirmado, pero exige evaluar mitigación de ataques de bloqueo.
 4. Aprobar la semántica del **423 solo después de contraseña correcta**, o elegir 401 genérico + canal institucional de recuperación para evitar cualquier filtración.
@@ -174,4 +174,4 @@ No crear rama implementadora desde un `main` que no incluya Fase A sin aclarar d
 6. Acordar retención mínima de eventos de seguridad y tratamiento de IP/metadatos.
 7. Confirmar que sigue vigente el veto de cambiar `is_active` automáticamente por intentos fallidos, preservando integridad de Obras y roles.
 
-**No se ejecutaron tests, Postman ni código de esta Fase C en esta rama documental.** Ningún parámetro propuesto se presenta como aprobado, implementado o apto para producción.
+**No se ejecutaron tests, Postman ni código de esta Fase C en esta rama documental.** Los umbrales de sección 4 están ratificados como requisito funcional para implementación backend; esto **no** acredita implementación, aptitud para producción ni aprobación de los puntos pendientes.
