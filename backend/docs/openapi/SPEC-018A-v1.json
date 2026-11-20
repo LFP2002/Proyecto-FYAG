@@ -1,0 +1,129 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FYAG — SPEC-018 Fase A: credenciales y primer acceso",
+    "version": "1.0.0",
+    "description": "Backend Fase A. Solo desarrollo/QA; TTL temporal 86400 s y desafio 300 s configurables, NO RATIFICADOS PARA PRODUCCION. Entrega manual exclusivamente entre cuentas sinteticas QA. Sin bloqueos escalonados ni frontend implementado. No autoriza despliegue. Complementa SPEC-002A/002B/006B/006C."
+  },
+  "servers": [{"url": "/"}],
+  "security": [{"Bearer": []}],
+  "paths": {
+    "/api/usuarios/": {
+      "get": {
+        "summary": "Lista TI; nunca contiene credenciales ni desafios",
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+          {"name": "rol", "in": "query", "schema": {"$ref": "#/components/schemas/Rol"}},
+          {"name": "activo", "in": "query", "schema": {"type": "string", "enum": ["true", "false"]}}
+        ],
+        "responses": {
+          "200": {"description": "25 por pagina, ID ascendente", "content": {"application/json": {"schema": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer"}, "next": {"type": "string", "nullable": true}, "previous": {"type": "string", "nullable": true}, "results": {"type": "array", "items": {"$ref": "#/components/schemas/Usuario"}}}}}}},
+          "400": {"$ref": "#/components/responses/Validacion"},
+          "401": {"$ref": "#/components/responses/SinSesion"},
+          "403": {"$ref": "#/components/responses/Prohibido"},
+          "404": {"$ref": "#/components/responses/NoDisponible"}
+        }
+      },
+      "post": {
+        "summary": "TI crea cuenta inactiva y emite credencial de exposicion unica",
+        "description": "password y campos administrados por servidor prohibidos. Credencial CSPRNG de 256 bits, solo hash Django en SQL. Perdida de respuesta exige reemision, nunca GET ni reintento automatico.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Alta"}}}},
+        "responses": {
+          "201": {"description": "INICIAL, is_active=false. Secretos solo en esta respuesta", "headers": {"Cache-Control": {"schema": {"type": "string", "enum": ["no-store"]}}, "Pragma": {"schema": {"type": "string", "enum": ["no-cache"]}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Emision"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"},
+          "401": {"$ref": "#/components/responses/SinSesion"},
+          "403": {"$ref": "#/components/responses/Prohibido"},
+          "409": {"$ref": "#/components/responses/Conflicto"}
+        }
+      }
+    },
+    "/api/usuarios/{id}/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "get": {"summary": "Detalle TI sin secretos", "responses": {
+        "200": {"description": "Estado administrativo y de credencial separados", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usuario"}}}},
+        "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}
+      }}
+    },
+    "/api/usuarios/{id}/restablecer-clave/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "post": {
+        "summary": "TI activo/persistido restablece cuenta ajena con motivo",
+        "description": "No reactivar ni modificar rol. Genera credencial nueva, RECUPERACION, incrementa sesion_version, invalida desafios y access/refresh anteriores y audita en una transaccion. Prohibe autorrestablecimiento. Ante resets concurrentes solo la ultima credencial queda utilizable; no reintentar automaticamente.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Motivo"}}}},
+        "responses": {
+          "200": {"description": "Exposicion unica; conserva is_active", "headers": {"Cache-Control": {"schema": {"type": "string", "enum": ["no-store"]}}, "Pragma": {"schema": {"type": "string", "enum": ["no-cache"]}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Emision"}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}
+        }
+      }
+    },
+    "/api/usuarios/{id}/establecer-clave/": {
+      "parameters": [{"$ref": "#/components/parameters/UsuarioId"}],
+      "post": {
+        "deprecated": true,
+        "summary": "Retirada: nunca establece clave elegida por TI",
+        "description": "No procesa nueva_clave. TI autorizado recibe 409 operacion_retirada; sobre si mismo autooperacion_protegida. Utilizar restablecer-clave.",
+        "responses": {"401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoDisponible"}, "409": {"$ref": "#/components/responses/Conflicto"}}
+      }
+    },
+    "/api/auth/login/": {
+      "post": {
+        "summary": "Sesion normal PERSONAL o desafio restringido temporal",
+        "security": [{"CSRFHeader": [], "CSRFCookie": []}],
+        "description": "Requiere GET csrf previo. Rota CSRF. Inactiva, inexistente, password incorrecto o temporal vencida: mismo 401 generico. La rama temporal NO emite access, user ni refresh; elimina cookie refresh previa. Cada nuevo desafio sustituye al anterior. Validez minima entre TTL de desafio y vencimiento de credencial.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["email", "password"], "properties": {"email": {"type": "string", "format": "email"}, "password": {"type": "string", "writeOnly": true}}}}}},
+        "responses": {
+          "200": {"description": "Distinguir por estado CAMBIO_OBLIGATORIO; nunca montar negocio en esa rama", "headers": {"Cache-Control": {"schema": {"type": "string", "enum": ["no-store"]}}, "Set-Cookie": {"schema": {"type": "string"}, "description": "Sesion normal: refresh HttpOnly/Secure/Strict/path=/api/auth/. Temporal: elimina refresh previo."}}, "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/LoginNormal"}, {"$ref": "#/components/schemas/LoginRestringido"}]}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "429": {"$ref": "#/components/responses/Limitado"}
+        }
+      }
+    },
+    "/api/auth/primer-cambio-clave/": {
+      "post": {
+        "summary": "Consume desafio y confirma clave personal; obliga a nuevo login",
+        "security": [{"CSRFHeader": [], "CSRFCookie": []}],
+        "description": "No acepta desafio como Bearer. JSON estricto. Estado, actividad, digest, sesion_version, expiracion y consumo verificados con locks SQL. Rechaza reutilizacion de temporal y valida con Django. Respuesta sin JWT ni sesion automatica. Audita y revoca tokens previos atomicamente.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["desafio", "nueva_clave"], "properties": {"desafio": {"type": "string", "minLength": 1, "maxLength": 128, "writeOnly": true}, "nueva_clave": {"type": "string", "minLength": 1, "maxLength": 4096, "writeOnly": true}}}}}},
+        "responses": {
+          "200": {"description": "Consumido; borrar desafio del cliente, sin reintento automatico", "headers": {"Cache-Control": {"schema": {"type": "string", "enum": ["no-store"]}}}, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["estado", "login_requerido"], "properties": {"estado": {"type": "string", "enum": ["CLAVE_PERSONAL_CONFIRMADA"]}, "login_requerido": {"type": "boolean", "enum": [true]}}}}}},
+          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"description": "Desafio no disponible: manipulado, vencido, consumido, reemplazado o version obsoleta; mismo mensaje sin identidad", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}}, "403": {"$ref": "#/components/responses/Prohibido"}, "429": {"$ref": "#/components/responses/Limitado"}
+        }
+      }
+    },
+    "/api/auth/cambiar-clave/": {
+      "post": {
+        "summary": "Cambio ordinario PERSONAL; contrato 006B preservado",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["clave_actual", "nueva_clave"], "properties": {"clave_actual": {"type": "string", "maxLength": 4096, "writeOnly": true}, "nueva_clave": {"type": "string", "maxLength": 4096, "writeOnly": true}}}}}},
+        "responses": {"204": {"description": "Revocada; nuevo login obligatorio"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/SinSesion"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
+      "CSRFHeader": {"type": "apiKey", "in": "header", "name": "X-CSRFToken"},
+      "CSRFCookie": {"type": "apiKey", "in": "cookie", "name": "csrftoken"}
+    },
+    "parameters": {"UsuarioId": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807}}},
+    "schemas": {
+      "Rol": {"type": "string", "enum": ["GERENCIA", "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS", "TECNICO", "ADMINISTRADOR_TI"]},
+      "Alta": {"type": "object", "additionalProperties": false, "required": ["email", "username", "rol"], "properties": {"email": {"type": "string", "format": "email", "maxLength": 254}, "username": {"type": "string", "minLength": 1, "maxLength": 150}, "rol": {"$ref": "#/components/schemas/Rol"}, "first_name": {"type": "string", "maxLength": 150}, "last_name": {"type": "string", "maxLength": 150}}},
+      "Motivo": {"type": "object", "additionalProperties": false, "required": ["motivo"], "properties": {"motivo": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Obligatorio no blanco; sin secretos"}}},
+      "Usuario": {"type": "object", "required": ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"], "properties": {
+        "id": {"type": "integer", "format": "int64", "readOnly": true}, "username": {"type": "string"}, "email": {"type": "string", "format": "email"}, "first_name": {"type": "string"}, "last_name": {"type": "string"}, "rol": {"$ref": "#/components/schemas/Rol"}, "is_active": {"type": "boolean"}, "date_joined": {"type": "string", "format": "date-time"},
+        "estado_credencial": {"type": "string", "enum": ["PERSONAL", "INICIAL", "RECUPERACION"], "readOnly": true}, "cambio_obligatorio": {"type": "boolean", "readOnly": true, "description": "false solo PERSONAL; vencimiento no elimina obligatoriedad"}
+      }},
+      "Emision": {"allOf": [{"$ref": "#/components/schemas/Usuario"}, {"type": "object", "required": ["credencial_temporal", "credencial_vence_en"], "properties": {"credencial_temporal": {"type": "string", "minLength": 43, "maxLength": 43, "readOnly": true, "description": "Secreto generado una sola vez; no persistir en cliente ni recuperar por GET"}, "credencial_vence_en": {"type": "string", "format": "date-time", "readOnly": true}}}]},
+      "LoginNormal": {"type": "object", "additionalProperties": false, "required": ["access", "user", "csrfToken"], "properties": {"access": {"type": "string"}, "csrfToken": {"type": "string"}, "user": {"type": "object", "additionalProperties": false, "required": ["id", "username", "email", "role"], "properties": {"id": {"type": "integer"}, "username": {"type": "string"}, "email": {"type": "string"}, "role": {"$ref": "#/components/schemas/Rol"}}}}},
+      "LoginRestringido": {"type": "object", "additionalProperties": false, "required": ["estado", "desafio", "desafio_vence_en", "csrfToken"], "properties": {"estado": {"type": "string", "enum": ["CAMBIO_OBLIGATORIO"]}, "desafio": {"type": "string", "minLength": 43, "maxLength": 43, "description": "Opaco; solo en memoria, no JWT"}, "desafio_vence_en": {"type": "string", "format": "date-time"}, "csrfToken": {"type": "string"}}},
+      "Detalle": {"type": "object", "required": ["detail"], "properties": {"detail": {"type": "string"}}}
+    },
+    "responses": {
+      "Validacion": {"description": "400 por campos/formato/validadores, sin eco de secretos", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}}}},
+      "SinSesion": {"description": "401 generico, credencial o sesion no disponible", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
+      "Prohibido": {"description": "403 CSRF o rol no autorizado; staff/superuser no conceden TI", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
+      "NoDisponible": {"description": "404 cuenta/pagina no disponible"},
+      "Conflicto": {"description": "409: operacion_retirada, autooperacion_protegida o invariantes existentes", "content": {"application/json": {"schema": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}}}}},
+      "Limitado": {"description": "429 throttle existente, no bloqueo de cuenta", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}}
+    }
+  }
+}

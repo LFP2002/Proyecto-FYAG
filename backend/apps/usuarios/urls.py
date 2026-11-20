@@ -6,11 +6,13 @@ from .views import (
     LogoutView,
     PerfilActualView,
     RefreshView,
+    PrimerCambioView,
 )
 from .views_usuarios import CambiarClavePropiaView
 
 
 urlpatterns = [
+    path("primer-cambio-clave/", PrimerCambioView.as_view(), name="primer_cambio_clave"),
     path("cambiar-clave/", CambiarClavePropiaView.as_view(), name="cambiar_clave_propia"),
     path(
         "csrf/",

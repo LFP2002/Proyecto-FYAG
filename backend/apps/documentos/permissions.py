@@ -6,7 +6,7 @@ from apps.usuarios.authentication import validar_sesion
 
 
 def revalidar(usuario, token=None):
-    actual = Usuario.objects.filter(pk=usuario.pk).first()
+    actual = Usuario.objects.select_related("seguridad_credencial").filter(pk=usuario.pk).first()
     if actual is None or not actual.is_active or actual.sesion_version != usuario.sesion_version:
         raise AuthenticationFailed("Sesión no disponible.")
     if token is not None:

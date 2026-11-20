@@ -106,10 +106,13 @@ class UsuarioEvento(models.Model):
         CAMBIO_ROL = "CAMBIO_ROL", "Cambio de rol"
         ESTABLECER_CLAVE = "ESTABLECER_CLAVE", "Establecimiento de contraseña"
         CAMBIO_CLAVE_PROPIA = "CAMBIO_CLAVE_PROPIA", "Cambio propio de contraseña"
+        CREACION_CREDENCIAL_TEMPORAL = "CREACION_CREDENCIAL_TEMPORAL", "Emisión inicial temporal"
+        REEMISION = "REEMISION", "Restablecimiento temporal por TI"
+        CAMBIO_INICIAL = "CAMBIO_INICIAL", "Confirmación de contraseña personal"
 
     usuario_objetivo = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="eventos_administrativos")
     actor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="acciones_administrativas")
-    tipo = models.CharField(max_length=24, choices=Tipo.choices)
+    tipo = models.CharField(max_length=32, choices=Tipo.choices)
     motivo = models.CharField(max_length=2000, blank=True, default="")
     datos_anteriores = models.JSONField(default=dict, blank=True)
     datos_nuevos = models.JSONField(default=dict, blank=True)
@@ -118,7 +121,7 @@ class UsuarioEvento(models.Model):
     class Meta:
         ordering = ["creado_en", "id"]
         constraints = [models.CheckConstraint(
-            condition=models.Q(tipo__in=["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA"]),
+            condition=models.Q(tipo__in=["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA", "CREACION_CREDENCIAL_TEMPORAL", "REEMISION", "CAMBIO_INICIAL"]),
             name="usuarios_evento_tipo_valido",
         )]
 
@@ -130,7 +133,8 @@ class UsuarioEvento(models.Model):
                 raise ValidationError("Snapshot administrativo no permitido.")
             if any(type(value) is not (bool if key == "is_active" else str) for key, value in data.items()):
                 raise ValidationError("Tipos de snapshot no permitidos.")
-            if self.tipo in {self.Tipo.ESTABLECER_CLAVE, self.Tipo.CAMBIO_CLAVE_PROPIA} and data:
+            if self.tipo in {self.Tipo.ESTABLECER_CLAVE, self.Tipo.CAMBIO_CLAVE_PROPIA,
+                            self.Tipo.CREACION_CREDENCIAL_TEMPORAL, self.Tipo.REEMISION, self.Tipo.CAMBIO_INICIAL} and data:
                 raise ValidationError("Los eventos de contraseña no admiten snapshots.")
 
     def save(self, *args, **kwargs):
@@ -141,3 +145,35 @@ class UsuarioEvento(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("El historial administrativo no se puede eliminar.")
+
+
+class SeguridadCredencial(models.Model):
+    """Estado SQL; nunca almacena credenciales o desafíos en texto claro."""
+    class Estado(models.TextChoices):
+        PERSONAL = "PERSONAL", "Personal"
+        INICIAL = "INICIAL", "Inicial pendiente"
+        RECUPERACION = "RECUPERACION", "Recuperación pendiente"
+
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE, primary_key=True, related_name="seguridad_credencial")
+    estado = models.CharField(max_length=16, choices=Estado.choices, default=Estado.PERSONAL)
+    emitida_en = models.DateTimeField(null=True, editable=False)
+    vence_en = models.DateTimeField(null=True, editable=False)
+    desafio_digest = models.CharField(max_length=64, null=True, unique=True, editable=False)
+    desafio_vence_en = models.DateTimeField(null=True, editable=False)
+    desafio_version = models.PositiveBigIntegerField(null=True, editable=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(name="credencial_estado_coherente", condition=(
+                models.Q(estado="PERSONAL", emitida_en__isnull=True, vence_en__isnull=True,
+                         desafio_digest__isnull=True, desafio_vence_en__isnull=True, desafio_version__isnull=True)
+                | models.Q(estado__in=["INICIAL", "RECUPERACION"], emitida_en__isnull=False,
+                           vence_en__isnull=False, vence_en__gt=models.F("emitida_en"))
+            )),
+            models.CheckConstraint(name="credencial_desafio_coherente", condition=(
+                models.Q(desafio_digest__isnull=True, desafio_vence_en__isnull=True, desafio_version__isnull=True)
+                | (models.Q(desafio_digest__isnull=False, desafio_digest__regex=r"^[0-9a-f]{64}$", desafio_vence_en__isnull=False,
+                            desafio_version__gte=1, desafio_version__isnull=False)
+                   & models.Q(desafio_vence_en__lte=models.F("vence_en")))
+            )),
+        ]

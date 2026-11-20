@@ -1,6 +1,12 @@
 from django.conf import settings
 
 
+def sin_cache(response):
+    response["Cache-Control"] = "no-store"
+    response["Pragma"] = "no-cache"
+    return response
+
+
 def set_refresh_cookie(response, token):
     response.set_cookie(
         key=settings.JWT_REFRESH_COOKIE_NAME,

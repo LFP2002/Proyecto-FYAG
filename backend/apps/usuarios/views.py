@@ -2,6 +2,7 @@ from django.conf import settings
 from django.middleware.csrf import get_token, rotate_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed
@@ -14,7 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .serializers import LoginSerializer, VersionedRefreshSerializer
-from .services import delete_refresh_cookie, set_refresh_cookie
+from .services import delete_refresh_cookie, set_refresh_cookie, sin_cache
 from .throttles import (
     LoginEmailRateThrottle,
     LoginIPRateThrottle,
@@ -31,6 +32,7 @@ class CsrfTokenView(APIView):
 
 
 @method_decorator(csrf_protect, name="dispatch")
+@method_decorator(sensitive_post_parameters("password"), name="dispatch")
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -40,6 +42,7 @@ class LoginView(TokenObtainPairView):
     ]
     serializer_class = LoginSerializer
 
+    @sensitive_variables()
     def post(self, request, *args, **kwargs):
         response = super().post(
             request,
@@ -57,13 +60,41 @@ class LoginView(TokenObtainPairView):
                 response,
                 refresh_token,
             )
+        elif response.data.get("estado") == "CAMBIO_OBLIGATORIO":
+            delete_refresh_cookie(response)
 
         # Evita reutilizar el CSRF previo al login.
         rotate_token(request)
 
         response.data["csrfToken"] = get_token(request)
 
-        return response
+        return sin_cache(response)
+
+
+@method_decorator(csrf_protect, name="dispatch")
+@method_decorator(sensitive_post_parameters("desafio", "nueva_clave"), name="dispatch")
+class PrimerCambioView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [RefreshIPRateThrottle]
+
+    def get_parsers(self):
+        from rest_framework.parsers import JSONParser
+        return [JSONParser()]
+
+    def get_authenticate_header(self, request):
+        return 'Bearer realm="api"'
+
+    @sensitive_variables()
+    def post(self, request):
+        from .credenciales import primer_cambio
+        from .serializers_usuarios import PrimerCambioSerializer
+        serializer = PrimerCambioSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        primer_cambio(serializer.validated_data)
+        response = Response({"estado": "CLAVE_PERSONAL_CONFIRMADA", "login_requerido": True})
+        delete_refresh_cookie(response)
+        return sin_cache(response)
 
 
 @method_decorator(csrf_protect, name="dispatch")

@@ -50,3 +50,13 @@ siguen vigentes; no es aprobación de seguridad para producción. TLS con cadena
 confiable sigue pendiente de despliegue: no se autoriza instalar CA, cambiar
 confianza Windows ni desactivar verificaciones. La publicación autorizada es
 exclusivamente para auditoría en el PR#44 Draft, sin merge ni promoción a Ready.
+
+## SPEC-018 — Fase A backend (desarrollo/QA)
+
+Credencial inicial aleatoria, primer cambio obligatorio y restablecimiento TI con
+revocación/auditoría: [informe técnico](backend/docs/SPEC-018-FASE-A-IMPLEMENTACION.md),
+[contrato React/API](backend/docs/SPEC-018-FASE-A-CONTRATO.md) y
+[OpenAPI](backend/docs/openapi/SPEC-018A-v1.json). TTL temporal de 24 h y desafío de
+5 min configurables, **NO RATIFICADOS PARA PRODUCCIÓN**; entrega manual solo entre
+cuentas sintéticas QA. El frontend actual requiere integración posterior; bloqueos
+escalonados y despliegue siguen fuera de esta fase. SPEC-018 no está completada.

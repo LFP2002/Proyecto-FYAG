@@ -36,7 +36,6 @@ class CrearUsuarioSerializer(PerfilUsuarioSerializer):
     email = EmailEstricto(max_length=254)
     username = TextoEstricto(max_length=150)
     rol = serializers.ChoiceField(choices=Usuario.Rol.choices)
-    password = TextoEstricto(write_only=True, trim_whitespace=False, max_length=4096)
 
 
 class MotivoUsuarioSerializer(ContratoEstrictoSerializer):
@@ -56,10 +55,31 @@ class CambiarClavePropiaSerializer(ContratoEstrictoSerializer):
     nueva_clave = TextoEstricto(write_only=True, trim_whitespace=False, max_length=4096)
 
 
+class PrimerCambioSerializer(ContratoEstrictoSerializer):
+    desafio = TextoEstricto(write_only=True, trim_whitespace=False, max_length=128)
+    nueva_clave = TextoEstricto(write_only=True, trim_whitespace=False, max_length=4096)
+
+
 class UsuarioLecturaSerializer(serializers.ModelSerializer):
+    estado_credencial = serializers.SerializerMethodField()
+    cambio_obligatorio = serializers.SerializerMethodField()
+
+    def get_estado_credencial(self, obj):
+        from .credenciales import estado_credencial
+        # Una sola lectura por cuenta/respuesta: estado y booleano no divergen
+        # si un reset/cambio confirma entre la serialización de ambos campos.
+        if not hasattr(self, "_estados"):
+            self._estados = {}
+        if obj.pk not in self._estados:
+            self._estados[obj.pk] = estado_credencial(obj)
+        return self._estados[obj.pk]
+
+    def get_cambio_obligatorio(self, obj):
+        return self.get_estado_credencial(obj) != "PERSONAL"
+
     class Meta:
         model = Usuario
-        fields = ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined"]
+        fields = ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
         read_only_fields = fields
 
 
@@ -68,7 +88,8 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
     datos_nuevos = serializers.SerializerMethodField()
 
     def _publico(self, obj, field):
-        if obj.tipo in {UsuarioEvento.Tipo.ESTABLECER_CLAVE, UsuarioEvento.Tipo.CAMBIO_CLAVE_PROPIA}:
+        if obj.tipo in {UsuarioEvento.Tipo.ESTABLECER_CLAVE, UsuarioEvento.Tipo.CAMBIO_CLAVE_PROPIA,
+                       UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL, UsuarioEvento.Tipo.REEMISION, UsuarioEvento.Tipo.CAMBIO_INICIAL}:
             return {}
         data = getattr(obj, field)
         if not isinstance(data, dict):

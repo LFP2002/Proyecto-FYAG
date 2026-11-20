@@ -9,7 +9,7 @@ from apps.documentos.validaciones import entero_ascii
 
 
 def actor_actual(actor, token=None):
-    actual = Usuario.objects.filter(pk=actor.pk).first()
+    actual = Usuario.objects.select_related("seguridad_credencial").filter(pk=actor.pk).first()
     if actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version:
         raise AuthenticationFailed("Sesión no disponible.")
     if token is not None:

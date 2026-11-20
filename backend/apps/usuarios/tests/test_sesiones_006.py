@@ -5,6 +5,7 @@ from rest_framework_simplejwt.tokens import AccessToken as LegacyAccess
 from rest_framework_simplejwt.tokens import RefreshToken as LegacyRefresh
 
 from apps.usuarios import services_usuarios as services
+from apps.usuarios.credenciales import restablecer_clave
 from apps.usuarios.tokens import AccessToken, RefreshToken
 from .test_administracion import AdminBase, PASSWORD, NEW_PASSWORD
 
@@ -36,7 +37,7 @@ class SesionesTests(AdminBase, APITestCase):
         actions = [
             lambda: services.editar_usuario(self.target, {"email": "otra_identidad@example.test"}, self.manager),
             lambda: services.cambiar_rol(self.target, {"rol": "SUPERVISOR_OBRAS", "motivo": "Nueva función"}, self.manager),
-            lambda: services.establecer_clave(self.target, {"nueva_clave": NEW_PASSWORD, "motivo": "Cambio"}, self.manager),
+            lambda: restablecer_clave(self.target, {"motivo": "Cambio"}, self.manager),
             lambda: services.actividad_usuario(self.target, {"motivo": "Baja"}, self.manager, activo=False),
             lambda: services.actividad_usuario(self.target, {"motivo": "Alta"}, self.manager, activo=True),
         ]
