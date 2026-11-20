@@ -10,6 +10,7 @@ const empty = { email: '', username: '', first_name: '', last_name: '', rol: 'TE
 const conflicts = { ultima_ti: 'Debe permanecer una cuenta TI activa.', ultima_gerencia: 'Debe permanecer una Gerencia activa.', autooperacion_protegida: 'Esta acción no está permitida sobre su propia cuenta.', asignaciones_pendientes: 'Resuelva primero las asignaciones y turnos desde Obras.', sin_cambios: 'El rol ya está asignado.', version_agotada: 'La cuenta requiere revisión técnica.' };
 
 const roleTone = { ADMINISTRADOR_TI: 'ti', GERENCIA: 'gerencia', ADMINISTRATIVO_FINANZAS: 'finanzas', SUPERVISOR_OBRAS: 'supervisor', TECNICO: 'tecnico' };
+const HIDDEN_ACCOUNT_CREATION_REASON = 'Aprovisionamiento manual inicial de TI mediante comando Django';
 // Textos del historial de la cuenta, en lenguaje simple (solo presentación).
 const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada' };
 const fieldLabel = { username: 'Usuario', email: 'Correo', rol: 'Rol', is_active: 'Estado', first_name: 'Nombres', last_name: 'Apellidos' };
@@ -137,7 +138,7 @@ function Detail({ id, onBack }) {
       {history && !history.count && <p>Todavía no hay cambios registrados.</p>}
       <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{eventLabel[event.tipo] || event.tipo}</strong>
         <p className="detalle-evento-meta">{new Date(event.creado_en).toLocaleDateString('es-CL', { dateStyle: 'long' })}, {new Date(event.creado_en).toLocaleTimeString('es-CL', { timeStyle: 'short' })} · Hecho por la cuenta #{event.actor}</p>
-        {event.motivo && <p className="commercial-long-text">{event.motivo}</p>}
+        {event.motivo && event.motivo !== HIDDEN_ACCOUNT_CREATION_REASON && <p className="commercial-long-text">{event.motivo}</p>}
         <dl className="detalle-cambios">{changeRows(event).map(([key, value]) => <div key={key}><dt>{fieldLabel[key]}</dt><dd className="commercial-long-text">{value}</dd></div>)}</dl>
       </li>)}</ol>
       {history && <Pager data={history} {...{ page, setPage }} disabled={api.busy || api.loading} label="Páginas del historial" />}

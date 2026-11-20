@@ -301,9 +301,10 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
         self.assertEqual(set(respuesta.data), {
             "id", "codigo", "cliente", "descripcion", "estado",
             "requiere_aprobacion_gerencia", "presupuesto_origen", "creado_por",
-            "creado_en", "actualizado_en", "moneda", "monto_neto", "items",
+            "creador_nombre", "creado_en", "actualizado_en", "moneda", "monto_neto", "items",
         })
         self.assertIsInstance(respuesta.data["creado_por"], int)
+        self.assertEqual(respuesta.data["creador_nombre"], self.usuarios[AF].username)
         self.assertIsInstance(respuesta.data["cliente"], int)
 
 

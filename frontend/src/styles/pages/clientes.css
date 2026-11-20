@@ -1,1 +1,5 @@
-/* Los estilos de esta página ya están cubiertos por dashboard.css, ui.css y presupuestos.css */
+/* Ajustes visuales exclusivos de Clientes. */
+.clientes-page .page-head { margin-bottom: 14px; }
+.commercial-page.clientes-page .commercial-toolbar.clientes-acciones { justify-content: flex-start; align-items: center; gap: 8px; padding: 0; margin-bottom: 16px; background: transparent; border: 0; border-radius: 0; }
+.commercial-page.clientes-page .clientes-acciones > .btn { width: auto; flex: 0 0 auto; }
+.clientes-page .clientes-nuevo { margin-bottom: 0; }

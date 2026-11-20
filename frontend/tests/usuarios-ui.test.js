@@ -103,7 +103,7 @@ test('Usuarios consulta, crea inactiva, edita, activa/desactiva, cambia rol y es
     await click(renderer, 'Cambiar rol'); await input(renderer, 'rol', 'ADMINISTRADOR_TI'); await input(renderer, 'motivo', 'Nueva función'); await submit(renderer);
     assert.equal(api.accounts[2].rol, 'ADMINISTRADOR_TI');
     await click(renderer, 'Establecer contraseña'); await input(renderer, 'nueva_clave', 'fixture-nueva'); await input(renderer, 'motivo', 'Restablecimiento'); await submit(renderer);
-    assert.match(text(renderer.root), /ESTABLECER CLAVE/);
+    assert.match(text(renderer.root), /Contraseña restablecida/);
     assert.doesNotMatch(text(renderer.root), /fixture-nueva/);
     await click(renderer, 'Desactivar'); await input(renderer, 'motivo', 'Baja autorizada'); await submit(renderer);
     assert.equal(api.accounts[2].is_active, false);

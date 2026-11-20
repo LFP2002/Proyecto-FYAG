@@ -64,7 +64,7 @@ function fakeBackend() {
     }
     if (path.startsWith('/api/presupuestos/?')) return page(structuredClone(budgets));
     if (path === '/api/presupuestos/' && method === 'POST') {
-      const budget = { ...options.body, id: budgets.length + 1, codigo: `PRE-${budgets.length + 1}`, estado: 'BORRADOR', monto_neto: '0.00', items: [], creado_por: 1, creado_en: '2026-11-08T12:00:00Z', presupuesto_origen: null }; budgets.push(budget); return structuredClone(budget);
+      const budget = { ...options.body, id: budgets.length + 1, codigo: `PRE-${budgets.length + 1}`, estado: 'BORRADOR', monto_neto: '0.00', items: [], creado_por: 1, creador_nombre: 'Usuario', creado_en: '2026-11-08T12:00:00Z', presupuesto_origen: null }; budgets.push(budget); return structuredClone(budget);
     }
     const match = path.match(/^\/api\/presupuestos\/(\d+)\/(.*)$/);
     if (!match) throw new Error(`Ruta inesperada: ${path}`);
@@ -93,6 +93,12 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
   const backend = fakeBackend(), renderer = await mount(Clientes, backend.request);
   try {
     assert.match(text(renderer.root), /Cliente activo/);
+    const listRows = () => renderer.root.findByProps({ 'aria-label': 'Listado de clientes' }).findAllByType('tr').slice(1).map((row) => text(row));
+    backend.clients.push({ ...backend.clients[0], id: 0, nombre_legal: 'Cliente cero' });
+    await click(renderer, 'Reconsultar datos');
+    assert.deepEqual(listRows().map((row) => row.includes('Cliente cero') ? 0 : 1), [0, 1]);
+    backend.clients.shift();
+    await click(renderer, 'Reconsultar datos');
     await click(renderer, 'Nuevo cliente');
     await input(renderer, 'tipo_identificacion', 'SIN_IDENTIFICACION');
     await input(renderer, 'nombre_legal', 'Cliente nuevo'); await input(renderer, 'telefono', '456');
@@ -132,6 +138,7 @@ test('Presupuestos montado: borrador, CRUD líneas, Gerencia, cliente, historial
     assert.equal(renderer.root.findAllByType('button').some((n) => text(n) === 'Editar cabecera'), false);
     await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request, 'GERENCIA');
     await click(renderer, 'Ver presupuesto'); assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 0);
+    assert.match(text(renderer.root), /Creado por Usuario #1/);
     await execute(renderer, 'Aprobar por Gerencia'); assert.equal(b.budgets[0].estado, 'APROBADO_GERENCIA');
     await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request);
     await click(renderer, 'Ver presupuesto'); await execute(renderer, 'Enviar al cliente'); await execute(renderer, 'Registrar aprobación del cliente');
@@ -241,7 +248,10 @@ test('listado e historial navegan por página real sin seguir directamente next/
   renderer = await mount(Presupuestos, request);
   try {
     await click(renderer, 'Siguiente'); assert.ok(calls.includes('/api/presupuestos/?page=2'));
-    await click(renderer, 'Ver presupuesto'); await click(renderer, 'Siguiente', 1);
+    await click(renderer, 'Ver presupuesto');
+    const historyPager = renderer.root.findByProps({ 'aria-label': 'Paginación del historial' });
+    const historyNext = historyPager.findAllByType('button').find((button) => text(button) === 'Siguiente');
+    await act(async () => { await historyNext.props.onClick(); await flush(); });
     assert.ok(calls.includes('/api/presupuestos/1/historial/?page=2'));
   } finally { await act(async () => renderer.unmount()); }
 });

@@ -54,20 +54,20 @@ export default function Presupuestos() {
     finally { refreshFlight.current = false; }
   }
   async function refreshedDetail(pk) {
-    // Después de cualquier línea, leer de nuevo neto/subtotales del backend.
+    // DespuÃ©s de cualquier lÃ­nea, leer de nuevo neto/subtotales del backend.
     await api.requiredLoad('detail', budgetPath(pk), setSelected);
     await api.requiredLoad('list', pagePath(budgetPath(), page), (data) => setList(validatePage(data, budgetPath())));
     await api.requiredLoad('history', pagePath(`${budgetPath(pk)}historial/`, historyPage), (data) => setHistory(validatePage(data, `${budgetPath(pk)}historial/`)));
   }
   const disabled = api.busy || api.locked || api.loading;
   const editable = user.role === AF && selected?.estado === 'BORRADOR';
-  const clientOptions = [['', 'Selecciona cliente activo'], ...clients.filter((c) => c.activo || c.id === selected?.cliente).map((c) => [String(c.id), `${c.nombre_legal} · #${c.id}${c.activo ? '' : ' (inactivo, solo conservar)'}`])];
+  const clientOptions = [['', 'Selecciona cliente activo'], ...[...clients].sort((a, b) => a.id - b.id).filter((c) => c.activo || c.id === selected?.cliente).map((c) => [String(c.id), `${c.nombre_legal} Â· #${c.id}${c.activo ? '' : ' (inactivo, solo conservar)'}`])];
   const clientLabel = (pk) => clients.find((c) => c.id === pk)?.nombre_legal || `Cliente #${pk}`;
   async function saveHeader(event) {
     event.preventDefault();
     if (selected && !editable) return;
     const cliente = Number(header.cliente);
-    if (!Number.isSafeInteger(cliente) || cliente <= 0 || !header.descripcion.trim()) { api.setError({ message: 'Selecciona un cliente e ingresa descripción.' }); return; }
+    if (!Number.isSafeInteger(cliente) || cliente <= 0 || !header.descripcion.trim()) { api.setError({ message: 'Selecciona un cliente e ingresa descripciÃ³n.' }); return; }
     const data = { ...(selected && cliente === selected.cliente ? {} : { cliente }), ...(selected && header.descripcion === selected.descripcion ? {} : { descripcion: header.descripcion.trim() }) };
     if (data.cliente && !clients.some((c) => c.id === cliente && c.activo)) { api.setError({ message: 'El cliente debe estar activo.' }); return; }
     await api.write(budgetPath(selected?.id), selected ? 'PATCH' : 'POST', data, async (result) => {
@@ -85,13 +85,13 @@ export default function Presupuestos() {
     event.preventDefault();
     if (!actionsFor(user.role, selected.estado).includes(action)) return;
     if (needsReason(action) && !reason.trim()) { api.setError({ message: 'El motivo es obligatorio.' }); return; }
-    if (!window.confirm(`¿${labels[action]} para ${selected.codigo}?`)) return;
+    if (!window.confirm(`Â¿${labels[action]} para ${selected.codigo}?`)) return;
     await api.write(`${budgetPath(selected.id)}${action}/`, 'POST', action === 'crear-revision' ? {} : { motivo: reason.trim() }, async (data) => {
       await refreshedDetail(data.id); setAction(null); setReason(''); setHistoryPage(1);
     });
   }
   return <section className="commercial-page">
-    <PageHead title="Presupuestos" sub="Consulta y gestiona tus presupuestos." />
+    <PageHead title="Presupuestos" />
     {!line && <Errors error={api.error} />}
     <div className="budget-toolbar" role="group" aria-label="Herramientas de presupuestos">
       {user.role === AF && <button type="button" className="btn btn-fyag-primary" aria-label="Nuevo borrador" disabled={disabled} onClick={() => { setSelected(null); setHistory(null); setLine(null); setAction(null); setHeader({ cliente: '', descripcion: '' }); }}><span aria-hidden="true">+ </span>Nuevo borrador</button>}
@@ -106,45 +106,50 @@ export default function Presupuestos() {
         </button>
       </div>
     </div>
-    {api.locked && <p className="alert alert-warning" role="status">Resultado incierto o conflicto. Reconsulta los datos; no se repetirá la escritura. Conserva y revisa tu formulario antes de continuar.</p>}
-    {api.loading && <p className="commercial-loading" role="status">Cargando presupuestos…</p>}
-    <div className="card-fyag commercial-table-card">
-      <div className="table-responsive" role="region" aria-label="Listado de presupuestos" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">Código</th><th scope="col">Cliente</th><th scope="col">Descripción</th><th scope="col">Estado</th><th scope="col" className="text-end">Neto</th><th scope="col">Detalle</th></tr></thead><tbody>
-        {(list?.results || []).filter((b) => !filter || b.estado === filter).map((b) => <tr key={b.id}><td className="commercial-code">{b.codigo}<span className="commercial-help d-block">#{b.id}</span></td><td className="commercial-description">{clientLabel(b.cliente)}</td><td className="commercial-description">{b.descripcion}</td><td><BudgetStatus state={b.estado} /></td><td className="commercial-money">{money(b.monto_neto)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} onClick={() => void detail(b.id)}>Ver presupuesto</button></td></tr>)}
-      </tbody></table></div>
-      {list && !api.loading && !api.error && !list.results.filter((b) => !filter || b.estado === filter).length && <div className="commercial-empty"><h2>{list.results.length ? 'No hay coincidencias en esta página.' : 'No hay presupuestos.'}</h2><p>{list.results.length ? 'Prueba con otro estado o consulta otra página.' : 'Los presupuestos aparecerán aquí cuando se creen borradores.'}</p></div>}
-      <Pager data={list} page={page} setPage={setPage} disabled={disabled || !!header || !!line || !!action} />
-    </div>
+    {api.locked && <p className="alert alert-warning" role="status">Resultado incierto o conflicto. Reconsulta los datos; no se repetirÃ¡ la escritura. Conserva y revisa tu formulario antes de continuar.</p>}
+    {api.loading && <p className="commercial-loading" role="status">Cargando presupuestosâ€¦</p>}
+{selected && header && <form className="card-fyag commercial-form" onSubmit={saveHeader}><h2>Editar cabecera</h2>
+      <Fields form={header} setForm={setHeader} fields={[[ 'cliente', 'Cliente', clientOptions ], ['descripcion', 'DescripciÃ³n (mÃ¡ximo 2000 caracteres)']]} disabled={api.busy || !editable} />
+      {!editable && <p>El presupuesto ya no es BORRADOR. El formulario se conserva solo para consulta; cancÃ©lalo para continuar.</p>}
+      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={disabled || !editable} type="submit">Guardar cabecera</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setHeader(null)}>Cancelar</button></div>
+    </form>}
     {selected && <article className="card-fyag commercial-detail">
-      <div className="commercial-section-head"><div><h2>{selected.codigo} · #{selected.id}</h2><BudgetStatus state={selected.estado} /></div>
+      <div className="commercial-section-head"><div><h2>{selected.codigo} Â· #{selected.id}</h2><BudgetStatus state={selected.estado} /></div>
         <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setHistory(null); setHeader(null); setLine(null); setAction(null); }}>Volver al listado</button>
       </div>
       <div className="commercial-summary"><div><p className="commercial-code">{clientLabel(selected.cliente)}</p><p className="commercial-long-text mb-0">{selected.descripcion}</p></div><div className="commercial-total"><span>Neto</span><strong>{money(selected.monto_neto)}</strong></div></div>
-      <p className="commercial-help">Origen: {selected.presupuesto_origen ? <button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} onClick={() => void detail(selected.presupuesto_origen)}>Ver origen #{selected.presupuesto_origen}</button> : 'Original'} · Creado por #{selected.creado_por} · {dateLabel(selected.creado_en)}</p>
+      <p className="commercial-help">Creado por {selected.creador_nombre || 'Usuario'} #{selected.creado_por} Â· {new Date(selected.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
       {editable && <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!header || !!line || !!action} onClick={() => setHeader({ cliente: String(selected.cliente), descripcion: selected.descripcion })}>Editar cabecera</button></div>}
-      <div className="commercial-table-frame"><div className="table-responsive" role="region" aria-label="Ítems del presupuesto" tabIndex={0}><table className="table table-hover align-middle commercial-table commercial-items-table"><thead><tr><th scope="col">Descripción</th><th scope="col" className="text-end">Cantidad</th><th scope="col">Unidad</th><th scope="col" className="text-end">Precio unitario</th><th scope="col">Orden</th><th scope="col" className="text-end">Subtotal</th><th scope="col">Acciones</th></tr></thead><tbody>
-        {selected.items.map((i) => line?.original?.id === i.id ? <ItemEditRow key={i.id} line={line} items={selected.items} onChange={(form) => setLine({ ...line, form })} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled} busy={api.busy} editable={editable} error={api.error} /> : <tr key={i.id} className="commercial-item-read"><td data-label="Descripción" className="commercial-description">{i.descripcion}</td><td data-label="Cantidad" className="text-end">{i.cantidad}</td><td data-label="Unidad">{i.unidad}</td><td data-label="Precio unitario" className="commercial-money">{money(i.precio_unitario)}</td><td data-label="Orden">{i.orden}</td><td data-label="Subtotal" className="commercial-money">{money(i.subtotal)}</td><td data-label="Acciones">{editable && <div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...i }, original: i }); }}>Editar ítem</button><button className="btn btn-outline-danger btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => {
-          if (window.confirm(`¿Eliminar ítem #${i.id}?`)) void api.write(itemPath(selected.id, i.id), 'DELETE', undefined, () => refreshedDetail(selected.id));
-        }}>Eliminar ítem</button></div>}</td></tr>)}
+      <div className="commercial-table-frame"><div className="table-responsive" role="region" aria-label="Ãtems del presupuesto" tabIndex={0}><table className="table table-hover align-middle commercial-table commercial-items-table"><thead><tr><th scope="col">DescripciÃ³n</th><th scope="col" className="text-end">Cantidad</th><th scope="col">Unidad</th><th scope="col" className="text-end">Precio unitario</th><th scope="col">Orden</th><th scope="col" className="text-end">Subtotal</th><th scope="col">Acciones</th></tr></thead><tbody>
+        {selected.items.map((i) => line?.original?.id === i.id ? <ItemEditRow key={i.id} line={line} items={selected.items} onChange={(form) => setLine({ ...line, form })} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled} busy={api.busy} editable={editable} error={api.error} /> : <tr key={i.id} className="commercial-item-read"><td data-label="DescripciÃ³n" className="commercial-description">{i.descripcion}</td><td data-label="Cantidad" className="text-end">{i.cantidad}</td><td data-label="Unidad">{i.unidad}</td><td data-label="Precio unitario" className="commercial-money">{money(i.precio_unitario)}</td><td data-label="Orden">{i.orden}</td><td data-label="Subtotal" className="commercial-money">{money(i.subtotal)}</td><td data-label="Acciones">{editable && <div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...i }, original: i }); }}>Editar Ã­tem</button><button className="btn btn-outline-danger btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => {
+          if (window.confirm(`Â¿Eliminar Ã­tem #${i.id}?`)) void api.write(itemPath(selected.id, i.id), 'DELETE', undefined, () => refreshedDetail(selected.id));
+        }}>Eliminar Ã­tem</button></div>}</td></tr>)}
         {line && (!line.original || !selected.items.some((item) => item.id === line.original.id)) && <ItemEditRow line={line} items={selected.items} onChange={(form) => setLine({ ...line, form })} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled || !!line.original} busy={api.busy} editable={editable && !line.original} error={api.error} />}
-        {editable && !line && <tr className="commercial-ghost-row"><td colSpan={7}><button ref={addItemButton} type="button" className="btn btn-sm commercial-add-item" disabled={disabled || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...emptyItem }, original: null }); }}>+ Agregar nuevo ítem</button></td></tr>}
-      </tbody></table></div>{!selected.items.length && !line && <div className="commercial-empty"><p className="mb-0">Sin ítems.</p></div>}</div>
+        {editable && !line && <tr className="commercial-ghost-row"><td colSpan={7}><button ref={addItemButton} type="button" className="btn btn-sm commercial-add-item" disabled={disabled || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...emptyItem }, original: null }); }}>+ Agregar nuevo Ã­tem</button></td></tr>}
+      </tbody></table></div>{!selected.items.length && !line && <div className="commercial-empty"><p className="mb-0">Sin Ã­tems.</p></div>}</div>
       <div className="commercial-actions">{actionsFor(user.role, selected.estado).map((a) => <button className={actionButtonClass(a)} key={a} disabled={disabled || !!header || !!line || !!action} onClick={() => { setAction(a); setReason(''); }}>{labels[a]}</button>)}</div>
       <section className="commercial-history" aria-labelledby="budget-history-title"><h3 id="budget-history-title">Historial comercial</h3>
-        {!history && <p className="commercial-loading" role="status">Cargando historial…</p>}
+        {!history && <p className="commercial-loading" role="status">Cargando historialâ€¦</p>}
         {history && !history.results.length && <p className="commercial-help">No hay decisiones registradas.</p>}
-        <ol className="commercial-timeline">{history?.results.map((e) => <li key={e.id}><div className="commercial-history-states">{e.estado_anterior ? <BudgetStatus state={e.estado_anterior} /> : <span className="commercial-help">Creación</span>}<span aria-label="cambia a">→</span><BudgetStatus state={e.estado_nuevo} /></div><p className="commercial-help"><time dateTime={e.creado_en}>{dateLabel(e.creado_en)}</time> · Usuario #{e.registrado_por}</p><p className="commercial-long-text mb-0">{e.motivo || 'Sin motivo'}</p></li>)}</ol>
-        <Pager label="Paginación del historial" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled} />
+        <ol className="commercial-timeline">{history?.results.map((e) => <li key={e.id}><div className="commercial-history-states">{e.estado_anterior ? <BudgetStatus state={e.estado_anterior} /> : <span className="commercial-help">CreaciÃ³n</span>}<span aria-label="cambia a">â†’</span><BudgetStatus state={e.estado_nuevo} /></div><p className="commercial-help"><time dateTime={e.creado_en}>{new Date(e.creado_en).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</time> Â· Usuario #{e.registrado_por}</p><p className="commercial-long-text mb-0">{e.motivo || 'Sin motivo'}</p></li>)}</ol>
+        <Pager label="PaginaciÃ³n del historial" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled} />
       </section>
     </article>}
-    {header && <form className="card-fyag commercial-form" onSubmit={saveHeader}><h2>{selected ? 'Editar cabecera' : 'Nuevo borrador'}</h2>
-      <Fields form={header} setForm={setHeader} fields={[[ 'cliente', 'Cliente', clientOptions ], ['descripcion', 'Descripción (máximo 2000 caracteres)']]} disabled={api.busy || (selected && !editable)} />
-      {selected && !editable && <p>El presupuesto ya no es BORRADOR. El formulario se conserva solo para consulta; cancélalo para continuar.</p>}
-      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={disabled || (selected && !editable)} type="submit">Guardar cabecera</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setHeader(null)}>Cancelar</button></div>
+    <div className="card-fyag commercial-table-card">
+      <div className="table-responsive" role="region" aria-label="Listado de presupuestos" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">CÃ³digo</th><th scope="col">Cliente</th><th scope="col">DescripciÃ³n</th><th scope="col">Estado</th><th scope="col" className="text-end">Neto</th><th scope="col">Detalle</th></tr></thead><tbody>
+        {(list?.results || []).filter((b) => !filter || b.estado === filter).map((b) => <tr key={b.id}><td className="commercial-code">{b.codigo}<span className="commercial-help d-block">#{b.id}</span></td><td className="commercial-description">{clientLabel(b.cliente)}</td><td className="commercial-description">{b.descripcion}</td><td><BudgetStatus state={b.estado} /></td><td className="commercial-money">{money(b.monto_neto)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} onClick={() => void detail(b.id)}>Ver presupuesto</button></td></tr>)}
+      </tbody></table></div>
+      {list && !api.loading && !api.error && !list.results.filter((b) => !filter || b.estado === filter).length && <div className="commercial-empty"><h2>{list.results.length ? 'No hay coincidencias en esta pÃ¡gina.' : 'No hay presupuestos.'}</h2><p>{list.results.length ? 'Prueba con otro estado o consulta otra pÃ¡gina.' : 'Los presupuestos aparecerÃ¡n aquÃ­ cuando se creen borradores.'}</p></div>}
+      <Pager data={list} page={page} setPage={setPage} disabled={disabled || !!header || !!line || !!action} />
+    </div>
+    {header && !selected && <form className="card-fyag commercial-form" onSubmit={saveHeader}><h2>Nuevo borrador</h2>
+      <Fields form={header} setForm={setHeader} fields={[[ 'cliente', 'Cliente', clientOptions ], ['descripcion', 'DescripciÃ³n (mÃ¡ximo 2000 caracteres)']]} disabled={api.busy} />
+
+      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={disabled} type="submit">Guardar cabecera</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setHeader(null)}>Cancelar</button></div>
     </form>}
     {action && <form className="card-fyag commercial-form" onSubmit={execute}><h2>{labels[action]}</h2>
       {action !== 'crear-revision' && <><label className="form-label" htmlFor="budget-reason">Motivo {needsReason(action) ? '(obligatorio)' : '(opcional)'}</label><textarea id="budget-reason" className="form-control" rows={4} maxLength={2000} required={needsReason(action)} disabled={api.busy} value={reason} onChange={(e) => setReason(e.target.value)} /></>}
-      {!actionsFor(user.role, selected.estado).includes(action) && <p>El estado actual ya no permite esta acción. Cancela y toma una nueva decisión.</p>}
+      {!actionsFor(user.role, selected.estado).includes(action) && <p>El estado actual ya no permite esta acciÃ³n. Cancela y toma una nueva decisiÃ³n.</p>}
       <div className="commercial-form-actions"><button className={actionButtonClass(action)} disabled={disabled || !actionsFor(user.role, selected.estado).includes(action)} type="submit">Confirmar {labels[action]}</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setAction(null)}>Cancelar</button></div>
     </form>}
   </section>;

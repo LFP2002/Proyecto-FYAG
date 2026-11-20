@@ -68,7 +68,7 @@ class PresupuestoPaginacion(PageNumberPagination):
 
 
 def presupuestos_con_lineas():
-    return Presupuesto.objects.prefetch_related(Prefetch(
+    return Presupuesto.objects.select_related("creado_por").prefetch_related(Prefetch(
         "items", queryset=PresupuestoItem.objects.order_by("orden", "id"),
         to_attr="lineas_respuesta",
     ))

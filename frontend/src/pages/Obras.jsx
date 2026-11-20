@@ -34,7 +34,7 @@ export default function Obras() {
   if (categories && canReadTeam(user.role)) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
   if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} initialTab={selectedSection} onBack={() => { setSelected(null); setSelectedSection('resumen'); void read(); }} /></section>;
   return <section className="commercial-page obras-page">
-    <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : 'Planificación y seguimiento operativo.'} />
+    <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : undefined} />
     <div className="budget-toolbar">
       {user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { setExpanded(false); setCreating(true); }}>Nueva obra</button>}
       {canReadTeam(user.role) && <button className="btn btn-outline-secondary" disabled={blocked || creating} onClick={() => setCategories(true)}>Categorías de servicio</button>}

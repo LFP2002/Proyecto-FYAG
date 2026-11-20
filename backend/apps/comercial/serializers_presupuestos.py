@@ -124,6 +124,9 @@ class PresupuestoListadoSerializer(serializers.Serializer):
     creado_por = serializers.IntegerField(
         source="creado_por_id", read_only=True
     )
+    creador_nombre = serializers.CharField(
+        source="creado_por.username", read_only=True
+    )
     creado_en = serializers.DateTimeField(read_only=True)
     actualizado_en = serializers.DateTimeField(read_only=True)
     moneda = serializers.CharField(read_only=True)
