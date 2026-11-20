@@ -1,9 +1,9 @@
 # SPEC-018 — Seguridad de credenciales, primer acceso y bloqueo escalonado (FYAG)
 
-> **Estado: PROPUESTA DOCUMENTAL PARA REVISIÓN — 20-11-2026.**
-> Nueva etapa acordada por el responsable del proyecto tras reunión con el profesor. La necesidad funcional está confirmada; los umbrales y las alternativas señalados como **PENDIENTE DE DECISIÓN** no se consideran aprobados por esta publicación.
+> **Estado: SPEC BASE RATIFICADA PARCIALMENTE — 20-11-2026.**
+> Nueva etapa acordada por el responsable del proyecto tras reunión con el profesor. Los requisitos de credenciales están confirmados; **los umbrales de bloqueo de la sección 6.3 fueron ratificados posteriormente** en [SPEC-018C](018c-bloqueos-escalonados-backend.md), ya integrada en `main`. Las restantes decisiones de seguridad/operación indicadas como pendientes siguen sin ratificación.
 > **Rama documental:** docs/spec-018-seguridad-credenciales-bloqueos. **Base:** main, commit 1df5da1bffa57c7fe83b4f16adb2ca6b48a71a23.
-> **Estado de implementación:** no implementada. Esta SPEC no autoriza cambios de datos reales, despliegue ni merge.
+> **Estado de implementación:** la Fase A de backend fue implementada en el [PR #46](https://github.com/LFP2002/Proyecto-FYAG/pull/46), aún pendiente de merge; los bloqueos de la Fase C no están implementados. La aprobación de este documento **no autoriza** desplegar ni fusionar código de implementación.
 
 ## 1. Contexto y precedencia
 
@@ -23,7 +23,7 @@
 
 ## 3. Alcance y exclusiones
 
-**Incluye:** backend DRF/PostgreSQL, migraciones aditivas, servicios transaccionales, serializadores, seguridad de autenticación/recuperación, frontend React (alta TI, primer acceso, avisos de bloqueo), tests Django/React, Postman, OpenAPI y documentación operativa.
+**Incluye para nuestro equipo:** backend DRF/PostgreSQL, migraciones aditivas, servicios transaccionales, serializadores, seguridad de autenticación/recuperación, tests Django/PostgreSQL, Postman, OpenAPI y documentación de consumo API para el equipo React externo. **No se modifica `frontend/` salvo autorización expresa del responsable.**
 
 **Excluye:** MFA, SSO, registro público, acceso por username, recuperación autogestionada por correo, SMS, envío masivo de contraseñas, reseteo de la primera TI mediante el comando de aprovisionamiento, cambios en autorización de Obras/Finanzas, bloqueo de recursos de bodega, claves almacenadas en MongoDB, código de producción o cambios del reverse proxy ajenos a la autenticación.
 
@@ -91,18 +91,18 @@ Un bloqueo de seguridad debe causar **denegación efectiva** en login, refresh, 
 6. No almacenar contraseñas intentadas ni indicar cuál fue incorrecta. La respuesta a credenciales inválidas es genérica; el estado de bloqueo definitivo se comunica al titular cuando su identidad se verifica suficientemente, sin facilitar enumeración de cuentas.
 7. Conservar throttles por IP/email; validar X-Forwarded-For solo a través del proxy inverso confiable. Incluir protección contra abuso deliberado de bloqueos por un atacante que conozca correos de terceros.
 
-### 6.3 Umbrales **PROPUESTOS, NO APROBADOS**
+### 6.3 Umbrales **RATIFICADOS** (ver SPEC-018C)
 
-| Parámetro | Valor inicial propuesto | Estado |
+| Parámetro | Política confirmada | Estado |
 | --- | --- | --- |
-| Fallos consecutivos que activan bloqueo | 5 | PENDIENTE DE DECISIÓN |
-| Ventana para contar fallos | 15 minutos | PENDIENTE DE DECISIÓN |
-| Duración de primer bloqueo | 15 minutos | PENDIENTE DE DECISIÓN |
-| Duración de segundo bloqueo | 60 minutos | PENDIENTE DE DECISIÓN |
-| Duración de tercer bloqueo | 240 minutos | PENDIENTE DE DECISIÓN |
-| Bloqueo definitivo por reiteración | Tras 3 bloqueos temporales en ventana de 24 horas, o al nuevo ciclo según decisión de negocio | PENDIENTE DE DECISIÓN |
+| Fallos consecutivos que activan bloqueo | 5 | RATIFICADO |
+| Ventana para contar fallos | 15 minutos | RATIFICADO |
+| Duración de primer bloqueo | 15 minutos | RATIFICADO |
+| Duración de segundo bloqueo | 60 minutos | RATIFICADO |
+| Duración de tercer bloqueo | 240 minutos | RATIFICADO |
+| Bloqueo definitivo por reiteración | Cuarto ciclo de 5 fallos dentro de 24 horas → `REQUIERE_TI` | RATIFICADO |
 
-Los valores se centralizarán en settings con validación y tests de frontera; el conteo definitivo se aprobará antes de implementación. No deben inventarse como acuerdos del profesor.
+Los umbrales fueron confirmados por el responsable del proyecto el 20-11-2026 y se describen con detalle en [SPEC-018C](018c-bloqueos-escalonados-backend.md). Se centralizarán en settings con validación y pruebas de frontera; **su ratificación no autoriza despliegue productivo**. Las decisiones restantes sobre única TI, anti-enumeración y sesiones todavía requieren cierre.
 
 ### 6.4 Continuidad administrativa
 
@@ -182,27 +182,28 @@ Los campos exactos de respuestas, TTL de desafíos, rate limiting y estados de e
 ## 11. Plan de implementación propuesto
 
 1. **PR documental (esta rama):** revisar/ratificar SPEC-018 y decisiones abiertas, sin código.
-2. **PR backend:** migración, contratos/servicios, autenticación forzada, lockouts, auditoría y pruebas de concurrencia.
-3. **PR frontend:** UX TI, login restringido y mensajes; regresión de módulos y permisos.
+2. **PR backend:** la Fase A de credenciales está implementada y en revisión en PR #46; la Fase C de bloqueos exige implementación y PR separados tras la especificación aprobada.
+3. **Integración frontend externa:** entregar contrato OpenAPI y Postman al equipo responsable de React. Nuestro equipo no edita `frontend/` salvo autorización expresa.
 4. **QA integrado:** navegador real, Postman secuencial sobre datos sintéticos, pruebas de seguridad y CI.
 5. **Merge:** solo tras revisión y autorización explícita del responsable; despliegue productivo exige controles TLS y operacionales adicionales.
 
 ## 12. Decisiones pendientes para ratificación
 
-- Cantidad y ventana de intentos, duración exacta de cada bloqueo y condición de paso a bloqueo definitivo (tabla de 6.3).
+- **RATIFICADO:** 5 intentos/15 minutos, bloqueos 15/60/240 minutos y cuarto ciclo dentro de 24 horas requiere TI; consultar SPEC-018C. No presentar esos umbrales como pendientes.
 - Vencimiento de contraseña temporal (propuesta 24 horas) y desafío de primer cambio (propuesta 5 minutos), con tratamiento de vencimientos y reemisión.
 - Canal permitido para entregar la clave generada de manera privada al titular; no asumir email ni chat.
 - Recuperación segura si el **único** Administrador TI queda bloqueado; quién verifica identidad y ejecuta procedimiento excepcional.
 - Formato definitivo de errores de login de cuenta bloqueada, evitando enumeración; condiciones exactas para 423 y Retry-After.
 - Política de conservación y acceso a eventos de seguridad, con privacidad y trazabilidad.
 
-**Regla de aprobación:** hasta resolver estos puntos, este documento es un contrato propuesto y no una instrucción de implementar parámetros arbitrarios.
+**Regla de aprobación:** los umbrales de SPEC-018C están aprobados para implementación de backend. La recuperación del único TI, el canal productivo, la anti-enumeración y la retención aún requieren aprobación para su operación. No se permite desplegar ni hacer merge de código sin autorización separada.
 
 ## 13. Referencias al código y documentos existentes
 
 - specs/002a-autenticacion-jwt.md y specs/002b-hardening-autenticacion.md
 - specs/006-backend-usuarios-roles.md, specs/006b-administrador-ti.md y specs/006c-correo-propio-sesion.md
 - backend/apps/usuarios/models.py, serializers.py, authentication.py, views.py, throttles.py
+- [SPEC-018C — bloqueos escalonados](018c-bloqueos-escalonados-backend.md) y [PR #46 — implementación Fase A](https://github.com/LFP2002/Proyecto-FYAG/pull/46)
 - backend/apps/usuarios/services_usuarios.py, serializers_usuarios.py y views_usuarios.py
 - frontend/src/ (auth y Usuarios), backend/config/settings.py, compose.yaml
 - Tests actuales de TI y autenticación en backend/apps/usuarios/tests/
