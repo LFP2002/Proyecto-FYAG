@@ -3,11 +3,14 @@ from rest_framework.permissions import BasePermission
 
 from apps.usuarios.models import Usuario
 from apps.usuarios.authentication import validar_sesion
+from apps.usuarios.credenciales import es_personal
 
 
 def revalidar(usuario, token=None):
     actual = Usuario.objects.select_related("seguridad_credencial").filter(pk=usuario.pk).first()
     if actual is None or not actual.is_active or actual.sesion_version != usuario.sesion_version:
+        raise AuthenticationFailed("Sesión no disponible.")
+    if not es_personal(actual):
         raise AuthenticationFailed("Sesión no disponible.")
     if token is not None:
         validar_sesion(token, actual)

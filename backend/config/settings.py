@@ -194,6 +194,7 @@ ADJUNTOS_SCANNER = {"host": os.getenv("FYAG_CLAMD_HOST", "clamav"), "puerto": os
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "usuarios.Usuario"
+AUTHENTICATION_BACKENDS = ["apps.usuarios.backends.CredencialesModelBackend"]
 
 # SPEC-018 A: autorización SOLO desarrollo/QA; NO RATIFICADOS PARA PRODUCCIÓN.
 def _ttl_credencial(name, default):

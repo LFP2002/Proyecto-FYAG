@@ -1,12 +1,13 @@
 """SPEC-018 A: locks Usuario -> Seguridad; el reset adquiere antes el mutex TI.
 
-Los ausentes (creaciones internas/usuarios históricos) equivalen a PERSONAL.
+Ausencia o incoherencia de estado implica denegación, nunca PERSONAL implícito.
 Solo alta HTTP y reset TI emiten credenciales temporales. No hay lockouts.
 """
 import hashlib
 import secrets
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
+import re
 
 from django.conf import settings
 from django.db import transaction
@@ -17,7 +18,7 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 
 from .models import SeguridadCredencial, Usuario, UsuarioEvento
 from . import services_usuarios as services
-from .services_usuarios import _admin, _contract, _not_self, _password, _text, _version, operacion
+from .services_usuarios import ConflictoUsuario, _admin, _contract, _not_self, _password, _text, _version, operacion
 
 
 @dataclass
@@ -27,12 +28,41 @@ class CredencialEmitida:
     vence_en: object = field(repr=False)
 
 
+ESTADO_NO_DISPONIBLE = "NO_DISPONIBLE"  # Proyección de inconsistencia, no estado SQL.
+
+
+def estado_coherente(state):
+    """Defensa en profundidad, sin confiar solo en enum ni en constraints SQL."""
+    if state is None:
+        return False
+    temporal = (state.emitida_en, state.vence_en)
+    challenge = (state.desafio_digest, state.desafio_vence_en, state.desafio_version)
+    if state.estado == "PERSONAL":
+        return all(value is None for value in temporal + challenge)
+    if state.estado not in {"INICIAL", "RECUPERACION"}:
+        return False
+    if not all(isinstance(value, datetime) and timezone.is_aware(value) for value in temporal):
+        return False
+    if state.vence_en <= state.emitida_en:
+        return False
+    if all(value is None for value in challenge):
+        return True
+    return (isinstance(state.desafio_digest, str)
+            and re.fullmatch(r"[0-9a-f]{64}", state.desafio_digest) is not None
+            and isinstance(state.desafio_vence_en, datetime) and timezone.is_aware(state.desafio_vence_en)
+            and state.emitida_en < state.desafio_vence_en <= state.vence_en
+            and type(state.desafio_version) is int and 1 <= state.desafio_version <= 9223372036854775807)
+
+
 def estado_credencial(user):
     relation = Usuario._meta.get_field("seguridad_credencial")
     if relation.is_cached(user):
         state = relation.get_cached_value(user)
-        return state.estado if state is not None else "PERSONAL"
-    return SeguridadCredencial.objects.filter(usuario_id=user.pk).values_list("estado", flat=True).first() or "PERSONAL"
+    else:
+        state = SeguridadCredencial.objects.filter(usuario_id=user.pk).first()
+    if not estado_coherente(state) or state.usuario_id != user.pk:
+        return ESTADO_NO_DISPONIBLE
+    return state.estado
 
 
 def es_personal(user):
@@ -46,9 +76,11 @@ def limpiar_desafio(state):
 @sensitive_variables()
 def emitir_temporal(user, actor, *, inicial=False, motivo=""):
     """Dentro de transacción y lock usuario (o alta aún no visible)."""
+    state = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
+    if not estado_coherente(state):
+        raise ConflictoUsuario("seguridad_no_disponible", "Estado de seguridad no disponible; requiere revisión autorizada.")
     credential = secrets.token_urlsafe(32)  # 256 bits; no depende de identidad/reloj.
     now = timezone.now()
-    state, _ = SeguridadCredencial.objects.get_or_create(usuario=user)
     state.estado = SeguridadCredencial.Estado.INICIAL if inicial else SeguridadCredencial.Estado.RECUPERACION
     state.emitida_en = now
     state.vence_en = now + timedelta(seconds=settings.CREDENCIAL_TEMPORAL_TTL_SECONDS)
@@ -76,7 +108,7 @@ def iniciar_cambio(user):
     """Invocado por login con Usuario bloqueado y password ya comprobado."""
     state = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
     now = timezone.now()
-    if state is None or state.estado == "PERSONAL" or state.vence_en <= now:
+    if not estado_coherente(state) or state.estado == "PERSONAL" or state.vence_en <= now:
         raise AuthenticationFailed("Credenciales inválidas.")
     challenge = secrets.token_urlsafe(32)
     state.desafio_digest = hashlib.sha256(challenge.encode()).hexdigest()
@@ -98,7 +130,7 @@ def primer_cambio(data):
     user = Usuario.objects.select_for_update().filter(pk=identifier).first()
     state = SeguridadCredencial.objects.select_for_update().filter(usuario_id=identifier).first() if user else None
     now = timezone.now()
-    if (not user or not user.is_active or state is None or state.estado == "PERSONAL"
+    if (not user or not user.is_active or not estado_coherente(state) or state.estado == "PERSONAL"
         or not constant_time_compare(state.desafio_digest or "", digest)
         or state.desafio_version != user.sesion_version or state.vence_en <= now
         or state.desafio_vence_en is None or state.desafio_vence_en <= now):

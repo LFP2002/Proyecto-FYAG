@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "FYAG — SPEC-018 Fase A: credenciales y primer acceso",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Backend Fase A. Solo desarrollo/QA; TTL temporal 86400 s y desafio 300 s configurables, NO RATIFICADOS PARA PRODUCCION. Entrega manual exclusivamente entre cuentas sinteticas QA. Sin bloqueos escalonados ni frontend implementado. No autoriza despliegue. Complementa SPEC-002A/002B/006B/006C."
   },
   "servers": [{"url": "/"}],
@@ -69,7 +69,7 @@
       "post": {
         "summary": "Sesion normal PERSONAL o desafio restringido temporal",
         "security": [{"CSRFHeader": [], "CSRFCookie": []}],
-        "description": "Requiere GET csrf previo. Rota CSRF. Inactiva, inexistente, password incorrecto o temporal vencida: mismo 401 generico. La rama temporal NO emite access, user ni refresh; elimina cookie refresh previa. Cada nuevo desafio sustituye al anterior. Validez minima entre TTL de desafio y vencimiento de credencial.",
+        "description": "Requiere GET csrf previo. Rota CSRF. Inactiva, inexistente, password incorrecto, temporal vencida o estado de seguridad ausente/incoherente: mismo 401 generico. Nunca inferir PERSONAL ni reparar estado al autenticar. La rama temporal NO emite access, user ni refresh; elimina cookie refresh previa. Cada nuevo desafio sustituye al anterior. Validez minima entre TTL de desafio y vencimiento de credencial.",
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["email", "password"], "properties": {"email": {"type": "string", "format": "email"}, "password": {"type": "string", "writeOnly": true}}}}}},
         "responses": {
           "200": {"description": "Distinguir por estado CAMBIO_OBLIGATORIO; nunca montar negocio en esa rama", "headers": {"Cache-Control": {"schema": {"type": "string", "enum": ["no-store"]}}, "Set-Cookie": {"schema": {"type": "string"}, "description": "Sesion normal: refresh HttpOnly/Secure/Strict/path=/api/auth/. Temporal: elimina refresh previo."}}, "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/LoginNormal"}, {"$ref": "#/components/schemas/LoginRestringido"}]}}}},
@@ -110,7 +110,7 @@
       "Motivo": {"type": "object", "additionalProperties": false, "required": ["motivo"], "properties": {"motivo": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Obligatorio no blanco; sin secretos"}}},
       "Usuario": {"type": "object", "required": ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"], "properties": {
         "id": {"type": "integer", "format": "int64", "readOnly": true}, "username": {"type": "string"}, "email": {"type": "string", "format": "email"}, "first_name": {"type": "string"}, "last_name": {"type": "string"}, "rol": {"$ref": "#/components/schemas/Rol"}, "is_active": {"type": "boolean"}, "date_joined": {"type": "string", "format": "date-time"},
-        "estado_credencial": {"type": "string", "enum": ["PERSONAL", "INICIAL", "RECUPERACION"], "readOnly": true}, "cambio_obligatorio": {"type": "boolean", "readOnly": true, "description": "false solo PERSONAL; vencimiento no elimina obligatoriedad"}
+        "estado_credencial": {"type": "string", "enum": ["PERSONAL", "INICIAL", "RECUPERACION", "NO_DISPONIBLE"], "readOnly": true, "description": "NO_DISPONIBLE proyecta ausencia/incoherencia; no es un estado SQL ni habilita acceso o cambio inicial"}, "cambio_obligatorio": {"type": "boolean", "readOnly": true, "description": "false solo PERSONAL coherente; NO_DISPONIBLE exige revision autorizada, no cambio inicial automatico"}
       }},
       "Emision": {"allOf": [{"$ref": "#/components/schemas/Usuario"}, {"type": "object", "required": ["credencial_temporal", "credencial_vence_en"], "properties": {"credencial_temporal": {"type": "string", "minLength": 43, "maxLength": 43, "readOnly": true, "description": "Secreto generado una sola vez; no persistir en cliente ni recuperar por GET"}, "credencial_vence_en": {"type": "string", "format": "date-time", "readOnly": true}}}]},
       "LoginNormal": {"type": "object", "additionalProperties": false, "required": ["access", "user", "csrfToken"], "properties": {"access": {"type": "string"}, "csrfToken": {"type": "string"}, "user": {"type": "object", "additionalProperties": false, "required": ["id", "username", "email", "role"], "properties": {"id": {"type": "integer"}, "username": {"type": "string"}, "email": {"type": "string"}, "role": {"$ref": "#/components/schemas/Rol"}}}}},
@@ -119,10 +119,10 @@
     },
     "responses": {
       "Validacion": {"description": "400 por campos/formato/validadores, sin eco de secretos", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}}}}},
-      "SinSesion": {"description": "401 generico, credencial o sesion no disponible", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
+      "SinSesion": {"description": "401 generico, credencial o sesion no disponible, incluido estado de seguridad ausente o incoherente; JWT y refresh denegados, sin reparacion automatica", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
       "Prohibido": {"description": "403 CSRF o rol no autorizado; staff/superuser no conceden TI", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
       "NoDisponible": {"description": "404 cuenta/pagina no disponible"},
-      "Conflicto": {"description": "409: operacion_retirada, autooperacion_protegida o invariantes existentes", "content": {"application/json": {"schema": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}}}}},
+      "Conflicto": {"description": "409: seguridad_no_disponible en reset de objetivo sin estado coherente (sin cambiar hash, version o historial), operacion_retirada, autooperacion_protegida o invariantes existentes", "content": {"application/json": {"schema": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}}}}},
       "Limitado": {"description": "429 throttle existente, no bloqueo de cuenta", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}}
     }
   }

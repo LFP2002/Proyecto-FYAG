@@ -297,5 +297,8 @@ def aprovisionar_primera_ti(data):
     user.set_password(data["password"])
     _unique(user)
     user.save()
+    from .credenciales import es_personal
+    if not es_personal(user):
+        raise ConflictoUsuario("seguridad_no_disponible", "No se pudo confirmar el estado de seguridad inicial.")
     _event(user, user, UsuarioEvento.Tipo.CREACION, "Aprovisionamiento manual inicial de TI mediante comando Django", after=_snapshot(user))
     return user

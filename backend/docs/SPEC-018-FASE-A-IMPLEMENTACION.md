@@ -5,6 +5,13 @@ Base local verificada: `9b34a10ca413ce9d64632d9a0cd63fbce83d71b6`.
 **SPEC-018 NO está completada:** frontend y política de bloqueos escalonados
 siguen pendientes. No autoriza despliegue, merge ni modificación del PR #45.
 
+**Revisión posterior del commit `242abcb`:** se confirmó un fail-open al considerar
+PERSONAL un registro de seguridad ausente. La corrección elimina esa equivalencia
+y requiere un estado SQL presente/coherente; ver
+[hallazgo, migración 0007 y resultados nuevos](SPEC-018-FAIL-CLOSED.md).
+Los resultados de 918 pruebas indicados más abajo pertenecen a la entrega anterior,
+no se atribuyen automáticamente a esta corrección.
+
 ## Autorización y alcance
 
 El responsable autorizó expresamente en conversación:
@@ -30,8 +37,9 @@ Migración nueva `usuarios.0006_seguridad_credenciales`:
   SHA256 único de desafío aleatorio de 256 bits. Sin desafíos en texto claro SQL.
 - Estado PERSONAL para cuentas existentes mediante inserciones por lotes; ningún
   cambio de usuario, hash, rol, versión, actividad, relaciones ni evento histórico.
-  Creaciones internas de confianza sin fila de seguridad equivalen a PERSONAL;
-  no son rutas públicas de alta ni recuperación. Bootstrap TI se conserva.
+   La equivalencia inicial de creaciones internas sin fila a PERSONAL fue retirada
+   por insegura en la revisión posterior. Toda cuenta nueva requiere estado explícito;
+   ausencia o incoherencia deniegan acceso. Bootstrap TI se conserva bajo ese control.
 - Ampliación del catálogo y longitud de UsuarioEvento: nuevos tipos
   CREACION_CREDENCIAL_TEMPORAL, REEMISION y CAMBIO_INICIAL. Eventos de credenciales
   sin snapshots; el alta conserva además CREACION administrativo existente.

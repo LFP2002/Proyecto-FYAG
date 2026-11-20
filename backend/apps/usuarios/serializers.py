@@ -28,11 +28,14 @@ class LoginSerializer(TokenObtainPairSerializer):
                 user = get_user_model().objects.select_for_update().get(pk=self.user.pk)
             except get_user_model().DoesNotExist:
                 raise AuthenticationFailed("Credenciales inválidas.") from None
-            if not user.is_active or user.email != attrs["email"] or not user.check_password(attrs["password"]):
+            from .credenciales import ESTADO_NO_DISPONIBLE, estado_credencial, iniciar_cambio
+            state = estado_credencial(user)
+            if (not user.is_active or user.email != attrs["email"]
+                or state == ESTADO_NO_DISPONIBLE
+                or not user.check_password(attrs["password"])):
                 raise AuthenticationFailed("Credenciales inválidas.")
             self.user = user
-            from .credenciales import es_personal, iniciar_cambio
-            if not es_personal(user):
+            if state != "PERSONAL":
                 return iniciar_cambio(user)
             refresh = self.get_token(user)
             return {

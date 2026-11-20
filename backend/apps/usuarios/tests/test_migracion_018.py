@@ -37,3 +37,38 @@ class MigracionCredencialesTests(TransactionTestCase):
                 self.assertIsNone(state.desafio_digest)
         finally:
             MigrationExecutor(connection).migrate(latest)
+
+    def test_0007_preserva_filas_y_no_repara_ausencias_previas(self):
+        import secrets
+        from datetime import timedelta
+        from django.contrib.auth.hashers import make_password
+        from django.utils import timezone
+        executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
+        previous = [(app, "0006_seguridad_credenciales" if app == "usuarios" else name) for app, name in latest]
+        executor.migrate(previous)
+        try:
+            apps = executor.loader.project_state(previous).apps
+            User = apps.get_model("usuarios", "Usuario")
+            State = apps.get_model("usuarios", "SeguridadCredencial")
+            Event = apps.get_model("usuarios", "UsuarioEvento")
+            hashed = make_password(secrets.token_urlsafe(32))
+            temporary = User.objects.create(email="qa_temporal@example.test", username="qa_temporal", rol="TECNICO", password=hashed, sesion_version=8)
+            absent = User.objects.create(email="qa_ausente@example.test", username="qa_ausente", rol="GERENCIA", password=hashed)
+            now = timezone.now()
+            State.objects.create(usuario_id=temporary.pk, estado="INICIAL", emitida_en=now, vence_en=now + timedelta(days=1))
+            Event.objects.create(usuario_objetivo=temporary, actor=temporary, tipo="CREACION_CREDENCIAL_TEMPORAL")
+            before = (list(User.objects.order_by("pk").values()), list(State.objects.values()), list(Event.objects.values()))
+            executor = MigrationExecutor(connection)
+            executor.migrate(latest)
+            apps = executor.loader.project_state(latest).apps
+            User = apps.get_model("usuarios", "Usuario")
+            State = apps.get_model("usuarios", "SeguridadCredencial")
+            Event = apps.get_model("usuarios", "UsuarioEvento")
+            after = (list(User.objects.order_by("pk").values()), list(State.objects.values()), list(Event.objects.values()))
+            self.assertTrue(after == before)
+            self.assertFalse(State.objects.filter(usuario_id=absent.pk).exists())
+            new = User.objects.create(email="qa_nueva@example.test", username="qa_nueva", rol="TECNICO", password=hashed)
+            self.assertEqual(State.objects.get(usuario_id=new.pk).estado, "PERSONAL")
+        finally:
+            MigrationExecutor(connection).migrate(latest)

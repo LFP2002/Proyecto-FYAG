@@ -3,6 +3,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework_simplejwt.exceptions import TokenError
 
 from apps.usuarios.authentication import validar_sesion
+from apps.usuarios.credenciales import es_personal
 from apps.usuarios.models import Usuario
 from apps.obras.models import ObraParticipante
 from apps.documentos.validaciones import entero_ascii
@@ -11,6 +12,8 @@ from apps.documentos.validaciones import entero_ascii
 def actor_actual(actor, token=None):
     actual = Usuario.objects.select_related("seguridad_credencial").filter(pk=actor.pk).first()
     if actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version:
+        raise AuthenticationFailed("Sesión no disponible.")
+    if not es_personal(actual):
         raise AuthenticationFailed("Sesión no disponible.")
     if token is not None:
         try:

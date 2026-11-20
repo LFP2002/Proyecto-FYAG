@@ -82,10 +82,11 @@ class CredencialesTests(CredencialesBase, APITestCase):
         self.assertEqual(state.vence_en - state.emitida_en, timedelta(hours=24))
 
     def test_alta_rechaza_password_y_campos_internos(self):
+        states_before = SeguridadCredencial.objects.count()
         for key, value in [("password", PASSWORD), ("cambio_obligatorio", False), ("estado_credencial", "PERSONAL"),
                            ("sesion_version", 99), ("vence_en", None), ("is_active", True)]:
             self.assertEqual(self.client.post("/api/usuarios/", self.new_data(**{key: value}), format="json").status_code, 400)
-        self.assertFalse(SeguridadCredencial.objects.exists())
+        self.assertEqual(SeguridadCredencial.objects.count(), states_before)
 
     def test_login_temporal_solo_desafio_no_outstanding_y_cookie_eliminada(self):
         issued = self.emit()
@@ -379,6 +380,10 @@ class ConfiguracionTTLTests(SimpleTestCase):
         from apps.usuarios.serializers_usuarios import CrearUsuarioSerializer, UsuarioLecturaSerializer
         schema = json.loads((settings.BASE_DIR / "docs/openapi/SPEC-018A-v1.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["openapi"], "3.0.3")
+        self.assertEqual(schema["info"]["version"], "1.1.0")
+        self.assertEqual(set(schema["components"]["schemas"]["Usuario"]["properties"]["estado_credencial"]["enum"]),
+                         {"PERSONAL", "INICIAL", "RECUPERACION", "NO_DISPONIBLE"})
+        self.assertIn("seguridad_no_disponible", schema["components"]["responses"]["Conflicto"]["description"])
 
         def walk(value):
             if isinstance(value, dict):

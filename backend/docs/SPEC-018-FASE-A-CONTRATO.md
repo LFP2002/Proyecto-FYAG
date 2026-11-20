@@ -11,10 +11,18 @@ Entrega exclusivamente manual entre cuentas sintéticas QA; sin email/chat/SMS.
 ## Estado
 
 `is_active` sigue siendo exclusivamente administrativo. La lectura administrativa
-añade `estado_credencial` (`PERSONAL`, `INICIAL`, `RECUPERACION`) y
+añade `estado_credencial` (`PERSONAL`, `INICIAL`, `RECUPERACION`, `NO_DISPONIBLE`) y
 `cambio_obligatorio` (false solo para PERSONAL). INICIAL/RECUPERACION exigen cambio
 aun si están vencidas. Las cuentas históricas conservan hashes y sesiones; no
 se les impone cambio retroactivo. No se exponen versiones ni digest/desafío en GET.
+
+**Corrección fail-closed posterior a revisión:** `NO_DISPONIBLE` es una proyección
+de registro ausente/incoherente, no un cuarto estado SQL ni un bloqueo escalonado.
+Nunca equivale a PERSONAL. Login, JWT, refresh, sesión Django y cambio de contraseña
+se deniegan; el booleano sigue true, pero la UI no debe proponer primer cambio ni
+reintentar reset: requiere revisión autorizada. No se repara al leer o guardar.
+La migración 0006 conserva su backfill histórico; 0007 crea estado coherente solo
+al insertar cuentas nuevas, atómicamente, incluidos bootstrap y ORM/bulk/SQL interno.
 
 ## Endpoints
 
@@ -27,6 +35,8 @@ se les impone cambio retroactivo. No se exponen versiones ni digest/desafío en 
   `{"motivo":"texto no vacío"}`. Retorna 200 con la misma proyección excepcional,
   estado RECUPERACION. No activa la cuenta. Nuevo hash/versión y desafíos previos
   invalidados. Contraseña solo aparece en esta respuesta; si se pierde, reemitir.
+  Si falta estado coherente del objetivo: 409 `seguridad_no_disponible`, sin crear
+  estado ni modificar hash, versión o auditoría. No es una reparación implícita.
 - `POST /api/usuarios/{id}/establecer-clave/`: ruta retirada, nunca establece clave;
   TI autorizado recibe 409 `operacion_retirada` (autooperación: 409 protegida).
   No acepta nueva_clave como alternativa. Otros roles siguen denegados.
@@ -52,7 +62,8 @@ se les impone cambio retroactivo. No se exponen versiones ni digest/desafío en 
 ## Errores y repetición
 
 - 400: esquema/tipos/campos prohibidos/validadores de nueva_clave, sin eco del valor.
-- 401 genérico: login inválido, cuenta inactiva, temporal vencida, JWT revocado;
+- 401 genérico: login inválido, cuenta inactiva, temporal vencida, JWT revocado,
+  estado de seguridad ausente o incoherente;
   desafío inválido, vencido, consumido, reemplazado o ligado a versión anterior:
   `{"detail":"Desafío no disponible."}`. No revelar identidad ni motivo interno.
 - 403: CSRF u otro rol; flags staff/superuser no dan TI.
