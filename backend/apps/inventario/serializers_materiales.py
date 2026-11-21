@@ -18,3 +18,11 @@ class OperacionCostoSerializer(OperacionSerializer):
         fields = OperacionSerializer.Meta.fields + ['gasto', 'costo_unitario_neto', 'saldo_valorado_anterior',
             'saldo_valorado_posterior', 'promedio_anterior', 'promedio_posterior']
         read_only_fields = fields
+
+
+class AutorizacionDevolucionLecturaSerializer(OperacionSerializer):
+    cantidad_recibible_efectiva = serializers.DecimalField(max_digits=12, decimal_places=3, read_only=True)
+
+    class Meta(OperacionSerializer.Meta):
+        fields = OperacionSerializer.Meta.fields + ['cantidad_recibible_efectiva']
+        read_only_fields = fields
