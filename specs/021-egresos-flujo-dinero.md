@@ -1,9 +1,9 @@
 # SPEC-021 — Registro de egresos y flujo de dinero (FYAG Beta)
 
-> **Estado: PROPUESTA DOCUMENTAL PARA REVISIÓN.** 21-11-2026.
+> **Estado: CONTRATO DOCUMENTAL RATIFICADO PARA IMPLEMENTACIÓN.** 21-11-2026.
 > **Producto:** FYAG Beta, seguimiento económico de una pyme de servicios.
 > **Base técnica verificada:** `main` SHA `3d1351773dcb5dcbb90838fda194785ac9d11498`. SPEC-007A/007B, 010, 011, 019A y 020A/B integradas. SPEC-019B permanece como propuesta en PR #56.
-> **Alcance:** backend Django REST Framework, PostgreSQL, API, OpenAPI y pruebas. **No implementar ni modificar el frontend en esta fase.** Este documento no autoriza implementación, merge ni despliegue.
+> **Alcance previsto:** backend Django REST Framework, PostgreSQL, API, OpenAPI y pruebas. Esta integración documental no incluye código ejecutable, migraciones ni frontend. La implementación requiere una rama y PR propios; un merge documental no equivale a despliegue ni a validación productiva.
 
 ## 1. Problema de negocio
 
@@ -111,14 +111,14 @@ Conservar `/api/finanzas/` y rutas existentes; sin romper contratos de cobros.
 
 | Método | Ruta | Función |
 | --- | --- | --- |
-| GET | `/api/finanzas/egresos/` | Listado paginado, filtros y totales de página solo cuando se especifiquen |
+| GET | `/api/finanzas/egresos/` | Listado paginado y filtrado, sin totales monetarios ad hoc |
 | POST | `/api/finanzas/egresos/` | Registrar egreso con header `Idempotency-Key: <UUID>` |
 | GET | `/api/finanzas/egresos/{id}/` | Detalle de egreso autorizado |
 | POST | `/api/finanzas/egresos/{id}/anular/` | Anulación con `motivo` y `referencia_correccion` |
 | GET | `/api/finanzas/egresos/{id}/historial/` | Eventos paginados |
 | GET | `/api/finanzas/flujo-dinero/resumen/` | Cobros/egresos efectivamente registrados en período |
 
-**POST egreso:** `monto`, `fecha_pago`, `categoria`, `concepto`, `beneficiario`, `medio`, `referencia_respaldo`, `observacion` opcional, `obra` opcional/null; `Idempotency-Key` UUID obligatorio. Misma clave/payload retorna el alta original sin duplicar registro; misma clave con payload diferente → 409, no 500.
+**POST egreso:** `monto`, `fecha_pago`, `categoria`, `concepto`, `beneficiario`, `medio`, `referencia_respaldo`, `observacion` opcional, `obra` opcional/null; `Idempotency-Key` UUID obligatorio y de unicidad global para egresos. Misma clave/payload retorna el alta original sin duplicar registro, **incluso después de una anulación**: el replay reconstruye la respuesta de creación original y `GET detalle` presenta el estado actual. Misma clave con payload diferente → 409, no 500. Distinguir alta 201 de repetición 200 mediante encabezado `Idempotency-Replayed` como en SPEC-007B.
 
 **POST anulación:** solo `motivo` y `referencia_correccion` obligatorios; segunda anulación → 409. Revisión y evento en una transacción. La cancelación administrativa exige referencia de rectificación, no una devolución bancaria simulada.
 
@@ -154,15 +154,15 @@ Responder 400/401/403/404/405/409 de acuerdo con SPEC-007. `Cache-Control: priva
 - Reutilizar validadores y convenciones existentes de Finanzas: `Decimal` estricto, fechas civiles America/Santiago, errores controlados, campos cerrados, referencia externa, idempotencia con huella y usuario persistido.
 - Alta de egreso/evento atómica. Dos POST simultáneos con la misma UUID y contenido igual deben producir exactamente un egreso y su evento, con respuesta idempotente. Si difieren, 409. Sin transacciones distribuidas ni dependencia de herramientas bancarias.
 - Anulación concurrente: un 200 y un 409, evento único. No borrar ni editar historia. Si una lectura y anulación coinciden, evitar datos corruptos sin prometer lectura de estado futuro.
-- Resumen del período en una lectura consistente/snapshot PostgreSQL, evitando mezclar abonos y egresos de cortes distintos. No realizar escrituras en GET.
+- Resumen del período con **un único snapshot PostgreSQL verificable**, evitando mezclar pagos recibidos y egresos de cortes transaccionales distintos. No asumir que `transaction.atomic()` bajo el aislamiento predeterminado `READ COMMITTED` estabiliza dos agregados sucesivos. Usar una única sentencia SQL para ambos agregados o aislamiento de lectura apropiado y probado. No realizar escrituras en GET.
 - Integridad: reversión administrativa de un pago recibido existente continúa aplicando SPEC-007; una anulación de egreso no debe afectar `PagoDocumento`, `GastoObra`, inventario ni costos cerrados.
 - Seis roles; usuario inactivo, sesión revocada/bloqueada y claims manipulados; prueba de referencia de Obra inexistente/no permitida; consulta de historial por ID ajeno.
 - Migración desde BD existente y desde cero, validación de `check` y `makemigrations --check --dry-run`, carreras PostgreSQL reales, suite regresiva completa, CI GitHub y Postman esencial. Sin datos de prueba en producción ni secretos en repo.
 - Documentar OpenAPI nueva `SPEC-021-v1.json`, con schemas de respuestas y errores. No tocar `frontend/`.
 
-## 8. Decisiones de diseño para ratificación
+## 8. Decisiones de diseño ratificadas para el contrato Beta
 
-Se recomiendan estas políticas sencillas, coherentes con FYAG Beta:
+Se adoptan estas políticas sencillas para este incremento, coherentes con FYAG Beta:
 
 1. **Fuente de registro:** Administrativo/Finanzas registra únicamente pagos ya realizados, con referencia de comprobante externo; Gerencia solo supervisa.
 2. **Importe:** total **efectivamente desembolsado en CLP**, sin suponer IVA; no registrar pagos por cobrar ni documentos no pagados como egresos.
@@ -171,13 +171,13 @@ Se recomiendan estas políticas sencillas, coherentes con FYAG Beta:
 5. **Resumen:** incluir solo pagos de clientes activos y egresos activos por fecha del pago, sin confundirlo con utilidad ni saldo bancario; ingresos extraordinarios quedan fuera del MVP.
 6. **Corrección:** anulación motivada del registro equivocado y nueva alta correcta; no usar anulación para simular reembolso físico.
 
-Estas políticas son **candidatas para aprobación del responsable**, no facultades ya habilitadas en el backend.
+Estas políticas definen el **contrato autorizado para implementación**, no capacidades que ya estén habilitadas en el backend. Cualquier ampliación funcional debe documentarse antes de incorporarla.
 
 ## 9. Orden de trabajo FYAG
 
-1. Revisar y aprobar SPEC-021 documentalmente.
+1. Integrar esta SPEC documental revisada en `main` sin cambios de código, migraciones ni frontend.
 2. Crear rama de implementación desde `main` actualizado, implementar servicios/migración/API/OpenAPI/Postman y pruebas localmente con OpenCode.
-3. Auditar diff y publicar PR de implementación para ejecutar CI. **Merge solo con autorización expresa.**
+3. Auditar diff, publicar PR de implementación y ejecutar CI. El responsable ha delegado la autorización general de merge al revisor técnico **solo si** contrato, pruebas, seguridad, migraciones, regresión y CI quedan aprobados; no fusionar con pendientes materiales.
 4. Entregar las nuevas rutas al equipo de frontend, además de las correcciones ya identificadas en SPEC-020.
 5. Luego retomar SPEC-019B simplificada (entregas/devoluciones) y, solo si aporta valor al objetivo Beta, SPEC-019C.
 
