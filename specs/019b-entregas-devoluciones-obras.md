@@ -1,140 +1,106 @@
-# SPEC-019B — Entregas y devoluciones de materiales de Bodega a Obras (FYAG)
+# SPEC-019B — Bodega básica vinculada a Obras (FYAG Beta)
 
-> **Estado: propuesta documental en revisión; no autorizada para implementación, migración ni despliegue.** 21-11-2026.
-> **Base verificada:** `main` en `3d1351773dcb5dcbb90838fda194785ac9d11498`. SPEC-019A de inventario está integrada mediante PR #52; SPEC-020A/B están integradas mediante PR #54/#55. El frontend se delega a otro equipo.
-> **Decisión ratificada por el responsable (21-11-2026):** las salidas de Bodega se valorizarán mediante **costo promedio ponderado móvil** basado en costos netos reales y trazables de las existencias. **Aún pendientes de ratificación:** quién registra/valida el costo y sus respaldos, y el tratamiento de las existencias ingresadas antes de 019B sin costo asociado. No implementar despacho económico hasta resolverlos.
+> **Estado: propuesta documental simplificada para revisión.** 21-11-2026.
+> **Decisión confirmada:** utilizar **costo promedio ponderado móvil** para valorizar materiales consumidos por Obras.
+> **Prioridad del producto:** FYAG Beta se centra en la gestión económica: identificar ingresos de dinero, egresos de dinero y costos de Obras. Bodega es un módulo complementario, **no** un ERP de compras, logística ni contabilidad.
+> **Antecedentes:** SPEC-019A (PR #52), SPEC-020A/B (PR #54/#55). El frontend corresponde al equipo React; la presente SPEC **no autoriza implementaciones, migraciones ni despliegue**.
 
-## 1. Problema y restricciones comprobadas
+## 1. Qué debe conseguir esta etapa
 
-1. `apps.inventario` dispone de `ArticuloInventario`, `ExistenciaInventario` y `MovimientoInventario`, ingresos positivos idempotentes y libro inmutable respaldado por funciones/triggers PostgreSQL en la migración `0002_integridad_libro`. Solo existe `MovimientoInventario.Tipo.INGRESO`; el trigger de conciliación suma cantidades positivas y el de alta valida un BODEGUERO.
-2. El inventario **no registra precios de adquisición ni lotes**. El campo `cantidad` es `Decimal(12,3)` y el saldo debe ser no negativo. Una entrada física NO equivale a un gasto financiero.
-3. `GastoObra` registra cantidades, devoluciones, `costo_unitario_neto` `Decimal(15,2)`, tipo `MATERIAL` y eventos económicos. Las operaciones actuales las realiza Supervisor y exigen obra `EN_PROCESO` o `SUSPENDIDA`; el total de costo utiliza `cantidad - cantidad_devuelta`, redondeo `ROUND_HALF_UP`. El cierre de costos depende de versiones y validación de Supervisor.
-4. `apps.obras.services_gastos` bloquea bajo el orden `Presupuesto → Obra → Gasto`; Inventario 019A utiliza `idempotencia → Artículo → Existencia`. La integración debe tener un **orden combinado explícito**, sin abrir ciclos entre módulos.
-5. No se puede deducir stock de gastos de Obras anteriores ni atribuir costo de adquisición a ingresos que nunca tuvieron precio registrado. Las migraciones existentes, sus eventos y fechas deben conservarse.
-6. SPEC-019C (solicitud del Técnico, aprobación, merma) sigue pendiente; **019B no debe simular que el Técnico dispone ya de esa autorización**.
+Para una empresa pequeña que ejecuta Obras, Bodega debe responder cuatro preguntas simples:
+1. ¿Qué materiales tenemos y cuántas unidades hay disponibles?
+2. ¿Qué materiales entraron a la empresa?
+3. ¿Qué materiales salieron para una Obra y quién los entregó?
+4. ¿Qué materiales sobrantes fueron devueltos?
 
-## 2. Objetivo y límites
+La información financiera principal sigue perteneciendo a Finanzas y a los costos de Obras; ningún movimiento físico se clasificará automáticamente como entrada o salida de dinero.
 
-Vincular cada entrega y devolución física de Bodega a una Obra identificada, con autorización trazable de Supervisor, libro de movimientos exacto, idempotencia, stock no negativo e integración económica mediante **costo promedio ponderado móvil ratificado**, una vez definidas las responsabilidades y la valorización de existencias anteriores.
+### Separación fundamental
 
-Incluye diseño de órdenes autorizadas, ejecuciones de entrega/devolución, inmutabilidad, permisos de roles, relaciones con la Obra, control de cantidades y compatibilidad de costos. Las acciones físicas no pueden convertir a Bodeguero en editor general de Obras.
+| Hecho | Lo registra | Efecto |
+| --- | --- | --- |
+| Recepción de materiales | Bodeguero | Aumenta stock físico; **no** registra ingreso/egreso de dinero |
+| Costo neto respaldado de esa recepción | Administrativo/Finanzas | Valoriza stock con promedio ponderado; **no** equivale a pago efectuado |
+| Autorización de materiales para Obra | Supervisor | Autoriza una cantidad; **no** mueve stock ni dinero |
+| Entrega física a la Obra | Bodeguero | Disminuye stock; atribuye **costo interno** a la Obra, pero **no** registra un segundo pago |
+| Devolución física desde Obra | Bodeguero con referencia de Supervisor | Aumenta stock y revierte el costo interno correspondiente; **no** registra ingreso de dinero |
+| Pago efectivamente realizado a proveedor/tercero | Finanzas, en futura fase de Egresos | **Salida real de dinero**; hoy este módulo no existe en el backend |
 
-Fuera del alcance: interfaz React, compras/proveedores/DTE, múltiples bodegas, reservas generales, transferencias, mermas, Técnico solicitante (019C), costeos simulados, notificaciones nuevas y cambios en roles/permisos de SPEC-020.
+En el código actual `apps.finanzas.PagoDocumento` registra **pagos recibidos** de clientes, mientras que `apps.obras.GastoObra` registra **costos económicos**. Ninguno de ellos es, por sí mismo, un registro general de dinero pagado a proveedores. No presentar un coste o una salida de Bodega como pago bancario.
 
-## 3. Flujo propuesto
+## 2. Alcance mínimo de 019B
 
-### 3.1 Autorización por Supervisor
+Mantener lo ya implementado en 019A (catálogo, existencias, ingresos y movimientos).
 
-1. Supervisor selecciona una Obra en `EN_PROCESO` o `SUSPENDIDA`, artículo activo y cantidad positiva con la **misma unidad** del catálogo. Registra una autorización identificable de entrega para esa Obra y artículo. Incluye solicitante real, fecha, estado y motivo/observación, sin suplantar al autor.
-2. La autorización **no descuenta stock** y no genera `GastoObra` por sí sola. El saldo se reevalúa al entregar, no se reserva informalmente.
-3. Las autorizaciones pueden quedar pendientes, parcialmente entregadas, cumplidas o anuladas sin borrar su historial. Deben poder cancelarse antes de despachar; una cantidad ya entregada no puede borrarse ni reducirse por debajo de lo ejecutado. Una anulación posterior no revierte físicamente ninguna entrega.
-4. La autorización es la base reutilizable para 019C: el Técnico podrá solicitar; Supervisor revisará y, si aprueba, emitirá/derivará una autorización. 019B no da al Técnico permiso de emisión.
+Añadir **solo tres acciones nuevas para el trabajo cotidiano**:
 
-### 3.2 Entrega física por Bodeguero
+1. **Autorizar entrega:** Supervisor selecciona Obra, artículo y cantidad. La Obra debe estar `EN_PROCESO` o `SUSPENDIDA`; autorización trazable, sin reservas complejas.
+2. **Entregar materiales:** Bodeguero confirma la cantidad realmente entregada. El stock se descuenta una vez, se identifica a qué Obra fue y se asocia su costo interno usando el promedio ponderado vigente. Admitir cantidades parciales sin crear un proceso logístico multinivel.
+3. **Devolver materiales sobrantes:** Supervisor identifica la entrega original y solicita/confirma el retorno; Bodeguero verifica recepción física. Se reintegra stock y se ajusta costo de esa Obra al valor de la entrega original. Admitir devolución parcial y evitar doble devolución.
 
-1. Bodeguero consulta las autorizaciones visibles y confirma cantidad entregada real (total o parcial), referencia y `clave_idempotencia` UUID por ejecución.
-2. Al confirmar, una única transacción verifica autorización vigente, Obra habilitada, cantidad pendiente, artículo, saldo disponible y sesión Bodeguero; genera una **salida** en el libro y descuenta saldo exactamente una vez.
-3. Se conservan la identidad del Supervisor que autorizó, la del Bodeguero que entregó y fecha servidor. No afirmar entrega efectiva por el solo hecho de autorizar; no registrar una salida si se rechaza por stock insuficiente.
-4. Repetir la misma clave y payload devuelve la misma operación sin descontar otra vez; reutilizar la clave con datos incompatibles da 409. Se deben manejar concurrencia y fallos tras commit sin reintentar escrituras ciegamente.
+Bodeguero organiza y controla los artículos, ingresos, salidas, saldos e historial. **No** administra clientes, documentos de cobro, finanzas, costos de mano de obra ni presupuestos. Gerencia permanece en solo lectura.
 
-### 3.3 Devolución física desde Obra
+**Fuera de alcance:** proveedores y órdenes de compra, DTE/facturación, múltiples bodegas, stock por ubicación, lotes/FIFO, reservas avanzadas, mermas y solicitudes del Técnico (019C), reportes de inventario sofisticados, chat, notificaciones y pantallas React.
 
-1. La Obra identifica qué entrega concreta devuelve y cuánto. Supervisor registra/autoriza la devolución, con motivo. Bodeguero confirma su **recepción física**; solo en ese momento se incrementa el saldo mediante un movimiento inverso `DEVOLUCION`.
-2. Controlar `devuelto_acumulado ≤ entregado_acumulado` por entrega y artículo, sin permitir devoluciones ajenas a la Obra ni a una entrega previa. Admitir retornos parciales y repetición idempotente; no devolver contra un ingreso genérico.
-3. Un artículo inactivo no puede despacharse de nuevo, pero puede recibir una devolución legítima del material previamente entregado, preservando el histórico.
-4. No usar `GastoObra.devolver_gasto` como sustituto de una recepción física: una devolución económica manual no aumenta stock. No permitir dos créditos físicos por el mismo retorno.
+## 3. Valorización simple: promedio ponderado móvil
 
-## 4. Esquema mínimo propuesto y protección
+El método ya está aprobado. Es **control interno de costos** y no flujo de caja.
 
-- Modelo de autorización `AutorizacionEntregaObra` (nombre final sujeto a consistencia): Obra, Artículo, cantidad autorizada, autor Supervisor, estados/fechas, cantidad entregada calculada o mantenida transaccionalmente, motivo y eventos de cambio.
-- Entidad inmutable `EntregaMaterialObra`: referencia a la autorización y a un `MovimientoInventario` de tipo `SALIDA`; cantidad, actor Bodeguero, fecha real; una ejecución no puede tener más de un movimiento físico asociado.
-- Entidad inmutable `DevolucionMaterialObra`: entrega origen, autorización/validación por Supervisor, confirmación Bodeguero, movimiento `DEVOLUCION`, cantidad y motivo. Respetar unicidades y límites acumulados.
-- Las tablas anteriores son una propuesta lógica: evitar columnas/relaciones redundantes cuando puedan imponerse integridad y trazabilidad de forma más simple. No copiar datos sensibles ni duplicar el saldo fuera del libro.
-- Extender tipos de `MovimientoInventario` con `SALIDA` y `DEVOLUCION`. `cantidad` sigue siendo magnitud positiva; actualizar en **migración nueva** la expresión de saldo por tipo: ingreso/devolución suma y salida resta. Proteger tanto snapshots como no negatividad, actor y vínculo con operación/Obra.
-- Redefinir con nuevas migraciones los triggers de validación y de conciliación de 019A para suma firmada según tipo; **nunca editar** `0001` ni `0002`. Revalidar libro histórico (solo ingresos) antes y después de la migración. El conjunto debe impedir una salida insertada arbitrariamente sin autorización de entrega válida.
-- Cada autorización, movimiento y vínculo económico conserva eventos inmutables, causa, actor persistido y relojes del servidor; prohibir `UPDATE/DELETE` públicos de los registros ejecutados.
+- Bodeguero registra **unidades físicas recibidas**; Administrativo/Finanzas registra o valida **costo unitario neto respaldado** de esa recepción, con referencia breve. Es una propuesta de distribución profesional de funciones dentro del alcance mínimo.
+- El costo promedio se actualiza al incorporar una recepción correctamente valorizada: `promedio_nuevo = (unidades_anteriores × promedio_anterior + unidades_recibidas × costo_unitario_neto) / unidades_totales`. Si el saldo anterior es cero, comienza con el costo neto del nuevo ingreso.
+- Una salida registra el costo promedio vigente como **valor histórico fijo**: no cambia retrospectivamente si después llegan artículos a otro precio. Una salida ordinaria no cambia el promedio de las existencias restantes.
+- Una devolución se vincula con la salida original, reintegra unidades y su **valor de salida original** al stock, para ajustar el promedio restante sin crear ingresos monetarios. No asignar otro precio artificial ni devolver más de lo despachado.
+- Usar `Decimal`, CLP, precisión explícita y `ROUND_HALF_UP` compatible con los costos existentes de Obras. Registrar de forma auditable la valoración aplicada, conservando importes y cantidades de origen. Evitar fórmulas de presentación con `float`.
 
-## 5. Efecto económico: costo promedio ponderado móvil RATIFICADO
+**Existencias históricas de 019A sin valor:** se mantienen físicamente intactas. Finanzas debe regularizar y justificar su valoración en un registro separado y auditable **antes de permitir una salida valorizada**. No asumir costo cero, no volver a insertar ingresos, no cambiar retroactivamente fechas o movimientos.
 
-**Decisión funcional aprobada el 21-11-2026:** elegir la opción A — **promedio ponderado móvil**, no FIFO, costo unitario arbitrario por despacho ni salida física sin efecto económico como flujo definitivo. Esta aprobación es del **método de cálculo** y no concede nuevas autorizaciones de registro de precios.
+**Recepciones aún sin costo verificado:** permitir registrar su cantidad física, pero impedir entregas valorizadas que dependan de stock cuyo costo está pendiente. Mostrar estado `PENDIENTE_VALORIZACION` u otra señal equivalente solo en las proyecciones correspondientes; no fabricar un precio. Para conservar la secuencia del promedio, valorar recepciones pendientes en orden contable definido o bloquear su regularización inconsistente.
 
-### 5.1 Regla del promedio móvil
+## 4. Costos de Obras sin contabilizar dos veces
 
-- Cada ingreso valorizado registra **cantidad real y costo unitario neto** con su fuente y autor de validación, que deberán definirse. **Un ingreso físico existente de 019A no adquiere automáticamente un costo** ni se transforma en compra, factura o gasto.
-- Al confirmar un ingreso valorizado, actualizar el costo promedio del artículo sobre cantidades reales, sin mezclar unidades ni precios entre artículos:
+- Al entregar material, el sistema registra **un movimiento físico** y **una sola imputación económica ligada a la entrega** en los costos oficiales de Obras, usando `GastoObra` y su historial existente cuando sea coherente.
+- No registrar un segundo `GastoObra` por el mismo material si ya existe una imputación enlazada; mantener constraints y claves idempotentes.
+- El costo de consumo por Obra no es un segundo desembolso: una futura salida de dinero por la compra se registraría por separado en **Egresos**, con identidad y respaldo propios.
+- La devolución física ajusta la imputación de esa misma entrega. Una devolución económica manual en `GastoObra` **no debe** aumentar stock por sí sola. Proteger los gastos ligados de ediciones/anulaciones manuales que rompan la correspondencia.
+- Cada entrega/devolución con costo participa en **una sola transacción PostgreSQL** con inventario y costos de Obras. Reutilizar el control de versiones y la invalidación de costos ya existente; no reabrir ni modificar cierres históricos de Obras finalizadas.
+- No deducir movimientos físicos desde gastos históricos: los costos previos a esta integración conservan su significado original.
 
-  `nuevo_promedio = (saldo_anterior × promedio_anterior + cantidad_ingresada × costo_unitario_ingreso) / (saldo_anterior + cantidad_ingresada)`.
+## 5. Quién puede hacer qué
 
-  Si el saldo anterior es cero, el nuevo promedio corresponde al costo unitario del ingreso. Si hay stock positivo con costo desconocido, **no es válido suponer promedio cero**.
-- Calcular en `Decimal` sin `float`, conservar suficiente precisión interna y establecer en la implementación una regla documentada de cuantización para el costo total y `GastoObra.costo_unitario_neto` (hoy 2 decimales). No redondear insumos prematuramente ni permitir que un error de centavos fabrique diferencias entre libro físico y libro económico; probar explícitamente fracciones y retornos.
-- **Ejemplo ilustrativo:** 10 unidades a $1.000 CLP netos cada una y un ingreso posterior de 10 unidades a $1.200 CLP netos resultan en saldo 20 y promedio $1.100 CLP netos por unidad.
-- **Salida:** reduce existencias y utiliza el promedio vigente **capturado en el mismo instante transaccional**; una salida ordinaria no recalcula el promedio de las unidades restantes. Persistir el costo aplicado y la referencia de su valoración como snapshot inmutable asociado a esa entrega y a su imputación económica. Nunca recalcular el costo histórico de la Obra con el promedio posterior.
-- **Devolución:** reingresa físicamente al confirmar recepción y aplica como base económica el **costo original de esa entrega**, no el promedio vigente al día de devolución. El promedio futuro del stock se ajustará según el valor de retorno efectivamente reingresado. Mantener explícita la precisión y las reglas de reconciliación monetaria de cada entrega y devolución.
-- **Prevención de duplicados:** una entrega valorizada originará una sola imputación en el libro económico de Obras y una sola salida física. No sumar posteriormente el importe físico al `GastoObra` ya registrado; conservar idempotencia y auditoría de ambos dominios.
+| Acción | Bodeguero | Supervisor Obras | Finanzas | Gerencia |
+| --- | --- | --- | --- | --- |
+| Ver catálogo y cantidades | Sí | Sí | Sí | Sí |
+| Registrar entrada física | **Sí** | No | No | No |
+| Validar precio/costo neto de ingreso | No | No | **Sí** | Solo lectura |
+| Autorizar material para Obra | No | **Sí** | No | Solo lectura |
+| Confirmar salida de Bodega | **Sí** | No | No | No |
+| Autorizar devolución | No | **Sí** | No | Solo lectura |
+| Confirmar recepción devuelta | **Sí** | No | No | No |
+| Registrar costos y gastos ajenos a Bodega | No | Permisos existentes | Permisos existentes | Solo lectura |
 
-### 5.2 Condiciones aún abiertas y bloqueantes
+Técnico y TI no ganan permisos nuevos. El acceso se valida desde el rol y sesión persistidos, nunca desde flags de superusuario o claims JWT. **Esta matriz es el diseño propuesto de mínimo esfuerzo; se ratifica al aprobar la SPEC completa.**
 
-1. **Quién registra y valida costos netos de ingresos**: Administrativo/Finanzas es el candidato, con segregación de funciones respecto del Bodeguero, pero este permiso **no está ratificado**. Definir respaldo mínimo, tratamiento de correcciones y alcance de lectura por rol.
-2. **Existencias 019A anteriores sin costo conocido**: solicitar valorización inicial verificable y auditada a un responsable autorizado antes de despachar como gasto; o restringir el despacho valorizado hasta que se regularicen. No asignar CLP 0, no simular compra ni modificar cantidades, fechas o movimientos físicos históricos.
-3. **Persistencia de valorización**: diseñar campos o libro económico complementario con costo unitario/costo total, moneda CLP, origen, aprobador, snapshot de promedio y control contra modificación directa; actualizar triggers solamente en migraciones nuevas sin reescribir `0001/0002`.
-4. **Precisión monetaria y conciliación**: definir estrategia de redondeo auditable compatible con `Decimal(15,2)` en `GastoObra`; rechazar situaciones que impidan reconciliar las cantidades y costos sin pérdida encubierta de centavos.
+## 6. Contrato técnico y pruebas
 
-### 5.3 Integración económica con Obras
+- Reutilizar `/api/inventario/` y los conceptos de 019A. Diseñar rutas nuevas mínimas y paginadas para autorizaciones de Supervisor, entregas de Bodeguero, devoluciones y valorización de ingresos por Finanzas. No añadir acciones para 019C.
+- Mantener movimientos inmutables de 019A, adicionando `SALIDA` y `DEVOLUCION` con migraciones **nuevas**. Rediseñar el trigger de conciliación física para sumar ingresos/devoluciones y restar salidas; **no editar** las migraciones `0001/0002`.
+- Una autorización debe pertenecer exactamente a una Obra y artículo. Toda entrega requiere autorización vigente, stock suficiente, cantidad no superior al saldo autorizado, artículo con unidad compatible y valoración aprobada. Ninguna acción puede dejar saldo negativo ni material sin trazabilidad.
+- Idempotencia UUID en ejecuciones físicas y cargos vinculados; al repetirse una petición igual no hay segundo movimiento ni segundo costo. Usar bloqueo global consistente entre `Presupuesto → Obra`, artículo/existencia, gasto y la autorización, respetando las rutas de 019A y 004B para evitar deadlocks; estudiar la estrategia completa **antes** de escribir servicios.
+- Los errores de validación/permiso/conflicto deben respetar 400/401/403/404/409 y no exponer información contable al Bodeguero.
+- Probar PostgreSQL con altas, salidas parciales, retornos, ingresos con precio variable, promedio exacto, stock anterior sin costo, doble POST, carreras entre despacho y reposición, concurrencia con cierre de Obra, preservación de costos/historial previos, migraciones upgrade y regresión completa.
+- Documentar rutas efectivamente implementadas con OpenAPI y Postman; mantener `frontend/` sin cambios. No realizar merge ni despliegue sin autorización.
 
-1. Una entrega con efecto económico debe crear **exactamente una imputación valorizada por unidad de precio/porción** de `GastoObra` o un vínculo a un costo ya reconocido, nunca dos gastos por una salida.
-2. Registrar un enlace inequívoco entrega ↔ gasto/valoración y bloquear edición, devolución económica o anulación directa de un gasto ligado cuando pueda romper la correspondencia física. Proveer flujo de corrección/contramovimiento especializado y auditado, sin falsificar eventos anteriores.
-3. Las devoluciones deben ajustar la cantidad imputada al costo de la misma entrega original; nunca revalorar retroactivamente el origen. La reducción del costo debe convivir con `CostoObraEvento`, `ControlCostosObra.version_actual/version_validada`, `CierreCostosObra` y reportes sin duplicaciones.
-4. Una entrega/devolución con efecto económico no puede ocurrir después de finalización de Obra ni contra cierre de costos inmutable; definir tratamiento de excepciones mediante nueva política, no reabrir cierres existentes.
-5. Autoría separada: Supervisor **autoriza** la entrega o decisión económica; Bodeguero **ejecuta/recibe** el movimiento físico. El sistema registra ambos realmente y no atribuye a uno una acción hecha por el otro.
-6. Para cierres y reportes económicos, el costo debe provenir del libro económico oficial de Obras; no sumar directamente el valor de movimientos de inventario si ya existe un gasto enlazado.
+## 7. Prioridad de FYAG Beta más allá de Bodega
 
-## 6. Matriz de permisos candidata
+**Pendiente financiero principal, independiente de 019B:** definir un módulo sencillo de **Egresos de dinero** para anotar pagos efectivamente realizados a proveedores y terceros (monto, fecha real, concepto, medio, referencia y, opcionalmente, relación con una Obra o compra de material). Integrarlo con consultas/resúmenes de dinero recibido versus dinero pagado, sin confundir costo de Obra con efectivo desembolsado ni duplicar pagos.
 
-| Operación | BODEGUERO | SUPERVISOR_OBRAS | GERENCIA | ADMINISTRATIVO_FINANZAS | TECNICO | ADMINISTRADOR_TI |
-| --- | --- | --- | --- | --- | --- | --- |
-| Leer saldos y libro físico | Sí | Sí | Sí | Sí | No, salvo nueva SPEC | No |
-| Crear/autorizar/cancelar entrega de Obra | No | Sí | Lectura autorizada | Lectura autorizada | No (019C) | No |
-| Confirmar salida física | Sí, solo con autorización vigente | No | No | No | No | No |
-| Solicitar/autorizar devolución | No | Sí | Lectura | Lectura | No | No |
-| Confirmar devolución física | Sí | No | No | No | No | No |
-| Consultar costos de Obra | No | Sí | Sí | Solo acceso ya existente | No | No |
-| Determinar precio/valoración | **Sin decidir** | **Sin decidir** | Solo lectura | **Candidato** | No | No |
+Antes de prometer que FYAG controla toda la entrada y salida de dinero, ese módulo necesita una SPEC propia, implementación y pruebas. **Se recomienda priorizarlo por encima de ampliar inventario hacia 019C, mermas, proveedores o chats.** No se debe añadir un ledger financiero improvisado dentro de 019B.
 
-- El rol del JWT, `is_superuser` o el acceso al catálogo no reemplazan la sesión y autoridad persistidas. Bodeguero nunca recibe `POST` directo de gastos de Obra.
-- No exponer a Bodeguero datos de tarifas, cierre de costos, documentos privados, pagos, márgenes o sueldos. Gerencia continúa sin escrituras.
+## 8. Flujo de entrega y autorización
 
-## 7. Contrato HTTP candidato (NO implementado)
+1. Revisión/ratificación de esta SPEC simplificada y de la responsabilidad de Finanzas para valores de ingreso.
+2. Implementación backend acotada en rama propia por OpenCode, con migraciones, pruebas, contratos y Postman; nunca en `main` directamente.
+3. Auditoría del commit, PR y CI; merge solo con autorización explícita.
+4. El equipo React recibe únicamente los cambios de interfaz que efectivamente existan en el backend.
 
-Mantener `/api/inventario/` como raíz y añadir rutas organizadas por autorizaciones y acciones, siempre con slash final. Nombres candidatos:
-- Supervisor: `POST /api/inventario/autorizaciones-obra/`, `GET /api/inventario/autorizaciones-obra/`, `GET /api/inventario/autorizaciones-obra/{id}/`, `POST /api/inventario/autorizaciones-obra/{id}/cancelar/`.
-- Bodeguero: `POST /api/inventario/autorizaciones-obra/{id}/entregar/`.
-- Supervisor y Bodeguero, según acción: `POST /api/inventario/entregas/{id}/solicitar-devolucion/`, `POST /api/inventario/devoluciones/{id}/recibir/`.
-- Lectores autorizados: `GET /api/inventario/entregas/`, `GET /api/inventario/devoluciones/` y los listados existentes de existencias/movimientos con tipos nuevos.
-
-En implementación, cerrar nombre/shape exacto, requisitos de motivo, estados, paginación 25, filtro por Obra/artículo/fecha civil Santiago, cantidades como string decimal, UUID canónico, errores 400/401/403/404/405/409 y OpenAPI. No publicar endpoints no implementados como si estuvieran disponibles.
-
-## 8. Integridad, bloqueos y escenarios de carrera
-
-- Proponer y probar orden global: `idempotencia por clave → Presupuesto → Obra → Autorización → Artículo(s) por PK → Existencia(s) por PK → Entrega/Devolución → Gasto/Control de costos`. El orden definitivo debe cotejarse contra el **código real** de 019A, 004B y 020, y contra handlers que toman locks en otros órdenes. Si la autorización se valida antes de ingresar a locks, releerla dentro de la transacción.
-- Una operación debe ser atómica entre saldo, movimiento, ejecución, vínculo de Obra y costo si corresponde. No realizar una transacción SQL partida entre módulos para luego afirmar éxito completo. Manejar colisiones de UUID y carreras mediante constraints y locks, no por tiempos de espera del navegador.
-- Pruebas de dos entregas simultáneas con stock suficiente/insuficiente, ingreso vs salida, doble devolución, dos autorizaciones por la misma Obra/artículo, cierre de Obra concurrente, cancelación vs entrega, operaciones del mismo idempotency key, fallo de escritura económica y recuperación sin movimientos huérfanos.
-- El trigger de libro debe conciliar saldo final bajo transacciones concurrentes y conservar integridad de filas previas incluso si hay movimientos de tipos nuevos.
-
-## 9. Plan de implementación después de aprobar la SPEC
-
-1. **Documento y ratificación:** método **promedio ponderado móvil ya aprobado**. Resolver por separado quién valida costo, qué respaldos son suficientes, tratamiento de existencias anteriores sin costo y las reglas precisas de redondeo; registrar las decisiones antes de codificar.
-2. **PR de implementación:** migraciones de inventario, autorizaciones y operaciones; luego integración acotada con los gastos si la política económica está aprobada. Mantener tests de 019A/004B/020A/020B.
-3. **Pruebas:** migración limpia y upgrade, constraints/triggers PostgreSQL, concurrencia de conexiones reales, suite completa, OpenAPI, Postman esencial y CI. Validar rollback con movimientos nuevos y preservar histórico.
-4. **Revisión y merge:** branch de código, push por OpenCode, revisión independiente en GitHub, PR, CI verde, merge **solo por aprobación expresa**.
-5. **Frontend:** fuera de alcance. Sus tareas se comunicarán al equipo React al estabilizar el contrato; no modificar `frontend/` en este PR.
-
-## 10. Decisiones para el responsable antes de codificar
-
-1. **Valorización — RESUELTA:** se utilizará costo promedio ponderado móvil basado en ingresos valorizados; alternativas B y C descartadas para el flujo definitivo de 019B.
-2. **Origen del costo:** quién puede registrarlo o validarlo (candidato: Administrativo/Finanzas) y qué evidencia mínima se considera válida; no exigir facturas reales en un sistema de QA si solo existen datos sintéticos.
-3. **Stock anterior a 019B:** asignación explícita de costo histórico verificable, o bloqueo de entrega valorizada mientras no exista dato. Sin valor cero automático.
-4. **Devoluciones:** la recepción física de Bodega es indispensable para reponer saldo; Supervisor confirma origen y motivo; permitir parciales y conservar fecha del movimiento.
-5. **Operación de Obras:** autorizar entregas solo en `EN_PROCESO/SUSPENDIDA`; no reabrir obras finalizadas ni invalidar cierres económicos pasados.
-6. **Responsabilidad:** Supervisor autoriza y Bodeguero ejecuta sin acceso a contabilidad. 019C incorporará la solicitud del Técnico después.
-
-**El método de valorización queda ratificado; el resto del contrato continúa como propuesta de diseño, no es autorización para crear endpoints, fijar precios, conceder permisos, ejecutar migraciones o registrar gastos.**
+**SPEC-019B permanece documental y no constituye autorización para implementar ni desplegar.**
