@@ -177,3 +177,7 @@ class SeguridadCredencial(models.Model):
                    & models.Q(desafio_vence_en__lte=models.F("vence_en")))
             )),
         ]
+
+
+# Registro Django del agregado independiente SPEC-018C; sin hooks de autenticación.
+from .models_bloqueos import EstadoAcceso, EventoAcceso  # noqa: E402,F401
