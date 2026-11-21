@@ -61,9 +61,9 @@ En 020A se admite conservar temporalmente la representación de alertas legadas 
 La máquina de 003B se conserva en lo esencial: BORRADOR, revisión interna obligatoria, decisión, envío al cliente, decisión del cliente, anulación/revisión controladas. Sustituir la revisión de Gerencia por la de Finanzas en los presupuestos **nuevos**:
 
 ```text
-BORRADOR -> PENDIENTE_FINANZAS -> APROBADO_FINANZAS -> ENVIADO_CLIENTE
-                                 \
-                                  -> RECHAZADO_FINANZAS (terminal)
+BORRADOR -> PENDIENTE_FINANZAS --aprobar--> APROBADO_FINANZAS -> ENVIADO_CLIENTE
+                             |
+                             +--rechazar--> RECHAZADO_FINANZAS (terminal)
 ENVIADO_CLIENTE -> APROBADO_CLIENTE | RECHAZADO_CLIENTE
 ```
 
