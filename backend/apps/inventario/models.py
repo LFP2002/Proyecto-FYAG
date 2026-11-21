@@ -54,6 +54,8 @@ class MovimientosQuerySet(models.QuerySet):
 class MovimientoInventario(models.Model):
     class Tipo(models.TextChoices):
         INGRESO = "INGRESO", "Ingreso físico"
+        SALIDA = "SALIDA", "Entrega a Obra"
+        DEVOLUCION = "DEVOLUCION", "Recepción desde Obra"
 
     objects = MovimientosQuerySet.as_manager()
     articulo = models.ForeignKey(ArticuloInventario, on_delete=models.PROTECT, related_name="movimientos")
@@ -66,14 +68,21 @@ class MovimientoInventario(models.Model):
     motivo = models.CharField(max_length=2000, blank=True, default="")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="movimientos_inventario")
     creado_en = models.DateTimeField(default=timezone.now, editable=False, db_index=True)
+    operacion = models.OneToOneField("OperacionMaterial", on_delete=models.PROTECT, null=True, blank=True, related_name="movimiento", editable=False)
 
     class Meta:
         ordering = ["creado_en", "id"]
         constraints = [
-            models.CheckConstraint(name="inventario_movimiento_tipo", condition=models.Q(tipo="INGRESO")),
+            models.CheckConstraint(name="inventario_movimiento_tipo", condition=models.Q(tipo__in=["INGRESO", "SALIDA", "DEVOLUCION"])),
             models.CheckConstraint(name="inventario_cantidad_rango", condition=models.Q(cantidad__gt=0, cantidad__lte=MAXIMO)),
             models.CheckConstraint(name="inventario_saldos_rango", condition=models.Q(saldo_anterior__gte=0, saldo_anterior__lte=MAXIMO, saldo_posterior__gte=0, saldo_posterior__lte=MAXIMO)),
-            models.CheckConstraint(name="inventario_movimiento_suma", condition=models.Q(saldo_posterior=models.F("saldo_anterior") + models.F("cantidad"))),
+            models.CheckConstraint(name="inventario_movimiento_suma", condition=(
+                models.Q(tipo="SALIDA", saldo_posterior=models.F("saldo_anterior") - models.F("cantidad"))
+                | models.Q(tipo__in=["INGRESO", "DEVOLUCION"], saldo_posterior=models.F("saldo_anterior") + models.F("cantidad"))
+            )),
+            models.CheckConstraint(name="inventario_movimiento_enlace", condition=(
+                models.Q(tipo="INGRESO", operacion__isnull=True) | models.Q(tipo__in=["SALIDA", "DEVOLUCION"], operacion__isnull=False)
+            )),
         ]
 
     def save(self, *args, **kwargs):
@@ -83,3 +92,70 @@ class MovimientoInventario(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("El libro de inventario es inmutable.")
+
+
+class EstadoValoracion(models.Model):
+    """Proyección SQL; el corte histórico y el libro 019A nunca se reescriben."""
+    articulo = models.OneToOneField(ArticuloInventario, primary_key=True, on_delete=models.PROTECT)
+    saldo_historico = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
+    ultimo_movimiento_historico = models.BigIntegerField(null=True, blank=True)
+    corte_en = models.DateTimeField(default=timezone.now, editable=False)
+    saldo_valorado = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0.000"))
+    promedio = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(name="inv_val_saldos", condition=models.Q(saldo_historico__gte=0, saldo_historico__lte=MAXIMO, saldo_valorado__gte=0, saldo_valorado__lte=MAXIMO)),
+            models.CheckConstraint(name="inv_val_promedio", condition=(models.Q(saldo_valorado=0, promedio__isnull=True) | models.Q(saldo_valorado__gt=0, promedio__isnull=False, promedio__gte=0, promedio__lte=Decimal("9999999999999.99")))),
+        ]
+
+
+class OperacionMaterial(models.Model):
+    """Libro 019B consolidado: seis actos inmutables, enlaces explícitos y UUID."""
+    class Tipo(models.TextChoices):
+        AUTORIZACION_ENTREGA = "AUTORIZACION_ENTREGA", "Autorización de entrega"
+        ENTREGA = "ENTREGA", "Despacho físico"
+        AUTORIZACION_DEVOLUCION = "AUTORIZACION_DEVOLUCION", "Autorización de retorno"
+        DEVOLUCION = "DEVOLUCION", "Recepción física devuelta"
+        VALORIZACION = "VALORIZACION", "Valoración de ingreso"
+        REGULARIZACION = "REGULARIZACION", "Valoración inicial explícita"
+
+    objects = MovimientosQuerySet.as_manager()
+    tipo = models.CharField(max_length=24, choices=Tipo.choices)
+    articulo = models.ForeignKey(ArticuloInventario, on_delete=models.PROTECT, related_name="operaciones_material")
+    obra = models.ForeignKey("obras.Obra", on_delete=models.PROTECT, null=True, blank=True, related_name="operaciones_material")
+    autorizacion = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="ejecuciones")
+    entrega = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="retornos")
+    ingreso = models.OneToOneField(MovimientoInventario, on_delete=models.PROTECT, null=True, blank=True, related_name="valoracion")
+    gasto = models.OneToOneField("obras.GastoObra", on_delete=models.PROTECT, null=True, blank=True, related_name="entrega_bodega")
+    cantidad = models.DecimalField(max_digits=12, decimal_places=3)
+    unidad = models.CharField(max_length=30)
+    costo_unitario_neto = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    saldo_valorado_anterior = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    saldo_valorado_posterior = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    promedio_anterior = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    promedio_posterior = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    clave_idempotencia = models.UUIDField(unique=True, editable=False)
+    huella = models.CharField(max_length=64, editable=False)
+    referencia = models.CharField(max_length=150)
+    motivo = models.CharField(max_length=2000)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="operaciones_material")
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(name="inv_op_tipo", condition=models.Q(tipo__in=["AUTORIZACION_ENTREGA", "ENTREGA", "AUTORIZACION_DEVOLUCION", "DEVOLUCION", "VALORIZACION", "REGULARIZACION"])),
+            models.CheckConstraint(name="inv_op_cantidad", condition=models.Q(cantidad__gt=0, cantidad__lte=MAXIMO)),
+            models.CheckConstraint(name="inv_op_precio", condition=models.Q(costo_unitario_neto__isnull=True) | models.Q(costo_unitario_neto__gte=0, costo_unitario_neto__lte=Decimal("9999999999999.99"))),
+            models.CheckConstraint(name="inv_op_huella", condition=models.Q(huella__regex=r"^[0-9a-f]{64}$")),
+            models.UniqueConstraint(fields=["articulo"], condition=models.Q(tipo="REGULARIZACION"), name="inv_regularizacion_unica"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El libro de materiales es inmutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El libro de materiales es inmutable.")

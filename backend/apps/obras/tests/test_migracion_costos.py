@@ -35,7 +35,8 @@ class MigracionControlCostosTests(CostosBase, TransactionTestCase):
         turnos_antes = list(Turno.objects.values())
         eventos_antes = list(Evento.objects.order_by("id").values())
         MigrationExecutor(connection).migrate(self.actuales)
-        self.assertEqual(list(GastoObra.objects.values()), gastos_antes)
+        self.assertEqual(list(GastoObra.objects.values(*gastos_antes[0])), gastos_antes)
+        self.assertEqual(GastoObra.objects.get(pk=gasto.pk).origen, 'MANUAL')
         self.assertEqual(list(TurnoObra.objects.values()), turnos_antes)
         eventos = list(CostoObraEvento.objects.order_by("id").values())
         for evento in eventos:
@@ -55,6 +56,6 @@ class MigracionControlCostosTests(CostosBase, TransactionTestCase):
         self.assertIsNone(virtual["id"])
         self.assertIsNone(virtual["creado_en"])
         self.assertFalse(ControlCostosObra.objects.exists())
-        self.assertEqual(list(GastoObra.objects.values()), gastos_antes)
+        self.assertEqual(list(GastoObra.objects.values(*gastos_antes[0])), gastos_antes)
         self.assertEqual(list(TurnoObra.objects.values()), turnos_antes)
         self.assertEqual(CostoObraEvento.objects.count(), len(eventos_antes))

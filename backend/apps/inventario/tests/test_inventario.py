@@ -149,7 +149,7 @@ class InventarioTests(BaseInventario, TestCase):
         self.assertEqual(self.client.get(f"/api/inventario/movimientos/?desde={today}&hasta={today}&tipo=INGRESO").data["count"], 1)
         for suffix in ("?saldo=1", "?activo=true&activo=false", "?page=-1"):
             self.assertEqual(self.client.get("/api/inventario/articulos/" + suffix).status_code, 400)
-        for suffix in ("?tipo=SALIDA", "?desde=2026-02-30", "?desde=2026-02-02&hasta=2026-01-01"):
+        for suffix in ("?tipo=INEXISTENTE", "?desde=2026-02-30", "?desde=2026-02-02&hasta=2026-01-01"):
             self.assertEqual(self.client.get("/api/inventario/movimientos/" + suffix).status_code, 400)
 
     def test_usuario_revocado_temporal_inactivo_sin_acceso(self):

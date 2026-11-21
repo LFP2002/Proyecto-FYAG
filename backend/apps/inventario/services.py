@@ -8,7 +8,7 @@ from django.db import connection, transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException, NotFound, ValidationError
 
-from .models import ArticuloInventario, ExistenciaInventario, MovimientoInventario, MAXIMO
+from .models import ArticuloInventario, ExistenciaInventario, MovimientoInventario, OperacionMaterial, MAXIMO
 from .permissions import revalidar
 
 
@@ -130,9 +130,11 @@ def registrar_ingreso(data, actor):
     actor = revalidar(actor, escritura=True)
     previous = MovimientoInventario.objects.filter(clave_idempotencia=key).first()
     if previous is not None:
-        if (previous.articulo_id, previous.cantidad, previous.actor_id, previous.referencia, previous.motivo) != (pk, amount, actor.pk, reference, reason):
+        if previous.tipo != 'INGRESO' or (previous.articulo_id, previous.cantidad, previous.actor_id, previous.referencia, previous.motivo) != (pk, amount, actor.pk, reference, reason):
             raise ConflictoInventario("idempotencia_conflictiva", "Clave ya utilizada para una operación diferente.")
         return previous, False
+    if OperacionMaterial.objects.filter(clave_idempotencia=key).exists():
+        raise ConflictoInventario("idempotencia_conflictiva", "Clave ya utilizada para una operación diferente.")
     article = _articulo(pk)
     stock = ExistenciaInventario.objects.select_for_update().filter(articulo=article).first()
     actor = revalidar(actor, escritura=True)
