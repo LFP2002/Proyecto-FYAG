@@ -1,6 +1,6 @@
 # SPEC-019C-2 — Mermas físicas de Bodega (FYAG Beta)
 
-> **Estado: PROPUESTA PARA RATIFICACIÓN FUNCIONAL — 21-11-2026.** NO autoriza aún implementación, merge, despliegue ni cambios de permisos. Debe aprobarse el alcance de la sección 10 antes de crear la rama ejecutable.
+> **Estado: REQUISITO DE MERMAS CONFIRMADO; MECÁNICA PENDIENTE DE RATIFICACIÓN — 21-11-2026.** El responsable ya indicó que **Bodega debe considerar mermas**; no es una funcionalidad opcional para descartar por priorización. La presente propuesta de alcance, roles, autorización y efectos económicos aún no está aprobada. NO autoriza implementación, merge, despliegue ni cambios de permisos hasta ratificar la sección 10.
 >
 > **Base verificada:** `main` `e2ee29ec17bb2219b1ee6b57c4e6da3a210c1690`; SPEC-019A, SPEC-019B, SPEC-019C-1, SPEC-021 y SPEC-020A/B integradas. Arquitectura de autoridad económica: PostgreSQL. Frontend React es responsabilidad de los compañeros y queda excluido. ChatGPT crea y modifica las SPEC; OpenCode no modifica `specs/`.
 >
@@ -111,11 +111,11 @@ Solo después de ratificación:
 
 ## 10. Decisiones funcionales a ratificar
 
-Esta propuesta necesita confirmación explícita del responsable **antes de un contrato definitivo**:
+La **inclusión de mermas en Bodega ya está confirmada**. Lo que requiere ratificación explícita antes de un contrato definitivo son las siguientes decisiones sobre su funcionamiento:
 
 1. **Límite:** 019C-2 trata únicamente merma física localizada en Bodega, no merma de material ya despachado a Obras.
 2. **Separación:** Bodeguero presenta, Administrativo/Finanzas aprueba o rechaza; aprobar hace el descuento físico de inmediato, sin segunda confirmación de Bodega. Gerencia solo consulta.
 3. **Respaldo:** motivo y referencia textual interna obligatorios; sin archivos adjuntos en Beta. Tipos de la sección 3.
 4. **Corte:** si otro movimiento físico ocurre entre observación y decisión, se exige recuento y una nueva solicitud; sin reservas y sin bloqueo automático de despachos pendientes.
 
-No interpretar el silencio, un PR documental o pruebas de laboratorio como ratificación de estos cuatro puntos. Con acuerdo explícito, ChatGPT actualizará este encabezado, dejará constancia y fusionará la SPEC antes de emitir prompt ejecutable para OpenCode.
+No interpretar la confirmación de que deben existir mermas como aprobación automática de estos cuatro puntos de diseño; tampoco el silencio, un PR documental o pruebas de laboratorio los ratifican. Con acuerdo explícito, ChatGPT actualizará este encabezado, dejará constancia y fusionará la SPEC antes de emitir prompt ejecutable para OpenCode.
