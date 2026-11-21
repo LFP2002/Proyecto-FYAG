@@ -1,0 +1,90 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG 019A — catálogo y entradas físicas",
+    "version": "1.0.0",
+    "description": "Implementación backend para revisión, NO autorización de merge/despliegue. Matriz candidata: BODEGUERO lee/escribe; GERENCIA, SUPERVISOR_OBRAS y ADMINISTRATIVO_FINANZAS leen; TECNICO/TI denegados. Sin valorización, Obra, salidas, devoluciones, solicitudes ni merma. Complementa auth A/C2: Usuario.rol y user.role/me.role admiten ahora BODEGUERO; alta, cambio de rol y filtro TI también. JWT/CSRF, credenciales y bloqueos conservan sus contratos, C2 apagada por defecto."
+  },
+  "servers": [{"url": "/"}],
+  "security": [{"Bearer": []}],
+  "paths": {
+    "/api/inventario/articulos/": {
+      "get": {
+        "operationId": "listarArticulosInventario",
+        "summary": "Catálogo paginado, incluidos inactivos por defecto",
+        "parameters": [{"$ref": "#/components/parameters/Page"}, {"name": "buscar", "in": "query", "schema": {"type": "string", "minLength": 1, "maxLength": 150}}, {"name": "activo", "in": "query", "schema": {"type": "string", "enum": ["true", "false"]}}],
+        "responses": {"200": {"description": "25 por página, orden id", "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/Pagina"}, {"properties": {"results": {"type": "array", "items": {"$ref": "#/components/schemas/Articulo"}}}}]}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}}
+      },
+      "post": {
+        "operationId": "crearArticuloInventario",
+        "summary": "Solo Bodeguero: alta y existencia cero atómicas",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/CamposArticulo"}, {"required": ["codigo", "nombre", "unidad"]}]}}}},
+        "responses": {"201": {"description": "Artículo nuevo; no movimiento ni gasto", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Articulo"}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}}
+      }
+    },
+    "/api/inventario/articulos/{id}/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "get": {"operationId": "obtenerArticuloInventario", "summary": "Artículo sin stock editable ni precios", "responses": {"200": {"description": "Detalle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Articulo"}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}}},
+      "patch": {
+        "operationId": "editarArticuloInventario", "summary": "Solo Bodeguero: edición o baja lógica",
+        "description": "Código y unidad no cambian si hay movimientos. activo=false bloquea entradas nuevas, no borra saldo/libro. No-op devuelve mismo artículo sin alterar auditoría. No PUT/DELETE.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CamposArticulo"}}}},
+        "responses": {"200": {"description": "Artículo confirmado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Articulo"}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "409": {"$ref": "#/components/responses/Conflicto"}}
+      }
+    },
+    "/api/inventario/existencias/": {
+      "get": {
+        "operationId": "listarExistenciasInventario", "summary": "Saldos físicos, sin reconstrucción por GET",
+        "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/Articulo"}],
+        "responses": {"200": {"description": "25 por página, orden articulo_id", "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/Pagina"}, {"properties": {"results": {"type": "array", "items": {"$ref": "#/components/schemas/Existencia"}}}}]}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}}
+      }
+    },
+    "/api/inventario/movimientos/": {
+      "get": {
+        "operationId": "listarMovimientosInventario", "summary": "Libro inmutable paginado",
+        "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/Articulo"}, {"name": "tipo", "in": "query", "schema": {"const": "INGRESO"}}, {"name": "desde", "in": "query", "schema": {"type": "string", "format": "date"}}, {"name": "hasta", "in": "query", "schema": {"type": "string", "format": "date"}}],
+        "description": "Fechas civiles inclusivas en timezone Django (America/Santiago). Desde <= hasta. Orden creado_en,id; sin POST/PATCH/DELETE de libro.",
+        "responses": {"200": {"description": "25 por página", "content": {"application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/Pagina"}, {"properties": {"results": {"type": "array", "items": {"$ref": "#/components/schemas/Movimiento"}}}}]}}}}, "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}}
+      }
+    },
+    "/api/inventario/ingresos/": {
+      "post": {
+        "operationId": "registrarIngresoInventario", "summary": "Solo Bodeguero: ingreso físico idempotente",
+        "description": "Clave UUID global. Repetición del mismo artículo, cantidad normalizada, motivo/referencia recortados y actor retorna movimiento original; diferente carga/actor: 409. Replay autorizado incluso si luego se desactivó el artículo. Nunca reenviar una nueva UUID para una respuesta incierta. Sin retención/expiración automática de claves en 019A.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ingreso"}}}},
+        "responses": {
+          "201": {"description": "Entrada y saldo confirmados", "headers": {"Idempotency-Replayed": {"schema": {"const": "false"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Movimiento"}}}},
+          "200": {"description": "Replay del movimiento original, sin segunda suma", "headers": {"Idempotency-Replayed": {"schema": {"const": "true"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Movimiento"}}}},
+          "400": {"$ref": "#/components/responses/Invalido"}, "401": {"$ref": "#/components/responses/SinSesion"}, "403": {"$ref": "#/components/responses/Prohibido"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "409": {"$ref": "#/components/responses/Conflicto"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"Bearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "parameters": {
+      "Id": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}},
+      "Articulo": {"name": "articulo", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 999999999, "default": 1}}
+    },
+    "schemas": {
+      "Rol019A": {"type": "string", "enum": ["GERENCIA", "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS", "TECNICO", "ADMINISTRADOR_TI", "BODEGUERO"]},
+      "CantidadEntrada": {"type": "string", "pattern": "^[0-9]{1,9}(?:\\.[0-9]{1,3})?$", "maxLength": 13, "description": "0.001 a 999999999.999, estrictamente positiva; cero no válido. No floats/NaN/exponentes/comas/redondeo."},
+      "DecimalSalida": {"type": "string", "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"},
+      "CamposArticulo": {"type": "object", "additionalProperties": false, "properties": {"codigo": {"type": "string", "minLength": 1, "maxLength": 50, "description": "Trim + minúsculas ASCII, [a-z0-9][a-z0-9._-]{0,49}, único"}, "nombre": {"type": "string", "minLength": 1, "maxLength": 150}, "descripcion": {"type": "string", "maxLength": 2000}, "unidad": {"type": "string", "minLength": 1, "maxLength": 30, "description": "Trim + minúsculas, sin conversiones ni catálogo de unidades inventado"}, "activo": {"type": "boolean", "default": true}}},
+      "Articulo": {"type": "object", "additionalProperties": false, "required": ["id", "codigo", "nombre", "descripcion", "unidad", "activo", "creado_por", "actualizado_por", "creado_en", "actualizado_en"], "properties": {"id": {"type": "integer"}, "codigo": {"type": "string"}, "nombre": {"type": "string"}, "descripcion": {"type": "string"}, "unidad": {"type": "string"}, "activo": {"type": "boolean"}, "creado_por": {"type": "integer"}, "actualizado_por": {"type": "integer"}, "creado_en": {"type": "string", "format": "date-time"}, "actualizado_en": {"type": "string", "format": "date-time"}}},
+      "Existencia": {"type": "object", "additionalProperties": false, "required": ["articulo", "codigo", "unidad", "saldo"], "properties": {"articulo": {"type": "integer"}, "codigo": {"type": "string"}, "unidad": {"type": "string"}, "saldo": {"$ref": "#/components/schemas/DecimalSalida"}}},
+      "Ingreso": {"type": "object", "additionalProperties": false, "required": ["articulo", "cantidad", "clave_idempotencia"], "properties": {"articulo": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807}, "cantidad": {"$ref": "#/components/schemas/CantidadEntrada"}, "clave_idempotencia": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36}, "referencia": {"type": "string", "maxLength": 150, "default": ""}, "motivo": {"type": "string", "maxLength": 2000, "default": ""}}},
+      "Movimiento": {"type": "object", "additionalProperties": false, "required": ["id", "articulo", "tipo", "clave_idempotencia", "cantidad", "saldo_anterior", "saldo_posterior", "referencia", "motivo", "actor", "creado_en"], "properties": {"id": {"type": "integer"}, "articulo": {"type": "integer"}, "tipo": {"const": "INGRESO"}, "clave_idempotencia": {"type": "string", "format": "uuid"}, "cantidad": {"$ref": "#/components/schemas/DecimalSalida"}, "saldo_anterior": {"$ref": "#/components/schemas/DecimalSalida"}, "saldo_posterior": {"$ref": "#/components/schemas/DecimalSalida"}, "referencia": {"type": "string"}, "motivo": {"type": "string"}, "actor": {"type": "integer"}, "creado_en": {"type": "string", "format": "date-time"}}},
+      "Pagina": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer"}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array"}}},
+      "ErrorConflicto": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"enum": ["idempotencia_conflictiva", "articulo_inactivo", "identidad_inmutable", "existencia_no_disponible", "saldo_fuera_rango"]}, "detail": {"type": "string"}}}
+    },
+    "responses": {
+      "Invalido": {"description": "400: campos/tipos/desconocidos/duplicados/query inválidos; mapa de campos a errores DRF"},
+      "SinSesion": {"description": "401: sesión/credencial/acceso no disponible, incluso NO_DISPONIBLE"},
+      "Prohibido": {"description": "403: rol persistido denegado; sin bypass por staff/superuser"},
+      "NoEncontrado": {"description": "404: artículo/ruta/página no disponible"},
+      "Conflicto": {"description": "409: incompatibilidad de identidad/estado/idempotencia/rango", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorConflicto"}}}}
+    }
+  }
+}

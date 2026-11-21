@@ -18,6 +18,7 @@ class Usuario(AbstractUser):
         )
         TECNICO = "TECNICO", "Técnico"
         ADMINISTRADOR_TI = "ADMINISTRADOR_TI", "Administrador de TI"
+        BODEGUERO = "BODEGUERO", "Bodeguero"
 
     email = models.EmailField(
         unique=True,
@@ -56,6 +57,7 @@ class Usuario(AbstractUser):
                         "SUPERVISOR_OBRAS",
                         "TECNICO",
                         "ADMINISTRADOR_TI",
+                        "BODEGUERO",
                     ]
                 ),
                 name="usuarios_rol_valido",

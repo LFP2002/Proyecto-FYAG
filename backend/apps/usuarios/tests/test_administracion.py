@@ -94,9 +94,9 @@ class AdministracionAPITests(AdminBase, APITestCase):
         result = self.client.get("/api/usuarios/")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(len(result.data["results"]), 25)
-        self.assertEqual(result.data["count"], 32)
+        self.assertEqual(result.data["count"], 33)  # Seis roles + segunda TI + 26 técnicos.
         self.assertEqual([user["id"] for user in result.data["results"]], sorted(user["id"] for user in result.data["results"]))
-        self.assertEqual(len(self.client.get("/api/usuarios/?page=2").data["results"]), 7)
+        self.assertEqual(len(self.client.get("/api/usuarios/?page=2").data["results"]), 8)
         result = self.client.get("/api/usuarios/?rol=TECNICO&activo=false")
         self.assertEqual(result.data["count"], 26)
         for query in ["rol=admin", "activo=True", "activo=1", "rol=TECNICO&rol=GERENCIA", "page=1&page=2", "email=x", "ordering=email", "activo="]:
@@ -104,7 +104,7 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertEqual(self.client.get("/api/usuarios/?page=999").status_code, 404)
 
     def test_roles_no_ti_denegados_antes_de_revelar_cuentas(self):
-        for role in [Usuario.Rol.GERENCIA, Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO]:
+        for role in [Usuario.Rol.GERENCIA, Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO, Usuario.Rol.BODEGUERO]:
             user = self.users[role]
             user.is_superuser = True
             user.is_staff = True
