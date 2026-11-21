@@ -128,6 +128,7 @@ class OperacionMaterial(models.Model):
     entrega = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="retornos")
     ingreso = models.OneToOneField(MovimientoInventario, on_delete=models.PROTECT, null=True, blank=True, related_name="valoracion")
     gasto = models.OneToOneField("obras.GastoObra", on_delete=models.PROTECT, null=True, blank=True, related_name="entrega_bodega")
+    solicitud_material = models.OneToOneField("SolicitudMaterialObra", on_delete=models.PROTECT, null=True, blank=True, related_name="autorizacion_generada", editable=False)
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     unidad = models.CharField(max_length=30)
     costo_unitario_neto = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
@@ -159,3 +160,75 @@ class OperacionMaterial(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("El libro de materiales es inmutable.")
+
+
+class SolicitudMaterialObra(models.Model):
+    """Original inmutable; solo el trigger del evento proyecta una decisión."""
+    objects = MovimientosQuerySet.as_manager()
+    obra = models.ForeignKey("obras.Obra", on_delete=models.PROTECT, related_name="solicitudes_materiales")
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="solicitudes_materiales", editable=False)
+    articulo = models.ForeignKey(ArticuloInventario, on_delete=models.PROTECT, related_name="solicitudes_materiales")
+    unidad = models.CharField(max_length=30, editable=False)
+    cantidad_solicitada = models.DecimalField(max_digits=12, decimal_places=3)
+    justificacion = models.CharField(max_length=2000)
+    estado = models.CharField(max_length=9, default="PENDIENTE", choices=[("PENDIENTE", "Pendiente"), ("APROBADA", "Aprobada"), ("RECHAZADA", "Rechazada")], editable=False)
+    cantidad_aprobada = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True, editable=False)
+    motivo_decision = models.CharField(max_length=2000, default="", blank=True, editable=False)
+    decidido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="decisiones_materiales", editable=False)
+    decidido_en = models.DateTimeField(null=True, blank=True, editable=False)
+    autorizacion = models.OneToOneField(OperacionMaterial, on_delete=models.PROTECT, null=True, blank=True, related_name="solicitud_aprobada", editable=False)
+    clave_idempotencia = models.UUIDField(unique=True, editable=False)
+    huella = models.CharField(max_length=64, editable=False)
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(name="inv_sol_cantidad", condition=models.Q(cantidad_solicitada__gt=0, cantidad_solicitada__lte=MAXIMO)),
+            models.CheckConstraint(name="inv_sol_huella", condition=models.Q(huella__regex=r"^[0-9a-f]{64}$")),
+            models.CheckConstraint(name="inv_sol_textos", condition=(~models.Q(justificacion="") & models.Q(justificacion=Trim("justificacion"), motivo_decision=Trim("motivo_decision")) & ~models.Q(justificacion__regex=r"[[:cntrl:]]") & ~models.Q(motivo_decision__regex=r"[[:cntrl:]]"))),
+            models.CheckConstraint(name="inv_sol_decision", condition=(
+                models.Q(estado="PENDIENTE", cantidad_aprobada__isnull=True, motivo_decision="", decidido_por__isnull=True, decidido_en__isnull=True, autorizacion__isnull=True)
+                | (models.Q(estado="APROBADA", cantidad_aprobada__isnull=False, cantidad_aprobada__gt=0, cantidad_aprobada__lte=models.F("cantidad_solicitada"), decidido_por__isnull=False, decidido_en__isnull=False, decidido_en__gte=models.F("creado_en"), autorizacion__isnull=False) & ~models.Q(motivo_decision=""))
+                | (models.Q(estado="RECHAZADA", cantidad_aprobada__isnull=True, decidido_por__isnull=False, decidido_en__isnull=False, decidido_en__gte=models.F("creado_en"), autorizacion__isnull=True) & ~models.Q(motivo_decision=""))
+            )),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("La solicitud solo cambia mediante su evento de decisión.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial de solicitudes es inmutable.")
+
+
+class SolicitudMaterialEvento(models.Model):
+    objects = MovimientosQuerySet.as_manager()
+    solicitud = models.ForeignKey(SolicitudMaterialObra, on_delete=models.PROTECT, related_name="eventos")
+    tipo = models.CharField(max_length=10, choices=[("CREACION", "Creación"), ("APROBACION", "Aprobación"), ("RECHAZO", "Rechazo")])
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="eventos_solicitudes_materiales", editable=False)
+    motivo = models.CharField(max_length=2000)
+    cantidad_aprobada = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    autorizacion = models.OneToOneField(OperacionMaterial, on_delete=models.PROTECT, null=True, blank=True, related_name="evento_solicitud")
+    clave_idempotencia = models.UUIDField(unique=True, editable=False)
+    huella = models.CharField(max_length=64, editable=False)
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(fields=["solicitud", "tipo"], name="inv_sol_evento_tipo_unico"),
+            models.UniqueConstraint(fields=["solicitud"], condition=~models.Q(tipo="CREACION"), name="inv_sol_una_decision"),
+            models.CheckConstraint(name="inv_sol_evento_forma", condition=(models.Q(tipo="APROBACION", cantidad_aprobada__isnull=False, cantidad_aprobada__gt=0, cantidad_aprobada__lte=MAXIMO, autorizacion__isnull=False) | models.Q(tipo__in=["CREACION", "RECHAZO"], cantidad_aprobada__isnull=True, autorizacion__isnull=True))),
+            models.CheckConstraint(name="inv_sol_evento_texto", condition=~models.Q(motivo="") & models.Q(motivo=Trim("motivo")) & ~models.Q(motivo__regex=r"[[:cntrl:]]")),
+            models.CheckConstraint(name="inv_sol_evento_huella", condition=models.Q(huella__regex=r"^[0-9a-f]{64}$")),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Los eventos de solicitud son inmutables.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Los eventos de solicitud son inmutables.")

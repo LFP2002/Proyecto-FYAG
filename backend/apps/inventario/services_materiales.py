@@ -60,11 +60,15 @@ def normalizar(tipo, data):
     return resultado, UUID(key)
 
 
+def _huella(tipo, data, actor):
+    canonical = {k: str(v) if isinstance(v, Decimal) else v for k, v in data.items()}
+    return hashlib.sha256(json.dumps({'tipo': tipo, 'actor': actor.pk, **canonical}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
 def operar(tipo, payload, actor):
     revalidar(actor, tipo, escritura=True)
     data, key = normalizar(tipo, payload)
-    canonical = {k: str(v) if isinstance(v, Decimal) else v for k, v in data.items()}
-    huella = hashlib.sha256(json.dumps({'tipo': tipo, 'actor': actor.pk, **canonical}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    huella = _huella(tipo, data, actor)
     try:
         with transaction.atomic():
             return _operar(tipo, data, key, huella, actor)
@@ -80,6 +84,25 @@ def _obtener(model, pk):
     if obj is None:
         raise NotFound('Referencia de materiales no disponible.')
     return obj
+
+
+def _autorizar_entrega_bloqueada(obra, articulo, q, actor, key, huella, referencia, motivo, *, solicitud=None):
+    """Núcleo compartido 019B/019C-1, sin locks asesores nuevos.
+
+    Caller posee transacción, UUID, Presupuesto/Obra y artículo, en ese orden.
+    019C-1 bloquea además solicitud/participante antes del artículo. El trigger
+    019B conserva sus verificaciones de origen, unidad, rol y estado.
+    """
+    if not connection.in_atomic_block:
+        raise RuntimeError('La autorización requiere una transacción y sus raíces bloqueadas.')
+    actual = revalidar(actor, 'AUTORIZACION_ENTREGA', escritura=True)
+    if obra.estado not in {'EN_PROCESO', 'SUSPENDIDA'} or not articulo.activo:
+        conflicto()
+    op = Op.objects.create(tipo='AUTORIZACION_ENTREGA', obra=obra, articulo=articulo, cantidad=q,
+        unidad=articulo.unidad, actor=actual, clave_idempotencia=key, huella=huella,
+        referencia=referencia, motivo=motivo, solicitud_material=solicitud)
+    revalidar(actor, 'AUTORIZACION_ENTREGA', escritura=True)
+    return op
 
 
 def _operar(tipo, data, key, huella, actor):
@@ -160,6 +183,8 @@ def _operar(tipo, data, key, huella, actor):
             id__lt=ingreso.pk, valoracion__isnull=True).exists():
             conflicto('orden_valoracion')
     campos['cantidad'] = q
+    if tipo == 'AUTORIZACION_ENTREGA':
+        return _autorizar_entrega_bloqueada(obra, articulo, q, actor, key, huella, data['referencia'], data['motivo']), True
     economica = tipo not in {'AUTORIZACION_ENTREGA', 'AUTORIZACION_DEVOLUCION'}
     costo = None
     if economica:

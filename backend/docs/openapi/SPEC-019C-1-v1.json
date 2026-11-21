@@ -1,0 +1,102 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG Beta — SPEC-019C-1 Solicitudes de materiales",
+    "version": "1.0.0",
+    "description": "Técnico participante solicita; Supervisor decide; Bodega despacha por 019B. Solicitar/decidir no mueve ni reserva stock, no crea gasto, pago o egreso, ni consulta precios. JWT y rol/actividad/sesión/credencial/bloqueo persistidos; staff/superuser/claims no elevan privilegios. GET sin escrituras. Respuestas private, no-store y Vary Authorization. Técnico solo sus solicitudes, incluso históricas; ajenas 404. B/AF/TI sin acceso nuevo."
+  },
+  "servers": [{"url": "/"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/inventario/articulos-solicitables/": {
+      "get": {
+        "operationId": "listarArticulosSolicitables",
+        "description": "T/S/G. Exclusivamente artículos activos y campos id/codigo/nombre/unidad; sin existencias, precios o detalles de Bodega. Búsqueda codigo/nombre, ID ASC, páginas de 25. Queries desconocidas/repetidas/vacías rechazadas.",
+        "parameters": [{"name": "buscar", "in": "query", "schema": {"type": "string", "minLength": 1, "maxLength": 150}}, {"$ref": "#/components/parameters/Page"}],
+        "responses": {"200": {"$ref": "#/components/responses/Catalogo"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}
+      }
+    },
+    "/api/inventario/solicitudes-materiales/": {
+      "get": {
+        "operationId": "listarSolicitudesMateriales",
+        "description": "T: filtro SQL por solicitante real, incluso tras desasignación/finalización/desactivación. S/G: todas las solicitudes. ID ASC, 25 por página. No admite filtro de solicitante ni campos económicos.",
+        "parameters": [{"name": "obra", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}}, {"name": "articulo", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}}, {"name": "estado", "in": "query", "schema": {"enum": ["PENDIENTE", "APROBADA", "RECHAZADA"]}}, {"$ref": "#/components/parameters/Page"}],
+        "responses": {"200": {"$ref": "#/components/responses/Listado"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}
+      },
+      "post": {
+        "operationId": "crearSolicitudMaterial",
+        "description": "Solo Técnico participante activo. Obra EN_PROCESO/SUSPENDIDA, artículo activo. Sin query params. Body cerrado, actor/unidad/fecha del servidor. UUID de creación y decisión comparten unicidad dentro de Solicitudes; se conserva huella normalizada con acción y actor. Replay idéntico devuelve la imagen original PENDIENTE aun después de decidir; GET muestra estado actual.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CrearSolicitud"}}}},
+        "responses": {"201": {"$ref": "#/components/responses/Creacion"}, "200": {"$ref": "#/components/responses/ReplayCreacion"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}
+      }
+    },
+    "/api/inventario/solicitudes-materiales/{id}/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "get": {
+        "operationId": "obtenerSolicitudMaterial",
+        "description": "T solo propia; S/G lectura. Incluye historial inmutable de creación y decisión. Ajena o inexistente: mismo 404. Sin query params. Nunca incluye stock, precio, costo, gasto o movimiento.",
+        "responses": {"200": {"$ref": "#/components/responses/Detalle"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}
+      }
+    },
+    "/api/inventario/solicitudes-materiales/{id}/decidir/": {
+      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "post": {
+        "operationId": "decidirSolicitudMaterial",
+        "description": "Solo Supervisor, una vez y en Obra operativa. APROBAR: cantidad positiva <= solicitada, motivo y participante/artículo activos; unidad original coherente. Genera una autorización 019B en la misma transacción, con Supervisor real y UUID independiente del UUID de creación y decisión. No garantiza stock ni valoración. RECHAZAR: motivo, sin cantidad ni autorización; puede resolver una solicitud de Técnico desasignado en Obra operativa. Decisiones posteriores con otra clave: 409. Misma clave/carga/actor: replay 200 del mismo resultado, sin reejecutar 019B. Sin query params.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/AprobarSolicitud"}, {"$ref": "#/components/schemas/RechazarSolicitud"}]}}}},
+        "responses": {"200": {"$ref": "#/components/responses/Decision"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "parameters": {
+      "Id": {"name": "id", "in": "path", "required": true, "description": "Entero positivo BIGINT canónico, sin ceros iniciales", "schema": {"$ref": "#/components/schemas/Id"}},
+      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 999999999}, "description": "Página positiva canónica, sin ceros iniciales. Página inexistente: 404."}
+    },
+    "headers": {
+      "Cache": {"schema": {"type": "string", "const": "private, no-store"}},
+      "Vary": {"schema": {"type": "string"}, "description": "Incluye Authorization"},
+      "Replay": {"schema": {"type": "string", "enum": ["true", "false"]}, "description": "false en primera operación; true en replay idéntico"}
+    },
+    "schemas": {
+      "Id": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807},
+      "IdNullable": {"type": ["integer", "null"], "format": "int64"},
+      "UUID": {"type": "string", "format": "uuid", "description": "Obligatoria en body. Creación y decisión comparten dominio; otro actor/payload/acción con esa UUID: 409."},
+      "CantidadEntrada": {"type": "string", "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$", "description": "Positiva, hasta 999999999.999. Nunca float, signo, coma, exponente ni exceso de escala."},
+      "CantidadSalida": {"type": "string", "pattern": "^[0-9]+\\.[0-9]{3}$"},
+      "CantidadNullable": {"type": ["string", "null"], "pattern": "^[0-9]+\\.[0-9]{3}$"},
+      "Texto": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Trim, no vacío, sin caracteres de control."},
+      "CrearSolicitud": {"type": "object", "additionalProperties": false, "required": ["obra", "articulo", "cantidad", "justificacion", "clave_idempotencia"], "properties": {"obra": {"$ref": "#/components/schemas/Id"}, "articulo": {"$ref": "#/components/schemas/Id"}, "cantidad": {"$ref": "#/components/schemas/CantidadEntrada"}, "justificacion": {"$ref": "#/components/schemas/Texto"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
+      "AprobarSolicitud": {"type": "object", "additionalProperties": false, "required": ["decision", "cantidad_aprobada", "motivo", "clave_idempotencia"], "properties": {"decision": {"const": "APROBAR"}, "cantidad_aprobada": {"$ref": "#/components/schemas/CantidadEntrada"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
+      "RechazarSolicitud": {"type": "object", "additionalProperties": false, "required": ["decision", "motivo", "clave_idempotencia"], "properties": {"decision": {"const": "RECHAZAR"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
+      "ArticuloSolicitable": {"type": "object", "additionalProperties": false, "required": ["id", "codigo", "nombre", "unidad"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "codigo": {"type": "string", "maxLength": 50}, "nombre": {"type": "string", "maxLength": 150}, "unidad": {"type": "string", "maxLength": 30}}},
+      "Solicitud": {"type": "object", "additionalProperties": false, "required": ["id", "obra", "solicitante", "articulo", "unidad", "cantidad_solicitada", "justificacion", "estado", "cantidad_aprobada", "motivo_decision", "decidido_por", "decidido_en", "autorizacion", "clave_idempotencia", "creado_en"], "properties": {
+        "id": {"$ref": "#/components/schemas/Id"}, "obra": {"$ref": "#/components/schemas/Id"}, "solicitante": {"$ref": "#/components/schemas/Id"}, "articulo": {"$ref": "#/components/schemas/Id"}, "unidad": {"type": "string", "maxLength": 30}, "cantidad_solicitada": {"$ref": "#/components/schemas/CantidadSalida"}, "justificacion": {"$ref": "#/components/schemas/Texto"}, "estado": {"enum": ["PENDIENTE", "APROBADA", "RECHAZADA"]}, "cantidad_aprobada": {"$ref": "#/components/schemas/CantidadNullable"}, "motivo_decision": {"type": "string", "maxLength": 2000}, "decidido_por": {"$ref": "#/components/schemas/IdNullable"}, "decidido_en": {"type": ["string", "null"], "format": "date-time"}, "autorizacion": {"$ref": "#/components/schemas/IdNullable"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}, "creado_en": {"type": "string", "format": "date-time"}
+      }},
+      "SolicitudDetalle": {"type": "object", "additionalProperties": false, "required": ["id", "obra", "solicitante", "articulo", "unidad", "cantidad_solicitada", "justificacion", "estado", "cantidad_aprobada", "motivo_decision", "decidido_por", "decidido_en", "autorizacion", "clave_idempotencia", "creado_en", "historial"], "properties": {
+        "id": {"$ref": "#/components/schemas/Id"}, "obra": {"$ref": "#/components/schemas/Id"}, "solicitante": {"$ref": "#/components/schemas/Id"}, "articulo": {"$ref": "#/components/schemas/Id"}, "unidad": {"type": "string", "maxLength": 30}, "cantidad_solicitada": {"$ref": "#/components/schemas/CantidadSalida"}, "justificacion": {"$ref": "#/components/schemas/Texto"}, "estado": {"enum": ["PENDIENTE", "APROBADA", "RECHAZADA"]}, "cantidad_aprobada": {"$ref": "#/components/schemas/CantidadNullable"}, "motivo_decision": {"type": "string", "maxLength": 2000}, "decidido_por": {"$ref": "#/components/schemas/IdNullable"}, "decidido_en": {"type": ["string", "null"], "format": "date-time"}, "autorizacion": {"$ref": "#/components/schemas/IdNullable"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}, "creado_en": {"type": "string", "format": "date-time"}, "historial": {"type": "array", "maxItems": 2, "items": {"$ref": "#/components/schemas/Evento"}}
+      }},
+      "Evento": {"type": "object", "additionalProperties": false, "required": ["id", "tipo", "actor", "motivo", "cantidad_aprobada", "autorizacion", "creado_en"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "tipo": {"enum": ["CREACION", "APROBACION", "RECHAZO"]}, "actor": {"$ref": "#/components/schemas/Id"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "cantidad_aprobada": {"$ref": "#/components/schemas/CantidadNullable"}, "autorizacion": {"$ref": "#/components/schemas/IdNullable"}, "creado_en": {"type": "string", "format": "date-time"}}},
+      "PaginaCatalogo": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/ArticuloSolicitable"}}}},
+      "PaginaSolicitudes": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Solicitud"}}}},
+      "ErrorValidacion": {"type": "object", "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}},
+      "ErrorDetalle": {"type": "object", "required": ["detail"], "properties": {"detail": {"type": "string"}}},
+      "ErrorConflicto": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"enum": ["estado_incompatible", "idempotencia_conflictiva", "solicitud_ya_decidida", "cantidad_aprobada_excesiva"]}, "detail": {"type": "string"}}}
+    },
+    "responses": {
+      "Catalogo": {"description": "Catálogo solicitable", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaCatalogo"}}}},
+      "Listado": {"description": "Listado según scope persistido", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaSolicitudes"}}}},
+      "Detalle": {"description": "Estado actual e historial", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SolicitudDetalle"}}}},
+      "Creacion": {"description": "Solicitud original PENDIENTE, replay=false", "headers": {"Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Solicitud"}}}},
+      "ReplayCreacion": {"description": "Imagen de creación original PENDIENTE, replay=true, sin efectos", "headers": {"Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Solicitud"}}}},
+      "Decision": {"description": "Estado decidido; replay=false inicial o true si UUID/actor/payload idénticos", "headers": {"Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Solicitud"}}}},
+      "Validacion": {"description": "Body, ID, UUID o query inválidos", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorValidacion"}}}},
+      "Sesion": {"description": "Sesión ausente/revocada, cuenta inactiva, credencial no operativa o bloqueo", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
+      "Permiso": {"description": "Rol persistido no autorizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
+      "NoEncontrado": {"description": "Referencia inaccesible/inexistente, solicitud ajena o página inexistente", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
+      "Metodo": {"description": "Método no publicado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
+      "Conflicto": {"description": "Estado incompatible, participación/unidad/artículo no vigentes al aprobar, cantidad excesiva, doble decisión o UUID reutilizado. Sin mensajes SQL ni valores económicos", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorConflicto"}}}}
+    }
+  }
+}
