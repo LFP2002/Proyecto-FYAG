@@ -12,6 +12,7 @@ from rest_framework.test import APITestCase
 from rest_framework.exceptions import ValidationError
 
 from apps.usuarios import services_usuarios as services
+from apps.usuarios.credenciales import restablecer_clave
 from apps.usuarios.models import UsuarioEvento
 from apps.usuarios.serializers_usuarios import UsuarioEventoSerializer
 from apps.usuarios.tokens import AccessToken, RefreshToken
@@ -41,7 +42,7 @@ class AdminBase:
         self.url = f"/api/usuarios/{self.target.pk}/"
 
     def new_data(self, **changes):
-        return {"email": " NUEVA@EXAMPLE.TEST ", "username": "alias_nuevo", "rol": Usuario.Rol.TECNICO, "password": PASSWORD, **changes}
+        return {"email": " NUEVA@EXAMPLE.TEST ", "username": "alias_nuevo", "rol": Usuario.Rol.TECNICO, **changes}
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -52,17 +53,21 @@ class AdministracionAPITests(AdminBase, APITestCase):
         user = Usuario.objects.get(pk=result.data["id"])
         self.assertFalse(user.is_active)
         self.assertEqual(user.email, "nueva@example.test")
-        self.assertTrue(user.check_password(PASSWORD))
-        self.assertNotEqual(user.password, PASSWORD)
+        credential = result.data["credencial_temporal"]
+        self.assertTrue(user.check_password(credential))
+        self.assertNotEqual(user.password, credential)
         self.assertEqual(user.sesion_version, 1)
-        self.assertEqual(set(result.data), {"id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined"})
-        self.assertEqual(user.eventos_administrativos.get().tipo, "CREACION")
-        login = self.client.post("/api/auth/login/", {"email": user.email, "password": PASSWORD}, format="json")
+        self.assertEqual(set(result.data), {"id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio", "credencial_temporal", "credencial_vence_en"})
+        self.assertEqual(list(user.eventos_administrativos.values_list("tipo", flat=True)), ["CREACION", "CREACION_CREDENCIAL_TEMPORAL"])
+        login = self.client.post("/api/auth/login/", {"email": user.email, "password": credential}, format="json")
         self.assertEqual(login.status_code, 401)
         active = self.client.post(f"/api/usuarios/{user.pk}/activar/", {"motivo": "Cuenta preparada"}, format="json")
         self.assertEqual(active.status_code, 200, active.data)
         self.assertTrue(active.data["is_active"])
-        self.assertEqual(self.client.post("/api/auth/login/", {"email": user.email, "password": PASSWORD}, format="json").status_code, 200)
+        login = self.client.post("/api/auth/login/", {"email": user.email, "password": credential}, format="json")
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(login.data["estado"], "CAMBIO_OBLIGATORIO")
+        self.assertNotIn("access", login.data)
 
     def test_alta_cinco_roles_sin_privilegios_django(self):
         for index, role in enumerate(Usuario.Rol.values):
@@ -194,10 +199,10 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertEqual(UsuarioEvento.objects.count(), 0)
 
     def test_clave_administrativa_y_snapshots_sin_secretos(self):
-        result = self.client.post(self.url + "establecer-clave/", {"nueva_clave": NEW_PASSWORD, "motivo": "Restablecimiento interno"}, format="json")
+        result = self.client.post(self.url + "restablecer-clave/", {"motivo": "Restablecimiento interno"}, format="json")
         self.assertEqual(result.status_code, 200, result.data)
         self.target.refresh_from_db()
-        self.assertTrue(self.target.check_password(NEW_PASSWORD))
+        self.assertTrue(self.target.check_password(result.data["credencial_temporal"]))
         event = self.target.eventos_administrativos.get()
         self.assertEqual(event.datos_anteriores, {})
         self.assertEqual(event.datos_nuevos, {})
@@ -238,7 +243,7 @@ class AdministracionAPITests(AdminBase, APITestCase):
             with self.assertRaises(RuntimeError):
                 services.editar_usuario(self.target, {"email": "cambiado@example.test"}, self.manager)
             with self.assertRaises(RuntimeError):
-                services.establecer_clave(self.target, {"nueva_clave": NEW_PASSWORD, "motivo": "Cambio"}, self.manager)
+                restablecer_clave(self.target, {"motivo": "Cambio"}, self.manager)
         self.assertEqual(Usuario.objects.count(), before)
         self.target.refresh_from_db()
         self.assertEqual(self.target.sesion_version, 1)

@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.views.decorators.debug import sensitive_variables
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.exceptions import InvalidToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenObtainSerializer, TokenRefreshSerializer
@@ -14,6 +15,7 @@ class LoginSerializer(TokenObtainPairSerializer):
     def validate_email(self, value):
         return value.strip().lower()
 
+    @sensitive_variables()
     def validate(self, attrs):
         try:
             TokenObtainSerializer.validate(self, attrs)
@@ -26,9 +28,15 @@ class LoginSerializer(TokenObtainPairSerializer):
                 user = get_user_model().objects.select_for_update().get(pk=self.user.pk)
             except get_user_model().DoesNotExist:
                 raise AuthenticationFailed("Credenciales inválidas.") from None
-            if not user.is_active or user.email != attrs["email"] or not user.check_password(attrs["password"]):
+            from .credenciales import ESTADO_NO_DISPONIBLE, estado_credencial, iniciar_cambio
+            state = estado_credencial(user)
+            if (not user.is_active or user.email != attrs["email"]
+                or state == ESTADO_NO_DISPONIBLE
+                or not user.check_password(attrs["password"])):
                 raise AuthenticationFailed("Credenciales inválidas.")
             self.user = user
+            if state != "PERSONAL":
+                return iniciar_cambio(user)
             refresh = self.get_token(user)
             return {
                 "refresh": str(refresh), "access": str(refresh.access_token),

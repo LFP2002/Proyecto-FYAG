@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -80,8 +81,10 @@ CORS_EXPOSE_HEADERS = ["Retry-After", "Idempotency-Replayed", "Content-Dispositi
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {"credenciales": {"()": "apps.usuarios.exception_filter.CredencialesLogFilter"}},
     "handlers": {"reportes_consola": {"class": "logging.StreamHandler"}},
     "loggers": {
+        "django.request": {"filters": ["credenciales"]},
         "apps.reportes.services": {
             "handlers": ["reportes_consola"], "level": "INFO", "propagate": False,
         },
@@ -93,6 +96,8 @@ LOGGING = {
         },
     },
 }
+DEFAULT_EXCEPTION_REPORTER_FILTER = "apps.usuarios.exception_filter.CredencialesExceptionFilter"
+DEFAULT_EXCEPTION_REPORTER = "apps.usuarios.exception_filter.CredencialesExceptionReporter"
 CORS_URLS_REGEX = r"^/api/.*$"
 
 TEMPLATES = [
@@ -189,6 +194,21 @@ ADJUNTOS_SCANNER = {"host": os.getenv("FYAG_CLAMD_HOST", "clamav"), "puerto": os
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "usuarios.Usuario"
+AUTHENTICATION_BACKENDS = ["apps.usuarios.backends.CredencialesModelBackend"]
+
+# SPEC-018 A: autorización SOLO desarrollo/QA; NO RATIFICADOS PARA PRODUCCIÓN.
+def _ttl_credencial(name, default):
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (ValueError, TypeError):
+        raise ImproperlyConfigured(f"{name} debe ser un entero positivo.") from None
+    if not 1 <= value <= 2147483647:
+        raise ImproperlyConfigured(f"{name} debe estar entre 1 y 2147483647 segundos.")
+    return value
+
+
+CREDENCIAL_TEMPORAL_TTL_SECONDS = _ttl_credencial("FYAG_CREDENCIAL_TEMPORAL_TTL_SECONDS", 86400)
+PRIMER_CAMBIO_TTL_SECONDS = _ttl_credencial("FYAG_PRIMER_CAMBIO_TTL_SECONDS", 300)
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (

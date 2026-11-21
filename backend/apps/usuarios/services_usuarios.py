@@ -4,6 +4,7 @@ Nunca bloquear Obras/Presupuestos/Turnos después de un Usuario. Los EXISTS de
 dependencias se ejecutan bajo lock del técnico, compartido con asignar/iniciar.
 """
 from functools import wraps
+from django.views.decorators.debug import sensitive_variables
 
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -29,6 +30,7 @@ class ConflictoUsuario(APIException):
 
 def operacion(func):
     @wraps(func)
+    @sensitive_variables()
     def wrapped(*args, **kwargs):
         try:
             with transaction.atomic():
@@ -67,6 +69,9 @@ def _admin(actor, target=None):
     if not actual or not actual.is_active or actual.rol != TI:
         raise PermissionDenied("Operación no autorizada.")
     if actual.sesion_version != actor.sesion_version:
+        raise AuthenticationFailed("Sesión no disponible.")
+    from .credenciales import es_personal
+    if not es_personal(actual):
         raise AuthenticationFailed("Sesión no disponible.")
     if target_id is not None and target_id not in accounts:
         raise NotFound("Cuenta no disponible.")
@@ -126,9 +131,10 @@ def _unique(user):
 def _role(value):
     if not isinstance(value, str) or value not in Usuario.Rol.values:
         raise ValidationError({"rol": ["Rol no permitido."]})
-    return value
+    return str(value)
 
 
+@sensitive_variables()
 def _password(value, user, field):
     if not isinstance(value, str) or not value or len(value) > 4096:
         raise ValidationError({field: ["Contraseña inválida."]})
@@ -164,17 +170,18 @@ def _dependencies(user):
         raise ConflictoUsuario("asignaciones_pendientes", "La cuenta tiene asignaciones operativas o turnos abiertos pendientes de resolver.")
 
 
+@sensitive_variables()
 @operacion
 def crear_usuario(data, actor):
     actor, _ = _admin(actor)
-    _contract(data, PROFILE | {"rol", "password"}, {"email", "username", "rol", "password"})
+    _contract(data, PROFILE | {"rol"}, {"email", "username", "rol"})
     user = Usuario(**_profile(data), rol=_role(data["rol"]), is_active=False)
-    _password(data["password"], user, "password")
-    user.set_password(data["password"])
+    user.set_unusable_password()  # Estado intermedio no visible fuera de esta transacción.
     _unique(user)
     user.save()
     _event(user, actor, UsuarioEvento.Tipo.CREACION, after=_snapshot(user))
-    return user
+    from .credenciales import emitir_temporal
+    return emitir_temporal(user, actor, inicial=True)
 
 
 @operacion
@@ -244,17 +251,11 @@ def cambiar_rol(target, data, actor):
 @operacion
 def establecer_clave(target, data, actor):
     actor, user = _admin(actor, target)
-    _contract(data, {"nueva_clave", "motivo"}, {"nueva_clave", "motivo"})
     _not_self(actor, user)
-    reason = _text(data["motivo"], "motivo")
-    _password(data["nueva_clave"], user, "nueva_clave")
-    user.set_password(data["nueva_clave"])
-    _version(user)
-    user.save(update_fields=["password", "sesion_version"])
-    _event(user, actor, UsuarioEvento.Tipo.ESTABLECER_CLAVE, reason)
-    return user
+    raise ConflictoUsuario("operacion_retirada", "Utilice restablecer-clave con motivo; la clave debe ser elegida por su titular.")
 
 
+@sensitive_variables()
 @operacion
 def cambiar_clave_propia(data, actor):
     _contract(data, {"clave_actual", "nueva_clave"}, {"clave_actual", "nueva_clave"})
@@ -265,6 +266,9 @@ def cambiar_clave_propia(data, actor):
     except Usuario.DoesNotExist:
         raise AuthenticationFailed("Sesión no disponible.") from None
     if not user.is_active or user.sesion_version != actor.sesion_version:
+        raise AuthenticationFailed("Sesión no disponible.")
+    from .credenciales import es_personal
+    if not es_personal(user):
         raise AuthenticationFailed("Sesión no disponible.")
     if not isinstance(data["clave_actual"], str) or not user.check_password(data["clave_actual"]):
         raise ValidationError({"clave_actual": ["La contraseña actual no es correcta."]})
@@ -293,5 +297,8 @@ def aprovisionar_primera_ti(data):
     user.set_password(data["password"])
     _unique(user)
     user.save()
+    from .credenciales import es_personal
+    if not es_personal(user):
+        raise ConflictoUsuario("seguridad_no_disponible", "No se pudo confirmar el estado de seguridad inicial.")
     _event(user, user, UsuarioEvento.Tipo.CREACION, "Aprovisionamiento manual inicial de TI mediante comando Django", after=_snapshot(user))
     return user

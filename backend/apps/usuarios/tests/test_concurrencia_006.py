@@ -14,6 +14,7 @@ from apps.obras.exceptions import ErrorObras
 from apps.obras.tests.test_servicios_004a import BaseObras
 from apps.usuarios import services_usuarios as usuarios
 from apps.usuarios.models import Usuario, UsuarioEvento
+from apps.usuarios.credenciales import CredencialEmitida
 from apps.usuarios.serializers import VersionedRefreshSerializer
 from apps.usuarios.tokens import RefreshToken
 from .test_administracion import PASSWORD
@@ -108,12 +109,12 @@ class ConcurrenciaTests(BaseObras, TransactionTestCase):
         self.assertEqual(UsuarioEvento.objects.count(), 1)
 
     def test_alta_duplicada_400_sin_doble_evento(self):
-        data = {"username": "nueva", "email": "nueva@example.test", "rol": "TECNICO", "password": PASSWORD}
+        data = {"username": "nueva", "email": "nueva@example.test", "rol": "TECNICO"}
         action = lambda: usuarios.crear_usuario(data, self.ti)
         one, two = self.race(action, action)
-        self.assertIsInstance(one, Usuario)
+        self.assertIsInstance(one, CredencialEmitida)
         self.assertEqual(two.status_code, 400)
-        self.assertEqual(UsuarioEvento.objects.count(), 1)
+        self.assertEqual(UsuarioEvento.objects.count(), 2)
 
     def test_asignacion_antes_de_baja(self):
         obra = self.crear()

@@ -6,6 +6,8 @@ from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.utils.decorators import method_decorator
+from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 
 from . import services_usuarios as services
 from .models import Usuario
@@ -15,7 +17,7 @@ from .serializers_usuarios import (
     MotivoUsuarioSerializer, PerfilUsuarioSerializer, RolUsuarioSerializer,
     UsuarioEventoSerializer, UsuarioLecturaSerializer,
 )
-from .services import delete_refresh_cookie
+from .services import delete_refresh_cookie, sin_cache
 
 
 class UsuariosPaginacion(PageNumberPagination):
@@ -30,6 +32,7 @@ def validar_query(params, allowed):
         raise ValidationError(errors)
 
 
+@method_decorator(sensitive_post_parameters("password", "nueva_clave"), name="dispatch")
 class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated, EsAdministradorTIActivo]
     parser_classes = [JSONParser]
@@ -38,7 +41,7 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     lookup_value_regex = r"[1-9][0-9]{0,18}"
 
     def get_queryset(self):
-        return Usuario.objects.order_by("id")
+        return Usuario.objects.select_related("seguridad_credencial").order_by("id")
 
     def get_object(self):
         # BigAutoField de PostgreSQL: no permitir que un número excesivo llegue a SQL.
@@ -53,6 +56,7 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
             "create": CrearUsuarioSerializer, "partial_update": PerfilUsuarioSerializer,
             "activar": MotivoUsuarioSerializer, "desactivar": MotivoUsuarioSerializer,
             "cambiar_rol": RolUsuarioSerializer, "establecer_clave": EstablecerClaveSerializer,
+            "restablecer_clave": MotivoUsuarioSerializer,
             "historial": UsuarioEventoSerializer,
         }.get(self.action, UsuarioLecturaSerializer)
 
@@ -80,8 +84,15 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         pagina = self.paginate_queryset(queryset)
         return self.get_paginated_response(UsuarioLecturaSerializer(pagina, many=True).data)
 
+    @sensitive_variables()
+    def _credencial(self, issued, code=200):
+        data = dict(UsuarioLecturaSerializer(issued.usuario).data)
+        data.update(credencial_temporal=issued.credencial_temporal, credencial_vence_en=issued.vence_en.isoformat())
+        return sin_cache(Response(data, status=code))
+
+    @sensitive_variables()
     def create(self, request):
-        return self._respuesta(services.crear_usuario(self._datos(), request.user), status.HTTP_201_CREATED)
+        return self._credencial(services.crear_usuario(self._datos(), request.user), status.HTTP_201_CREATED)
 
     def partial_update(self, request, pk=None):
         target = self.get_object()
@@ -105,7 +116,14 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     @action(detail=True, methods=["post"], url_path="establecer-clave")
     def establecer_clave(self, request, pk=None):
         target = self.get_object()
-        return self._respuesta(services.establecer_clave(target, self._datos(), request.user))
+        return self._respuesta(services.establecer_clave(target, {}, request.user))
+
+    @action(detail=True, methods=["post"], url_path="restablecer-clave")
+    @sensitive_variables()
+    def restablecer_clave(self, request, pk=None):
+        from .credenciales import restablecer_clave
+        target = self.get_object()
+        return self._credencial(restablecer_clave(target, self._datos(), request.user))
 
     @action(detail=True, methods=["get"])
     def historial(self, request, pk=None):
