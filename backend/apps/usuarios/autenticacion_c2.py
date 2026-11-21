@@ -68,7 +68,10 @@ def verificar_acceso(identifier, password, request, *, emitir=None):
     if snapshot is None:
         make_password(password)  # Trabajo dummy; nunca se persiste ni cuenta.
         return None
-    valid = check_password(password, snapshot.password)  # Sin setter ni lock SQL.
+    try:
+        valid = check_password(password, snapshot.password)  # Sin setter ni lock SQL.
+    except (ValueError, TypeError, OverflowError):
+        return None  # Formato persistido inválido no acredita fallo del titular.
     try:
         identify_hasher(snapshot.password)
     except ValueError:

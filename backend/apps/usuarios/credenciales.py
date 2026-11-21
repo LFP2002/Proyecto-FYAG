@@ -84,7 +84,10 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
     if not inicial and habilitado():
         from .autenticacion_c2 import recuperadoras_qa
         from .recuperacion_c2 import bloquear_estado_recuperacion
-        recuperadoras_qa()
+        disponibles = recuperadoras_qa()
+        if (user.pk in settings.BLOQUEOS_C2_TI_QA_IDS
+            and not any(ti.pk != user.pk for ti in disponibles)):
+            raise ConflictoUsuario("recuperacion_qa_protegida", "Debe permanecer otra recuperadora QA personal disponible.")
         access = bloquear_estado_recuperacion(user)
     credential = secrets.token_urlsafe(32)  # 256 bits; no depende de identidad/reloj.
     now = timezone.now()
