@@ -17,6 +17,7 @@ class MigracionFinalizacionTests(FinalizacionBase, TransactionTestCase):
         self.actuales = executor.loader.graph.leaf_nodes()
         executor.migrate(self.anterior)
         self.addCleanup(lambda: MigrationExecutor(connection).migrate(self.actuales))
+        self.apps_historicas = executor.loader.project_state(self.anterior).apps
 
     def test_migracion_preserva_historicos_y_no_fabrica_cierres(self):
         antes = {clave: filas for clave, filas in self.estado_sin_cierre().items()}
@@ -27,10 +28,10 @@ class MigracionFinalizacionTests(FinalizacionBase, TransactionTestCase):
         self.assertEqual(CierreCostosObra.objects.get(obra=self.obra).costo_total, 39250)
 
     def estado_sin_cierre(self):
-        from apps.obras.models import Obra, ControlCostosObra, CostoObraEvento, GastoObra, TurnoObra
-        return {modelo.__name__: list(modelo.objects.order_by("pk").values()) for modelo in (
-            Obra, ControlCostosObra, ObraEvento, CostoObraEvento, GastoObra, TurnoObra,
-        )}
+        # Consultar el esquema que esta prueba migra, no columnas futuras del
+        # modelo runtime (019B añade origen sin alterar las filas históricas).
+        return {nombre: list(self.apps_historicas.get_model('obras', nombre).objects.order_by('pk').values())
+                for nombre in ('Obra', 'ControlCostosObra', 'ObraEvento', 'CostoObraEvento', 'GastoObra', 'TurnoObra')}
 
     def test_constraint_amplia_solo_en_proceso_a_finalizada(self):
         MigrationExecutor(connection).migrate(self.actuales)

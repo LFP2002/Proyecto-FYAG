@@ -96,9 +96,9 @@ class MovimientoViewSet(mixins.ListModelMixin, InventarioViewSet):
         if "articulo" in params:
             qs = qs.filter(articulo_id=articulo_filtro(params))
         if "tipo" in params:
-            if params["tipo"] != "INGRESO":
-                raise ValidationError({"tipo": ["Tipo no publicado en 019A."]})
-            qs = qs.filter(tipo="INGRESO")
+            if params["tipo"] not in MovimientoInventario.Tipo.values:
+                raise ValidationError({"tipo": ["Tipo no permitido."]})
+            qs = qs.filter(tipo=params["tipo"])
         dates = {}
         for key in ("desde", "hasta"):
             if key in params:

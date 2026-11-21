@@ -493,6 +493,7 @@ class GastoObra(_TextoValidado):
     obra = models.ForeignKey(Obra, on_delete=models.PROTECT, related_name="gastos")
     tipo = models.CharField(max_length=20, choices=Tipo.choices)
     descripcion = models.CharField(max_length=500)
+    origen = models.CharField(max_length=12, default="MANUAL", choices=[("MANUAL", "Manual"), ("BODEGA_019B", "Entrega Bodega")], editable=False)
     unidad = models.CharField(max_length=30)
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     cantidad_devuelta = models.DecimalField(

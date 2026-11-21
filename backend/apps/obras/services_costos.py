@@ -71,7 +71,7 @@ def _incrementar(control):
     control.validado_en = None
 
 
-def invalidar(obra, actor, motivo, *, gastos=False):
+def invalidar(obra, actor, motivo, *, gastos=False, origen=None):
     """Una llamada por operación efectiva; nunca desde helpers anidados."""
     control = _crear_control(obra)
     antes = snapshot(control)
@@ -88,7 +88,8 @@ def invalidar(obra, actor, motivo, *, gastos=False):
                 restablecidos.append(rubro)
     control.save()
     if restablecidos:
-        _evento(control, "DECLARACION", actor, motivo, antes)
+        _evento(control, "DECLARACION", actor, motivo, antes,
+                nuevos={**snapshot(control), 'origen': origen} if origen else None)
     return control
 
 

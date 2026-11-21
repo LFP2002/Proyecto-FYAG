@@ -101,9 +101,12 @@ def _editable(obra):
 
 def _gasto(obra, referencia):
     try:
-        return GastoObra.objects.select_for_update().get(
+        gasto = GastoObra.objects.select_for_update().get(
             pk=base._id(referencia, GastoObra, "gasto"), obra=obra,
         )
+        if gasto.origen == "BODEGA_019B":
+            raise EstadoIncompatible("El gasto vinculado a Bodega solo admite devoluciones físicas por Inventario.")
+        return gasto
     except GastoObra.DoesNotExist as exc:
         raise RecursoNoEncontrado() from exc
 
@@ -128,7 +131,7 @@ def _snapshot(gasto, **extras):
 
 def _evento(gasto, tipo, actor, motivo, anteriores, **extras):
     from .services_costos import invalidar
-    control = invalidar(gasto.obra, actor, motivo, gastos=True)
+    control = invalidar(gasto.obra, actor, motivo, gastos=True, origen=extras.get('origen'))
     extras["version_costos"] = control.version_actual
     return CostoObraEvento.objects.create(
         obra=gasto.obra, gasto=gasto, tipo=tipo, registrado_por=actor,
