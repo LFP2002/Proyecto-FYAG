@@ -11,6 +11,8 @@ class LoginEmailRateThrottle(SimpleRateThrottle):
     scope = "login_email"
 
     def get_cache_key(self, request, view):
+        if not isinstance(request.data, dict):
+            return None  # El serializer rechazará el esquema; no convertirlo en 500.
         email = str(
             request.data.get("email", "")
         ).strip().lower()

@@ -79,6 +79,13 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
     state = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
     if not estado_coherente(state):
         raise ConflictoUsuario("seguridad_no_disponible", "Estado de seguridad no disponible; requiere revisión autorizada.")
+    from .configuracion_c2 import habilitado
+    access = None
+    if not inicial and habilitado():
+        from .autenticacion_c2 import recuperadoras_qa
+        from .recuperacion_c2 import bloquear_estado_recuperacion
+        recuperadoras_qa()
+        access = bloquear_estado_recuperacion(user)
     credential = secrets.token_urlsafe(32)  # 256 bits; no depende de identidad/reloj.
     now = timezone.now()
     state.estado = SeguridadCredencial.Estado.INICIAL if inicial else SeguridadCredencial.Estado.RECUPERACION
@@ -90,7 +97,10 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
         _version(user)
     user.save(update_fields=["password", "sesion_version"])
     state.save()
-    services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)
+    event = services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)
+    if access is not None:
+        from .recuperacion_c2 import confirmar_recuperacion
+        confirmar_recuperacion(user, actor, access, event)
     return CredencialEmitida(user, credential, state.vence_en)
 
 
@@ -129,6 +139,14 @@ def primer_cambio(data):
     identifier = SeguridadCredencial.objects.filter(desafio_digest=digest).values_list("usuario_id", flat=True).first()
     user = Usuario.objects.select_for_update().filter(pk=identifier).first()
     state = SeguridadCredencial.objects.select_for_update().filter(usuario_id=identifier).first() if user else None
+    from .configuracion_c2 import habilitado
+    if user and habilitado():
+        from .models import EstadoAcceso
+        from .acceso import acceso_permitido
+        access = EstadoAcceso.objects.select_for_update().filter(usuario=user).first()
+        Usuario._meta.get_field("estado_acceso").set_cached_value(user, access)
+        if not acceso_permitido(user):
+            raise AuthenticationFailed("Desafío no disponible.")
     now = timezone.now()
     if (not user or not user.is_active or not estado_coherente(state) or state.estado == "PERSONAL"
         or not constant_time_compare(state.desafio_digest or "", digest)

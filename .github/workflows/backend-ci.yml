@@ -38,10 +38,10 @@ jobs:
       DJANGO_SECRET_KEY: 'fyag-ci-only-django-key-not-for-production-0123456789'
       DJANGO_DEBUG: 'False'
       DJANGO_ALLOWED_HOSTS: 'localhost,127.0.0.1'
-      POSTGRES_DB: fyag_ci
+      POSTGRES_DB: fyag_spec018c_c2_qa
       POSTGRES_USER: fyag_ci
       POSTGRES_PASSWORD: fyag_ci_password
-      POSTGRES_HOST: '127.0.0.1'
+      POSTGRES_HOST: 'postgres'
       POSTGRES_PORT: '5432'
       JWT_SIGNING_KEY: 'fyag-ci-only-jwt-signing-key-independent-9876543210'
 
@@ -49,7 +49,7 @@ jobs:
       postgres:
         image: postgres:18
         env:
-          POSTGRES_DB: fyag_ci
+          POSTGRES_DB: fyag_spec018c_c2_qa
           POSTGRES_USER: fyag_ci
           POSTGRES_PASSWORD: fyag_ci_password
         ports:
@@ -79,6 +79,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements-test.txt
+
+      - name: Configurar alias PostgreSQL de CI para QA C2
+        run: |
+          # El runner accede al service container por loopback, pero el gate
+          # C2 exige HOST postgres y BD de QA exclusiva; nunca producción.
+          echo '127.0.0.1 postgres' | sudo tee -a /etc/hosts >/dev/null
+          getent hosts postgres
 
       - name: Comprobar Django
         working-directory: backend

@@ -98,3 +98,31 @@ class EventoAcceso(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Los eventos de seguridad son inmutables.")
+
+
+class RecuperacionAcceso(models.Model):
+    """Desbloqueo TI exclusivamente ligado a reemisión, sin texto/secretos nuevos."""
+    objects = EventosAccesoQuerySet.as_manager()
+    usuario = models.ForeignKey("usuarios.Usuario", on_delete=models.PROTECT, related_name="recuperaciones_acceso")
+    actor = models.ForeignKey("usuarios.Usuario", on_delete=models.PROTECT, related_name="recuperaciones_autorizadas")
+    reemision = models.OneToOneField("usuarios.UsuarioEvento", on_delete=models.PROTECT)
+    estado_anterior = models.CharField(max_length=20, choices=EstadoAcceso.Estado.choices)
+    version_anterior = models.PositiveBigIntegerField()
+    version_nueva = models.PositiveBigIntegerField()
+    creado_en = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(name="recuperacion_actor_ajeno", condition=~models.Q(actor=models.F("usuario"))),
+            models.CheckConstraint(name="recuperacion_versiones", condition=models.Q(version_anterior__gte=1, version_nueva=models.F("version_anterior") + 1)),
+            models.CheckConstraint(name="recuperacion_estado", condition=models.Q(estado_anterior__in=EstadoAcceso.Estado.values)),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El desbloqueo TI es inmutable.")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El desbloqueo TI es inmutable.")

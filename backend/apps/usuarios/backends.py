@@ -27,6 +27,10 @@ class CredencialesModelBackend(ModelBackend):
         identifier = username if username is not None else kwargs.get(User.USERNAME_FIELD)
         if identifier is None or password is None:
             return None
+        from .configuracion_c2 import habilitado
+        if habilitado():
+            from .autenticacion_c2 import verificar_acceso
+            return verificar_acceso(identifier, password, request)
         try:
             user = User.objects.select_related("seguridad_credencial").get(**{User.USERNAME_FIELD: identifier})
         except User.DoesNotExist:
@@ -42,10 +46,13 @@ class CredencialesModelBackend(ModelBackend):
         return user
 
     def user_can_authenticate(self, user):
-        return user.is_active and estado_credencial(user) != ESTADO_NO_DISPONIBLE
+        from .acceso import acceso_permitido
+        return user.is_active and estado_credencial(user) != ESTADO_NO_DISPONIBLE and acceso_permitido(user)
 
     def get_user(self, user_id):
         User = get_user_model()
-        user = User.objects.select_related("seguridad_credencial").filter(pk=user_id).first()
+        from .configuracion_c2 import relaciones_seguridad
+        user = User.objects.select_related(*relaciones_seguridad()).filter(pk=user_id).first()
         # Una sesión Django tampoco puede operar con temporal o estado ausente.
-        return user if user is not None and user.is_active and es_personal(user) else None
+        from .acceso import sesion_operativa
+        return user if user is not None and user.is_active and sesion_operativa(user) else None

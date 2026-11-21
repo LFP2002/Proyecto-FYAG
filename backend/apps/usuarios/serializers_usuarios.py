@@ -77,6 +77,17 @@ class UsuarioLecturaSerializer(serializers.ModelSerializer):
     def get_cambio_obligatorio(self, obj):
         return self.get_estado_credencial(obj) != "PERSONAL"
 
+    def to_representation(self, instance):
+        result = super().to_representation(instance)
+        from .configuracion_c2 import habilitado
+        if habilitado():
+            from .acceso import estado_acceso
+            state = estado_acceso(instance)
+            result["estado_acceso"] = state
+            access = getattr(instance, "estado_acceso", None)
+            result["bloqueado_hasta"] = access.bloqueado_hasta.isoformat() if state == "BLOQUEO_TEMPORAL" else None
+        return result
+
     class Meta:
         model = Usuario
         fields = ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
