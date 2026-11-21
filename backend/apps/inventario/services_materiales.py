@@ -73,7 +73,7 @@ def operar(tipo, payload, actor):
         with transaction.atomic():
             return _operar(tipo, data, key, huella, actor)
     except IntegrityError as exc:
-        if getattr(getattr(exc.__cause__, 'diag', None), 'constraint_name', '') == 'inv_019b_integridad':
+        if getattr(getattr(exc.__cause__, 'diag', None), 'constraint_name', '') in {'inv_019b_integridad', 'inv_merma_integridad'}:
             conflicto()
         raise
 
@@ -154,6 +154,15 @@ def _operar(tipo, data, key, huella, actor):
         campos['obra'] = obra
     padres = [x.pk for x in (padre, original) if x is not None]
     list(Op.objects.select_for_update().filter(pk__in=padres).order_by('pk'))
+    # C2: la entrega original es la raíz común con clasificación MO. Revalidar
+    # tras esperar antes de revelar un conflicto o generar cualquier efecto.
+    revalidar(actor, tipo, escritura=True)
+    if tipo in {'AUTORIZACION_DEVOLUCION', 'DEVOLUCION'}:
+        from .services_mermas import aprobada
+        from django.db.models import Sum
+        total = Op.objects.filter(entrega=original, tipo=tipo).aggregate(q=Sum('cantidad'))['q'] or Decimal('0.000')
+        if aprobada(original.pk) + total + q > original.cantidad:
+            conflicto('remanente_insuficiente')
     articulo = _obtener(ArticuloInventario.objects.select_for_update(), articulo_id)
     stock = _obtener(ExistenciaInventario.objects.select_for_update(), articulo_id)
     valor = _obtener(EstadoValoracion.objects.select_for_update(), articulo_id)

@@ -3,6 +3,7 @@ from rest_framework.routers import SimpleRouter
 
 from .views import ArticuloViewSet, ExistenciaViewSet, MovimientoViewSet, IngresoView
 from .views_materiales import OperacionesViewSet, EstadosValoracionViewSet
+from .views_mermas import MermasView, MermaDetalleView, MermaDecidirView
 from .views_solicitudes import ArticulosSolicitablesView, SolicitudesMaterialesView, SolicitudDetalleView, SolicitudDecidirView
 
 router = SimpleRouter()
@@ -11,6 +12,12 @@ router.register("existencias", ExistenciaViewSet, basename="existencia-inventari
 router.register("movimientos", MovimientoViewSet, basename="movimiento-inventario")
 router.register('estados-valorizacion', EstadosValoracionViewSet, basename='estado-valorizacion')
 urlpatterns = [path("ingresos/", IngresoView.as_view(), name="ingreso-inventario")] + router.urls
+for ruta, ambito in [('mermas-bodega', 'BODEGA'), ('mermas-obra', 'OBRA')]:
+    urlpatterns += [
+        path(ruta+'/', MermasView.as_view(ambito=ambito), name=ruta),
+        path(ruta+'/<str:merma_id>/', MermaDetalleView.as_view(ambito=ambito), name=ruta+'-detalle'),
+        path(ruta+'/<str:merma_id>/decidir/', MermaDecidirView.as_view(ambito=ambito), name=ruta+'-decidir'),
+    ]
 urlpatterns += [
     path('articulos-solicitables/', ArticulosSolicitablesView.as_view(), name='articulos-solicitables'),
     path('solicitudes-materiales/', SolicitudesMaterialesView.as_view(), name='solicitudes-materiales'),

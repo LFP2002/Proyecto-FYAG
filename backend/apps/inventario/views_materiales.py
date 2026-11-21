@@ -4,7 +4,7 @@ from rest_framework.response import Response
 
 from . import services_materiales, consultas_materiales
 from .permissions_materiales import PermisoMateriales
-from .serializers_materiales import OperacionSerializer, OperacionCostoSerializer
+from .serializers_materiales import OperacionSerializer, OperacionCostoSerializer, AutorizacionDevolucionLecturaSerializer
 from .views import InventarioViewSet, query
 
 
@@ -22,6 +22,8 @@ class OperacionesViewSet(CabecerasMateriales, InventarioViewSet):
     tipo = None
 
     def get_serializer_class(self):
+        if self.tipo == 'AUTORIZACION_DEVOLUCION' and self.action == 'list':
+            return AutorizacionDevolucionLecturaSerializer
         if self.tipo in {'VALORIZACION', 'REGULARIZACION'} or (
             self.tipo in {'ENTREGA', 'DEVOLUCION'} and self.request.user.rol in {'SUPERVISOR_OBRAS', 'GERENCIA'}):
             return OperacionCostoSerializer
