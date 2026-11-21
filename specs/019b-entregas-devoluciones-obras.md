@@ -2,7 +2,7 @@
 
 > **Estado: propuesta documental en revisión; no autorizada para implementación, migración ni despliegue.** 21-11-2026.
 > **Base verificada:** `main` en `3d1351773dcb5dcbb90838fda194785ac9d11498`. SPEC-019A de inventario está integrada mediante PR #52; SPEC-020A/B están integradas mediante PR #54/#55. El frontend se delega a otro equipo.
-> **Decisión todavía pendiente:** cómo atribuir un costo neto confiable a las unidades que salen de Bodega. La política de valorización, responsable de registrarla y tratamiento del stock previo deben ser ratificados ANTES de implementar un despacho con efecto económico.
+> **Decisión ratificada por el responsable (21-11-2026):** las salidas de Bodega se valorizarán mediante **costo promedio ponderado móvil** basado en costos netos reales y trazables de las existencias. **Aún pendientes de ratificación:** quién registra/valida el costo y sus respaldos, y el tratamiento de las existencias ingresadas antes de 019B sin costo asociado. No implementar despacho económico hasta resolverlos.
 
 ## 1. Problema y restricciones comprobadas
 
@@ -15,7 +15,7 @@
 
 ## 2. Objetivo y límites
 
-Vincular cada entrega y devolución física de Bodega a una Obra identificada, con autorización trazable de Supervisor, libro de movimientos exacto, idempotencia, stock no negativo e integración económica **solo después de ratificar la política de valorización**.
+Vincular cada entrega y devolución física de Bodega a una Obra identificada, con autorización trazable de Supervisor, libro de movimientos exacto, idempotencia, stock no negativo e integración económica mediante **costo promedio ponderado móvil ratificado**, una vez definidas las responsabilidades y la valorización de existencias anteriores.
 
 Incluye diseño de órdenes autorizadas, ejecuciones de entrega/devolución, inmutabilidad, permisos de roles, relaciones con la Obra, control de cantidades y compatibilidad de costos. Las acciones físicas no pueden convertir a Bodeguero en editor general de Obras.
 
@@ -54,26 +54,32 @@ Fuera del alcance: interfaz React, compras/proveedores/DTE, múltiples bodegas, 
 - Redefinir con nuevas migraciones los triggers de validación y de conciliación de 019A para suma firmada según tipo; **nunca editar** `0001` ni `0002`. Revalidar libro histórico (solo ingresos) antes y después de la migración. El conjunto debe impedir una salida insertada arbitrariamente sin autorización de entrega válida.
 - Cada autorización, movimiento y vínculo económico conserva eventos inmutables, causa, actor persistido y relojes del servidor; prohibir `UPDATE/DELETE` públicos de los registros ejecutados.
 
-## 5. Efecto económico y decisión funcional obligatoria
+## 5. Efecto económico: costo promedio ponderado móvil RATIFICADO
 
-**Hoy el stock no tiene costo unitario guardado. Sin decisión ratificada NO se puede generar automáticamente un `GastoObra` con un valor inventado ni marcar costos como validados.**
+**Decisión funcional aprobada el 21-11-2026:** elegir la opción A — **promedio ponderado móvil**, no FIFO, costo unitario arbitrario por despacho ni salida física sin efecto económico como flujo definitivo. Esta aprobación es del **método de cálculo** y no concede nuevas autorizaciones de registro de precios.
 
-### Alternativas para discusión
+### 5.1 Regla del promedio móvil
 
-**Opción A — Costo real por ingreso, promedio ponderado móvil (recomendada para evaluación):**
-- Registrar y validar costo neto asociado a ingresos futuros con trazabilidad de su origen, bajo autoridad financiera explícita y separada de la recepción física.
-- Mantener costo promedio vigente usando aritmética `Decimal` de suficiente precisión; fijar en cada despacho un snapshot económico trazable y la regla exacta de redondeo al formato `costo_unitario_neto` que actualmente admite Obras (2 decimales).
-- El stock anterior sin costo conocido debe valorizarse explícitamente y dejar constancia de quién lo hizo; de otro modo impedir que se use como fuente de un costo real automático. No hacer backfill por un valor arbitrario.
+- Cada ingreso valorizado registra **cantidad real y costo unitario neto** con su fuente y autor de validación, que deberán definirse. **Un ingreso físico existente de 019A no adquiere automáticamente un costo** ni se transforma en compra, factura o gasto.
+- Al confirmar un ingreso valorizado, actualizar el costo promedio del artículo sobre cantidades reales, sin mezclar unidades ni precios entre artículos:
 
-**Opción B — Costo neto por entrega, confirmado por el responsable económico:**
-- Un usuario autorizado registra para cada entrega el costo unitario neto respaldado. Es más simple, pero no representa por sí mismo costo contable real del inventario; documentar límites y verificar que exista fuente válida.
-- Sin costo validado, la salida queda bloqueada si el flujo exige su registro simultáneo en Obras. Prohibido asumir costo cero por ausencia de datos.
+  `nuevo_promedio = (saldo_anterior × promedio_anterior + cantidad_ingresada × costo_unitario_ingreso) / (saldo_anterior + cantidad_ingresada)`.
 
-**Opción C — Separar salida física y costeo en dos incrementos:**
-- Implementar primero movimientos físicos con autorización y devolución, dejando la imputación económica para una fase posterior.
-- Requerir una salvaguarda explícita para no validar/finalizar costos de Obras que mantengan entregas sin costear y un mecanismo para conciliar costos posteriormente. No activar esta modalidad sin aceptar esa restricción operativa.
+  Si el saldo anterior es cero, el nuevo promedio corresponde al costo unitario del ingreso. Si hay stock positivo con costo desconocido, **no es válido suponer promedio cero**.
+- Calcular en `Decimal` sin `float`, conservar suficiente precisión interna y establecer en la implementación una regla documentada de cuantización para el costo total y `GastoObra.costo_unitario_neto` (hoy 2 decimales). No redondear insumos prematuramente ni permitir que un error de centavos fabrique diferencias entre libro físico y libro económico; probar explícitamente fracciones y retornos.
+- **Ejemplo ilustrativo:** 10 unidades a $1.000 CLP netos cada una y un ingreso posterior de 10 unidades a $1.200 CLP netos resultan en saldo 20 y promedio $1.100 CLP netos por unidad.
+- **Salida:** reduce existencias y utiliza el promedio vigente **capturado en el mismo instante transaccional**; una salida ordinaria no recalcula el promedio de las unidades restantes. Persistir el costo aplicado y la referencia de su valoración como snapshot inmutable asociado a esa entrega y a su imputación económica. Nunca recalcular el costo histórico de la Obra con el promedio posterior.
+- **Devolución:** reingresa físicamente al confirmar recepción y aplica como base económica el **costo original de esa entrega**, no el promedio vigente al día de devolución. El promedio futuro del stock se ajustará según el valor de retorno efectivamente reingresado. Mantener explícita la precisión y las reglas de reconciliación monetaria de cada entrega y devolución.
+- **Prevención de duplicados:** una entrega valorizada originará una sola imputación en el libro económico de Obras y una sola salida física. No sumar posteriormente el importe físico al `GastoObra` ya registrado; conservar idempotencia y auditoría de ambos dominios.
 
-### Cuando se ratifique una alternativa
+### 5.2 Condiciones aún abiertas y bloqueantes
+
+1. **Quién registra y valida costos netos de ingresos**: Administrativo/Finanzas es el candidato, con segregación de funciones respecto del Bodeguero, pero este permiso **no está ratificado**. Definir respaldo mínimo, tratamiento de correcciones y alcance de lectura por rol.
+2. **Existencias 019A anteriores sin costo conocido**: solicitar valorización inicial verificable y auditada a un responsable autorizado antes de despachar como gasto; o restringir el despacho valorizado hasta que se regularicen. No asignar CLP 0, no simular compra ni modificar cantidades, fechas o movimientos físicos históricos.
+3. **Persistencia de valorización**: diseñar campos o libro económico complementario con costo unitario/costo total, moneda CLP, origen, aprobador, snapshot de promedio y control contra modificación directa; actualizar triggers solamente en migraciones nuevas sin reescribir `0001/0002`.
+4. **Precisión monetaria y conciliación**: definir estrategia de redondeo auditable compatible con `Decimal(15,2)` en `GastoObra`; rechazar situaciones que impidan reconciliar las cantidades y costos sin pérdida encubierta de centavos.
+
+### 5.3 Integración económica con Obras
 
 1. Una entrega con efecto económico debe crear **exactamente una imputación valorizada por unidad de precio/porción** de `GastoObra` o un vínculo a un costo ya reconocido, nunca dos gastos por una salida.
 2. Registrar un enlace inequívoco entrega ↔ gasto/valoración y bloquear edición, devolución económica o anulación directa de un gasto ligado cuando pueda romper la correspondencia física. Proveer flujo de corrección/contramovimiento especializado y auditado, sin falsificar eventos anteriores.
@@ -116,7 +122,7 @@ En implementación, cerrar nombre/shape exacto, requisitos de motivo, estados, p
 
 ## 9. Plan de implementación después de aprobar la SPEC
 
-1. **Documento y ratificación:** definir la opción de valoración, quién puede validar el costo, manejo de existencias preexistentes y devoluciones. Registrar la decisión en esta SPEC antes de codificar.
+1. **Documento y ratificación:** método **promedio ponderado móvil ya aprobado**. Resolver por separado quién valida costo, qué respaldos son suficientes, tratamiento de existencias anteriores sin costo y las reglas precisas de redondeo; registrar las decisiones antes de codificar.
 2. **PR de implementación:** migraciones de inventario, autorizaciones y operaciones; luego integración acotada con los gastos si la política económica está aprobada. Mantener tests de 019A/004B/020A/020B.
 3. **Pruebas:** migración limpia y upgrade, constraints/triggers PostgreSQL, concurrencia de conexiones reales, suite completa, OpenAPI, Postman esencial y CI. Validar rollback con movimientos nuevos y preservar histórico.
 4. **Revisión y merge:** branch de código, push por OpenCode, revisión independiente en GitHub, PR, CI verde, merge **solo por aprobación expresa**.
@@ -124,11 +130,11 @@ En implementación, cerrar nombre/shape exacto, requisitos de motivo, estados, p
 
 ## 10. Decisiones para el responsable antes de codificar
 
-1. **Valorización:** A) costo real por ingreso con promedio ponderado, B) costo respaldado por entrega o C) salida física primero y costeo después. Opción A es candidata técnica, no elección aprobada.
+1. **Valorización — RESUELTA:** se utilizará costo promedio ponderado móvil basado en ingresos valorizados; alternativas B y C descartadas para el flujo definitivo de 019B.
 2. **Origen del costo:** quién puede registrarlo o validarlo (candidato: Administrativo/Finanzas) y qué evidencia mínima se considera válida; no exigir facturas reales en un sistema de QA si solo existen datos sintéticos.
 3. **Stock anterior a 019B:** asignación explícita de costo histórico verificable, o bloqueo de entrega valorizada mientras no exista dato. Sin valor cero automático.
 4. **Devoluciones:** la recepción física de Bodega es indispensable para reponer saldo; Supervisor confirma origen y motivo; permitir parciales y conservar fecha del movimiento.
 5. **Operación de Obras:** autorizar entregas solo en `EN_PROCESO/SUSPENDIDA`; no reabrir obras finalizadas ni invalidar cierres económicos pasados.
 6. **Responsabilidad:** Supervisor autoriza y Bodeguero ejecuta sin acceso a contabilidad. 019C incorporará la solicitud del Técnico después.
 
-**Este documento es una propuesta de diseño, no la autorización para crear endpoints, precios, migraciones o gastos.**
+**El método de valorización queda ratificado; el resto del contrato continúa como propuesta de diseño, no es autorización para crear endpoints, fijar precios, conceder permisos, ejecutar migraciones o registrar gastos.**
