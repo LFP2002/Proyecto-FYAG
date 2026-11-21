@@ -3,6 +3,7 @@ from rest_framework.routers import SimpleRouter
 
 from .views import ArticuloViewSet, ExistenciaViewSet, MovimientoViewSet, IngresoView
 from .views_materiales import OperacionesViewSet, EstadosValoracionViewSet
+from .views_solicitudes import ArticulosSolicitablesView, SolicitudesMaterialesView, SolicitudDetalleView, SolicitudDecidirView
 
 router = SimpleRouter()
 router.register("articulos", ArticuloViewSet, basename="articulo-inventario")
@@ -10,6 +11,12 @@ router.register("existencias", ExistenciaViewSet, basename="existencia-inventari
 router.register("movimientos", MovimientoViewSet, basename="movimiento-inventario")
 router.register('estados-valorizacion', EstadosValoracionViewSet, basename='estado-valorizacion')
 urlpatterns = [path("ingresos/", IngresoView.as_view(), name="ingreso-inventario")] + router.urls
+urlpatterns += [
+    path('articulos-solicitables/', ArticulosSolicitablesView.as_view(), name='articulos-solicitables'),
+    path('solicitudes-materiales/', SolicitudesMaterialesView.as_view(), name='solicitudes-materiales'),
+    path('solicitudes-materiales/<str:solicitud_id>/', SolicitudDetalleView.as_view(), name='solicitud-material-detalle'),
+    path('solicitudes-materiales/<str:solicitud_id>/decidir/', SolicitudDecidirView.as_view(), name='solicitud-material-decidir'),
+]
 for ruta, tipo in [
     ('autorizaciones-entrega', 'AUTORIZACION_ENTREGA'), ('entregas', 'ENTREGA'),
     ('autorizaciones-devolucion', 'AUTORIZACION_DEVOLUCION'), ('devoluciones', 'DEVOLUCION'),
