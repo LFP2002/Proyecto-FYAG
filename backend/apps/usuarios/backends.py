@@ -37,7 +37,10 @@ class CredencialesModelBackend(ModelBackend):
             User().set_password(password)  # Trabajo de hash para identidad inexistente.
             return None
         # Sin setter: una autenticación rechazada no reescribe un hash antiguo.
-        valid_password = check_password(password, user.password)
+        try:
+            valid_password = check_password(password, user.password)
+        except (ValueError, TypeError, OverflowError):
+            return None  # Hash persistido malformado: denegar, nunca repararlo.
         state = estado_credencial(user)
         if not valid_password or not user.is_active or state == ESTADO_NO_DISPONIBLE:
             return None
