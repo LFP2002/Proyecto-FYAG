@@ -1,0 +1,94 @@
+{
+  "info": {
+    "name": "FYAG Beta — SPEC-021 Egresos y flujo registrado",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Solo QA. No transfiere dinero. Importar environment FYAG-Beta; configurar tokens reales solo localmente y fechas. Ejecutar en orden. Alta genera UUID si está vacío; usar otro UUID al reiniciar. No necesita Obra. No es conciliación bancaria."
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token_af}}", "type": "string"}]},
+  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+    "pm.test('No cache privado', () => pm.expect(pm.response.headers.get('Cache-Control')).to.eql('private, no-store'));",
+    "pm.test('Vary Authorization', () => pm.expect(pm.response.headers.get('Vary')).to.include('Authorization'));"
+  ]}}],
+  "item": [
+    {
+      "name": "01 Alta AF — 201",
+      "event": [
+        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+          "if (!pm.environment.get('idempotency_key')) pm.environment.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));",
+          "pm.collectionVariables.set('egreso_payload', JSON.stringify({monto:'100.25', fecha_pago:pm.environment.get('fecha_pago'), categoria:'MATERIALES', concepto:'Material pagado QA', beneficiario:'Comercio ficticio QA', medio:'TRANSFERENCIA', referencia_respaldo:'QA-EXTERNO-021', observacion:'Registro de prueba aislada', obra:null}));"
+        ]}},
+        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+          "pm.test('Alta 201', () => pm.response.to.have.status(201));",
+          "pm.test('No replay', () => pm.expect(pm.response.headers.get('Idempotency-Replayed')).to.eql('false'));",
+          "if (pm.response.code === 201) { pm.environment.set('egreso_id', pm.response.json().id); pm.collectionVariables.set('alta_original', JSON.stringify(pm.response.json())); }"
+        ]}}
+      ],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{idempotency_key}}"}], "body": {"mode": "raw", "raw": "{{egreso_payload}}"}, "url": "{{base_url}}/api/finanzas/egresos/"}
+    },
+    {
+      "name": "02 Replay AF — 200 original",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Replay 200', () => pm.response.to.have.status(200));", "pm.test('Replay header', () => pm.expect(pm.response.headers.get('Idempotency-Replayed')).to.eql('true'));", "pm.test('Alta idéntica', () => pm.expect(pm.response.json()).to.deep.eql(JSON.parse(pm.collectionVariables.get('alta_original'))));"]}}],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{idempotency_key}}"}], "body": {"mode": "raw", "raw": "{{egreso_payload}}"}, "url": "{{base_url}}/api/finanzas/egresos/"}
+    },
+    {
+      "name": "03 Listado filtrado AF",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Listado 200', () => pm.response.to.have.status(200));", "pm.test('Página <= 25', () => pm.expect(pm.response.json().results.length).to.be.at.most(25));"]}}],
+      "request": {"method": "GET", "url": "{{base_url}}/api/finanzas/egresos/?categoria=MATERIALES&activo=true&desde={{desde}}&hasta={{hasta}}&page=1"}
+    },
+    {
+      "name": "04 Detalle Gerencia",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Lectura Gerencia 200', () => pm.response.to.have.status(200));"]}}],
+      "request": {"method": "GET", "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token_gerencia}}", "type": "string"}]}, "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/"}
+    },
+    {
+      "name": "05 Historial AF",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Historial 200', () => pm.response.to.have.status(200));", "pm.test('Solo creación', () => pm.expect(pm.response.json().count).to.eql(1));"]}}],
+      "request": {"method": "GET", "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/historial/"}
+    },
+    {
+      "name": "06 Resumen Gerencia",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Resumen 200', () => pm.response.to.have.status(200));", "pm.test('Neto decimal string', () => pm.expect(pm.response.json().flujo_neto_registrado).to.match(/^-?[0-9]+\\.[0-9]{2}$/));", "pm.test('Naturaleza', () => pm.expect(pm.response.json().naturaleza).to.eql('REGISTROS_ADMINISTRATIVOS_NO_CONCILIADOS'));"]}}],
+      "request": {"method": "GET", "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token_gerencia}}", "type": "string"}]}, "url": "{{base_url}}/api/finanzas/flujo-dinero/resumen/?desde={{desde}}&hasta={{hasta}}"}
+    },
+    {
+      "name": "07 Colisión UUID — 409",
+      "event": [{"listen": "prerequest", "script": {"type": "text/javascript", "exec": ["const p = JSON.parse(pm.collectionVariables.get('egreso_payload')); p.monto = '101.25'; pm.variables.set('payload_distinto', JSON.stringify(p));"]}}, {"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Colisión 409', () => pm.response.to.have.status(409));", "pm.test('Código', () => pm.expect(pm.response.json().code).to.eql('idempotencia_conflictiva'));"]}}],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{idempotency_key}}"}], "body": {"mode": "raw", "raw": "{{payload_distinto}}"}, "url": "{{base_url}}/api/finanzas/egresos/"}
+    },
+    {
+      "name": "08 Gerencia no anula — 403",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Escritura Gerencia 403', () => pm.response.to.have.status(403));"]}}],
+      "request": {"method": "POST", "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token_gerencia}}", "type": "string"}]}, "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Corrección QA\",\"referencia_correccion\":\"QA-RECT-021\"}"}, "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/anular/"}
+    },
+    {
+      "name": "09 AF anula — 200",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Anulación 200', () => pm.response.to.have.status(200));", "pm.test('Inactivo', () => pm.expect(pm.response.json().activo).to.eql(false));"]}}],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Corrección QA\",\"referencia_correccion\":\"QA-RECT-021\"}"}, "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/anular/"}
+    },
+    {
+      "name": "10 Replay tras anulación — alta original",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Replay 200', () => pm.response.to.have.status(200));", "pm.test('Alta original activa', () => pm.expect(pm.response.json()).to.deep.eql(JSON.parse(pm.collectionVariables.get('alta_original'))));"]}}],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Idempotency-Key", "value": "{{idempotency_key}}"}], "body": {"mode": "raw", "raw": "{{egreso_payload}}"}, "url": "{{base_url}}/api/finanzas/egresos/"}
+    },
+    {
+      "name": "11 Doble anulación — 409",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Doble anulación 409', () => pm.response.to.have.status(409));", "pm.test('Código', () => pm.expect(pm.response.json().code).to.eql('egreso_ya_anulado'));"]}}],
+      "request": {"method": "POST", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Corrección QA\",\"referencia_correccion\":\"QA-RECT-021\"}"}, "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/anular/"}
+    },
+    {
+      "name": "12 Rol denegado no lee historial — 403",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Rol denegado 403', () => pm.response.to.have.status(403));"]}}],
+      "request": {"method": "GET", "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token_denegado}}", "type": "string"}]}, "url": "{{base_url}}/api/finanzas/egresos/{{egreso_id}}/historial/"}
+    },
+    {
+      "name": "13 Query desconocida — 400",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Query 400', () => pm.response.to.have.status(400));"]}}],
+      "request": {"method": "GET", "url": "{{base_url}}/api/finanzas/egresos/?saldo=true"}
+    },
+    {
+      "name": "14 Sin sesión — 401",
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Sin JWT 401', () => pm.response.to.have.status(401));"]}}],
+      "request": {"method": "GET", "auth": {"type": "noauth"}, "url": "{{base_url}}/api/finanzas/egresos/"}
+    }
+  ]
+}

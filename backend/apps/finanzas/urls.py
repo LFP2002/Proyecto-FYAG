@@ -3,10 +3,16 @@ from rest_framework.routers import SimpleRouter
 
 from .views_documentos import DocumentoViewSet, ObrasElegiblesView, RegistrarSinCobroView, EstadoFinancieroView
 from .views_pagos import PagosListaView, PagoDetalleView, PagoAnularView, PagosHistorialView, CobranzasView, CobranzasResumenView
+from .views_egresos import EgresosListaView, EgresoDetalleView, EgresoAnularView, EgresoHistorialView, FlujoDineroResumenView
 
 router = SimpleRouter()
 router.register("documentos", DocumentoViewSet, basename="documento-financiero")
 urlpatterns = [
+    path("egresos/", EgresosListaView.as_view(), name="egresos"),
+    path("egresos/<str:egreso_id>/", EgresoDetalleView.as_view(), name="detalle-egreso"),
+    path("egresos/<str:egreso_id>/anular/", EgresoAnularView.as_view(), name="anular-egreso"),
+    path("egresos/<str:egreso_id>/historial/", EgresoHistorialView.as_view(), name="historial-egreso"),
+    path("flujo-dinero/resumen/", FlujoDineroResumenView.as_view(), name="resumen-flujo-dinero"),
     path("documentos/<str:documento_id>/pagos/", PagosListaView.as_view(), name="pagos-documento"),
     path("documentos/<str:documento_id>/pagos/historial/", PagosHistorialView.as_view(), name="historial-pagos-documento"),
     path("documentos/<str:documento_id>/pagos/<str:pago_id>/anular/", PagoAnularView.as_view(), name="anular-pago-documento"),
