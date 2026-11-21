@@ -1,21 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Chip, PageHead } from '../components/ui';
+import BootstrapIcon from '../components/ui/BootstrapIcon.jsx';
 import { clientPath } from '../comercial/api.js';
 import { clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Errors, Fields, useCommercial } from '../comercial/ui.jsx';
 
 export default function Clientes() {
   const api = useCommercial();
-  const [clients, setClients] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState(null);
+  const [clients, setClients] = useState([]), [selected, setSelected] = useState(null), [form, setForm] = useState(null);
   const reload = () => api.load('list', clientPath(), setClients);
   useEffect(() => { void reload(); }, []);
   const detail = (id) => api.load('detail', clientPath(id), (data) => { setSelected(data); setForm(null); });
-  const refresh = async () => {
-    const ok = await reload();
-    return selected ? (await api.load('detail', clientPath(selected.id), setSelected)) && ok : ok;
-  };
+  const refresh = async () => { const ok = await reload(); return selected ? (await api.load('detail', clientPath(selected.id), setSelected)) && ok : ok; };
   async function save(event) {
     event.preventDefault();
     const errors = validateClient(form);
@@ -32,40 +28,22 @@ export default function Clientes() {
     ...(form?.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' ? [['pais_identificacion', 'País (ISO, dos letras)'], ['tipo_documento_extranjero', 'Tipo de documento extranjero']] : []),
     ['nombre_legal', 'Nombre legal'], ['nombre_contacto', 'Contacto'], ['correo', 'Correo'], ['telefono', 'Teléfono'],
   ];
-  const detailLabels = { tipo_cliente: 'Tipo de cliente', tipo_identificacion: 'Tipo de identificación', numero_identificacion: 'Número de identificación', pais_identificacion: 'País', tipo_documento_extranjero: 'Documento extranjero', nombre_legal: 'Nombre legal', nombre_contacto: 'Contacto', correo: 'Correo', telefono: 'Teléfono' };
-  return <section className="commercial-page">
-    <PageHead title="Clientes" sub="Clientes persistidos en Django.">
-      <button className="btn btn-fyag-primary" disabled={disabled} onClick={() => { setSelected(null); setForm({ ...emptyClient }); api.setError(null); }}>Nuevo cliente</button>
-    </PageHead>
+  const detailLabels = { tipo_cliente:'Tipo de cliente', tipo_identificacion:'Identificación', numero_identificacion:'Número de identificación', pais_identificacion:'País', tipo_documento_extranjero:'Documento extranjero', nombre_contacto:'Contacto', correo:'Correo', telefono:'Teléfono' };
+  return <section className="commercial-page clientes-page">
+    <PageHead title="Clientes" sub="Directorio de clientes"><button className="btn btn-fyag-primary" disabled={disabled} onClick={() => { setSelected(null); setForm({ ...emptyClient }); api.setError(null); }}>Nuevo cliente</button></PageHead>
     <Errors error={api.error} />
-    <div className="commercial-toolbar">
-      <p className="commercial-help mb-0">Consulta y administra los datos de tus clientes.</p>
-      <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}>Reconsultar datos</button>
-    </div>
-    {api.locked && <p className="alert alert-warning" role="status">Resultado incierto o conflicto: reconsulta antes de realizar otra escritura. No se repetirá la operación.</p>}
+    <div className="d-flex justify-content-end"><button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}><BootstrapIcon name="arrow-clockwise" /> Actualizar</button></div>
+    {api.locked && <p className="alert alert-warning" role="status">Reconsulta antes de volver a escribir. No se repetirá la operación automáticamente.</p>}
     {api.loading && <p className="commercial-loading" role="status">Cargando clientes…</p>}
-    <div className="card-fyag commercial-table-card">
-      <div className="table-responsive" role="region" aria-label="Listado de clientes" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">ID</th><th scope="col">Nombre legal</th><th scope="col">Identificación</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead>
-        <tbody>{clients.map((c) => <tr key={c.id}><td className="commercial-code">#{c.id}</td><td className="commercial-description"><strong>{c.nombre_legal}</strong></td><td className="commercial-description">{c.numero_identificacion || 'Sin identificación'}</td><td><Chip cls={c.activo ? 'green' : 'gray'}>{c.activo ? 'Activo' : 'Inactivo'}</Chip></td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!form} onClick={() => void detail(c.id)}>Ver cliente</button></td></tr>)}</tbody></table></div>
-      {!clients.length && !api.loading && !api.error && <div className="commercial-empty"><h2>No hay clientes.</h2><p>Crea un cliente para comenzar a preparar sus presupuestos.</p></div>}
-    </div>
-    {selected && <article className="card-fyag commercial-detail">
-      <div className="commercial-section-head"><div><h2>{selected.nombre_legal} · #{selected.id}</h2><Chip cls={selected.activo ? 'green' : 'gray'}>{selected.activo ? 'Activo' : 'Inactivo'}</Chip></div>
-        <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setForm(null); }}>Volver al listado</button>
-      </div>
-      <dl className="commercial-facts">{Object.keys(emptyClient).map((key) => <div key={key}><dt>{detailLabels[key]}</dt><dd>{selected[key] || '—'}</dd></div>)}</dl>
-      <div className="commercial-actions">
-      <button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => setForm({ ...emptyClient, ...selected })}>Editar cliente</button>
-      <button className={`btn ${selected.activo ? 'btn-outline-danger' : 'btn-outline-success'}`} disabled={disabled || !!form} onClick={() => {
-        const action = selected.activo ? 'desactivar' : 'activar';
-        if (window.confirm(`¿${action} cliente #${selected.id}?`)) void api.write(`${clientPath(selected.id)}${action}/`, 'POST', {}, async (data) => { await api.requiredLoad('list', clientPath(), (rows) => { setClients(rows); setSelected(data); }); });
-      }}>{selected.activo ? 'Desactivar' : 'Activar'}</button>
-      </div>
+    <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label="Listado de clientes" tabIndex={0}>
+      <table className="table table-hover table-sm align-middle commercial-table"><thead><tr><th scope="col">Nombre</th><th scope="col">Identificación</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
+        <tbody>{clients.map((client) => <tr key={client.id}><td className="commercial-description"><strong>{client.nombre_legal}</strong><span className="commercial-help d-block">#{client.id}</span></td><td className="commercial-description">{client.numero_identificacion || 'Sin identificación'}</td><td><Chip cls={client.activo ? 'green' : 'gray'}>{client.activo ? 'Activo' : 'Inactivo'}</Chip></td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!form} onClick={() => void detail(client.id)}>Ver cliente</button></td></tr>)}</tbody>
+      </table>
+    </div>{!clients.length && !api.loading && !api.error && <div className="commercial-empty"><h2>No hay clientes</h2><p>Crea un registro para usarlo en presupuestos.</p></div>}</div>
+    {selected && <article className="card-fyag commercial-detail"><div className="commercial-section-head"><div><h2>{selected.nombre_legal} · #{selected.id}</h2><Chip cls={selected.activo ? 'green' : 'gray'}>{selected.activo ? 'Activo' : 'Inactivo'}</Chip></div><button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setForm(null); }}>Volver al listado</button></div>
+      <dl className="commercial-facts">{Object.keys(emptyClient).filter((key) => key !== 'nombre_legal' && key !== 'activo').map((key) => <div key={key}><dt>{detailLabels[key] || key.replaceAll('_',' ')}</dt><dd>{selected[key] || '—'}</dd></div>)}</dl>
+      <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => setForm({ ...emptyClient, ...selected })}>Editar cliente</button><button className={`btn ${selected.activo ? 'btn-outline-danger' : 'btn-outline-success'}`} disabled={disabled || !!form} onClick={() => { const action = selected.activo ? 'desactivar' : 'activar'; if (window.confirm(`¿${action} cliente #${selected.id}?`)) void api.write(`${clientPath(selected.id)}${action}/`, 'POST', {}, async (data) => { await api.requiredLoad('list', clientPath(), (rows) => { setClients(rows); setSelected(data); }); }); }}>{selected.activo ? 'Desactivar' : 'Activar'}</button></div>
     </article>}
-    {form && <form className="card-fyag commercial-form" onSubmit={save}><h2>{selected ? 'Editar cliente' : 'Nuevo cliente'}</h2>
-      <Fields form={form} setForm={setForm} fields={fields} disabled={api.busy} />
-      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}>Guardar cliente</button>
-      <button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div>
-    </form>}
+    {form && <form className="card-fyag commercial-form" onSubmit={save}><h2>{selected ? 'Editar cliente' : 'Nuevo cliente'}</h2><Fields form={form} setForm={setForm} fields={fields} disabled={api.busy}/><div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}><BootstrapIcon name="check-lg" /> Guardar</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div></form>}
   </section>;
 }

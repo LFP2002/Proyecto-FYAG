@@ -68,6 +68,7 @@ export function readPage(value, path, max = 25, filters = null) {
 export function safePage(link, path, filters = null) {
   try {
     const url = paginationURL(link, path);
+    const inventory = path.startsWith('/api/inventario/');
     const pathFilters = path === '/api/alertas/'
       ? ['estado','tipo','recurso_tipo','recurso_id','desde','hasta']
       : path === '/api/reportes/obras/'
@@ -77,8 +78,14 @@ export function safePage(link, path, filters = null) {
           : path === '/api/reportes/cobranzas/'
             ? ['desde','hasta','cliente','estado']
             : path === '/api/finanzas/cobranzas/'
-            ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
-             : path === '/api/documentos-metadata/' ? ['obra'] : [];
+              ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
+              : path === '/api/documentos-metadata/' ? ['obra']
+                : inventory && path.startsWith('/api/inventario/articulos-solicitables/') ? ['buscar']
+                  : inventory && path.startsWith('/api/inventario/articulos/') ? ['buscar','activo']
+                    : inventory && path.startsWith('/api/inventario/existencias/') ? ['articulo']
+                      : inventory && path.startsWith('/api/inventario/movimientos/') ? ['articulo','tipo','desde','hasta']
+                        : inventory && /^\/api\/inventario\/solicitudes-materiales\/$/.test(path) ? ['obra','articulo','estado']
+                          : inventory ? ['articulo','obra','autorizacion','entrega'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
         || [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length !== 1 || url.searchParams.get(key) === '')) throw new Error('invalid');
@@ -107,6 +114,12 @@ export function safePage(link, path, filters = null) {
       if(value('estado')&&!['PENDIENTE','PARCIAL','PAGADA','VENCIDA'].includes(value('estado')))throw new Error('invalid');
     }
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
+    if(inventory) for (const key of ['articulo','obra','autorizacion','entrega']) if(value(key)&&!validId(value(key))) throw new Error('invalid');
+    if(inventory&&value('buscar')&&(value('buscar').length>150||/[\x00-\x1f\x7f]/.test(value('buscar'))))throw new Error('invalid');
+    if(inventory&&value('activo')&&!['true','false'].includes(value('activo')))throw new Error('invalid');
+    if(inventory&&value('tipo')&&!['INGRESO','SALIDA','DEVOLUCION'].includes(value('tipo')))throw new Error('invalid');
+    if(inventory&&(!datePair('desde','hasta')||value('desde')&&!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value('desde'))||value('hasta')&&!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value('hasta'))))throw new Error('invalid');
+    if(path.endsWith('/solicitudes-materiales/')&&value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))throw new Error('invalid');
     return page;
   } catch { throw new ApiError(502, 'El servidor devolvió una página no segura.'); }
 }

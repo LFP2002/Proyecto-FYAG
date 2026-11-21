@@ -20,6 +20,7 @@ before(async () => {
   ({ default: App } = await server.ssrLoadModule('/src/app.jsx'));
   ({ AuthProvider } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ AppProvider } = await server.ssrLoadModule('/src/context/AppContext.jsx'));
+  globalThis.__AppearanceProvider = (await server.ssrLoadModule('/src/context/AppearanceContext.jsx')).AppearanceProvider;
 });
 after(async () => { await server?.close(); });
 
@@ -29,7 +30,7 @@ function render(session) {
     restore: async () => null, login: async () => null, logout: async () => true,
   };
   return renderToString(React.createElement(AuthProvider, { client },
-    React.createElement(AppProvider, null, React.createElement(App))));
+    React.createElement(globalThis.__AppearanceProvider, null, React.createElement(AppProvider, null, React.createElement(App)))));
 }
 
 test('restauración no muestra ningún contenido protegido ni formulario prematuro', () => {
@@ -61,7 +62,7 @@ test('logout fallido muestra aviso y opción de reintentar revocación', () => {
 
 for (const [role, label] of [
   ['GERENCIA', 'Gerencia'], ['ADMINISTRATIVO_FINANZAS', 'Administrativo / Finanzas'],
-  ['SUPERVISOR_OBRAS', 'Supervisor de Obras'], ['TECNICO', 'Técnico'],
+  ['SUPERVISOR_OBRAS', 'Supervisor de Obras'], ['TECNICO', 'Técnico'], ['BODEGUERO', 'Bodeguero'],
 ]) {
   test(`interfaz ${role}: alias real, menú acotado y módulos sin escrituras simuladas`, () => {
     const html = render({ status: 'authenticated', notice: null,
@@ -72,6 +73,7 @@ for (const [role, label] of [
     else if (role === 'SUPERVISOR_OBRAS') assert.match(html, /Nueva obra/);
     else if (role === 'GERENCIA') assert.match(html, /Dashboard gerencial/);
     else if (role === 'TECNICO') assert.match(html, /Mis obras/);
+    else if (role === 'BODEGUERO') assert.match(html, /Bodega e inventario/);
     assert.match(html, /Salir/);
     assert.doesNotMatch(html, /Guardar|Aprobar|Registrar pago|Registrar en bitácora/);
     if (role === 'TECNICO') assert.doesNotMatch(html, /Gerencia|Cobranzas|Presupuestos|Usuarios y roles/);

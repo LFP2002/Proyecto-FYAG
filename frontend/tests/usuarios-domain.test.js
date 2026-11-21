@@ -8,8 +8,9 @@ const user = { id: 7, username: 'TI institucional', email: 'ti@example.test', ro
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const profile = { id: 7, username: 'TI', email: 'ti@example.test', first_name: '', last_name: '', rol: 'ADMINISTRADOR_TI', is_active: true, date_joined: '2026-11-11T12:00:00Z' };
 
-test('TI es quinto rol conocido, único administrador; proyección no revela permisos heredados', () => {
-  assert.equal(USER_ROLES.length, 5);
+test('TI es el único administrador de usuarios; Bodeguero es el sexto rol operativo; proyección no revela permisos heredados', () => {
+  assert.equal(USER_ROLES.length, 6);
+  assert.ok(USER_ROLES.includes('BODEGUERO'));
   for (const role of USER_ROLES) assert.equal(canManageUsers(role), role === 'ADMINISTRADOR_TI');
   assert.deepEqual(readUser({ ...profile, password: 'no-mostrar', sesion_version: 9, is_superuser: true }), profile);
   assert.throws(() => readUser({ ...profile, rol: 'ROOT' }), { status: 502 });

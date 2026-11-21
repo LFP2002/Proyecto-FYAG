@@ -3,7 +3,7 @@
 import { API_ORIGIN, trustedOrigin } from './config.js';
 export const USER_ROLES = Object.freeze([
   'GERENCIA', 'ADMINISTRATIVO_FINANZAS', 'SUPERVISOR_OBRAS', 'TECNICO',
-  'ADMINISTRADOR_TI',
+  'ADMINISTRADOR_TI', 'BODEGUERO',
 ]);
 
 export class ApiError extends Error {
@@ -94,8 +94,12 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
           }
           if (path.startsWith('/api/alertas/')) {
             for (const field of ['motivo', 'estado', 'tipo', 'recurso_tipo', 'recurso_id', 'desde', 'hasta', 'page']) allowed.add(field);
-            if (['alerta_ya_atendida', 'alerta_resuelta', 'alerta_desactualizada'].includes(data?.code)) code = data.code;
           }
+          if (path.startsWith('/api/inventario/')) {
+            for (const field of ['codigo', 'nombre', 'descripcion', 'unidad', 'activo', 'articulo', 'obra', 'autorizacion', 'entrega', 'ingreso', 'cantidad', 'cantidad_aprobada', 'justificacion', 'decision', 'costo_unitario_neto', 'referencia', 'motivo', 'clave_idempotencia', 'buscar', 'tipo', 'desde', 'hasta', 'page']) allowed.add(field);
+            if (['idempotencia_conflictiva', 'existencia_insuficiente', 'valoracion_pendiente', 'solicitud_ya_decidida', 'cantidad_aprobada_excesiva', 'remanente_insuficiente', 'estado_incompatible', 'articulo_inactivo', 'identidad_inmutable', 'saldo_fuera_rango'].includes(data?.code)) code = data.code;
+          }
+          if (path.startsWith('/api/alertas/') && ['alerta_ya_atendida', 'alerta_resuelta', 'alerta_desactualizada'].includes(data?.code)) code = data.code;
           if (path.startsWith('/api/usuarios/')) {
             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
           }

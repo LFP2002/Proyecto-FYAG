@@ -16,6 +16,7 @@ import Cobranzas from './pages/Cobranzas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Reportes from './pages/Reportes.jsx';
 import Auditoria from './pages/Auditoria.jsx';
+import Inventario from './pages/Inventario.jsx';
 
 export default function App() {
   const { status, user } = useAuth();
@@ -25,7 +26,8 @@ export default function App() {
   }
   if (status !== 'authenticated' || !user) return <Login />;
   if (user.role === 'TECNICO') return <TecnicoApp key={`${user.id}:${user.role}`} />;
-  const Page = mod === 'auditoria' ? Auditoria
+  const Page = mod === 'inventario' ? Inventario
+    : mod === 'auditoria' ? Auditoria
     : mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios
     : mod === 'obras' && canReadObras(user.role) ? Obras
       : mod === 'alertas' && ['GERENCIA', 'SUPERVISOR_OBRAS'].includes(user.role) ? Alertas

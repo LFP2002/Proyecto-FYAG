@@ -137,7 +137,7 @@ test('Cobranzas oculta cifras previas cuando la consulta actual falla', { timeou
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(Cobranzas)));await flush();});
   try{
     assert.match(text(renderer.toJSON()),/120\.00/);fail=true;
-    const refresh=renderer.root.findAllByType('button').find(b=>text(b)==='Actualizar');
+    const refresh=renderer.root.findAllByType('button').find(b=>text(b)==='Actualizar'||b.props['aria-label']==='Actualizar');
     await act(async()=>{await refresh.props.onClick();await flush();});
     assert.doesNotMatch(text(renderer.toJSON()),/120\.00|50\.00/);
     assert.match(text(renderer.toJSON()),/Fallo de lectura/);
