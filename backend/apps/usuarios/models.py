@@ -81,6 +81,15 @@ class Usuario(AbstractUser):
     def __str__(self):
         return self.email
 
+    def _get_session_auth_hash(self, secret=None):
+        original = super()._get_session_auth_hash(secret=secret)
+        from .configuracion_c2 import habilitado
+        if not habilitado():
+            return original
+        from django.utils.crypto import salted_hmac
+        return salted_hmac("fyag.c2.sesion_version", f"{original}:{self.sesion_version}",
+                           secret=secret, algorithm="sha256").hexdigest()
+
 
 class EventosInmutablesQuerySet(models.QuerySet):
     def update(self, **kwargs):
@@ -180,4 +189,4 @@ class SeguridadCredencial(models.Model):
 
 
 # Registro Django del agregado independiente SPEC-018C; sin hooks de autenticación.
-from .models_bloqueos import EstadoAcceso, EventoAcceso  # noqa: E402,F401
+from .models_bloqueos import EstadoAcceso, EventoAcceso, RecuperacionAcceso  # noqa: E402,F401

@@ -1,5 +1,9 @@
 # SPEC-018C C2 — contrato futuro para equipo frontend
 
+> Histórico de diseño C1. La integración posterior C2, **solo QA y apagada por
+> defecto**, se documenta en [contrato de consumo C2](SPEC-018C-C2-CONSUMO.md).
+> Implementa perfil QA 401 genérico; las propuestas 423 siguientes no se activan.
+
 **PROPUESTA, NO IMPLEMENTADA NI CONSUMIBLE TODAVÍA.** C1 solo aporta persistencia
 y motor aislado. Mantener consumo actual de [Fase A](SPEC-018-FASE-A-CONTRATO.md).
 No inferir que hay 423, endpoints nuevos, campos de bloqueo o recuperación C2.

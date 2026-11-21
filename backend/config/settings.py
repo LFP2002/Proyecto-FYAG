@@ -26,6 +26,21 @@ BLOQUEOS_C1_POLITICA = {
 }
 BLOQUEOS_C1_SIMULACION_HABILITADA = False
 
+# C2 no tiene modo productivo. Env explícito únicamente en override externo QA.
+_c2 = os.getenv("FYAG_BLOQUEOS_C2", "")
+if _c2 not in ("", "QA_AISLADO_C2"):
+    raise ImproperlyConfigured("FYAG_BLOQUEOS_C2 no admite activación productiva.")
+BLOQUEOS_C2_HABILITADO = _c2 == "QA_AISLADO_C2"
+BLOQUEOS_C2_ENTORNO = _c2
+try:
+    BLOQUEOS_C2_TI_QA_IDS = tuple(int(pk) for pk in os.getenv("FYAG_C2_TI_QA_IDS", "").split(",") if pk)
+except ValueError:
+    raise ImproperlyConfigured("IDs de recuperadoras QA inválidos.") from None
+BLOQUEOS_C2_RECUPERACION_QA_CONFIRMADA = os.getenv("FYAG_C2_RECUPERACION_QA", "") == "CONFIRMADA"
+BLOQUEOS_C2_RIESGO_DOS_QA_ACEPTADO = os.getenv("FYAG_C2_RIESGO_DOS_QA", "") == "ACEPTADO"
+BLOQUEOS_C2_RESPUESTAS = os.getenv("FYAG_C2_RESPUESTAS", "")
+BLOQUEOS_C2_SESIONES_TEMPORALES = os.getenv("FYAG_C2_SESIONES_TEMPORALES", "")
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/

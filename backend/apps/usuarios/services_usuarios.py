@@ -4,6 +4,7 @@ Nunca bloquear Obras/Presupuestos/Turnos después de un Usuario. Los EXISTS de
 dependencias se ejecutan bajo lock del técnico, compartido con asignar/iniciar.
 """
 from functools import wraps
+from django.conf import settings
 from django.views.decorators.debug import sensitive_variables
 
 from django.contrib.auth.password_validation import validate_password
@@ -72,6 +73,9 @@ def _admin(actor, target=None):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(actual):
+        raise AuthenticationFailed("Sesión no disponible.")
+    from .acceso import acceso_permitido
+    if not acceso_permitido(actual):
         raise AuthenticationFailed("Sesión no disponible.")
     if target_id is not None and target_id not in accounts:
         raise NotFound("Cuenta no disponible.")
@@ -155,6 +159,9 @@ def _last_manager(user):
 
 
 def _last_ti(user):
+    from .configuracion_c2 import habilitado
+    if habilitado() and user.pk in settings.BLOQUEOS_C2_TI_QA_IDS:
+        raise ConflictoUsuario("recuperacion_qa_protegida", "Recuperadora QA protegida mientras C2 esté habilitada.")
     if user.is_active and user.rol == TI and Usuario.objects.filter(rol=TI, is_active=True).count() <= 1:
         raise ConflictoUsuario("ultima_ti", "Debe permanecer una cuenta TI activa.")
 
@@ -269,6 +276,9 @@ def cambiar_clave_propia(data, actor):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(user):
+        raise AuthenticationFailed("Sesión no disponible.")
+    from .acceso import acceso_permitido
+    if not acceso_permitido(user):
         raise AuthenticationFailed("Sesión no disponible.")
     if not isinstance(data["clave_actual"], str) or not user.check_password(data["clave_actual"]):
         raise ValidationError({"clave_actual": ["La contraseña actual no es correcta."]})

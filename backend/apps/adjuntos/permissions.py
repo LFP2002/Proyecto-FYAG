@@ -10,10 +10,12 @@ from apps.documentos.validaciones import entero_ascii
 
 
 def actor_actual(actor, token=None):
-    actual = Usuario.objects.select_related("seguridad_credencial").filter(pk=actor.pk).first()
+    from apps.usuarios.configuracion_c2 import relaciones_seguridad
+    from apps.usuarios.acceso import acceso_permitido
+    actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(pk=actor.pk).first()
     if actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version:
         raise AuthenticationFailed("Sesión no disponible.")
-    if not es_personal(actual):
+    if not es_personal(actual) or not acceso_permitido(actual):
         raise AuthenticationFailed("Sesión no disponible.")
     if token is not None:
         try:

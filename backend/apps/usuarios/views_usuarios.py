@@ -41,7 +41,8 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     lookup_value_regex = r"[1-9][0-9]{0,18}"
 
     def get_queryset(self):
-        return Usuario.objects.select_related("seguridad_credencial").order_by("id")
+        from .configuracion_c2 import relaciones_seguridad
+        return Usuario.objects.select_related(*relaciones_seguridad()).order_by("id")
 
     def get_object(self):
         # BigAutoField de PostgreSQL: no permitir que un número excesivo llegue a SQL.

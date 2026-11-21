@@ -16,11 +16,11 @@ def identificador_sesion(token):
 
 
 def validar_sesion(token, user):
-    from .credenciales import es_personal
+    from .acceso import sesion_operativa
     version = token.get("sesion_version")
     if not user.is_active or type(version) is not int or version != user.sesion_version:
         raise AuthenticationFailed("Sesión no disponible.", code="sesion_revocada")
-    if not es_personal(user):
+    if not sesion_operativa(user):
         raise AuthenticationFailed("Sesión no disponible.", code="sesion_revocada")
     if api_settings.CHECK_REVOKE_TOKEN and not constant_time_compare(
         str(token.get(api_settings.REVOKE_TOKEN_CLAIM, "")), get_md5_hash_password(user.password),
@@ -34,7 +34,8 @@ class VersionedJWTAuthentication(JWTAuthentication):
         try:
             # Una sola consulta, sin N+1; validar_sesion conserva y refuerza las
             # comprobaciones de actividad/hash de SimpleJWT y añade versión/estado.
-            user = self.user_model.objects.select_related("seguridad_credencial").get(
+            from .configuracion_c2 import relaciones_seguridad
+            user = self.user_model.objects.select_related(*relaciones_seguridad()).get(
                 **{api_settings.USER_ID_FIELD: identifier},
             )
         except self.user_model.DoesNotExist:

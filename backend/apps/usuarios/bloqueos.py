@@ -44,36 +44,42 @@ def registrar_verificacion(usuario_id, senal):
             return None  # Inexistente no crea estado ni cuenta como fallo.
         credential = SeguridadCredencial.objects.select_for_update().filter(usuario_id=usuario_id).first()
         state = EstadoAcceso.objects.select_for_update().filter(usuario_id=usuario_id).first()
-        if not estado_coherente(credential) or state is None:
-            raise EstadoAccesoNoDisponible("Estado de seguridad no disponible; no se repara.")
-        ahora = timezone.now()  # Tras esperar locks, nunca al inicio de la request.
-        if ahora < state.actualizado_en:
-            raise EstadoAccesoNoDisponible("Reloj servidor regresivo; requiere revisión.")
-        if (state.intentos != len(state.fallos_en)
-            or state.ventana_inicio != (state.fallos_en[0] if state.fallos_en else None)
-            or state.ventana_hasta != (state.ventana_inicio + VENTANA if state.fallos_en else None)):
-            raise EstadoAccesoNoDisponible("Contadores/ventana incoherentes; no se reparan.")
-        before = EstadoPolitica(state.estado, tuple(state.fallos_en), tuple(state.ciclos_en), state.bloqueo_inicio, state.bloqueado_hasta)
-        try:
-            result = calcular_transicion(before, senal, ahora)
-        except ValueError:
-            raise EstadoAccesoNoDisponible("Estado de acceso incoherente; no se repara.") from None
-        if before == result.estado:
-            return result
-        if state.version >= 9223372036854775807:
-            raise EstadoAccesoNoDisponible("Versión de acceso agotada.")
-        after = result.estado
-        state.estado, state.fallos_en, state.ciclos_en = after.estado, list(after.fallos), list(after.ciclos)
-        state.intentos = len(after.fallos)
-        state.ventana_inicio = after.fallos[0] if after.fallos else None
-        state.ventana_hasta = state.ventana_inicio + VENTANA if after.fallos else None
-        state.bloqueo_inicio, state.bloqueado_hasta = after.bloqueo_inicio, after.bloqueado_hasta
-        state.version += 1
-        state.actualizado_en = ahora
-        state.save()
-        for tipo, cantidad in result.eventos:
-            titular = tipo == "REINICIO_RACHA"
-            EventoAcceso.objects.create(usuario=user, tipo=tipo, actor_tipo="TITULAR" if titular else "SISTEMA",
-                                        actor=user if titular else None, version=state.version,
-                                        cantidad_fallos=cantidad, creado_en=ahora)
+        return aplicar_verificacion_bloqueada(user, credential, state, senal, timezone.now())
+
+
+def aplicar_verificacion_bloqueada(user, credential, state, senal, ahora):
+    """Núcleo compartido C1/C2; caller posee locks Usuario→credencial→acceso."""
+    if not transaction.get_connection().in_atomic_block:
+        raise RuntimeError("Se requiere transacción y locks de seguridad.")
+    if not estado_coherente(credential) or state is None:
+        raise EstadoAccesoNoDisponible("Estado de seguridad no disponible; no se repara.")
+    if ahora < state.actualizado_en:
+        raise EstadoAccesoNoDisponible("Reloj servidor regresivo; requiere revisión.")
+    if (state.intentos != len(state.fallos_en)
+        or state.ventana_inicio != (state.fallos_en[0] if state.fallos_en else None)
+        or state.ventana_hasta != (state.ventana_inicio + VENTANA if state.fallos_en else None)):
+        raise EstadoAccesoNoDisponible("Contadores/ventana incoherentes; no se reparan.")
+    before = EstadoPolitica(state.estado, tuple(state.fallos_en), tuple(state.ciclos_en), state.bloqueo_inicio, state.bloqueado_hasta)
+    try:
+        result = calcular_transicion(before, senal, ahora)
+    except ValueError:
+        raise EstadoAccesoNoDisponible("Estado de acceso incoherente; no se repara.") from None
+    if before == result.estado:
         return result
+    if state.version >= 9223372036854775807:
+        raise EstadoAccesoNoDisponible("Versión de acceso agotada.")
+    after = result.estado
+    state.estado, state.fallos_en, state.ciclos_en = after.estado, list(after.fallos), list(after.ciclos)
+    state.intentos = len(after.fallos)
+    state.ventana_inicio = after.fallos[0] if after.fallos else None
+    state.ventana_hasta = state.ventana_inicio + VENTANA if after.fallos else None
+    state.bloqueo_inicio, state.bloqueado_hasta = after.bloqueo_inicio, after.bloqueado_hasta
+    state.version += 1
+    state.actualizado_en = ahora
+    state.save()
+    for tipo, cantidad in result.eventos:
+        titular = tipo == "REINICIO_RACHA"
+        EventoAcceso.objects.create(usuario=user, tipo=tipo, actor_tipo="TITULAR" if titular else "SISTEMA",
+                                    actor=user if titular else None, version=state.version,
+                                    cantidad_fallos=cantidad, creado_en=ahora)
+    return result
