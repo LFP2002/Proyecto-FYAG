@@ -98,6 +98,9 @@ class PresupuestoViewSet(
             "historial": PresupuestoEventoSerializer,
             "crear_revision": PresupuestoRevisionSerializer,
             "rechazar_gerencia": PresupuestoMotivoObligatorioSerializer,
+            "rechazar_finanzas": PresupuestoMotivoObligatorioSerializer,
+            "enviar_finanzas": PresupuestoAccionSerializer,
+            "aprobar_finanzas": PresupuestoAccionSerializer,
             "registrar_rechazo_cliente": (
                 PresupuestoMotivoObligatorioSerializer
             ),
@@ -135,14 +138,14 @@ class PresupuestoViewSet(
     def partial_update(self, request, pk=None):
         presupuesto = self.get_object()
         actualizado = servicios.modificar_presupuesto(
-            presupuesto, self._entrada(partial=True)
+            presupuesto, self._entrada(partial=True), request.user
         )
         return self._detalle(actualizado)
 
     @action(detail=True, methods=["post"])
     def items(self, request, pk=None):
         presupuesto = self.get_object()
-        item = servicios.crear_item(presupuesto, self._entrada())
+        item = servicios.crear_item(presupuesto, self._entrada(), request.user)
         return Response(
             PresupuestoItemSerializer(item).data,
             status=status.HTTP_201_CREATED,
@@ -159,10 +162,10 @@ class PresupuestoViewSet(
             PresupuestoItem, presupuesto_id=presupuesto.pk, pk=item_id
         )
         if request.method == "DELETE":
-            servicios.eliminar_item(presupuesto, item)
+            servicios.eliminar_item(presupuesto, item, request.user)
             return Response(status=status.HTTP_204_NO_CONTENT)
         actualizado = servicios.modificar_item(
-            presupuesto, item, self._entrada(partial=True)
+            presupuesto, item, self._entrada(partial=True), request.user
         )
         return Response(PresupuestoItemSerializer(actualizado).data)
 
@@ -186,6 +189,18 @@ class PresupuestoViewSet(
     @action(detail=True, methods=["post"], url_path="enviar-gerencia")
     def enviar_gerencia(self, request, pk=None):
         return self._accion(servicios.enviar_gerencia)
+
+    @action(detail=True, methods=["post"], url_path="enviar-finanzas")
+    def enviar_finanzas(self, request, pk=None):
+        return self._accion(servicios.enviar_finanzas)
+
+    @action(detail=True, methods=["post"], url_path="aprobar-finanzas")
+    def aprobar_finanzas(self, request, pk=None):
+        return self._accion(servicios.aprobar_finanzas)
+
+    @action(detail=True, methods=["post"], url_path="rechazar-finanzas")
+    def rechazar_finanzas(self, request, pk=None):
+        return self._accion(servicios.rechazar_finanzas)
 
     @action(detail=True, methods=["post"], url_path="aprobar-gerencia")
     def aprobar_gerencia(self, request, pk=None):

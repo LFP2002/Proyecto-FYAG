@@ -23,7 +23,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
             username="nuevo", email="nuevo@example.com",
             rol=get_user_model().Rol.ADMINISTRATIVO_FINANZAS,
         )
-        for estado in ("RECHAZADO_GERENCIA", "RECHAZADO_CLIENTE", "ANULADO"):
+        for estado in ("RECHAZADO_FINANZAS", "RECHAZADO_GERENCIA", "RECHAZADO_CLIENTE", "ANULADO"):
             with self.subTest(estado=estado):
                 origen = self.preparar(estado)
                 cabecera = Presupuesto.objects.values().get(pk=origen.pk)
@@ -37,7 +37,8 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
                 self.assertEqual(revision.creado_por, actor)
                 self.assertEqual(revision.cliente, origen.cliente)
                 self.assertEqual(revision.descripcion, origen.descripcion)
-                self.assertIs(revision.requiere_aprobacion_gerencia, True)
+                self.assertIs(revision.requiere_aprobacion_gerencia, False)
+                self.assertEqual(revision.politica_aprobacion, "FINANZAS")
                 self.assertNotEqual(revision.creado_en, origen.creado_en)
                 for anterior, copia in zip(origen.items.all(),
                                            revision.items.all(), strict=True):
@@ -76,7 +77,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
         origen.refresh_from_db()
         self.assertEqual(origen.estado, "ANULADO")
         self.assertEqual(revision.estado, "BORRADOR")
-        self.assertIs(revision.requiere_aprobacion_gerencia, True)
+        self.assertIs(revision.requiere_aprobacion_gerencia, False)
 
     def test_multiples_revisiones(self):
         origen = self.preparar("RECHAZADO_CLIENTE")
@@ -87,7 +88,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
 
     def test_cliente_inactivo_rechazado(self):
         origen = self.preparar("ANULADO")
-        desactivar_cliente(self.cliente)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         with self.assertRaises(ClienteInactivo):
             servicios.crear_revision(origen, self.usuario)
         self.assertFalse(origen.revisiones.exists())
@@ -97,7 +98,7 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
         revision = servicios.crear_revision(origen, self.usuario)
         servicios.modificar_item(revision, revision.items.get(), {
             "descripcion": "Propuesta nueva",
-        })
+        }, usuario=self.usuario)
         self.assertEqual(origen.items.get().descripcion, "Montaje")
 
     def test_rollback_por_evento(self):
@@ -114,8 +115,8 @@ class PresupuestoRevisionTests(ServiciosPresupuestoMixin, TestCase):
 
     def test_rollback_por_segunda_linea(self):
         origen = self.crear()
-        servicios.crear_item(origen, datos_item())
-        servicios.crear_item(origen, datos_item(orden=7))
+        servicios.crear_item(origen, datos_item(), usuario=self.usuario)
+        servicios.crear_item(origen, datos_item(orden=7), usuario=self.usuario)
         servicios.anular_presupuesto(origen, self.usuario, "Cambio comercial")
         original = servicios._guardar_item
         llamadas = 0

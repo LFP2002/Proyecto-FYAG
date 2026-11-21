@@ -116,7 +116,7 @@ class AlertaSerializer(serializers.Serializer):
         return CATALOGO[obj.tipo].descripcion
 
     def get_acciones_permitidas(self, obj):
-        return ["ATENDER"] if obj.estado == "PENDIENTE" and self._contexto(obj).get("vigente", False) else []
+        return ["ATENDER"] if obj.rol_destinatario != "GERENCIA" and obj.estado == "PENDIENTE" and self._contexto(obj).get("vigente", False) else []
 
 
 class AlertaEventoSerializer(serializers.Serializer):

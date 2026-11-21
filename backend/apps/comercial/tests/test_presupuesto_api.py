@@ -68,10 +68,13 @@ class PresupuestoAPIBase(APITestCase):
             datos = datos_item()
             datos["cantidad"] = Decimal(datos["cantidad"])
             datos["precio_unitario"] = Decimal(datos["precio_unitario"])
-            servicios.crear_item(presupuesto, datos)
+            servicios.crear_item(presupuesto, datos, usuario=self.usuarios[AF])
         if estado != "BORRADOR":
             # Fixture de estado; también hay pruebas de flujos HTTP completos.
             presupuesto.estado = estado
+            if estado in {"PENDIENTE_GERENCIA", "APROBADO_GERENCIA", "RECHAZADO_GERENCIA"}:
+                presupuesto.politica_aprobacion = "GERENCIA_LEGADA"
+                presupuesto.requiere_aprobacion_gerencia = True
             presupuesto.save()
         return presupuesto
 
@@ -131,9 +134,9 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
             ("delete", item_url, {}, {AF}, 204),
         ]
         for accion, estado, rol, esperado in (
-            ("enviar-gerencia", "BORRADOR", AF, 200),
-            ("aprobar-gerencia", "PENDIENTE_GERENCIA", G, 200),
-            ("rechazar-gerencia", "PENDIENTE_GERENCIA", G, 200),
+            ("enviar-finanzas", "BORRADOR", AF, 200),
+            ("aprobar-finanzas", "PENDIENTE_FINANZAS", AF, 200),
+            ("rechazar-finanzas", "PENDIENTE_FINANZAS", AF, 200),
             ("enviar-cliente", "APROBADO_GERENCIA", AF, 200),
             ("registrar-aprobacion-cliente", "ENVIADO_CLIENTE", AF, 200),
             ("registrar-rechazo-cliente", "ENVIADO_CLIENTE", AF, 200),
@@ -226,7 +229,7 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
     def test_creacion_cliente_real_sin_identificacion(self):
         respuesta = self.client.post(self.url, self.cabecera(), format="json")
         self.assertEqual(respuesta.status_code, 201, respuesta.data)
-        self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], True)
+        self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], False)
         presupuesto = Presupuesto.objects.get(pk=respuesta.data["id"])
         self.assertEqual(presupuesto.cliente_id, self.cliente.pk)
         self.assertEqual(presupuesto.creado_por_id, self.usuarios[AF].pk)
@@ -286,7 +289,7 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
         self.assertEqual(respuesta.status_code, 200)
         self.presupuesto.refresh_from_db()
         self.assertEqual(self.presupuesto.descripcion, "Nueva propuesta")
-        self.assertTrue(self.presupuesto.requiere_aprobacion_gerencia)
+        self.assertFalse(self.presupuesto.requiere_aprobacion_gerencia)
 
     def test_patch_congelado(self):
         presupuesto = self.preparar("ENVIADO_CLIENTE")
@@ -301,6 +304,7 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
         self.assertEqual(set(respuesta.data), {
             "id", "codigo", "cliente", "descripcion", "estado",
             "requiere_aprobacion_gerencia", "presupuesto_origen", "creado_por",
+            "politica_aprobacion",
             "creado_en", "actualizado_en", "moneda", "monto_neto", "items",
         })
         self.assertIsInstance(respuesta.data["creado_por"], int)
@@ -466,9 +470,9 @@ class PresupuestoDecimalItemsAPITests(PresupuestoAPIBase):
 
 
 class PresupuestoEstadosAPITests(PresupuestoAPIBase):
-    def test_flujo_con_gerencia_e_historial(self):
+    def test_flujo_con_finanzas_e_historial(self):
         for rol, accion in (
-            (AF, "enviar-gerencia"), (G, "aprobar-gerencia"),
+            (AF, "enviar-finanzas"), (AF, "aprobar-finanzas"),
             (AF, "enviar-cliente"), (AF, "registrar-aprobacion-cliente"),
         ):
             self.autenticar(rol)
@@ -478,11 +482,11 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
         historial = self.client.get(self.detalle() + "historial/").data
         self.assertEqual(historial["count"], 5)
         self.assertEqual([e["estado_nuevo"] for e in historial["results"]], [
-            "BORRADOR", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
+            "BORRADOR", "PENDIENTE_FINANZAS", "APROBADO_FINANZAS",
             "ENVIADO_CLIENTE", "APROBADO_CLIENTE",
         ])
         self.assertEqual(historial["results"][2]["registrado_por"],
-                         self.usuarios[G].pk)
+                         self.usuarios[AF].pk)
         self.assertEqual(set(historial["results"][0]), {
             "id", "presupuesto", "estado_anterior", "estado_nuevo",
             "registrado_por", "motivo", "creado_en",
@@ -503,23 +507,22 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
         self.assertEqual(respuesta.data["code"], "estado_incompatible")
         self.assertEqual(self.presupuesto.eventos.count(), 1)
         self.autenticar(G)
-        self.assertEqual(self.accion("aprobar-gerencia").status_code, 409)
+        self.assertEqual(self.accion("aprobar-gerencia").status_code, 403)
 
     def test_reintento_conflicto_sin_evento_extra(self):
-        self.accion("enviar-gerencia")
-        self.autenticar(G)
-        self.assertEqual(self.accion("aprobar-gerencia").status_code, 200)
-        respuesta = self.accion("aprobar-gerencia")
+        self.accion("enviar-finanzas")
+        self.assertEqual(self.accion("aprobar-finanzas").status_code, 200)
+        respuesta = self.accion("aprobar-finanzas")
         self.assertEqual(respuesta.status_code, 409)
         self.assertEqual(respuesta.data["code"], "estado_incompatible")
         self.assertEqual(self.presupuesto.eventos.count(), 3)
 
     def test_estado_y_desconocidos_rechazados_en_acciones(self):
         for rol, nombre in (
-            (AF, "enviar-gerencia"), (AF, "enviar-cliente"),
+            (AF, "enviar-finanzas"), (AF, "enviar-cliente"),
             (AF, "registrar-aprobacion-cliente"),
             (AF, "registrar-rechazo-cliente"), (AF, "anular"),
-            (G, "aprobar-gerencia"), (G, "rechazar-gerencia"),
+            (AF, "aprobar-finanzas"), (AF, "rechazar-finanzas"),
         ):
             self.autenticar(rol)
             for campo in ("estado", "otro"):
@@ -530,7 +533,7 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
 
     def test_motivo_obligatorio_y_trim(self):
         for rol, accion, estado in (
-            (G, "rechazar-gerencia", "PENDIENTE_GERENCIA"),
+            (AF, "rechazar-finanzas", "PENDIENTE_GERENCIA"),
             (AF, "registrar-rechazo-cliente", "ENVIADO_CLIENTE"),
             (AF, "anular", "BORRADOR"),
         ):
@@ -550,7 +553,7 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
     def test_salida_sin_items_y_total_cero(self):
         presupuesto = self.preparar(con_item=False)
         self.assertEqual(
-            self.accion("enviar-gerencia", presupuesto).status_code, 400
+            self.accion("enviar-finanzas", presupuesto).status_code, 400
         )
         respuesta = self.client.post(
             self.detalle(presupuesto) + "items/",
@@ -559,7 +562,7 @@ class PresupuestoEstadosAPITests(PresupuestoAPIBase):
         )
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(
-            self.accion("enviar-gerencia", presupuesto).status_code, 400
+            self.accion("enviar-finanzas", presupuesto).status_code, 400
         )
 
 
@@ -572,7 +575,7 @@ class PresupuestoRevisionAPITests(PresupuestoAPIBase):
                 respuesta = self.accion("crear-revision", origen)
                 self.assertEqual(respuesta.status_code, 201, respuesta.data)
                 self.assertEqual(respuesta.data["estado"], "BORRADOR")
-                self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], True)
+                self.assertIs(respuesta.data["requiere_aprobacion_gerencia"], False)
                 self.assertEqual(
                     respuesta.data["presupuesto_origen"], origen.pk
                 )
@@ -675,7 +678,7 @@ class PresupuestoLecturaRutasAPITests(PresupuestoAPIBase):
                 "descripcion": "Línea", "cantidad": Decimal("0.5"),
                 "unidad": "hora", "precio_unitario": Decimal("0.01"),
                 "orden": orden,
-            })
+            }, usuario=self.usuarios[AF])
         with CaptureQueriesContext(connection) as ampliado:
             respuesta = self.client.get(self.detalle())
         self.assertLessEqual(len(ampliado), len(inicial))
@@ -699,11 +702,10 @@ class PresupuestoLecturaRutasAPITests(PresupuestoAPIBase):
                 self.assertEqual(respuesta.status_code, 404)
         for rol, acciones in (
             (AF, (
-                "enviar-gerencia", "enviar-cliente", "anular",
+                "enviar-finanzas", "aprobar-finanzas", "rechazar-finanzas", "enviar-cliente", "anular",
                 "crear-revision",
                 "registrar-aprobacion-cliente", "registrar-rechazo-cliente",
             )),
-            (G, ("aprobar-gerencia", "rechazar-gerencia")),
         ):
             self.autenticar(rol)
             for accion in acciones:

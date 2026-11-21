@@ -87,28 +87,28 @@ class PresupuestoConcurrenciaTests(
                 liberar.set()
             return uno.result(timeout=15), dos.result(timeout=15)
 
-    def test_gerencia_aprobar_antes_de_rechazar(self):
-        presupuesto = self.preparar("PENDIENTE_GERENCIA")
+    def test_finanzas_aprobar_antes_de_rechazar(self):
+        presupuesto = self.preparar("PENDIENTE_FINANZAS")
         uno, dos = self.ejecutar_en_orden(
-            lambda: servicios.aprobar_gerencia(presupuesto, self.usuario),
-            lambda: servicios.rechazar_gerencia(
+            lambda: servicios.aprobar_finanzas(presupuesto, self.usuario),
+            lambda: servicios.rechazar_finanzas(
                 presupuesto, self.usuario, "Rechazo"
             ), presupuesto,
         )
-        self.assertEqual(uno.estado, "APROBADO_GERENCIA")
+        self.assertEqual(uno.estado, "APROBADO_FINANZAS")
         self.assertIsInstance(dos, EstadoIncompatible)
         self.assertEqual(presupuesto.eventos.count(), 2)
 
-    def test_gerencia_rechazar_antes_de_aprobar(self):
+    def test_legado_finanzas_rechazar_antes_de_aprobar(self):
         presupuesto = self.preparar("PENDIENTE_GERENCIA")
         uno, dos = self.ejecutar_en_orden(
-            lambda: servicios.rechazar_gerencia(
+            lambda: servicios.rechazar_finanzas(
                 presupuesto, self.usuario, "Rechazo"
             ),
-            lambda: servicios.aprobar_gerencia(presupuesto, self.usuario),
+            lambda: servicios.aprobar_finanzas(presupuesto, self.usuario),
             presupuesto,
         )
-        self.assertEqual(uno.estado, "RECHAZADO_GERENCIA")
+        self.assertEqual(uno.estado, "RECHAZADO_FINANZAS")
         self.assertIsInstance(dos, EstadoIncompatible)
         self.assertEqual(presupuesto.eventos.count(), 2)
 
@@ -147,12 +147,12 @@ class PresupuestoConcurrenciaTests(
 
     def test_item_antes_de_salida_recalcula_con_nuevos_valores(self):
         presupuesto = self.crear()
-        item = servicios.crear_item(presupuesto, datos_item())
+        item = servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         uno, dos = self.ejecutar_en_orden(
             lambda: servicios.modificar_item(presupuesto, item, {
                 "precio_unitario": Decimal("0"),
-            }),
-            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
+            }, usuario=self.usuario),
+            lambda: servicios.enviar_finanzas(presupuesto, self.usuario),
             presupuesto,
         )
         self.assertEqual(uno.precio_unitario, Decimal("0.00"))
@@ -164,14 +164,14 @@ class PresupuestoConcurrenciaTests(
 
     def test_salida_antes_de_item_congela_contenido(self):
         presupuesto = self.crear()
-        item = servicios.crear_item(presupuesto, datos_item())
+        item = servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         uno, dos = self.ejecutar_en_orden(
-            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
+            lambda: servicios.enviar_finanzas(presupuesto, self.usuario),
             lambda: servicios.modificar_item(presupuesto, item, {
                 "precio_unitario": Decimal("0"),
-            }), presupuesto,
+            }, usuario=self.usuario), presupuesto,
         )
-        self.assertEqual(uno.estado, "PENDIENTE_GERENCIA")
+        self.assertEqual(uno.estado, "PENDIENTE_FINANZAS")
         self.assertIsInstance(dos, EstadoIncompatible)
         item.refresh_from_db()
         self.assertEqual(item.precio_unitario, Decimal("100.25"))
@@ -179,8 +179,8 @@ class PresupuestoConcurrenciaTests(
     def test_orden_duplicado_concurrente(self):
         presupuesto = self.crear()
         uno, dos = self.ejecutar_en_orden(
-            lambda: servicios.crear_item(presupuesto, datos_item()),
-            lambda: servicios.crear_item(presupuesto, datos_item()),
+            lambda: servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario),
+            lambda: servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario),
             presupuesto,
         )
         self.assertEqual(uno.orden, 1)
@@ -189,10 +189,10 @@ class PresupuestoConcurrenciaTests(
 
     def test_desactivacion_cliente_antes_de_salida(self):
         presupuesto = self.crear()
-        servicios.crear_item(presupuesto, datos_item())
+        servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         uno, dos = self.ejecutar_en_orden(
-            lambda: desactivar_cliente(self.cliente),
-            lambda: servicios.enviar_gerencia(presupuesto, self.usuario),
+            lambda: desactivar_cliente(self.cliente, usuario=self.usuario),
+            lambda: servicios.enviar_finanzas(presupuesto, self.usuario),
             self.cliente,
         )
         self.assertIsInstance(uno, Cliente)
@@ -213,3 +213,23 @@ class PresupuestoConcurrenciaTests(
         self.assertEqual(origen.revisiones.count(), 2)
         self.assertEqual(uno.eventos.count(), 1)
         self.assertEqual(dos.eventos.count(), 1)
+
+    def test_cambio_rol_mientras_espera_lock_deniega_decision(self):
+        from apps.usuarios.models import Usuario
+        from rest_framework.exceptions import PermissionDenied
+        presupuesto = self.preparar('PENDIENTE_FINANZAS')
+
+        def decidir():
+            try:
+                return servicios.aprobar_finanzas(presupuesto, self.usuario)
+            except PermissionDenied as exc:
+                return exc
+
+        _, resultado = self.ejecutar_en_orden(
+            lambda: Usuario.objects.filter(pk=self.usuario.pk).update(rol='GERENCIA'),
+            decidir, presupuesto,
+        )
+        self.assertIsInstance(resultado, PermissionDenied)
+        presupuesto.refresh_from_db()
+        self.assertEqual(presupuesto.estado, 'PENDIENTE_FINANZAS')
+        self.assertEqual(presupuesto.eventos.count(), 1)

@@ -1,13 +1,11 @@
 """Escrituras de dominio comercial bajo bloqueo del presupuesto persistido.
 
-La autorización por rol corresponde a la futura capa de entrada. Los actores
-se reciben como usuarios internos, nunca como strings o roles del consumidor.
+La autorización se revalida en dominio antes y después de adquirir locks.
 """
 
 from collections.abc import Mapping
 from functools import wraps
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
@@ -22,6 +20,7 @@ from .exceptions import (
     PresupuestoUtilizado,
 )
 from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem
+from .permissions import revalidar_escritura
 
 
 Estado = Presupuesto.Estado
@@ -87,14 +86,7 @@ def _cliente_activo_bloqueado(referencia):
 
 
 def _usuario_interno(usuario):
-    if (
-        not isinstance(usuario, get_user_model())
-        or not usuario.is_authenticated
-        or usuario.pk is None
-        or usuario._state.adding
-    ):
-        raise DatosInvalidos({"usuario": ["Se requiere un usuario interno."]})
-    return usuario
+    return revalidar_escritura(usuario)
 
 
 def _datos_permitidos(datos, campos, *, completos=False):
@@ -128,10 +120,11 @@ def _evento(presupuesto, anterior, usuario, motivo=""):
 
 @_operacion
 def crear_presupuesto(*, cliente, descripcion, usuario):
+    _usuario_interno(usuario)
     cliente = _cliente_activo_bloqueado(cliente)
     presupuesto = Presupuesto.objects.create(
         cliente=cliente, descripcion=descripcion,
-        requiere_aprobacion_gerencia=True,
+        requiere_aprobacion_gerencia=False,
         creado_por=_usuario_interno(usuario),
     )
     _evento(presupuesto, None, usuario)
@@ -139,14 +132,17 @@ def crear_presupuesto(*, cliente, descripcion, usuario):
 
 
 @_operacion
-def modificar_presupuesto(presupuesto, cambios):
+def modificar_presupuesto(presupuesto, cambios, usuario=None):
+    _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     _exigir_borrador(actual)
     _datos_permitidos(cambios, CAMPOS_CABECERA)
     for campo, valor in cambios.items():
         if campo == "cliente":
             valor = _cliente_activo_bloqueado(valor)
         setattr(actual, campo, valor)
+    _usuario_interno(usuario)
     actual.save()
     return actual
 
@@ -174,8 +170,10 @@ def _actualizar_fecha(presupuesto):
 
 
 @_operacion
-def crear_item(presupuesto, datos):
+def crear_item(presupuesto, datos, usuario=None):
+    _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     _exigir_borrador(actual)
     _datos_permitidos(datos, CAMPOS_ITEM, completos=True)
     item = PresupuestoItem(presupuesto=actual, **datos)
@@ -185,8 +183,10 @@ def crear_item(presupuesto, datos):
 
 
 @_operacion
-def modificar_item(presupuesto, item, cambios):
+def modificar_item(presupuesto, item, cambios, usuario=None):
+    _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     _exigir_borrador(actual)
     _datos_permitidos(cambios, CAMPOS_ITEM)
     item = _item_del_presupuesto(actual, item)
@@ -198,8 +198,10 @@ def modificar_item(presupuesto, item, cambios):
 
 
 @_operacion
-def eliminar_item(presupuesto, item):
+def eliminar_item(presupuesto, item, usuario=None):
+    _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     _exigir_borrador(actual)
     _item_del_presupuesto(actual, item).delete()
     _actualizar_fecha(actual)
@@ -247,7 +249,9 @@ def _transicionar(
     presupuesto, usuario, motivo, *, origenes, destino,
     motivo_obligatorio=False,
 ):
+    _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     anterior = actual.estado
     if anterior not in origenes:
         raise EstadoIncompatible()
@@ -265,27 +269,30 @@ def _transicionar(
     _evento(actual, anterior, usuario, motivo)
     from apps.alertas.services import notificar_despues_commit
     notificar_despues_commit("PRESUPUESTO_PENDIENTE_GERENCIA", actual.pk)
+    notificar_despues_commit("PRESUPUESTO_PENDIENTE_FINANZAS", actual.pk)
     return actual
 
 
-def enviar_gerencia(presupuesto, usuario, motivo=""):
+def enviar_finanzas(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={Estado.BORRADOR},
-        destino=Estado.PENDIENTE_GERENCIA,
+        destino=Estado.PENDIENTE_FINANZAS,
     )
 
 
-def aprobar_gerencia(presupuesto, usuario, motivo=""):
+def aprobar_finanzas(presupuesto, usuario, motivo=""):
     return _transicionar(
-        presupuesto, usuario, motivo, origenes={Estado.PENDIENTE_GERENCIA},
-        destino=Estado.APROBADO_GERENCIA,
+        presupuesto, usuario, motivo,
+        origenes={Estado.PENDIENTE_GERENCIA, Estado.PENDIENTE_FINANZAS},
+        destino=Estado.APROBADO_FINANZAS,
     )
 
 
-def rechazar_gerencia(presupuesto, usuario, motivo):
+def rechazar_finanzas(presupuesto, usuario, motivo):
     return _transicionar(
-        presupuesto, usuario, motivo, origenes={Estado.PENDIENTE_GERENCIA},
-        destino=Estado.RECHAZADO_GERENCIA,
+        presupuesto, usuario, motivo,
+        origenes={Estado.PENDIENTE_GERENCIA, Estado.PENDIENTE_FINANZAS},
+        destino=Estado.RECHAZADO_FINANZAS,
         motivo_obligatorio=True,
     )
 
@@ -293,7 +300,7 @@ def rechazar_gerencia(presupuesto, usuario, motivo):
 def enviar_cliente(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo,
-        origenes={Estado.APROBADO_GERENCIA},
+        origenes={Estado.APROBADO_GERENCIA, Estado.APROBADO_FINANZAS},
         destino=Estado.ENVIADO_CLIENTE,
     )
 
@@ -316,6 +323,7 @@ def anular_presupuesto(presupuesto, usuario, motivo):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={
             Estado.BORRADOR, Estado.PENDIENTE_GERENCIA,
+            Estado.PENDIENTE_FINANZAS, Estado.APROBADO_FINANZAS,
             Estado.APROBADO_GERENCIA,
             Estado.ENVIADO_CLIENTE, Estado.APROBADO_CLIENTE,
         }, destino=Estado.ANULADO, motivo_obligatorio=True,
@@ -324,15 +332,18 @@ def anular_presupuesto(presupuesto, usuario, motivo):
 
 @_operacion
 def crear_revision(presupuesto, usuario):
+    _usuario_interno(usuario)
     origen = _presupuesto_bloqueado(presupuesto)
+    _usuario_interno(usuario)
     if origen.estado not in {
-        Estado.RECHAZADO_GERENCIA, Estado.RECHAZADO_CLIENTE, Estado.ANULADO,
+        Estado.RECHAZADO_FINANZAS, Estado.RECHAZADO_GERENCIA,
+        Estado.RECHAZADO_CLIENTE, Estado.ANULADO,
     }:
         raise EstadoIncompatible()
     cliente = _cliente_activo_bloqueado(origen.cliente_id)
     revision = Presupuesto.objects.create(
         cliente=cliente, descripcion=origen.descripcion,
-        requiere_aprobacion_gerencia=True,
+        requiere_aprobacion_gerencia=False,
         presupuesto_origen=origen, creado_por=_usuario_interno(usuario),
     )
     for linea in PresupuestoItem.objects.filter(presupuesto=origen):
@@ -343,3 +354,12 @@ def crear_revision(presupuesto, usuario):
         _guardar_item(copia)
     _evento(revision, None, usuario)
     return revision
+
+
+def enviar_gerencia(*args, **kwargs):
+    from rest_framework.exceptions import PermissionDenied
+    raise PermissionDenied("Acción gerencial retirada.")
+
+
+aprobar_gerencia = enviar_gerencia
+rechazar_gerencia = enviar_gerencia

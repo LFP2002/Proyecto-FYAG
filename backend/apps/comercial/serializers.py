@@ -67,9 +67,12 @@ class ClienteSerializer(serializers.Serializer):
         return {campo: getattr(candidato, campo) for campo in attrs}
 
     def create(self, validated_data):
-        return ejecutar_validacion_modelo(guardar_cliente, validated_data)
+        return ejecutar_validacion_modelo(
+            guardar_cliente, validated_data, usuario=self.context["request"].user,
+        )
 
     def update(self, instance, validated_data):
         return ejecutar_validacion_modelo(
-            guardar_cliente, validated_data, instancia=instance
+            guardar_cliente, validated_data, instancia=instance,
+            usuario=self.context["request"].user,
         )

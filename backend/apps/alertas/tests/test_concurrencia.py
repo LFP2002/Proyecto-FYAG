@@ -48,7 +48,7 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
 
     def test_doble_post_http_un_200_un_409_y_un_evento(self):
         a = self.suspender()
-        token = str(AccessToken.for_user(self.gerencia))
+        token = str(AccessToken.for_user(self.supervisor))
         def atender():
             client = APIClient()
             client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
@@ -60,7 +60,7 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
 
     def test_atencion_y_reconciliacion_comparten_lock(self):
         a = self.suspender()
-        self.race(lambda: services.atender(self.gerencia, a.pk, "Coordinado"),
+        self.race(lambda: services.atender(self.supervisor, a.pk, "Coordinado"),
                   lambda: services.reconciliar_recurso(a.tipo, a.recurso_id))
         self.assertEqual(a.eventos.filter(tipo="ATENCION").count(), 1)
         a.refresh_from_db()
@@ -117,8 +117,8 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
         a = self.suspender()
         def cambiar():
             services.bloquear(a.tipo, a.recurso_id)
-            Usuario.objects.filter(pk=self.gerencia.pk).update(sesion_version=self.gerencia.sesion_version + 1)
-        _, resultado = self.race(cambiar, lambda: services.atender(self.gerencia, a.pk, "Coordinado"))
+            Usuario.objects.filter(pk=self.supervisor.pk).update(sesion_version=self.supervisor.sesion_version + 1)
+        _, resultado = self.race(cambiar, lambda: services.atender(self.supervisor, a.pk, "Coordinado"))
         self.assertEqual(resultado.status_code, 401)
         self.assertFalse(a.eventos.filter(tipo="ATENCION").exists())
 
@@ -149,11 +149,12 @@ class LocksFinanzasAlertasTests(FinanzasBase, TransactionTestCase):
             futuro = pool.submit(pagar)
             try:
                 self.assertTrue(listo.wait(10))
-                atendida = services.atender(self.gerencia, a.pk, "Pago en coordinación")
-                self.assertEqual(atendida.estado, "ATENDIDA")
+                from rest_framework.exceptions import PermissionDenied
+                with self.assertRaises(PermissionDenied):
+                    services.atender(self.gerencia, a.pk, "Pago en coordinación")
             finally:
                 liberar.set()
             futuro.result(timeout=10)
         a.refresh_from_db()
         self.assertEqual(a.estado, "RESUELTA")
-        self.assertEqual(a.eventos.count(), 3)
+        self.assertEqual(a.eventos.count(), 2)

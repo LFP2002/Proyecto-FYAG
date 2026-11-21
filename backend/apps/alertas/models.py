@@ -51,7 +51,7 @@ for _tipo, _regla in CATALOGO.items():
 
 class Alerta(RegistroProtegido):
     tipo = models.CharField(max_length=32, choices=[(x, x) for x in CATALOGO], editable=False)
-    rol_destinatario = models.CharField(max_length=20, choices=[(x, x) for x in ("GERENCIA", "SUPERVISOR_OBRAS")], editable=False)
+    rol_destinatario = models.CharField(max_length=30, choices=[(x, x) for x in ("GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS")], editable=False)
     recurso_tipo = models.CharField(max_length=12, choices=[(x, x) for x in sorted(RECURSOS)], editable=False)
     recurso_id = models.PositiveBigIntegerField(editable=False)
     generacion = models.PositiveIntegerField(editable=False)

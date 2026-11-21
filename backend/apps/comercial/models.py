@@ -248,8 +248,15 @@ class _ModeloPresupuestoValidado(models.Model):
 
 
 class Presupuesto(_ModeloPresupuestoValidado):
+    class Politica(models.TextChoices):
+        GERENCIA_LEGADA = "GERENCIA_LEGADA", "Gerencia (histórica)"
+        FINANZAS = "FINANZAS", "Finanzas"
+
     class Estado(models.TextChoices):
         BORRADOR = "BORRADOR", "Borrador"
+        PENDIENTE_FINANZAS = "PENDIENTE_FINANZAS", "Pendiente Finanzas"
+        APROBADO_FINANZAS = "APROBADO_FINANZAS", "Aprobado Finanzas"
+        RECHAZADO_FINANZAS = "RECHAZADO_FINANZAS", "Rechazado Finanzas"
         PENDIENTE_GERENCIA = "PENDIENTE_GERENCIA", "Pendiente Gerencia"
         APROBADO_GERENCIA = "APROBADO_GERENCIA", "Aprobado Gerencia"
         RECHAZADO_GERENCIA = "RECHAZADO_GERENCIA", "Rechazado Gerencia"
@@ -265,7 +272,11 @@ class Presupuesto(_ModeloPresupuestoValidado):
     estado = models.CharField(
         max_length=20, choices=Estado.choices, default=Estado.BORRADOR
     )
-    requiere_aprobacion_gerencia = models.BooleanField(default=True, editable=False)
+    politica_aprobacion = models.CharField(
+        max_length=20, choices=Politica.choices,
+        default=Politica.FINANZAS, editable=False,
+    )
+    requiere_aprobacion_gerencia = models.BooleanField(default=False, editable=False)
     presupuesto_origen = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True,
         related_name="revisiones",
@@ -281,7 +292,8 @@ class Presupuesto(_ModeloPresupuestoValidado):
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(estado__in=[
-                    "BORRADOR", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
+                    "BORRADOR", "PENDIENTE_FINANZAS", "APROBADO_FINANZAS",
+                    "RECHAZADO_FINANZAS", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
                     "RECHAZADO_GERENCIA", "ENVIADO_CLIENTE",
                     "APROBADO_CLIENTE", "RECHAZADO_CLIENTE", "ANULADO",
                 ]),
@@ -294,8 +306,16 @@ class Presupuesto(_ModeloPresupuestoValidado):
                 name="presupuesto_descripcion_valida",
             ),
             models.CheckConstraint(
-                condition=models.Q(requiere_aprobacion_gerencia=True),
-                name="presupuesto_aprobacion_gerencia_obligatoria",
+                condition=(
+                    models.Q(politica_aprobacion="GERENCIA_LEGADA", requiere_aprobacion_gerencia=True)
+                    | (
+                        models.Q(politica_aprobacion="FINANZAS", requiere_aprobacion_gerencia=False)
+                        & ~models.Q(estado__in=[
+                            "PENDIENTE_GERENCIA", "APROBADO_GERENCIA", "RECHAZADO_GERENCIA",
+                        ])
+                    )
+                ),
+                name="presupuesto_politica_coherente",
             ),
             models.CheckConstraint(
                 condition=(
@@ -309,9 +329,10 @@ class Presupuesto(_ModeloPresupuestoValidado):
     def _preparar_campos(self, exclude=None):
         super()._preparar_campos(exclude)
         if "requiere_aprobacion_gerencia" not in (exclude or ()):
-            if self.requiere_aprobacion_gerencia is not True:
+            politica_legada = self.politica_aprobacion == self.Politica.GERENCIA_LEGADA
+            if self.requiere_aprobacion_gerencia is not politica_legada:
                 raise ValidationError({
-                    "requiere_aprobacion_gerencia": "Debe ser True en este MVP.",
+                    "requiere_aprobacion_gerencia": "Debe corresponder a la política persistida.",
                 })
 
     @property
@@ -466,7 +487,7 @@ class PresupuestoEvento(_ModeloPresupuestoValidado):
             models.CheckConstraint(
                 condition=(
                     ~models.Q(estado_nuevo__in=[
-                        "RECHAZADO_GERENCIA", "RECHAZADO_CLIENTE", "ANULADO",
+                        "RECHAZADO_FINANZAS", "RECHAZADO_GERENCIA", "RECHAZADO_CLIENTE", "ANULADO",
                     ])
                     | ~models.Q(motivo="")
                 ),

@@ -21,19 +21,20 @@ from apps.comercial.tests.test_presupuesto_services import (
 class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
     def test_matriz_completa_estados_acciones(self):
         acciones = (
-            (servicios.enviar_gerencia, "PENDIENTE_GERENCIA", {"BORRADOR"}),
-            (servicios.aprobar_gerencia, "APROBADO_GERENCIA",
-             {"PENDIENTE_GERENCIA"}),
-            (servicios.rechazar_gerencia, "RECHAZADO_GERENCIA",
-             {"PENDIENTE_GERENCIA"}),
+            (servicios.enviar_finanzas, "PENDIENTE_FINANZAS", {"BORRADOR"}),
+            (servicios.aprobar_finanzas, "APROBADO_FINANZAS",
+             {"PENDIENTE_GERENCIA", "PENDIENTE_FINANZAS"}),
+            (servicios.rechazar_finanzas, "RECHAZADO_FINANZAS",
+             {"PENDIENTE_GERENCIA", "PENDIENTE_FINANZAS"}),
             (servicios.enviar_cliente, "ENVIADO_CLIENTE",
-             {"APROBADO_GERENCIA"}),
+             {"APROBADO_GERENCIA", "APROBADO_FINANZAS"}),
             (servicios.registrar_aprobacion_cliente, "APROBADO_CLIENTE",
              {"ENVIADO_CLIENTE"}),
             (servicios.registrar_rechazo_cliente, "RECHAZADO_CLIENTE",
              {"ENVIADO_CLIENTE"}),
             (servicios.anular_presupuesto, "ANULADO", {
                 "BORRADOR", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
+                "PENDIENTE_FINANZAS", "APROBADO_FINANZAS",
                 "ENVIADO_CLIENTE", "APROBADO_CLIENTE",
             }),
         )
@@ -59,11 +60,11 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
                         self.assertEqual(presupuesto.estado, origen)
                         self.assertEqual(presupuesto.eventos.count(), 1)
 
-    def test_flujo_completo_con_gerencia(self):
+    def test_flujo_completo_con_finanzas(self):
         presupuesto = self.crear()
-        servicios.crear_item(presupuesto, datos_item())
+        servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         for accion in (
-            servicios.enviar_gerencia, servicios.aprobar_gerencia,
+            servicios.enviar_finanzas, servicios.aprobar_finanzas,
             servicios.enviar_cliente, servicios.registrar_aprobacion_cliente,
         ):
             accion(presupuesto, self.usuario)
@@ -71,31 +72,31 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
         self.assertEqual(presupuesto.estado, "APROBADO_CLIENTE")
         self.assertEqual(list(presupuesto.eventos.values_list(
             "estado_nuevo", flat=True
-        )), ["BORRADOR", "PENDIENTE_GERENCIA", "APROBADO_GERENCIA",
+        )), ["BORRADOR", "PENDIENTE_FINANZAS", "APROBADO_FINANZAS",
              "ENVIADO_CLIENTE", "APROBADO_CLIENTE"])
 
-    def test_gerencia_obligatoria_sin_dependencia_del_monto(self):
+    def test_finanzas_obligatoria_sin_dependencia_del_monto(self):
         for precio in ("1", "9000000"):
             with self.subTest(precio=precio):
                 presupuesto = self.crear()
                 servicios.crear_item(presupuesto, datos_item(
                     precio_unitario=Decimal(precio),
-                ))
+                ), usuario=self.usuario)
                 with self.assertRaises(EstadoIncompatible):
                     servicios.enviar_cliente(presupuesto, self.usuario)
                 self.assertEqual(presupuesto.eventos.count(), 1)
-                for accion in (servicios.enviar_gerencia,
-                               servicios.aprobar_gerencia,
+                for accion in (servicios.enviar_finanzas,
+                               servicios.aprobar_finanzas,
                                servicios.enviar_cliente):
                     accion(presupuesto, self.usuario)
                 presupuesto.refresh_from_db()
                 self.assertEqual(presupuesto.estado, "ENVIADO_CLIENTE")
-                self.assertIs(presupuesto.requiere_aprobacion_gerencia, True)
+                self.assertIs(presupuesto.requiere_aprobacion_gerencia, False)
 
     def test_salida_sin_items(self):
         presupuesto = self.crear()
         with self.assertRaises(DatosInvalidos):
-            servicios.enviar_gerencia(presupuesto, self.usuario)
+            servicios.enviar_finanzas(presupuesto, self.usuario)
         self.assertEqual(presupuesto.eventos.count(), 1)
 
     def test_salida_total_cero_o_redondeado_a_cero(self):
@@ -104,9 +105,9 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
                 presupuesto = self.crear()
                 servicios.crear_item(presupuesto, datos_item(
                     cantidad=Decimal("0.001"), precio_unitario=precio,
-                ))
+                ), usuario=self.usuario)
                 with self.assertRaises(DatosInvalidos):
-                    servicios.enviar_gerencia(presupuesto, self.usuario)
+                    servicios.enviar_finanzas(presupuesto, self.usuario)
                 presupuesto.refresh_from_db()
                 self.assertEqual(presupuesto.estado, "BORRADOR")
 
@@ -114,25 +115,25 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
         presupuesto = self.crear()
         servicios.crear_item(presupuesto, datos_item(
             precio_unitario=Decimal("0"),
-        ))
-        servicios.crear_item(presupuesto, datos_item(orden=4))
-        resultado = servicios.enviar_gerencia(presupuesto, self.usuario)
-        self.assertEqual(resultado.estado, "PENDIENTE_GERENCIA")
+        ), usuario=self.usuario)
+        servicios.crear_item(presupuesto, datos_item(orden=4), usuario=self.usuario)
+        resultado = servicios.enviar_finanzas(presupuesto, self.usuario)
+        self.assertEqual(resultado.estado, "PENDIENTE_FINANZAS")
         self.assertEqual(resultado.monto_neto, Decimal("250.63"))
 
     def test_cliente_inactivo_impide_salida(self):
         presupuesto = self.crear()
-        servicios.crear_item(presupuesto, datos_item())
-        desactivar_cliente(self.cliente)
+        servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         with self.assertRaises(ClienteInactivo):
-            servicios.enviar_gerencia(presupuesto, self.usuario)
+            servicios.enviar_finanzas(presupuesto, self.usuario)
         presupuesto.refresh_from_db()
         self.assertEqual(presupuesto.estado, "BORRADOR")
 
     def test_desactivacion_posterior_no_invalida_historico(self):
         presupuesto = self.preparar("PENDIENTE_GERENCIA")
-        desactivar_cliente(self.cliente)
-        servicios.aprobar_gerencia(presupuesto, self.usuario)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
+        servicios.aprobar_finanzas(presupuesto, self.usuario)
         servicios.enviar_cliente(presupuesto, self.usuario)
         servicios.registrar_aprobacion_cliente(presupuesto, self.usuario)
         presupuesto.refresh_from_db()
@@ -140,7 +141,8 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
 
     def test_motivo_obligatorio_sin_efectos_parciales(self):
         for origen, accion in (
-            ("PENDIENTE_GERENCIA", servicios.rechazar_gerencia),
+            ("PENDIENTE_GERENCIA", servicios.rechazar_finanzas),
+            ("PENDIENTE_FINANZAS", servicios.rechazar_finanzas),
             ("ENVIADO_CLIENTE", servicios.registrar_rechazo_cliente),
             ("BORRADOR", servicios.anular_presupuesto),
         ):
@@ -162,7 +164,7 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
                     )
 
     def test_anular_no_exige_items_ni_cliente_activo(self):
-        desactivar_cliente(self.cliente)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         resultado = servicios.anular_presupuesto(
             self.presupuesto, self.usuario, "Retirado"
         )
@@ -170,9 +172,9 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
 
     def test_reintento_no_crea_evento(self):
         presupuesto = self.preparar("PENDIENTE_GERENCIA")
-        servicios.aprobar_gerencia(presupuesto, self.usuario)
+        servicios.aprobar_finanzas(presupuesto, self.usuario)
         with self.assertRaises(EstadoIncompatible):
-            servicios.aprobar_gerencia(presupuesto, self.usuario)
+            servicios.aprobar_finanzas(presupuesto, self.usuario)
         self.assertEqual(presupuesto.eventos.count(), 2)
 
     def test_rollback_estado_y_fecha_si_falla_evento(self):
@@ -180,7 +182,7 @@ class PresupuestoEstadosTests(ServiciosPresupuestoMixin, TestCase):
         fecha = presupuesto.actualizado_en
         with patch.object(servicios, "_evento", side_effect=RuntimeError):
             with self.assertRaises(RuntimeError):
-                servicios.aprobar_gerencia(presupuesto, self.usuario)
+                servicios.aprobar_finanzas(presupuesto, self.usuario)
         presupuesto.refresh_from_db()
         self.assertEqual(presupuesto.estado, "PENDIENTE_GERENCIA")
         self.assertEqual(presupuesto.actualizado_en, fecha)

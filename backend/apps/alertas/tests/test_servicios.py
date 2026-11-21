@@ -29,15 +29,15 @@ class CicloAlertasTests(AlertasBase, TestCase):
         self.preparar_alertas()
 
     def test_presupuesto_transiciones_reales_crean_resuelven_rechazo_y_aprobacion(self):
-        for decision in ("aprobar_gerencia", "rechazar_gerencia"):
+        for decision in ("aprobar_finanzas", "rechazar_finanzas"):
             p = self.pendiente()
-            self.assertFalse(condicion("PRESUPUESTO_PENDIENTE_GERENCIA", p.pk))
+            self.assertFalse(condicion("PRESUPUESTO_PENDIENTE_FINANZAS", p.pk))
             with self.captureOnCommitCallbacks(execute=True):
-                comercial.enviar_gerencia(p, self.finanzas)
-            alerta = Alerta.objects.get(tipo="PRESUPUESTO_PENDIENTE_GERENCIA", recurso_id=p.pk)
+                comercial.enviar_finanzas(p, self.finanzas)
+            alerta = Alerta.objects.get(tipo="PRESUPUESTO_PENDIENTE_FINANZAS", recurso_id=p.pk)
             self.assertEqual(alerta.estado, "PENDIENTE")
             with self.captureOnCommitCallbacks(execute=True):
-                getattr(comercial, decision)(p, self.gerencia, "Decisión revisada")
+                getattr(comercial, decision)(p, self.finanzas, "Decisión revisada")
             alerta.refresh_from_db()
             self.assertEqual(alerta.estado, "RESUELTA")
             self.assertEqual(set(alerta.eventos.values_list("tipo", flat=True)), {"CREACION", "RESOLUCION"})
@@ -45,21 +45,23 @@ class CicloAlertasTests(AlertasBase, TestCase):
 
     def test_obra_dos_roles_atencion_independiente_y_generaciones(self):
         a = self.suspender()
-        s = Alerta.objects.get(tipo="OBRA_SUSPENDIDA", rol_destinatario="SUPERVISOR_OBRAS")
-        services.atender(self.gerencia, a.pk, "  Coordinado  ")
-        s.refresh_from_db()
-        self.assertEqual(s.estado, "PENDIENTE")
-        services.atender(self.supervisor, s.pk, "Equipo informado")
+        g = Alerta.objects.get(tipo="OBRA_SUSPENDIDA", rol_destinatario="GERENCIA")
+        from rest_framework.exceptions import PermissionDenied
+        with self.assertRaises(PermissionDenied):
+            services.atender(self.gerencia, g.pk, "Coordinado")
+        services.atender(self.supervisor, a.pk, "  Coordinado  ")
+        g.refresh_from_db()
+        self.assertEqual(g.estado, "PENDIENTE")
         with self.captureOnCommitCallbacks(execute=True):
             obras.reanudar_obra(self.obra, self.supervisor, "Continuar")
         self.assertEqual(Alerta.objects.filter(estado="RESUELTA").count(), 2)
         a.refresh_from_db()
         self.assertEqual(a.motivo_atencion, "Coordinado")
-        self.assertEqual(a.atendida_por_id, self.gerencia.pk)
+        self.assertEqual(a.atendida_por_id, self.supervisor.pk)
         with self.captureOnCommitCallbacks(execute=True):
             obras.suspender_obra(self.obra, self.supervisor, "Segunda pausa")
         self.assertEqual(Alerta.objects.filter(generacion=2, estado="PENDIENTE").count(), 2)
-        self.assertEqual(AlertaEvento.objects.count(), 8)
+        self.assertEqual(AlertaEvento.objects.count(), 7)
 
     def test_turno_cierre_observacion_subsanacion_validacion_correccion(self):
         t = self.abrir()
@@ -97,23 +99,23 @@ class CicloAlertasTests(AlertasBase, TestCase):
         a = self.suspender()
         self.obra.refresh_from_db()
         antes = self.obra.__dict__.copy()
-        services.atender(self.gerencia, a.pk, "Revisar")
+        services.atender(self.supervisor, a.pk, "Revisar")
         with self.assertRaises(services.ConflictoAlerta) as cm:
-            services.atender(self.gerencia, a.pk, "Otra vez")
+            services.atender(self.supervisor, a.pk, "Otra vez")
         self.assertEqual(cm.exception.detail["code"], "alerta_ya_atendida")
         self.obra.refresh_from_db()
         self.assertEqual(self.obra.__dict__, antes)
         obras.reanudar_obra(self.obra, self.supervisor, "Continuar")
         services.reconciliar()
         with self.assertRaises(services.ConflictoAlerta) as cm:
-            services.atender(self.gerencia, a.pk, "Otra vez")
+            services.atender(self.supervisor, a.pk, "Otra vez")
         self.assertEqual(cm.exception.detail["code"], "alerta_resuelta")
 
     def test_causa_desactualizada_no_se_resuelve_al_atender(self):
         a = self.suspender()
         obras.reanudar_obra(self.obra, self.supervisor, "Continuar")
         with self.assertRaises(services.ConflictoAlerta) as cm:
-            services.atender(self.gerencia, a.pk, "Revisar")
+            services.atender(self.supervisor, a.pk, "Revisar")
         self.assertEqual(cm.exception.detail["code"], "alerta_desactualizada")
         a.refresh_from_db()
         self.assertEqual(a.estado, "PENDIENTE")

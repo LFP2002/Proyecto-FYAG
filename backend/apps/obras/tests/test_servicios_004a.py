@@ -247,19 +247,19 @@ class ServiciosObrasTests(BaseObras, TestCase):
         with self.assertRaises(DatosInvalidos):
             services.editar_obra(obra, {"estado": "FINALIZADA"}, self.supervisor)
 
-    def test_gerencia_categoria_y_desactivacion_bloquean_alta(self):
+    def test_supervisor_categoria_y_desactivacion_bloquean_alta(self):
         with self.assertRaises(PermisoDenegado):
-            services.crear_categoria("Reparación de camiones", self.supervisor)
-        cat = services.crear_categoria("Reparación de camiones", self.gerencia)
+            services.crear_categoria("Reparación de camiones", self.gerencia)
+        cat = services.crear_categoria("Reparación de camiones", self.supervisor)
         self.assertEqual(cat.eventos.count(), 1)
-        services.desactivar_categoria(cat, self.gerencia, "Depuración")
+        services.desactivar_categoria(cat, self.supervisor, "Depuración")
         with self.assertRaises(DatosInvalidos):
             self.crear(categoria_servicio=cat.pk)
-        services.activar_categoria(cat, self.gerencia, "Vuelve al catálogo")
+        services.activar_categoria(cat, self.supervisor, "Vuelve al catálogo")
         nueva = self.crear(categoria_servicio=cat.pk)
         self.assertEqual(nueva.categoria_servicio_id, cat.pk)
         with self.assertRaises(DatosInvalidos):
-            services.crear_categoria("REPARACIÓN DE CAMIONES", self.gerencia)
+            services.crear_categoria("REPARACIÓN DE CAMIONES", self.supervisor)
 
     def test_guard_anulacion_presupuesto_usado_sin_evento_comercial(self):
         obra = self.crear()

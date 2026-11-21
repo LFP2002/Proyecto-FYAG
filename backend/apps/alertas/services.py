@@ -115,6 +115,7 @@ def reconciliar():
 
 
 def obtener(actor, pk):
+    actor = revalidar(actor)
     if type(pk) is not int or not 0 < pk <= MAX_PK:
         raise NotFound("Alerta no encontrada.")
     alerta = Alerta.objects.filter(pk=pk, rol_destinatario=actor.rol).first()
@@ -125,13 +126,13 @@ def obtener(actor, pk):
 
 @transaction.atomic
 def atender(actor, pk, motivo):
-    actor = revalidar(actor)
+    actor = revalidar(actor, escritura=True)
     if type(motivo) is not str or not 1 <= len(motivo.strip()) <= 2000:
         raise ValidationError({"motivo": "Indique un texto de 1 a 2000 caracteres."})
     alerta = obtener(actor, pk)
     bloquear(alerta.tipo, alerta.recurso_id)
     # El rol/sesión puede cambiar mientras esperamos al reconciliador.
-    actor = revalidar(actor)
+    actor = revalidar(actor, escritura=True)
     alerta = Alerta.objects.select_for_update().filter(pk=pk, rol_destinatario=actor.rol).first()
     if alerta is None:
         raise NotFound("Alerta no encontrada.")

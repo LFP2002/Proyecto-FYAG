@@ -313,10 +313,10 @@ class ObrasAPIContratoTests(ObrasAPIBase):
         self.assertEqual(res.status_code, 404)
 
     def test_catalogo_y_permisos(self):
-        self.autenticar(S)
+        self.autenticar(G)
         self.assertEqual(self.client.get("/api/categorias-servicio/").status_code, 200)
         self.assertEqual(self.client.post("/api/categorias-servicio/", {"nombre": "Nueva"}, format="json").status_code, 403)
-        self.autenticar(G)
+        self.autenticar(S)
         res = self.client.post("/api/categorias-servicio/", {"nombre": "  Calefacción  "}, format="json")
         self.assertEqual(res.status_code, 201, res.data)
         cat = res.data["id"]

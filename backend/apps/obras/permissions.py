@@ -70,8 +70,8 @@ class PuedeOperarCategorias(BasePermission):
         if not usuario.is_authenticated or not usuario.is_active:
             return False
         accion = getattr(view, "action", None)
-        if accion in {"create", "partial_update", "activar", "desactivar", "historial"}:
-            return usuario.rol == G
-        if accion in {"list", "retrieve", "metadata", None}:
+        if accion in {"create", "partial_update", "activar", "desactivar"}:
+            return usuario.rol == S
+        if accion in {"list", "retrieve", "historial", "metadata", None}:
             return usuario.rol in {G, S}
         return False

@@ -16,7 +16,7 @@ class AlertasBase(TurnosBase):
     def preparar_alertas(self):
         self.preparar()
         self.client = APIClient()
-        self.autenticar(self.gerencia)
+        self.autenticar(self.supervisor)
 
     def pendiente(self):
         p = Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion="Presupuesto real de prueba")
@@ -26,7 +26,7 @@ class AlertasBase(TurnosBase):
     def suspender(self):
         obras.suspender_obra(self.obra, self.supervisor, "Pausa operativa")
         reconciliar()
-        return Alerta.objects.get(tipo="OBRA_SUSPENDIDA", rol_destinatario="GERENCIA", estado="PENDIENTE")
+        return Alerta.objects.get(tipo="OBRA_SUSPENDIDA", rol_destinatario="SUPERVISOR_OBRAS", estado="PENDIENTE")
 
     def ti(self):
         return Usuario.objects.create_user(username="ti009", email="ti009@example.test", rol="ADMINISTRADOR_TI")

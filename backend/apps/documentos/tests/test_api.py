@@ -62,7 +62,7 @@ class DocumentosAPITests(DocumentosBase):
         self.assertEqual(r.data["etiquetas"], ["antes", "exterior"])
         self.assertEqual(r.data["atributos"], {})
         doc = self.col.find_one()
-        self.assertEqual(doc["anotado_por_id"], self.gerencia.pk)
+        self.assertEqual(doc["anotado_por_id"], self.supervisor.pk)
         self.assertIsNotNone(doc["anotado_en"].tzinfo)
         self.assertEqual(self.get().data, r.data)
 
@@ -103,8 +103,9 @@ class DocumentosAPITests(DocumentosBase):
 
     def test_roles_cinco_head_options_flags_claims(self):
         ti=Usuario.objects.create_user(username="ti012", email="ti012@example.test", rol="ADMINISTRADOR_TI")
+        bodega=Usuario.objects.create_user(username="bodega012", email="bodega012@example.test", rol="BODEGUERO")
         self.proyectar()
-        for actor in (self.gerencia,self.supervisor,self.tecnico,self.finanzas,ti):
+        for actor in (self.gerencia,self.supervisor,self.tecnico,self.finanzas,ti,bodega):
             actor.is_staff=actor.is_superuser=True
             actor.save()
             token=AccessToken.for_user(actor); token["rol"]="GERENCIA"
@@ -114,7 +115,7 @@ class DocumentosAPITests(DocumentosBase):
                 r=getattr(self.client,method)(BASE+f'evidencias/{self.evidencia.pk}/')
                 self.assertEqual(r.status_code,expected,(actor.rol,method,getattr(r,"data",None)))
             revision=self.col.find_one()["revision"]
-            self.assertEqual(self.patch({"revision":revision,"descripcion":"Vista frontal"}).status_code,expected)
+            self.assertEqual(self.patch({"revision":revision,"descripcion":"Vista frontal"}).status_code,200 if actor.rol == "SUPERVISOR_OBRAS" else 403)
             self.assertEqual(self.client.get(BASE,{"obra":self.obra.pk}).status_code,expected)
 
     def test_sesion_ausente_revocada_expirada_inactiva_y_cambio_rol(self):
@@ -197,6 +198,6 @@ class DocumentosAPITests(DocumentosBase):
         self.assertEqual(r.status_code,200,r.data)
         event=json.loads(logs.records[0].getMessage())
         self.assertEqual(event["revision"],1)
-        self.assertEqual(event["actor_id"],self.gerencia.pk)
+        self.assertEqual(event["actor_id"],self.supervisor.pk)
         for value in ("Unidad exterior", "despues", "posterior",self.evidencia.sha256,self.evidencia.nombre_interno,"Bearer"):
             self.assertNotIn(value,str(logs.output))

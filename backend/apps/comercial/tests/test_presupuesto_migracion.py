@@ -2,10 +2,7 @@ from django.db import connection, IntegrityError, transaction
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 
-from apps.comercial.tests.test_presupuesto_model import DatosPresupuestoMixin
-
-
-class AprobacionObligatoriaMigracionTests(DatosPresupuestoMixin, TransactionTestCase):
+class AprobacionObligatoriaMigracionTests(TransactionTestCase):
     def test_normaliza_datos_historicos_sin_perder_contenido(self):
         anterior = ('comercial', '0004_presupuesto_presupuestoevento_presupuestoitem_and_more')
         executor = MigrationExecutor(connection)
@@ -13,16 +10,17 @@ class AprobacionObligatoriaMigracionTests(DatosPresupuestoMixin, TransactionTest
         executor.migrate([anterior])
         try:
             apps = executor.loader.project_state([anterior]).apps
-            self.setUpTestData()
             Presupuesto = apps.get_model('comercial', 'Presupuesto')
-            presupuesto = Presupuesto.objects.get(pk=self.presupuesto.pk)
-            presupuesto.requiere_aprobacion_gerencia = False
-            presupuesto.save()
-            self.nuevo_item().save()
-            self.nuevo_evento().save()
+            Usuario = executor.loader.project_state(migraciones_originales).apps.get_model('usuarios', 'Usuario')
+            usuario = Usuario.objects.create(username='migracion', email='migracion@example.test', rol='ADMINISTRATIVO_FINANZAS')
+            Cliente = apps.get_model('comercial', 'Cliente')
+            cliente = Cliente.objects.create(tipo_cliente='PERSONA', tipo_identificacion='SIN_IDENTIFICACION', nombre_legal='Cliente', correo='cliente@example.test')
+            presupuesto = Presupuesto.objects.create(cliente=cliente, creado_por_id=usuario.pk, descripcion='Histórico', requiere_aprobacion_gerencia=False)
             cabecera = Presupuesto.objects.values().get(pk=presupuesto.pk)
             Item = apps.get_model('comercial', 'PresupuestoItem')
             Evento = apps.get_model('comercial', 'PresupuestoEvento')
+            Item.objects.create(presupuesto=presupuesto, descripcion='Servicio', cantidad='1.000', unidad='unidad', precio_unitario='10.00', orden=1)
+            Evento.objects.create(presupuesto=presupuesto, registrado_por_id=usuario.pk, estado_nuevo='BORRADOR')
             items = list(Item.objects.values())
             eventos = list(Evento.objects.values())
         finally:
@@ -37,4 +35,4 @@ class AprobacionObligatoriaMigracionTests(DatosPresupuestoMixin, TransactionTest
                     requiere_aprobacion_gerencia=False
                 )
         self.assertEqual(error.exception.__cause__.diag.constraint_name,
-                         'presupuesto_aprobacion_gerencia_obligatoria')
+                         'presupuesto_politica_coherente')
