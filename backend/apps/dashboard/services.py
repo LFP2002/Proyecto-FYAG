@@ -14,7 +14,8 @@ def resumen(actor, params):
         operacion["obras_finalizadas_periodo"] = cierres["obras_con_cierre"]
         return {"generado_en": corte, "zona_horaria": "America/Santiago", "moneda": "CLP",
                 "periodo": {"desde": desde, "hasta": hasta}, "operacion": operacion,
-                "rentabilidad_cerrada_periodo": cierres, "cobranza_actual": consultas.cobranza(cartera)}
+                "rentabilidad_cerrada_periodo": cierres, "cobranza_actual": consultas.cobranza(cartera),
+                "incidencias": consultas.incidencias_actuales(corte)}
 
 
 def serie_obras(actor, params):

@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .catalogo import CATALOGO, ESTADOS
-from .consultas import contexto
+from .consultas import contexto, visibles
 from .models import Alerta, EstadoReconciliacion
 from .parsers import JSONEstrictoParser
 from .permissions import PuedeLeerAlertas
@@ -31,9 +31,9 @@ class PaginaAlertas(PageNumberPagination):
             raise ValidationError({"page": "Página fuera de rango."}) from None
 
 
-def representar(alertas, many=False):
+def representar(alertas, rol, many=False):
     filas = list(alertas) if many else [alertas]
-    return AlertaSerializer(filas if many else alertas, many=many, context={"recursos": contexto(filas)}).data
+    return AlertaSerializer(filas if many else alertas, many=many, context={"recursos": contexto(filas), "rol": rol}).data
 
 
 class AlertasBaseView(APIView):
@@ -62,18 +62,18 @@ class AlertasBaseView(APIView):
 class ListadoAlertasView(AlertasBaseView):
     def get(self, request):
         filtros = validar_query(request.query_params, FILTROS)
-        qs = filtrar(Alerta.objects.filter(rol_destinatario=request.user.rol), filtros)
+        qs = filtrar(visibles(request.user.rol, legado=filtros.get("legado", False)), filtros)
         pagina = PaginaAlertas()
         filas = pagina.paginate_queryset(qs, request, view=self)
-        return pagina.get_paginated_response(representar(filas, many=True))
+        return pagina.get_paginated_response(representar(filas, request.user.rol, many=True))
 
 
 class ResumenAlertasView(AlertasBaseView):
     def get(self, request):
         validar_query(request.query_params, set())
-        tipos = {tipo: dict.fromkeys(ESTADOS, 0) for tipo, regla in CATALOGO.items() if request.user.rol in regla.roles}
+        tipos = {tipo: dict.fromkeys(ESTADOS, 0) for tipo, regla in CATALOGO.items() if request.user.rol in regla.lectores}
         estados = dict.fromkeys(ESTADOS, 0)
-        for row in Alerta.objects.filter(rol_destinatario=request.user.rol).order_by().values("tipo", "estado").annotate(total=Count("pk")):
+        for row in visibles(request.user.rol, legado=False).order_by().values("tipo", "estado").annotate(total=Count("pk")):
             tipos[row["tipo"]][row["estado"]] = row["total"]
             estados[row["estado"]] += row["total"]
         ultima = EstadoReconciliacion.objects.filter(pk=1).values_list("ultima_correcta_en", flat=True).first()
@@ -87,7 +87,7 @@ class ResumenAlertasView(AlertasBaseView):
 class DetalleAlertaView(AlertasBaseView):
     def get(self, request, pk):
         validar_query(request.query_params, set())
-        return Response(representar(services.obtener(request.user, pk)))
+        return Response(representar(services.obtener(request.user, pk), request.user.rol))
 
 
 class HistorialAlertaView(AlertasBaseView):
@@ -109,4 +109,4 @@ class AtenderAlertaView(AlertasBaseView):
         entrada = AtenderSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         alerta = services.atender(request.user, pk, entrada.validated_data["motivo"])
-        return Response(representar(alerta))
+        return Response(representar(alerta, request.user.rol))

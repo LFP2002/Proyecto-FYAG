@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 from .catalogo import CATALOGO, ESTADOS, RECURSOS, MAX_PK
 
 ZONA = ZoneInfo("America/Santiago")
-FILTROS = {"estado", "tipo", "recurso_tipo", "recurso_id", "desde", "hasta", "page"}
+FILTROS = {"estado", "tipo", "recurso_tipo", "recurso_id", "desde", "hasta", "page", "legado"}
 
 
 def entero(valor, campo):
@@ -27,6 +27,10 @@ def validar_query(params, permitidos):
     if any(len(params.getlist(k)) != 1 or params[k] == "" for k in params):
         raise ValidationError({"query": "Parámetro repetido o vacío."})
     out = dict(params.items())
+    if "legado" in out:
+        if out["legado"] not in {"true", "false"}:
+            raise ValidationError({"legado": "Use true o false."})
+        out["legado"] = out["legado"] == "true"
     for campo, opciones in [("estado", {*ESTADOS, "TODAS"}), ("tipo", CATALOGO), ("recurso_tipo", RECURSOS)]:
         if campo in out and out[campo] not in opciones:
             raise ValidationError({campo: "Valor no permitido."})
@@ -86,7 +90,11 @@ class AlertaSerializer(serializers.Serializer):
     tipo = serializers.CharField()
     estado = serializers.CharField()
     severidad = serializers.CharField()
-    rol_destinatario = serializers.CharField()
+    rol_destinatario = serializers.SerializerMethodField()
+    rol_responsable = serializers.CharField(allow_null=True)
+    destinatarios = serializers.SerializerMethodField()
+    es_legada = serializers.BooleanField()
+    generacion = serializers.IntegerField()
     recurso_tipo = serializers.CharField()
     recurso_id = serializers.IntegerField()
     recurso_codigo = serializers.SerializerMethodField()
@@ -99,6 +107,12 @@ class AlertaSerializer(serializers.Serializer):
     motivo_atencion = serializers.CharField(allow_null=True)
     resuelta_en = FechaSantiago(allow_null=True)
     acciones_permitidas = serializers.SerializerMethodField()
+
+    def get_rol_destinatario(self, obj):
+        return obj.rol_destinatario if obj.es_legada else self.context["rol"]
+
+    def get_destinatarios(self, obj):
+        return [obj.rol_destinatario] if obj.es_legada else list(CATALOGO[obj.tipo].lectores)
 
     def _contexto(self, obj):
         return self.context["recursos"].get((obj.tipo, obj.recurso_id), {})
@@ -116,7 +130,8 @@ class AlertaSerializer(serializers.Serializer):
         return CATALOGO[obj.tipo].descripcion
 
     def get_acciones_permitidas(self, obj):
-        return ["ATENDER"] if obj.rol_destinatario != "GERENCIA" and obj.estado == "PENDIENTE" and self._contexto(obj).get("vigente", False) else []
+        return ["ATENDER"] if (not obj.es_legada and self.context["rol"] == obj.rol_responsable
+            and obj.estado == "PENDIENTE" and self._contexto(obj).get("vigente", False)) else []
 
 
 class AlertaEventoSerializer(serializers.Serializer):

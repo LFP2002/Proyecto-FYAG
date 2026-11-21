@@ -35,16 +35,16 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
         self.suspender_sin_callback()
         action = lambda: services.reconciliar_recurso("OBRA_SUSPENDIDA", self.obra.pk)
         one, two = self.race(action, action)
-        self.assertEqual((one, two), (2, 0))
-        self.assertEqual(Alerta.objects.count(), 2)
-        self.assertEqual(AlertaEvento.objects.count(), 2)
+        self.assertEqual((one, two), (1, 0))
+        self.assertEqual(Alerta.objects.count(), 1)
+        self.assertEqual(AlertaEvento.objects.count(), 1)
         self.assertEqual(set(Alerta.objects.values_list("generacion", flat=True)), {1})
 
     def test_dos_ciclos_completos_idempotentes(self):
         self.suspender_sin_callback()
         self.race(services.reconciliar, services.reconciliar)
-        self.assertEqual(Alerta.objects.count(), 2)
-        self.assertEqual(AlertaEvento.objects.count(), 2)
+        self.assertEqual(Alerta.objects.count(), 1)
+        self.assertEqual(AlertaEvento.objects.count(), 1)
 
     def test_doble_post_http_un_200_un_409_y_un_evento(self):
         a = self.suspender()
@@ -75,12 +75,12 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
         self.assertEqual(two, 0)
         self.assertFalse(Alerta.objects.exists())
 
-    def test_resolucion_concurrente_evento_unico_por_rol(self):
+    def test_resolucion_concurrente_evento_unico_por_incidencia(self):
         self.suspender()
         Obra.objects.filter(pk=self.obra.pk).update(estado="EN_PROCESO")
         action = lambda: services.reconciliar_recurso("OBRA_SUSPENDIDA", self.obra.pk)
-        self.assertEqual(self.race(action, action), (2, 0))
-        self.assertEqual(AlertaEvento.objects.filter(tipo="RESOLUCION").count(), 2)
+        self.assertEqual(self.race(action, action), (1, 0))
+        self.assertEqual(AlertaEvento.objects.filter(tipo="RESOLUCION").count(), 1)
 
     def test_otra_clave_no_espera_un_mutex_global(self):
         self.suspender_sin_callback()
@@ -108,7 +108,7 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
             uno = pool.submit(primero)
             try:
                 self.assertTrue(listo.wait(10))
-                self.assertEqual(pool.submit(segundo).result(timeout=5), 2)
+                self.assertEqual(pool.submit(segundo).result(timeout=5), 1)
             finally:
                 liberar.set()
             uno.result(timeout=10)
@@ -121,6 +121,33 @@ class ConcurrenciaAlertasTests(AlertasBase, CarrerasPostgreSQL, TransactionTestC
         _, resultado = self.race(cambiar, lambda: services.atender(self.supervisor, a.pk, "Coordinado"))
         self.assertEqual(resultado.status_code, 401)
         self.assertFalse(a.eventos.filter(tipo="ATENCION").exists())
+
+    def test_atencion_primero_y_resolucion_despues_preservan_actor_unico(self):
+        a = self.suspender()
+
+        def resolver():
+            Obra.objects.filter(pk=self.obra.pk).update(estado='EN_PROCESO')
+            return services.reconciliar_recurso(a.tipo, a.recurso_id)
+
+        _, cambios = self.race(lambda: services.atender(self.supervisor, a.pk, 'Coordinado'), resolver)
+        self.assertEqual(cambios, 1)
+        a.refresh_from_db()
+        self.assertEqual(a.estado, 'RESUELTA')
+        self.assertEqual(a.atendida_por_id, self.supervisor.pk)
+        self.assertEqual(a.eventos.count(), 3)
+
+    def test_resolucion_primero_impide_atencion_tardia(self):
+        a = self.suspender()
+
+        def resolver():
+            Obra.objects.filter(pk=self.obra.pk).update(estado='EN_PROCESO')
+            return services.reconciliar_recurso(a.tipo, a.recurso_id)
+
+        cambios, resultado = self.race(resolver, lambda: services.atender(self.supervisor, a.pk, 'Tardía'))
+        self.assertEqual(cambios, 1)
+        self.assertEqual(resultado.status_code, 409)
+        self.assertEqual(resultado.detail['code'], 'alerta_resuelta')
+        self.assertEqual(a.eventos.count(), 2)
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -152,9 +179,11 @@ class LocksFinanzasAlertasTests(FinanzasBase, TransactionTestCase):
                 from rest_framework.exceptions import PermissionDenied
                 with self.assertRaises(PermissionDenied):
                     services.atender(self.gerencia, a.pk, "Pago en coordinación")
+                atendida = services.atender(self.finanzas, a.pk, "Pago en coordinación")
+                self.assertEqual(atendida.estado, "ATENDIDA")
             finally:
                 liberar.set()
             futuro.result(timeout=10)
         a.refresh_from_db()
         self.assertEqual(a.estado, "RESUELTA")
-        self.assertEqual(a.eventos.count(), 2)
+        self.assertEqual(a.eventos.count(), 3)

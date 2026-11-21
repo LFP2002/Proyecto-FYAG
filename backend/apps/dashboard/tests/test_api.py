@@ -31,8 +31,8 @@ class DashboardAPITests(DashboardBase, TransactionTestCase):
     def test_resumen_esquema_tipos_y_fuentes_exactas(self):
         r = self.client.get(RESUMEN)
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertEqual(set(r.data), {"generado_en", "zona_horaria", "moneda", "periodo", "operacion", "rentabilidad_cerrada_periodo", "cobranza_actual"})
-        self.assertEqual(set(r.data["operacion"]), {"obras_por_estado_actual", "presupuestos_pendientes_gerencia_actual", "obras_finalizadas_periodo"})
+        self.assertEqual(set(r.data), {"generado_en", "zona_horaria", "moneda", "periodo", "operacion", "rentabilidad_cerrada_periodo", "cobranza_actual", "incidencias"})
+        self.assertEqual(set(r.data["operacion"]), {"obras_por_estado_actual", "presupuestos_pendientes_gerencia_actual", "presupuestos_pendientes_finanzas_actual", "obras_finalizadas_periodo"})
         self.assertEqual(set(r.data["operacion"]["obras_por_estado_actual"]), set(ESTADOS))
         self.assertEqual(r.data["operacion"]["obras_finalizadas_periodo"], 1)
         self.assertEqual(r.data["rentabilidad_cerrada_periodo"], {"obras_con_cierre": 1, "presupuesto_neto": "2080.22", "costo_real_neto": "8000.00", "margen_real_neto": "-5919.78"})
@@ -269,7 +269,7 @@ class DashboardAPITests(DashboardBase, TransactionTestCase):
         with CaptureQueriesContext(connection) as q:
             r = self.client.get(RESUMEN)
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertLessEqual(len(q), 12)
+        self.assertLessEqual(len(q), 14)  # 020B: dos consultas fijas para episodios y salud.
         plan = Obra.objects.filter(estado="EN_PROCESO").order_by("-creado_en", "-id").explain()
         self.assertTrue(plan)
 
@@ -312,7 +312,7 @@ class DashboardAPITests(DashboardBase, TransactionTestCase):
         metricas["explain_activas"] = {"nodo": plan["Plan"]["Node Type"], "filas": plan["Plan"]["Actual Rows"], "planning_ms": plan["Planning Time"], "execution_ms": plan["Execution Time"]}
         self.assertEqual(plan["Plan"]["Actual Rows"], 25)
         self.assertLessEqual(metricas["activas"]["queries"], 11)
-        self.assertLessEqual(metricas["resumen"]["queries"], 12)
+        self.assertLessEqual(metricas["resumen"]["queries"], 14)
         print("PERFIL_DASHBOARD_POSTGRESQL=" + json.dumps(metricas, sort_keys=True))
 
     def test_openapi_versionado_rutas_campos_y_referencias(self):

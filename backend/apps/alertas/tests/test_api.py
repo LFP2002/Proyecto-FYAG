@@ -17,7 +17,7 @@ from apps.usuarios.models import Usuario
 from apps.usuarios.tokens import AccessToken
 from .base import AlertasBase, URL
 
-PUBLICOS = {"id", "tipo", "estado", "severidad", "rol_destinatario", "recurso_tipo", "recurso_id", "recurso_codigo", "obra", "titulo", "descripcion", "creado_en", "atendida_por", "atendida_en", "motivo_atencion", "resuelta_en", "acciones_permitidas"}
+PUBLICOS = {"id", "tipo", "estado", "severidad", "rol_destinatario", "rol_responsable", "destinatarios", "es_legada", "generacion", "recurso_tipo", "recurso_id", "recurso_codigo", "obra", "titulo", "descripcion", "creado_en", "atendida_por", "atendida_en", "motivo_atencion", "resuelta_en", "acciones_permitidas"}
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -76,7 +76,9 @@ class AlertasAPITests(AlertasBase, TestCase):
                 self.assertTrue(all(a["rol_destinatario"] == actor.rol for a in self.client.get(URL).data["results"]))
 
     def test_otro_rol_404_en_detalle_historial_atencion_y_id_extremo(self):
-        ajena = Alerta.objects.get(rol_destinatario="GERENCIA")
+        p = Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion="Revisión", estado="PENDIENTE_FINANZAS")
+        services.reconciliar_recurso("PRESUPUESTO_PENDIENTE_FINANZAS", p.pk)
+        ajena = Alerta.objects.get(tipo="PRESUPUESTO_PENDIENTE_FINANZAS")
         for pk in (ajena.pk, 9223372036854775807, 9223372036854775808):
             self.assertEqual(self.client.get(f"{URL}{pk}/").status_code, 404)
             self.assertEqual(self.client.get(f"{URL}{pk}/historial/").status_code, 404)

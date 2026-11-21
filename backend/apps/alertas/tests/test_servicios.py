@@ -43,25 +43,25 @@ class CicloAlertasTests(AlertasBase, TestCase):
             self.assertEqual(set(alerta.eventos.values_list("tipo", flat=True)), {"CREACION", "RESOLUCION"})
             self.assertTrue(all(e.actor_id is None and e.motivo == "" for e in alerta.eventos.all()))
 
-    def test_obra_dos_roles_atencion_independiente_y_generaciones(self):
+    def test_obra_dos_lectores_estado_unico_y_generaciones(self):
         a = self.suspender()
-        g = Alerta.objects.get(tipo="OBRA_SUSPENDIDA", rol_destinatario="GERENCIA")
+        g = services.obtener(self.gerencia, a.pk)
         from rest_framework.exceptions import PermissionDenied
         with self.assertRaises(PermissionDenied):
             services.atender(self.gerencia, g.pk, "Coordinado")
         services.atender(self.supervisor, a.pk, "  Coordinado  ")
         g.refresh_from_db()
-        self.assertEqual(g.estado, "PENDIENTE")
+        self.assertEqual(g.estado, "ATENDIDA")
         with self.captureOnCommitCallbacks(execute=True):
             obras.reanudar_obra(self.obra, self.supervisor, "Continuar")
-        self.assertEqual(Alerta.objects.filter(estado="RESUELTA").count(), 2)
+        self.assertEqual(Alerta.objects.filter(estado="RESUELTA").count(), 1)
         a.refresh_from_db()
         self.assertEqual(a.motivo_atencion, "Coordinado")
         self.assertEqual(a.atendida_por_id, self.supervisor.pk)
         with self.captureOnCommitCallbacks(execute=True):
             obras.suspender_obra(self.obra, self.supervisor, "Segunda pausa")
-        self.assertEqual(Alerta.objects.filter(generacion=2, estado="PENDIENTE").count(), 2)
-        self.assertEqual(AlertaEvento.objects.count(), 7)
+        self.assertEqual(Alerta.objects.filter(generacion=2, estado="PENDIENTE").count(), 1)
+        self.assertEqual(AlertaEvento.objects.count(), 4)
 
     def test_turno_cierre_observacion_subsanacion_validacion_correccion(self):
         t = self.abrir()
@@ -129,7 +129,7 @@ class CicloAlertasTests(AlertasBase, TestCase):
         self.assertEqual(self.obra.estado, "SUSPENDIDA")
         self.assertFalse(Alerta.objects.exists())
         services.reconciliar()
-        self.assertEqual(Alerta.objects.count(), 2)
+        self.assertEqual(Alerta.objects.count(), 1)
 
     def test_on_commit_no_consulta_antes_del_commit_y_rollback_descarta(self):
         with self.captureOnCommitCallbacks(execute=False) as callbacks:
@@ -217,7 +217,7 @@ class CicloAlertasTests(AlertasBase, TestCase):
                 services.reconciliar()
         self.assertFalse(EstadoReconciliacion.objects.exists())
         services.reconciliar()
-        self.assertEqual(AlertaEvento.objects.count(), 2)
+        self.assertEqual(AlertaEvento.objects.count(), 1)
 
     def test_evento_fallido_revierte_alerta_y_reintento_crea_una_generacion(self):
         obras.suspender_obra(self.obra, self.supervisor, "Pausa")
@@ -226,8 +226,8 @@ class CicloAlertasTests(AlertasBase, TestCase):
                 services.reconciliar_recurso("OBRA_SUSPENDIDA", self.obra.pk)
         self.assertFalse(Alerta.objects.exists())
         services.reconciliar_recurso("OBRA_SUSPENDIDA", self.obra.pk)
-        self.assertEqual(Alerta.objects.count(), 2)
-        self.assertEqual(AlertaEvento.objects.count(), 2)
+        self.assertEqual(Alerta.objects.count(), 1)
+        self.assertEqual(AlertaEvento.objects.count(), 1)
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -243,7 +243,7 @@ class CobranzaAlertasTests(FinanzasBase, TestCase):
     def test_cobranza_parcial_total_anulacion_y_reversion(self):
         services.reconciliar()
         a = Alerta.objects.get(tipo="COBRANZA_VENCIDA")
-        self.assertEqual(a.rol_destinatario, "GERENCIA")
+        self.assertEqual(a.rol_responsable, "ADMINISTRATIVO_FINANZAS")
         with self.captureOnCommitCallbacks(execute=True):
             self.pagar("100.13")
         a.refresh_from_db()

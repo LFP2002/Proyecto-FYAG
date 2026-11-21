@@ -38,25 +38,24 @@ class Alertas020ATests(AlertasBase, TestCase):
         p = self.pendiente()
         Presupuesto.objects.filter(pk=p.pk).update(estado='PENDIENTE_GERENCIA', politica_aprobacion='GERENCIA_LEGADA', requiere_aprobacion_gerencia=True)
         a = Alerta.objects.create(tipo='PRESUPUESTO_PENDIENTE_GERENCIA', recurso_tipo='PRESUPUESTO',
-                                  recurso_id=p.pk, rol_destinatario='GERENCIA', generacion=1)
+                                  recurso_id=p.pk, rol_destinatario='GERENCIA', generacion=1, es_legada=True)
         services._evento(a, 'CREACION', None, ahora=a.creado_en)
         e = a.eventos.get()
         antes = list(a.eventos.values())
         services.reconciliar()
         a.refresh_from_db()
-        self.assertEqual(a.estado, 'RESUELTA')
+        self.assertEqual(a.estado, 'PENDIENTE')
         self.assertIsNone(a.atendida_por_id)
         self.assertEqual(list(a.eventos.filter(pk=e.pk).values()), antes)
-        resolucion = a.eventos.get(tipo='RESOLUCION')
-        self.assertIsNone(resolucion.actor_id)
+        self.assertFalse(a.eventos.filter(tipo='RESOLUCION').exists())
         self.assertTrue(Alerta.objects.filter(tipo='PRESUPUESTO_PENDIENTE_FINANZAS', recurso_id=p.pk, estado='PENDIENTE').exists())
         services.reconciliar()
         self.assertEqual(Alerta.objects.count(), 2)
-        self.assertEqual(a.eventos.count(), 2)
+        self.assertEqual(a.eventos.count(), 1)
 
     def test_gerencia_solo_lectura_aun_con_flags_claims_y_body_invalido(self):
         self.suspender()
-        a = Alerta.objects.get(rol_destinatario='GERENCIA')
+        a = Alerta.objects.get(tipo='OBRA_SUSPENDIDA')
         actor = self.gerencia
         actor.is_staff = actor.is_superuser = True
         actor.save()
@@ -78,7 +77,7 @@ class Alertas020ATests(AlertasBase, TestCase):
         ahora = timezone.now()
         # Fixture histórica: no se invoca una atención gerencial nueva.
         a = Alerta.objects.create(tipo='PRESUPUESTO_PENDIENTE_GERENCIA', recurso_tipo='PRESUPUESTO',
-                                  recurso_id=p.pk, rol_destinatario='GERENCIA', generacion=1,
+                                  recurso_id=p.pk, rol_destinatario='GERENCIA', generacion=1, es_legada=True,
                                   estado='ATENDIDA', creado_en=ahora, atendida_en=ahora,
                                   atendida_por=self.gerencia, motivo_atencion='Atención histórica')
         AlertaEvento.objects.create(alerta=a, tipo='CREACION', estado_nuevo='PENDIENTE', registrado_en=ahora)
@@ -87,11 +86,11 @@ class Alertas020ATests(AlertasBase, TestCase):
         antes = list(a.eventos.order_by('pk').values())
         services.reconciliar()
         a.refresh_from_db()
-        self.assertEqual(a.estado, 'RESUELTA')
+        self.assertEqual(a.estado, 'ATENDIDA')
         self.assertEqual((a.atendida_por_id, a.atendida_en, a.motivo_atencion),
                          (self.gerencia.pk, ahora, 'Atención histórica'))
         self.assertEqual(list(a.eventos.exclude(tipo='RESOLUCION').order_by('pk').values()), antes)
-        self.assertIsNone(a.eventos.get(tipo='RESOLUCION').actor_id)
+        self.assertFalse(a.eventos.filter(tipo='RESOLUCION').exists())
 
     def test_seis_roles_no_obtienen_alertas_ajenas(self):
         self.suspender()

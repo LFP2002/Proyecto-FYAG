@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FYAG — Alertas operativas y financieras",
-    "version": "1.0.0",
-    "description": "020A: GERENCIA consulta obra, cobranza e historial presupuestario retirado, sin atender. SUPERVISOR_OBRAS consulta y atiende obra y turno. ADMINISTRATIVO_FINANZAS consulta y atiende revisión presupuestaria, incluidos pendientes históricos. Técnico, Bodeguero y TI: 403. Atención no modifica la causa. Detección postcommit y reconciliación independiente cada 60 s; consistencia eventual."
+    "version": "1.1.0",
+    "description": "020B: un episodio y estado por incidencia, compartido por lectores. AF atiende presupuesto y cobranza; Supervisor obra y turno. Gerencia solo observa obra/cobranza ALTA. Archivo legado inmutable, solo su destinatario original. IDs históricos y eventos conservados; la primera observación vigente tras migrar crea continuidad PENDIENTE, sin heredar atenciones. Consistencia eventual; tarea independiente cada 60 s, sin escalamiento inventado."
   },
   "security": [{"bearerAuth": []}],
   "paths": {
@@ -12,6 +12,7 @@
         "operationId": "listarAlertas",
         "description": "Paginación fija de 25, creado_en DESC e id DESC. Ámbito por rol antes de contar. Sin estado: PENDIENTE y ATENDIDA; sin fechas: sin restricción temporal. Rechaza parámetros desconocidos, repetidos, vacíos, extremos o incoherentes. No escribe ni reconcilia.",
         "parameters": [
+          {"name": "legado", "in": "query", "schema": {"type": "string", "enum": ["true", "false"], "default": "false"}, "description": "false: episodios canónicos. true: archivo histórico del rol original, sin modificar estados; combinar estado=TODAS para consultar todo el archivo."},
           {"name": "estado", "in": "query", "schema": {"type": "string", "enum": ["PENDIENTE", "ATENDIDA", "RESUELTA", "TODAS"]}},
           {"name": "tipo", "in": "query", "schema": {"$ref": "#/components/schemas/Tipo"}},
           {"name": "recurso_tipo", "in": "query", "schema": {"$ref": "#/components/schemas/RecursoTipo"}},
@@ -77,7 +78,7 @@
         "responses": {
           "200": {"description": "Alerta ATENDIDA, misma proyección pública.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Alerta"}}}},
           "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrada"}, "405": {"$ref": "#/components/responses/Metodo"},
-          "409": {"description": "Conflicto estable. No reintentar automáticamente; consultar estado.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["alerta_ya_atendida", "alerta_resuelta", "alerta_desactualizada"]}, "detail": {"type": "string"}}}}}},
+          "409": {"description": "Conflicto estable. No reintentar automáticamente; consultar estado. alerta_legada: consultar la bandeja canónica, nunca reabrir ni atender el archivo.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["alerta_ya_atendida", "alerta_resuelta", "alerta_desactualizada", "alerta_legada"]}, "detail": {"type": "string"}}}}}},
           "415": {"description": "Usar Content-Type application/json."}, "500": {"$ref": "#/components/responses/Interno"}
         }
       },
@@ -105,17 +106,21 @@
       "FechaNullable": {"type": ["string", "null"], "format": "date-time"},
       "Alerta": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "tipo", "estado", "severidad", "rol_destinatario", "recurso_tipo", "recurso_id", "recurso_codigo", "obra", "titulo", "descripcion", "creado_en", "atendida_por", "atendida_en", "motivo_atencion", "resuelta_en", "acciones_permitidas"],
+        "required": ["id", "tipo", "estado", "severidad", "rol_destinatario", "rol_responsable", "destinatarios", "es_legada", "generacion", "recurso_tipo", "recurso_id", "recurso_codigo", "obra", "titulo", "descripcion", "creado_en", "atendida_por", "atendida_en", "motivo_atencion", "resuelta_en", "acciones_permitidas"],
         "properties": {
+          "rol_responsable": {"type": ["string", "null"], "enum": [null, "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS"], "description": "Autoridad única del episodio canónico; null en archivo, sin reinterpretar el rol histórico."},
+          "es_legada": {"type": "boolean", "description": "true identifica archivo inmutable, excluido de conteos y bandeja canónica."},
+          "generacion": {"type": "integer", "minimum": 1, "description": "Episodio persistido. Continuidad superior al máximo histórico por tipo/recurso, nunca reabre filas anteriores."},
+          "destinatarios": {"type": "array", "items": {"enum": ["GERENCIA", "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS"]}, "uniqueItems": true, "description": "Roles lectores del episodio; no entregas con estados independientes."},
           "id": {"type": "integer", "minimum": 1}, "tipo": {"$ref": "#/components/schemas/Tipo"}, "estado": {"$ref": "#/components/schemas/Estado"},
           "severidad": {"type": "string", "enum": ["MEDIA", "ALTA"], "description": "MEDIA presupuesto/turno; ALTA obra/cobranza. Fija por tipo."},
-          "rol_destinatario": {"enum": ["GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS"]}, "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"}, "recurso_id": {"type": "integer", "minimum": 1},
-          "recurso_codigo": {"type": ["string", "null"], "description": "PRE-<PK seis dígitos>, OB-<PK seis dígitos>, null para turno, folio externo de documento solo Gerencia; null si origen ausente."},
+          "rol_destinatario": {"enum": ["GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS"], "description": "Compatibilidad: rol del lector autenticado en episodios canónicos; destinatario original en legado. No determina autoridad para atender."}, "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"}, "recurso_id": {"type": "integer", "minimum": 1},
+          "recurso_codigo": {"type": ["string", "null"], "description": "PRE-<PK seis dígitos>, OB-<PK seis dígitos>, null para turno, folio externo de documento para AF/Gerencia autorizados; null si origen ausente."},
           "obra": {"type": ["integer", "null"], "description": "PK de Obra como contexto autorizado; null sin referencia disponible."},
           "titulo": {"type": "string"}, "descripcion": {"type": "string", "description": "Texto fijo del servidor, no descripción libre del negocio."},
           "creado_en": {"type": "string", "format": "date-time"}, "atendida_por": {"type": ["integer", "null"]}, "atendida_en": {"$ref": "#/components/schemas/FechaNullable"},
           "motivo_atencion": {"type": ["string", "null"], "maxLength": 2000}, "resuelta_en": {"$ref": "#/components/schemas/FechaNullable"},
-          "acciones_permitidas": {"type": "array", "maxItems": 1, "items": {"const": "ATENDER"}, "description": "Solo PENDIENTE con condición vigente permite ATENDER; de otro modo vacío."}
+          "acciones_permitidas": {"type": "array", "maxItems": 1, "items": {"const": "ATENDER"}, "description": "Solo responsable persistido, episodio no legado PENDIENTE y condición vigente. Siempre vacío para Gerencia y archivo."}
         }
       },
       "Evento": {"type": "object", "additionalProperties": false, "required": ["id", "alerta", "tipo", "estado_anterior", "estado_nuevo", "actor", "motivo", "registrado_en"], "properties": {"id": {"type": "integer"}, "alerta": {"type": "integer"}, "tipo": {"enum": ["CREACION", "ATENCION", "RESOLUCION"]}, "estado_anterior": {"type": ["string", "null"], "enum": [null, "PENDIENTE", "ATENDIDA"]}, "estado_nuevo": {"$ref": "#/components/schemas/Estado"}, "actor": {"type": ["integer", "null"]}, "motivo": {"type": "string", "maxLength": 2000}, "registrado_en": {"type": "string", "format": "date-time"}}},
@@ -125,8 +130,8 @@
       "Resumen": {"type": "object", "additionalProperties": false, "required": ["generado_en", "zona_horaria", "por_estado", "activas", "por_tipo", "sincronizacion"], "properties": {
         "generado_en": {"type": "string", "format": "date-time"}, "zona_horaria": {"const": "America/Santiago"}, "por_estado": {"$ref": "#/components/schemas/ConteosEstado"}, "activas": {"type": "integer", "minimum": 0},
         "por_tipo": {"oneOf": [
-          {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_FINANZAS"], "properties": {"PRESUPUESTO_PENDIENTE_FINANZAS": {"$ref": "#/components/schemas/ConteosEstado"}}},
-          {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "COBRANZA_VENCIDA"], "properties": {"PRESUPUESTO_PENDIENTE_GERENCIA": {"$ref": "#/components/schemas/ConteosEstado"}, "OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "COBRANZA_VENCIDA": {"$ref": "#/components/schemas/ConteosEstado"}}},
+           {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_FINANZAS", "COBRANZA_VENCIDA"], "properties": {"PRESUPUESTO_PENDIENTE_FINANZAS": {"$ref": "#/components/schemas/ConteosEstado"}, "COBRANZA_VENCIDA": {"$ref": "#/components/schemas/ConteosEstado"}}},
+           {"type": "object", "additionalProperties": false, "required": ["OBRA_SUSPENDIDA", "COBRANZA_VENCIDA"], "properties": {"OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "COBRANZA_VENCIDA": {"$ref": "#/components/schemas/ConteosEstado"}}},
           {"type": "object", "additionalProperties": false, "required": ["OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION"], "properties": {"OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "TURNO_PENDIENTE_REVISION": {"$ref": "#/components/schemas/ConteosEstado"}}}
         ]},
         "sincronizacion": {"type": "object", "additionalProperties": false, "required": ["ultima_correcta_en", "desactualizada"], "properties": {"ultima_correcta_en": {"$ref": "#/components/schemas/FechaNullable"}, "desactualizada": {"type": "boolean"}}}
