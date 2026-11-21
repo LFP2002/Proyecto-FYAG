@@ -1,6 +1,6 @@
 # SPEC-019C-1 — Solicitudes de materiales de Técnicos para Obras (FYAG Beta)
 
-> **Estado:** propuesta documental de contrato funcional acotado, 21-11-2026; no implementación ni despliegue autorizado por esta rama. La ratificación del responsable precede a cualquier PR ejecutable.
+> **Estado:** CONTRATO FUNCIONAL RATIFICADO por el responsable, 21-11-2026. Solo fase 019C-1 (solicitudes y decisión de Supervisor); 019C-2 (mermas) sigue sin ratificar. Aprobación documental no acredita implementación, pruebas ni despliegue productivo.
 >
 > **Base de análisis:** main 00ee313a6610e24fade0efd44097920e5cac7af0; SPEC-019A/019B y SPEC-004B, 006B, 018/018C y 020A/B integradas. No modificar frontend ni otras SPEC. ChatGPT mantiene las SPEC; OpenCode solo implementará después de ratificación.
 
@@ -81,7 +81,7 @@ Validación: IDs positivos BIGINT, string Decimal estricto, textos normalizados 
 - Seguridad: matriz seis roles, sesión revocada, no is_superuser bypass, Técnico solo lo suyo, catálogo sin existencias ni precios, 404 de recursos ajenos, payload estricto, GET sin escrituras.
 - Carreras PostgreSQL con conexiones independientes y bloqueo observado: doble decisión, replay simultáneo de UUID, decisión versus desasignación, autorización frente a finalización y pérdida de sesión durante espera. Sin deadlocks, autorización doble o costos duplicados.
 - Migraciones de base limpia y upgrade con datos previos 019B/021. Regresión dirigida y completa; check, makemigrations --check --dry-run, OpenAPI, Postman esenciales. Las pruebas documentales de informe son realizadas por compañeros y no son puerta del desarrollo. No usar datos productivos ni fixture que dependa de conteos globales.
-- Implementar en rama exclusiva feature/backend-019c1-solicitudes-materiales desde main actualizado, **solo una vez ratificada esta propuesta**. Commit y push, sin PR ni merge; revisión de ChatGPT y CI obligatorios.
+- Implementar en rama exclusiva feature/backend-019c1-solicitudes-materiales desde main actualizado, **tras integrar este contrato documental en main**. Commit y push, sin PR ni merge; revisión de ChatGPT y CI obligatorios.
 - No modificar frontend/, specs/ (responsabilidad exclusiva de ChatGPT), migraciones antiguas, permisos comerciales, seguridad heredada, inventario contable, archivos de IA, ni introducir scripts/dumps/logs temporales.
 
 ## 8. 019C-2: merma pendiente de ratificación
