@@ -1,4 +1,4 @@
-"""Consultas puras. Ningún servicio mutador ni dependencia de Alertas/Auditoría."""
+"""Consultas puras; Alertas se agrega sin invocar servicios ni reconciliación."""
 from decimal import Decimal, localcontext
 from itertools import islice
 import logging
@@ -91,8 +91,29 @@ def operacion_actual():
     estados = dict.fromkeys(ESTADOS, 0)
     for row in Obra.objects.order_by().values("estado").annotate(total=Count("pk")):
         estados[row["estado"]] = row["total"]
-    return {"obras_por_estado_actual": estados,
-            "presupuestos_pendientes_gerencia_actual": Presupuesto.objects.filter(estado="PENDIENTE_GERENCIA").count()}
+    pendientes = Presupuesto.objects.aggregate(
+        presupuestos_pendientes_gerencia_actual=Count("pk", filter=Q(estado="PENDIENTE_GERENCIA")),
+        presupuestos_pendientes_finanzas_actual=Count("pk", filter=Q(estado__in=["PENDIENTE_FINANZAS", "PENDIENTE_GERENCIA"])),
+    )
+    return {"obras_por_estado_actual": estados, **pendientes}
+
+
+def incidencias_actuales(corte):
+    from apps.alertas.models import Alerta, EstadoReconciliacion
+    from apps.alertas.catalogo import CATALOGO, ESTADOS
+    estados = dict.fromkeys(ESTADOS, 0)
+    pendientes = dict.fromkeys(["ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS"], 0)
+    criticas = 0
+    for row in Alerta.objects.filter(es_legada=False).order_by().values("tipo", "rol_destinatario", "estado").annotate(total=Count("pk")):
+        estados[row["estado"]] += row["total"]
+        if row["estado"] == "PENDIENTE":
+            pendientes[row["rol_destinatario"]] += row["total"]
+        if row["estado"] != "RESUELTA" and CATALOGO[row["tipo"]].severidad == "ALTA":
+            criticas += row["total"]
+    ultima = EstadoReconciliacion.objects.filter(pk=1).values_list("ultima_correcta_en", flat=True).first()
+    return {"criticas_activas": criticas, "pendientes_por_area": pendientes, "por_estado": estados,
+            "sincronizacion": {"ultima_correcta_en": ultima,
+                "desactualizada": ultima is None or (corte - ultima).total_seconds() > 180}}
 
 
 def serie(meses, corte):

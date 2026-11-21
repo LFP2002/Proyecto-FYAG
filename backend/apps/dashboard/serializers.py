@@ -20,6 +20,7 @@ class EstadosObraSerializer(serializers.Serializer):
 class OperacionSerializer(serializers.Serializer):
     obras_por_estado_actual = EstadosObraSerializer()
     presupuestos_pendientes_gerencia_actual = serializers.IntegerField()
+    presupuestos_pendientes_finanzas_actual = serializers.IntegerField()
     obras_finalizadas_periodo = serializers.IntegerField()
 
 
@@ -38,6 +39,18 @@ class CobranzaSerializer(serializers.Serializer):
     saldo_vencido = serializers.CharField()
 
 
+class SincronizacionIncidenciasSerializer(serializers.Serializer):
+    ultima_correcta_en = serializers.DateTimeField(default_timezone=ZONA, allow_null=True)
+    desactualizada = serializers.BooleanField()
+
+
+class IncidenciasSerializer(serializers.Serializer):
+    criticas_activas = serializers.IntegerField()
+    pendientes_por_area = serializers.DictField(child=serializers.IntegerField())
+    por_estado = serializers.DictField(child=serializers.IntegerField())
+    sincronizacion = SincronizacionIncidenciasSerializer()
+
+
 class ResumenSerializer(serializers.Serializer):
     generado_en = serializers.DateTimeField(default_timezone=ZONA)
     zona_horaria = serializers.CharField()
@@ -46,6 +59,7 @@ class ResumenSerializer(serializers.Serializer):
     operacion = OperacionSerializer()
     rentabilidad_cerrada_periodo = RentabilidadSerializer()
     cobranza_actual = CobranzaSerializer()
+    incidencias = IncidenciasSerializer()
 
 
 class PuntoSerializer(serializers.Serializer):

@@ -1,4 +1,7 @@
 """Lecturas puras de los propietarios; ninguna función crea controles u objetos."""
+from django.db.models import Q
+from .catalogo import CATALOGO
+from .models import Alerta
 from apps.comercial.models import Presupuesto
 from apps.obras.models import Obra, TurnoObra
 from apps.finanzas.models import DocumentoCobro
@@ -6,6 +9,12 @@ from apps.finanzas.consultas_cobranzas import con_cobranza
 
 MODELOS = {"PRESUPUESTO_PENDIENTE_FINANZAS": Presupuesto, "PRESUPUESTO_PENDIENTE_GERENCIA": Presupuesto, "OBRA_SUSPENDIDA": Obra,
            "TURNO_PENDIENTE_REVISION": TurnoObra, "COBRANZA_VENCIDA": DocumentoCobro}
+
+
+def visibles(rol, *, legado=None):
+    actuales = Q(es_legada=False, tipo__in=[tipo for tipo, regla in CATALOGO.items() if rol in regla.lectores])
+    historicas = Q(es_legada=True, rol_destinatario=rol)
+    return Alerta.objects.filter(historicas if legado is True else actuales if legado is False else actuales | historicas)
 
 
 def vigentes(tipo, queryset=None):

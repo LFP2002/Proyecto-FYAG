@@ -45,11 +45,16 @@ ATENCION_COMPLETA = (Q(atendida_por__isnull=False, atendida_en__isnull=False, mo
                        atendida_en__gte=F("creado_en"), motivo_atencion=Trim("motivo_atencion"))
                      & ~Q(motivo_atencion="") & Q(LessThanOrEqual(Length("motivo_atencion"), 2000)))
 CORRESPONDENCIA = Q(pk__isnull=True)  # disyunción inicial imposible para registros persistidos
+RESPONSABILIDAD = Q(pk__isnull=True)
 for _tipo, _regla in CATALOGO.items():
     CORRESPONDENCIA |= Q(tipo=_tipo, recurso_tipo=_regla.recurso, rol_destinatario__in=_regla.roles)
+    if _regla.responsable:
+        RESPONSABILIDAD |= Q(tipo=_tipo, recurso_tipo=_regla.recurso, rol_destinatario=_regla.responsable)
 
 
 class Alerta(RegistroProtegido):
+    # Las filas anteriores a 020B son archivo inmutable, nunca estado operativo.
+    es_legada = models.BooleanField(default=False, editable=False)
     tipo = models.CharField(max_length=32, choices=[(x, x) for x in CATALOGO], editable=False)
     rol_destinatario = models.CharField(max_length=30, choices=[(x, x) for x in ("GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS")], editable=False)
     recurso_tipo = models.CharField(max_length=12, choices=[(x, x) for x in sorted(RECURSOS)], editable=False)
@@ -67,17 +72,24 @@ class Alerta(RegistroProtegido):
     def severidad(self):
         return CATALOGO[self.tipo].severidad
 
+    @property
+    def rol_responsable(self):
+        return None if self.es_legada else self.rol_destinatario
+
     class Meta:
         ordering = ["-creado_en", "-id"]
         indexes = [
             models.Index(fields=["rol_destinatario", "-creado_en", "-id"], name="alerta_rol_fecha_idx"),
             models.Index(fields=["rol_destinatario", "estado", "-creado_en", "-id"], name="alerta_rol_estado_idx"),
+            models.Index(fields=["es_legada", "tipo", "estado", "-creado_en", "-id"], name="alerta_tipo_estado_020b_idx"),
         ]
         constraints = [
-            models.CheckConstraint(condition=CORRESPONDENCIA, name="alerta_catalogo_coherente"),
+            models.CheckConstraint(condition=(Q(es_legada=True) & CORRESPONDENCIA | Q(es_legada=False) & RESPONSABILIDAD), name="alerta_catalogo_coherente"),
             models.CheckConstraint(condition=Q(recurso_id__gt=0, generacion__gt=0), name="alerta_ids_positivos"),
-            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id", "rol_destinatario", "generacion"], name="alerta_generacion_unica"),
-            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id", "rol_destinatario"], condition=Q(estado__in=["PENDIENTE", "ATENDIDA"]), name="alerta_abierta_unica"),
+            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id", "rol_destinatario", "generacion"], condition=Q(es_legada=True), name="alerta_generacion_unica"),
+            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id", "rol_destinatario"], condition=Q(es_legada=True, estado__in=["PENDIENTE", "ATENDIDA"]), name="alerta_abierta_unica"),
+            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id", "generacion"], condition=Q(es_legada=False), name="alerta_episodio_unico_020b"),
+            models.UniqueConstraint(fields=["tipo", "recurso_tipo", "recurso_id"], condition=Q(es_legada=False, estado__in=["PENDIENTE", "ATENDIDA"]), name="alerta_activa_unica_020b"),
             models.CheckConstraint(condition=(
                 Q(estado="PENDIENTE", resuelta_en__isnull=True) & ATENCION_NULA
                 | Q(estado="ATENDIDA", resuelta_en__isnull=True) & ATENCION_COMPLETA

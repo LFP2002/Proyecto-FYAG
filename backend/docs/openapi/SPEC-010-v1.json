@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FYAG — Dashboard gerencial",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Fachada PostgreSQL exclusivamente de lectura para GERENCIA. No es utilidad contable, ingreso cobrado ni proyección de costos. JWT versionado, rol persistido, Cache-Control private/no-store y Vary Authorization. Snapshot REPEATABLE READ READ ONLY por respuesta, sin consistencia prometida entre solicitudes."
   },
   "security": [{"bearerAuth": []}],
@@ -67,17 +67,24 @@
       "Interno": {"description": "Mensaje genérico sin SQL, traceback o datos sensibles. X-Correlation-ID opaco.", "headers": {"X-Correlation-ID": {"schema": {"type": "string", "format": "uuid"}}}, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["detail", "correlacion"], "properties": {"detail": {"type": "string"}, "correlacion": {"type": "string", "format": "uuid"}}}}}}
     },
     "schemas": {
+      "Incidencias": {"type": "object", "additionalProperties": false, "description": "020B: solo episodios canónicos, nunca entregas legadas. Agregados y salud dentro del mismo snapshot de la respuesta. Sin filtro del periodo, sin reconciliación en GET; consistencia eventual respecto al origen.", "required": ["criticas_activas", "pendientes_por_area", "por_estado", "sincronizacion"], "properties": {
+        "criticas_activas": {"type": "integer", "minimum": 0, "description": "OBRA_SUSPENDIDA y COBRANZA_VENCIDA PENDIENTE/ATENDIDA, sin duplicar lectores."},
+        "pendientes_por_area": {"type": "object", "additionalProperties": false, "required": ["ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS"], "properties": {"ADMINISTRATIVO_FINANZAS": {"type": "integer", "minimum": 0}, "SUPERVISOR_OBRAS": {"type": "integer", "minimum": 0}}},
+        "por_estado": {"type": "object", "additionalProperties": false, "required": ["PENDIENTE", "ATENDIDA", "RESUELTA"], "properties": {"PENDIENTE": {"type": "integer", "minimum": 0}, "ATENDIDA": {"type": "integer", "minimum": 0}, "RESUELTA": {"type": "integer", "minimum": 0}}},
+        "sincronizacion": {"type": "object", "additionalProperties": false, "required": ["ultima_correcta_en", "desactualizada"], "properties": {"ultima_correcta_en": {"type": ["string", "null"], "format": "date-time"}, "desactualizada": {"type": "boolean", "description": "Sin ciclo completo o más de 180 s, política existente de SPEC-009."}}}
+      }},
       "Importe": {"type": "string", "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{2}$", "description": "Decimal exacto con dos decimales, sin floats ni notación exponencial. CLP; distinguir neto de bruto por nombre del campo."},
       "Margen": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)\\.[0-9]{2}$", "description": "Presupuesto neto menos costo real neto de las mismas Obras; puede ser negativo. No ingreso, utilidad contable o margen proyectado."},
       "EstadosObra": {"type": "object", "additionalProperties": false, "required": ["PLANIFICADA", "EN_PROCESO", "SUSPENDIDA", "FINALIZADA", "CANCELADA"], "properties": {"PLANIFICADA": {"type": "integer", "minimum": 0}, "EN_PROCESO": {"type": "integer", "minimum": 0}, "SUSPENDIDA": {"type": "integer", "minimum": 0}, "FINALIZADA": {"type": "integer", "minimum": 0}, "CANCELADA": {"type": "integer", "minimum": 0}}},
       "Resumen": {
         "type": "object", "additionalProperties": false,
-        "required": ["generado_en", "zona_horaria", "moneda", "periodo", "operacion", "rentabilidad_cerrada_periodo", "cobranza_actual"],
+        "required": ["generado_en", "zona_horaria", "moneda", "periodo", "operacion", "rentabilidad_cerrada_periodo", "cobranza_actual", "incidencias"],
         "properties": {
           "generado_en": {"type": "string", "format": "date-time", "description": "Inicio de la observación de esta respuesta, ISO con offset Santiago."},
           "zona_horaria": {"const": "America/Santiago"}, "moneda": {"const": "CLP"},
           "periodo": {"type": "object", "additionalProperties": false, "required": ["desde", "hasta"], "properties": {"desde": {"type": "string", "format": "date"}, "hasta": {"type": "string", "format": "date"}}},
-          "operacion": {"type": "object", "additionalProperties": false, "required": ["obras_por_estado_actual", "presupuestos_pendientes_gerencia_actual", "obras_finalizadas_periodo"], "properties": {"obras_por_estado_actual": {"$ref": "#/components/schemas/EstadosObra"}, "presupuestos_pendientes_gerencia_actual": {"type": "integer", "minimum": 0}, "obras_finalizadas_periodo": {"type": "integer", "minimum": 0}}},
+          "operacion": {"type": "object", "additionalProperties": false, "required": ["obras_por_estado_actual", "presupuestos_pendientes_gerencia_actual", "presupuestos_pendientes_finanzas_actual", "obras_finalizadas_periodo"], "properties": {"obras_por_estado_actual": {"$ref": "#/components/schemas/EstadosObra"}, "presupuestos_pendientes_gerencia_actual": {"type": "integer", "minimum": 0, "deprecated": true, "description": "Solo estado histórico PENDIENTE_GERENCIA. No cambia su significado."}, "presupuestos_pendientes_finanzas_actual": {"type": "integer", "minimum": 0, "description": "PENDIENTE_FINANZAS más PENDIENTE_GERENCIA todavía por decidir; sin filtro del periodo."}, "obras_finalizadas_periodo": {"type": "integer", "minimum": 0}}},
+          "incidencias": {"$ref": "#/components/schemas/Incidencias"},
           "rentabilidad_cerrada_periodo": {"type": "object", "additionalProperties": false, "required": ["obras_con_cierre", "presupuesto_neto", "costo_real_neto", "margen_real_neto"], "properties": {"obras_con_cierre": {"type": "integer", "minimum": 0}, "presupuesto_neto": {"$ref": "#/components/schemas/Importe"}, "costo_real_neto": {"$ref": "#/components/schemas/Importe"}, "margen_real_neto": {"$ref": "#/components/schemas/Margen"}}},
           "cobranza_actual": {"type": "object", "additionalProperties": false, "required": ["documentos_vigentes", "monto_documentado_bruto", "abonado", "saldo", "saldo_vencido"], "properties": {"documentos_vigentes": {"type": "integer", "minimum": 0}, "monto_documentado_bruto": {"$ref": "#/components/schemas/Importe"}, "abonado": {"$ref": "#/components/schemas/Importe"}, "saldo": {"$ref": "#/components/schemas/Importe"}, "saldo_vencido": {"$ref": "#/components/schemas/Importe"}}}
         }

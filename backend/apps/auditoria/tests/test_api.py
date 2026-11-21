@@ -51,7 +51,8 @@ class AuditoriaTests(AuditoriaBase, TestCase):
         self.assertEqual({e["recurso_tipo"] for e in result.data["results"]}, {"GASTO", "CONTROL_COSTOS", "CORTESIA"})
         row = next(e for e in result.data["results"] if e["recurso_tipo"] == "GASTO")
         self.assertEqual(row["recurso_id"], 91)
-        self.assertNotEqual(row["recurso_id"], self.obra.pk)
+        # IDs numéricos de tablas distintas pueden coincidir; la identidad es tipada.
+        self.assertNotEqual((row["recurso_tipo"], row["recurso_id"]), ("OBRA", self.obra.pk))
         result = self.client.get(URL, {"fuente": "FINANZAS_EVENTO"})
         self.assertEqual({e["recurso_tipo"] for e in result.data["results"]}, {"DOCUMENTO", "CIERRE_SIN_COBRO", "PAGO"})
         self.assertEqual(next(e for e in result.data["results"] if e["recurso_tipo"] == "PAGO")["recurso_id"], 79)

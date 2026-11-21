@@ -1,6 +1,6 @@
 """Proyección eventual. Locks propios por recurso; nunca locks de los propietarios.
 
-Orden: advisory(tipo, recurso) -> filas Alerta en orden de rol. Las lecturas de
+Orden: advisory(tipo, recurso) -> episodio canónico. Las lecturas de
 origen son MVCC tras el lock, no SELECT FOR UPDATE. Ningún callback se ejecuta
 antes de liberar la transacción del dominio. No hay ciclo de locks con Finanzas.
 """
@@ -11,10 +11,10 @@ from uuid import uuid4
 
 from django.db import connection, models, transaction
 from django.db.models import Max
-from rest_framework.exceptions import APIException, NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 
 from .catalogo import CATALOGO, MAX_PK
-from .consultas import condicion, vigentes
+from .consultas import condicion, vigentes, visibles
 from .models import Alerta, AlertaEvento, EstadoReconciliacion
 from .permissions import revalidar
 from .reloj import ahora as hora_servidor
@@ -45,30 +45,32 @@ def reconciliar_recurso(tipo, pk):
     if tipo not in CATALOGO or type(pk) is not int or not 0 < pk <= MAX_PK:
         raise ValueError("Clave de alerta inválida")
     bloquear(tipo, pk)
+    # La solicitud gerencial retirada y sus eventos son ahora archivo inmutable.
+    if CATALOGO[tipo].responsable is None:
+        return 0
     activa = condicion(tipo, pk)  # releer DESPUÉS de esperar al otro proyector
     ahora = hora_servidor()
     regla = CATALOGO[tipo]
-    cambios = 0
-    for rol in sorted(regla.roles):
-        qs = Alerta.objects.filter(tipo=tipo, recurso_tipo=regla.recurso, recurso_id=pk, rol_destinatario=rol)
-        abierta = qs.select_for_update().filter(estado__in=["PENDIENTE", "ATENDIDA"]).first()
-        if activa and abierta is None:
-            generacion = (qs.aggregate(n=Max("generacion"))["n"] or 0) + 1
-            alerta = Alerta.objects.create(tipo=tipo, recurso_tipo=regla.recurso, recurso_id=pk, rol_destinatario=rol,
-                generacion=generacion, creado_en=ahora, ultima_comprobacion_en=ahora)
-            _evento(alerta, "CREACION", None, ahora=ahora)
-            cambios += 1
-        elif abierta is not None:
-            if not activa:
-                anterior = abierta.estado
-                abierta.estado, abierta.resuelta_en, abierta.ultima_comprobacion_en = "RESUELTA", ahora, ahora
-                models.Model.save(abierta, update_fields=["estado", "resuelta_en", "ultima_comprobacion_en"])
-                _evento(abierta, "RESOLUCION", anterior, ahora=ahora)
-                cambios += 1
-            elif (ahora - abierta.ultima_comprobacion_en).total_seconds() >= 60:
-                abierta.ultima_comprobacion_en = ahora
-                models.Model.save(abierta, update_fields=["ultima_comprobacion_en"])
-    return cambios
+    qs = Alerta.objects.filter(tipo=tipo, recurso_tipo=regla.recurso, recurso_id=pk)
+    abierta = qs.select_for_update().filter(es_legada=False, estado__in=["PENDIENTE", "ATENDIDA"]).first()
+    if activa and abierta is None:
+        # No inferir episodios ni atención a partir de entregas históricas divergentes.
+        generacion = (qs.aggregate(n=Max("generacion"))["n"] or 0) + 1
+        alerta = Alerta.objects.create(tipo=tipo, recurso_tipo=regla.recurso, recurso_id=pk,
+            rol_destinatario=regla.responsable, generacion=generacion, creado_en=ahora, ultima_comprobacion_en=ahora)
+        _evento(alerta, "CREACION", None, ahora=ahora)
+        return 1
+    if abierta is not None:
+        if not activa:
+            anterior = abierta.estado
+            abierta.estado, abierta.resuelta_en, abierta.ultima_comprobacion_en = "RESUELTA", ahora, ahora
+            models.Model.save(abierta, update_fields=["estado", "resuelta_en", "ultima_comprobacion_en"])
+            _evento(abierta, "RESOLUCION", anterior, ahora=ahora)
+            return 1
+        if (ahora - abierta.ultima_comprobacion_en).total_seconds() >= 60:
+            abierta.ultima_comprobacion_en = ahora
+            models.Model.save(abierta, update_fields=["ultima_comprobacion_en"])
+    return 0
 
 
 def notificar_despues_commit(tipo, pk):
@@ -102,7 +104,7 @@ def reconciliar():
                 cambios += reconciliar_recurso(tipo, pk)
                 examinados += 1
         # Incluye orígenes ya desaparecidos y causas que dejaron de estar activas.
-        abiertas = Alerta.objects.filter(tipo=tipo, estado__in=["PENDIENTE", "ATENDIDA"])
+        abiertas = Alerta.objects.filter(es_legada=False, tipo=tipo, estado__in=["PENDIENTE", "ATENDIDA"])
         for ids in _lotes(abiertas):
             for pk in Alerta.objects.filter(pk__in=ids).order_by().values_list("recurso_id", flat=True).distinct():
                 cambios += reconciliar_recurso(tipo, pk)
@@ -118,7 +120,7 @@ def obtener(actor, pk):
     actor = revalidar(actor)
     if type(pk) is not int or not 0 < pk <= MAX_PK:
         raise NotFound("Alerta no encontrada.")
-    alerta = Alerta.objects.filter(pk=pk, rol_destinatario=actor.rol).first()
+    alerta = visibles(actor.rol).filter(pk=pk).first()
     if alerta is None:
         raise NotFound("Alerta no encontrada.")
     return alerta
@@ -133,9 +135,13 @@ def atender(actor, pk, motivo):
     bloquear(alerta.tipo, alerta.recurso_id)
     # El rol/sesión puede cambiar mientras esperamos al reconciliador.
     actor = revalidar(actor, escritura=True)
-    alerta = Alerta.objects.select_for_update().filter(pk=pk, rol_destinatario=actor.rol).first()
+    alerta = visibles(actor.rol).select_for_update().filter(pk=pk).first()
     if alerta is None:
         raise NotFound("Alerta no encontrada.")
+    if alerta.es_legada:
+        raise ConflictoAlerta("alerta_legada", "El episodio legado es de solo lectura; consulte la bandeja vigente.")
+    if alerta.rol_responsable != actor.rol:
+        raise PermissionDenied("Solo el área responsable puede atender la incidencia.")
     if alerta.estado == "ATENDIDA":
         raise ConflictoAlerta("alerta_ya_atendida", "La alerta ya fue atendida.")
     if alerta.estado == "RESUELTA":

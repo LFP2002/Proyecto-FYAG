@@ -92,3 +92,18 @@ class SnapshotDashboardTests(DashboardBase, TransactionTestCase):
         self.assertEqual(despues["operacion"]["obras_por_estado_actual"]["FINALIZADA"], 2)
         self.assertEqual(despues["rentabilidad_cerrada_periodo"]["obras_con_cierre"], 2)
         self.assertEqual(despues["rentabilidad_cerrada_periodo"]["costo_real_neto"], "16000.00")
+
+    def test_incidente_y_salud_confirmados_entre_agregados_no_entran_al_snapshot(self):
+        from apps.alertas import services as alertas
+        from apps.obras import services as obras
+        obra = self.otra_obra()
+
+        def suspender_y_reconciliar():
+            obras.suspender_obra(obra, self.supervisor, 'Pausa')
+            alertas.reconciliar()
+
+        antes, despues = self.intercalar(suspender_y_reconciliar)
+        self.assertEqual(antes['incidencias']['criticas_activas'], 0)
+        self.assertEqual(despues['incidencias']['criticas_activas'], 1)
+        self.assertIsNone(antes['incidencias']['sincronizacion']['ultima_correcta_en'])
+        self.assertIsNotNone(despues['incidencias']['sincronizacion']['ultima_correcta_en'])
