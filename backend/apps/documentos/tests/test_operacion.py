@@ -59,6 +59,7 @@ class OperacionDocumentalTests(DocumentosBase):
         self.assertIsNot(primero, mongo.cliente())
 
     def test_configuracion_documental_invalida_no_afecta_sql(self):
+        self.autenticar(self.gerencia)
         conf=settings.DOCUMENTOS_MONGO
         for cambios in ({"puerto":"invalido"},{"host":"mongodb://cloud.invalid"},{"password":""},{"db":"otra_base"}):
             with override_settings(DOCUMENTOS_MONGO={**conf,**cambios}):
@@ -138,7 +139,7 @@ class OperacionDocumentalTests(DocumentosBase):
 
     def test_dos_patch_concurrentes_solo_un_cas_exitoso(self):
         self.proyectar()
-        token=str(AccessToken.for_user(self.gerencia))
+        token=str(AccessToken.for_user(self.supervisor))
         barrera=Barrier(2)
         original=services.validar_documento
         def leer(doc,row):

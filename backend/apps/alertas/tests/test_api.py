@@ -48,7 +48,7 @@ class AlertasAPITests(AlertasBase, TestCase):
         self.assertEqual(set(result.data), PUBLICOS)
         self.assertEqual(result.data["estado"], "ATENDIDA")
         self.assertEqual(result.data["motivo_atencion"], "Coordinado")
-        self.assertEqual(result.data["atendida_por"], self.gerencia.pk)
+        self.assertEqual(result.data["atendida_por"], self.supervisor.pk)
         self.assertEqual(result.data["acciones_permitidas"], [])
         self.a.refresh_from_db()
         self.assertGreaterEqual(self.a.atendida_en, antes)
@@ -57,7 +57,7 @@ class AlertasAPITests(AlertasBase, TestCase):
         self.assertEqual(historial.data["count"], 2)
         evento = historial.data["results"][0]
         self.assertEqual(set(evento), {"id", "alerta", "tipo", "estado_anterior", "estado_nuevo", "actor", "motivo", "registrado_en"})
-        self.assertEqual(evento["actor"], self.gerencia.pk)
+        self.assertEqual(evento["actor"], self.supervisor.pk)
         self.assertEqual(historial.data["results"][1]["actor"], None)
 
     def test_cinco_roles_flags_y_claims_no_escalan(self):
@@ -67,7 +67,7 @@ class AlertasAPITests(AlertasBase, TestCase):
             token = AccessToken.for_user(actor)
             token["rol"] = "GERENCIA"
             self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-            esperado = 200 if actor.rol in ("GERENCIA", "SUPERVISOR_OBRAS") else 403
+            esperado = 200 if actor.rol in ("GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS") else 403
             for ruta in (URL, URL + "resumen/"):
                 response = self.client.get(ruta)
                 self.assertEqual(response.status_code, esperado, (actor.rol, response.data))
@@ -76,7 +76,7 @@ class AlertasAPITests(AlertasBase, TestCase):
                 self.assertTrue(all(a["rol_destinatario"] == actor.rol for a in self.client.get(URL).data["results"]))
 
     def test_otro_rol_404_en_detalle_historial_atencion_y_id_extremo(self):
-        ajena = Alerta.objects.get(rol_destinatario="SUPERVISOR_OBRAS")
+        ajena = Alerta.objects.get(rol_destinatario="GERENCIA")
         for pk in (ajena.pk, 9223372036854775807, 9223372036854775808):
             self.assertEqual(self.client.get(f"{URL}{pk}/").status_code, 404)
             self.assertEqual(self.client.get(f"{URL}{pk}/historial/").status_code, 404)
@@ -85,8 +85,8 @@ class AlertasAPITests(AlertasBase, TestCase):
                 self.assertEqual(self.client.options(f"{URL}{pk}/{sufijo}").status_code, 404)
 
     def test_mismo_rol_comparte_atencion(self):
-        otro = Usuario.objects.create_user(username="g009", email="g009@example.test", rol="GERENCIA")
-        services.atender(self.gerencia, self.a.pk, "Coordinado")
+        otro = Usuario.objects.create_user(username="s009", email="s009@example.test", rol="SUPERVISOR_OBRAS")
+        services.atender(self.supervisor, self.a.pk, "Coordinado")
         self.autenticar(otro)
         result = self.client.post(f"{URL}{self.a.pk}/atender/", {"motivo": "Segundo"}, format="json")
         self.assertEqual(result.status_code, 409)
@@ -138,7 +138,7 @@ class AlertasAPITests(AlertasBase, TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(set(response.data), {"generado_en", "zona_horaria", "por_estado", "activas", "por_tipo", "sincronizacion"})
         self.assertEqual(response.data["por_estado"], {"PENDIENTE": 1, "ATENDIDA": 0, "RESUELTA": 0})
-        self.assertEqual(set(response.data["por_tipo"]), {"PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "COBRANZA_VENCIDA"})
+        self.assertEqual(set(response.data["por_tipo"]), {"OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION"})
         self.assertEqual(response.data["sincronizacion"], {"ultima_correcta_en": None, "desactualizada": True})
         self.assertFalse(EstadoReconciliacion.objects.exists())
         ahora = timezone.now()
@@ -189,19 +189,20 @@ class AlertasAPITests(AlertasBase, TestCase):
         self.assertNotIn("SECRETO", str(logs.output) + str(response.data))
 
     def test_paginacion_25_orden_empates_y_consultas_sin_n_mas_uno(self):
+        self.autenticar(self.finanzas)
         ahora = timezone.now()
         for i in range(30):
-            p = Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion=f"Presupuesto {i}", estado="PENDIENTE_GERENCIA")
-            services.reconciliar_recurso("PRESUPUESTO_PENDIENTE_GERENCIA", p.pk)
+            p = Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion=f"Presupuesto {i}", estado="PENDIENTE_FINANZAS")
+            services.reconciliar_recurso("PRESUPUESTO_PENDIENTE_FINANZAS", p.pk)
         models.QuerySet(model=Alerta).update(creado_en=ahora, ultima_comprobacion_en=timezone.now())
         with CaptureQueriesContext(connection) as queries:
             r = self.client.get(URL)
         self.assertEqual(r.status_code, 200, r.data)
-        self.assertEqual(r.data["count"], 31)
+        self.assertEqual(r.data["count"], 30)
         self.assertEqual(len(r.data["results"]), 25)
         self.assertLessEqual(len(queries), 8)  # auth, permiso, count, página y dos consultas por tipo
         segunda = self.client.get(r.data["next"])
-        self.assertEqual(len(segunda.data["results"]), 6)
+        self.assertEqual(len(segunda.data["results"]), 5)
         ids = [a["id"] for a in r.data["results"] + segunda.data["results"]]
         self.assertEqual(ids, sorted(ids, reverse=True))
         self.assertEqual(len(ids), len(set(ids)))

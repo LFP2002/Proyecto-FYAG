@@ -51,7 +51,7 @@ class DashboardAPITests(DashboardBase, TransactionTestCase):
     def test_cinco_estados_actuales_y_pendientes_no_se_filtran_por_periodo(self):
         for estado in ESTADOS:
             self.historica(estado=estado)
-        Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion="Pendiente", estado="PENDIENTE_GERENCIA")
+        Presupuesto.objects.create(cliente=self.cliente, creado_por=self.finanzas, descripcion="Pendiente", estado="PENDIENTE_GERENCIA", politica_aprobacion="GERENCIA_LEGADA", requiere_aprobacion_gerencia=True)
         r = self.client.get(RESUMEN, {"desde": "2020-01-01", "hasta": "2020-01-31"})
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(r.data["operacion"]["obras_por_estado_actual"], {"PLANIFICADA": 1, "EN_PROCESO": 1, "SUSPENDIDA": 1, "FINALIZADA": 2, "CANCELADA": 1})

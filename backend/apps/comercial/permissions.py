@@ -1,25 +1,49 @@
 from rest_framework.permissions import BasePermission
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 
 from apps.usuarios.models import Usuario
+
+
+def revalidar_escritura(usuario):
+    """020A: actor persistido AF, con sesión 018 vigente; no privilegios Django."""
+    from apps.usuarios.configuracion_c2 import relaciones_seguridad
+    from apps.usuarios.acceso import sesion_operativa
+    if not isinstance(usuario, Usuario) or not usuario.pk or usuario._state.adding:
+        raise PermissionDenied("Operación comercial no autorizada.")
+    actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(
+        pk=usuario.pk,
+    ).first()
+    if (
+        actual is None or not actual.is_active
+        or actual.sesion_version != usuario.sesion_version
+        or not sesion_operativa(actual)
+    ):
+        raise AuthenticationFailed("Sesión no disponible.")
+    if actual.rol != Usuario.Rol.ADMINISTRATIVO_FINANZAS:
+        raise PermissionDenied("Operación comercial exclusiva de Finanzas.")
+    return actual
 
 
 class PuedeGestionarClientes(BasePermission):
     message = "No tiene permiso para gestionar clientes."
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.rol in (
-            Usuario.Rol.GERENCIA,
-            Usuario.Rol.ADMINISTRATIVO_FINANZAS,
+        return request.user.is_authenticated and (
+            request.user.rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS
+            or (
+                request.method in {"GET", "HEAD", "OPTIONS"}
+                and request.user.rol == Usuario.Rol.GERENCIA
+            )
         )
 
 
 class PuedeOperarPresupuestos(BasePermission):
     message = "No tiene permiso para realizar esta operación de presupuestos."
 
-    acciones_gerencia = frozenset({"aprobar_gerencia", "rechazar_gerencia"})
     acciones_comerciales = frozenset({
         "create", "partial_update", "items", "item_detalle",
-        "enviar_gerencia", "enviar_cliente", "registrar_aprobacion_cliente",
+        "enviar_finanzas", "aprobar_finanzas", "rechazar_finanzas",
+        "enviar_cliente", "registrar_aprobacion_cliente",
         "registrar_rechazo_cliente", "anular", "crear_revision",
     })
 
@@ -32,8 +56,8 @@ class PuedeOperarPresupuestos(BasePermission):
         ):
             return False
         accion = getattr(view, "action", None)
-        if accion in self.acciones_gerencia:
-            return rol == Usuario.Rol.GERENCIA
+        if accion in {"enviar_gerencia", "aprobar_gerencia", "rechazar_gerencia"}:
+            return False  # Rutas retiradas: 403 uniforme antes de recurso/body.
         if accion in self.acciones_comerciales:
             return rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS
         # Lectura, OPTIONS y métodos sin handler: estos últimos llegarán a 405.

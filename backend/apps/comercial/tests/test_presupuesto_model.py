@@ -28,7 +28,7 @@ class DatosPresupuestoMixin:
         )
         cls.presupuesto = Presupuesto.objects.create(
             cliente=cls.cliente, creado_por=cls.usuario,
-            descripcion="Servicio de frío", requiere_aprobacion_gerencia=True,
+            descripcion="Servicio de frío",
         )
 
     def nuevo_presupuesto(self, **cambios):
@@ -98,14 +98,14 @@ class PresupuestoModelTests(DatosPresupuestoMixin, TestCase):
                 with self.assertRaises(ValidationError):
                     self.nuevo_presupuesto(descripcion=descripcion).save()
 
-    def test_default_true_no_editable(self):
-        self.assertIs(self.nuevo_presupuesto().requiere_aprobacion_gerencia, True)
+    def test_default_finanzas_no_editable(self):
+        self.assertIs(self.nuevo_presupuesto().requiere_aprobacion_gerencia, False)
         campo = Presupuesto._meta.get_field("requiere_aprobacion_gerencia")
-        self.assertIs(campo.default, True)
+        self.assertIs(campo.default, False)
         self.assertFalse(campo.editable)
 
-    def test_solo_true_admitido(self):
-        for valor in (False, None, 1, "true"):
+    def test_solo_false_admitido_en_politica_nueva(self):
+        for valor in (True, None, 1, "true"):
             with self.subTest(valor=valor):
                 with self.assertRaises(ValidationError):
                     self.nuevo_presupuesto(
@@ -124,7 +124,8 @@ class PresupuestoModelTests(DatosPresupuestoMixin, TestCase):
                         estado=estado, requiere_aprobacion_gerencia=False
                     ).save()
                 self.nuevo_presupuesto(
-                    estado=estado, requiere_aprobacion_gerencia=True
+                    estado=estado, requiere_aprobacion_gerencia=True,
+                    politica_aprobacion="GERENCIA_LEGADA",
                 ).save()
 
     def test_autoreferencia_rechazada(self):

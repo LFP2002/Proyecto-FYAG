@@ -59,7 +59,7 @@ class ClienteAPIBase(APITestCase):
         cls.cliente = Cliente.objects.create(**datos_cliente())
 
     def setUp(self):
-        self.autenticar(Usuario.Rol.GERENCIA)
+        self.autenticar(Usuario.Rol.ADMINISTRATIVO_FINANZAS)
 
     def autenticar(self, rol):
         token = AccessToken.for_user(self.usuarios[rol])
@@ -111,7 +111,7 @@ class ClientePermisosAPITests(ClienteAPIBase):
                     url, datos, format="json"
                 )
                 self.assertEqual(
-                    respuesta.status_code, esperado if autorizado else 403
+                    respuesta.status_code, esperado if autorizado and (metodo == "get" or rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS) else 403
                 )
 
     def test_roles_administrativos(self):
@@ -121,7 +121,7 @@ class ClientePermisosAPITests(ClienteAPIBase):
             self.comprobar_operaciones(rol, True)
 
     def test_roles_sin_acceso(self):
-        for rol in (Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO):
+        for rol in (Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO, Usuario.Rol.ADMINISTRADOR_TI, Usuario.Rol.BODEGUERO):
             self.comprobar_operaciones(rol, False)
         self.assertEqual(Cliente.objects.count(), 1)
         self.cliente.refresh_from_db()

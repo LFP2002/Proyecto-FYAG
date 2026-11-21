@@ -35,7 +35,7 @@ class DocumentosBase(TurnosBase, TransactionTestCase):
         self.addCleanup(lambda: self.col.delete_many({}))
         self.turno = self.cerrar(self.abrir(), fotos=[foto()])
         self.evidencia = EvidenciaTurno.objects.get()
-        self.autenticar(self.gerencia)
+        self.autenticar(self.supervisor)
 
     def reconciliar(self):
         out = StringIO()

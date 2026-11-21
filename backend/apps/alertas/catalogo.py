@@ -12,6 +12,7 @@ class Regla:
 
 
 CATALOGO = {
+    "PRESUPUESTO_PENDIENTE_FINANZAS": Regla("PRESUPUESTO", ("ADMINISTRATIVO_FINANZAS",), "MEDIA", "Presupuesto pendiente de Finanzas", "El presupuesto requiere revisión de Finanzas."),
     "PRESUPUESTO_PENDIENTE_GERENCIA": Regla("PRESUPUESTO", ("GERENCIA",), "MEDIA", "Presupuesto pendiente de Gerencia", "El presupuesto requiere revisión de Gerencia."),
     "OBRA_SUSPENDIDA": Regla("OBRA", ("GERENCIA", "SUPERVISOR_OBRAS"), "ALTA", "Obra suspendida", "La obra se encuentra suspendida."),
     "TURNO_PENDIENTE_REVISION": Regla("TURNO", ("SUPERVISOR_OBRAS",), "MEDIA", "Turno pendiente de revisión", "El turno requiere revisión del Supervisor."),

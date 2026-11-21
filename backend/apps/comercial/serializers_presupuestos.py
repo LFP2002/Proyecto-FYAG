@@ -15,6 +15,7 @@ class ContratoPresupuestoSerializer(serializers.Serializer):
         "creado_en", "actualizado_en", "moneda", "monto_neto", "subtotal",
         "presupuesto", "presupuesto_id", "registrado_por",
         "requiere_aprobacion_gerencia",
+        "politica_aprobacion",
     })
 
     def to_internal_value(self, data):
@@ -118,6 +119,7 @@ class PresupuestoListadoSerializer(serializers.Serializer):
     descripcion = serializers.CharField(read_only=True)
     estado = serializers.CharField(read_only=True)
     requiere_aprobacion_gerencia = serializers.BooleanField(read_only=True)
+    politica_aprobacion = serializers.CharField(read_only=True)
     presupuesto_origen = serializers.IntegerField(
         source="presupuesto_origen_id", read_only=True, allow_null=True
     )

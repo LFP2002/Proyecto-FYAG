@@ -4,14 +4,16 @@ from apps.obras.models import Obra, TurnoObra
 from apps.finanzas.models import DocumentoCobro
 from apps.finanzas.consultas_cobranzas import con_cobranza
 
-MODELOS = {"PRESUPUESTO_PENDIENTE_GERENCIA": Presupuesto, "OBRA_SUSPENDIDA": Obra,
+MODELOS = {"PRESUPUESTO_PENDIENTE_FINANZAS": Presupuesto, "PRESUPUESTO_PENDIENTE_GERENCIA": Presupuesto, "OBRA_SUSPENDIDA": Obra,
            "TURNO_PENDIENTE_REVISION": TurnoObra, "COBRANZA_VENCIDA": DocumentoCobro}
 
 
 def vigentes(tipo, queryset=None):
     qs = MODELOS[tipo].objects.all() if queryset is None else queryset
     if tipo == "PRESUPUESTO_PENDIENTE_GERENCIA":
-        return qs.filter(estado="PENDIENTE_GERENCIA")
+        return qs.none()  # Solicitud operativa retirada, se conserva su historial.
+    if tipo == "PRESUPUESTO_PENDIENTE_FINANZAS":
+        return qs.filter(estado__in=["PENDIENTE_FINANZAS", "PENDIENTE_GERENCIA"])
     if tipo == "OBRA_SUSPENDIDA":
         return qs.filter(estado="SUSPENDIDA")
     if tipo == "TURNO_PENDIENTE_REVISION":

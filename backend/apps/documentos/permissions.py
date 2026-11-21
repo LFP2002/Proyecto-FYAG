@@ -6,7 +6,7 @@ from apps.usuarios.authentication import validar_sesion
 from apps.usuarios.credenciales import es_personal
 
 
-def revalidar(usuario, token=None):
+def revalidar(usuario, token=None, *, escritura=False):
     from apps.usuarios.configuracion_c2 import relaciones_seguridad
     from apps.usuarios.acceso import acceso_permitido
     actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(pk=usuario.pk).first()
@@ -18,10 +18,12 @@ def revalidar(usuario, token=None):
         validar_sesion(token, actual)
     if actual.rol not in ("GERENCIA", "SUPERVISOR_OBRAS"):
         raise PermissionDenied("Sin acceso a metadatos documentales.")
+    if escritura and actual.rol != "SUPERVISOR_OBRAS":
+        raise PermissionDenied("Solo Supervisor puede editar metadatos técnicos.")
     return actual
 
 
 class PuedeOperarDocumentos(BasePermission):
     def has_permission(self, request, view):
-        request.user = revalidar(request.user, request.auth)
+        request.user = revalidar(request.user, request.auth, escritura=request.method not in {"GET", "HEAD", "OPTIONS"})
         return True

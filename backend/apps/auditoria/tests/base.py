@@ -21,7 +21,7 @@ class AuditoriaBase(FinanzasBase):
         self.ti = usuarios.aprovisionar_primera_ti({"email": "ti@example.test", "username": "ti", "password": PASSWORD})
         PresupuestoEvento.objects.create(presupuesto=self.presupuesto, estado_anterior=None, estado_nuevo="BORRADOR", registrado_por=self.finanzas)
         PresupuestoEvento.objects.create(presupuesto=self.presupuesto, estado_anterior="ENVIADO_CLIENTE", estado_nuevo="APROBADO_CLIENTE", registrado_por=self.finanzas, motivo="Aceptación histórica")
-        obras.crear_categoria("Categoría con historia", self.gerencia)
+        obras.crear_categoria("Categoría con historia", self.supervisor)
         # Fixtures históricas explícitas, exclusivamente en BD temporal de tests.
         self.gasto = GastoObra.objects.create(id=91, obra=self.obra, tipo="MATERIAL", descripcion="Material de prueba", unidad="unidad", cantidad=Decimal("1.000"), costo_unitario_neto=Decimal("12.34"), fecha_gasto=hoy_santiago(), registrado_por=self.supervisor)
         CostoObraEvento.objects.create(obra=self.obra, gasto=self.gasto, tipo="ALTA", registrado_por=self.supervisor, motivo="Registro histórico", datos_nuevos={"cantidad": "1.000", "costo_unitario_neto": "12.34", "vigente": True})

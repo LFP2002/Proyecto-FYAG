@@ -116,7 +116,7 @@ def detalle(actor, evidencia, token=None):
 
 def editar(actor, evidencia, revision, cambios, correlacion, token=None):
     fuera_transaccion()
-    actor = revalidar(actor, token)
+    actor = revalidar(actor, token, escritura=True)
     row = fuente(evidencia)
     try:
         col = mongo.coleccion()
@@ -126,6 +126,7 @@ def editar(actor, evidencia, revision, cambios, correlacion, token=None):
         validar_documento(doc, row)
         candidato = {**doc, **cambios, "revision": revision + 1, "anotado_en": datetime.now(timezone.utc), "anotado_por_id": Int64(actor.pk)}
         validar_documento(candidato, row)
+        revalidar(actor, token, escritura=True)  # Releer autoridad antes del CAS, sin locks SQL sobre Mongo.
         actualizado = col.find_one_and_update({"_id": doc["_id"], "revision": revision},
             {"$set": {**cambios, "anotado_en": candidato["anotado_en"], "anotado_por_id": candidato["anotado_por_id"]}, "$inc": {"revision": 1}}, return_document=ReturnDocument.AFTER)
         if actualizado is None:

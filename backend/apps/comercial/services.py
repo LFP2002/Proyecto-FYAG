@@ -3,6 +3,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 
 from .models import Cliente
+from .permissions import revalidar_escritura
 
 
 ERRORES_UNICIDAD = {
@@ -47,13 +48,15 @@ def _cliente_bloqueado(pk):
         raise Http404("Cliente no encontrado.") from exc
 
 
-def guardar_cliente(datos, instancia=None):
+def guardar_cliente(datos, instancia=None, *, usuario=None):
     """Revalida PATCH contra la fila actual y protege carreras de unicidad."""
     try:
         with transaction.atomic():
+            revalidar_escritura(usuario)
             cliente = (
                 _cliente_bloqueado(instancia.pk) if instancia else Cliente()
             )
+            revalidar_escritura(usuario)
             for campo, valor in datos.items():
                 setattr(cliente, campo, valor)
             validar_cliente(cliente)
@@ -69,18 +72,20 @@ def guardar_cliente(datos, instancia=None):
         }) from exc
 
 
-def _cambiar_estado(cliente, activo):
+def _cambiar_estado(cliente, activo, usuario):
     with transaction.atomic():
+        revalidar_escritura(usuario)
         actual = _cliente_bloqueado(cliente.pk)
+        revalidar_escritura(usuario)
         if actual.activo != activo:
             actual.activo = activo
             actual.save(update_fields=["activo", "actualizado_en"])
         return actual
 
 
-def activar_cliente(cliente):
-    return _cambiar_estado(cliente, True)
+def activar_cliente(cliente, usuario=None):
+    return _cambiar_estado(cliente, True, usuario)
 
 
-def desactivar_cliente(cliente):
-    return _cambiar_estado(cliente, False)
+def desactivar_cliente(cliente, usuario=None):
+    return _cambiar_estado(cliente, False, usuario)

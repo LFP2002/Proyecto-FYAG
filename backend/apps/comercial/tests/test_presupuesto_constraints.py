@@ -39,19 +39,25 @@ class PresupuestoConstraintsTests(DatosPresupuestoMixin, TestCase):
             with self.subTest(estado=estado):
                 self.assert_rechazo_bd(
                     self.nuevo_presupuesto(
-                        estado=estado, requiere_aprobacion_gerencia=False
+                        estado=estado, requiere_aprobacion_gerencia=False,
+                        politica_aprobacion="GERENCIA_LEGADA",
                     ),
-                    "presupuesto_aprobacion_gerencia_obligatoria",
+                    "presupuesto_politica_coherente",
                 )
 
     def test_aprobacion_obligatoria_update(self):
         with self.assertRaises(IntegrityError) as error:
             with transaction.atomic():
                 Presupuesto.objects.filter(pk=self.presupuesto.pk).update(
-                    requiere_aprobacion_gerencia=False
+                    requiere_aprobacion_gerencia=True
                 )
         self.assertEqual(error.exception.__cause__.diag.constraint_name,
-                         "presupuesto_aprobacion_gerencia_obligatoria")
+                         "presupuesto_politica_coherente")
+
+    def test_politica_finanzas_no_admite_estados_gerenciales_ni_politicas_inventadas(self):
+        for estado in ('PENDIENTE_GERENCIA', 'APROBADO_GERENCIA', 'RECHAZADO_GERENCIA'):
+            self.assert_rechazo_bd(self.nuevo_presupuesto(estado=estado), 'presupuesto_politica_coherente')
+        self.assert_rechazo_bd(self.nuevo_presupuesto(politica_aprobacion='OTRA'), 'presupuesto_politica_coherente')
 
     def test_autoreferencia_por_update(self):
         with self.assertRaises(IntegrityError):

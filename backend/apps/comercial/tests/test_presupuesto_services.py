@@ -39,9 +39,12 @@ class ServiciosPresupuestoMixin(DatosPresupuestoMixin):
 
     def preparar(self, estado):
         presupuesto = self.crear()
-        servicios.crear_item(presupuesto, datos_item())
+        servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         # Estado de partida de la prueba, no una transición del servicio.
         presupuesto.estado = estado
+        if estado in {"PENDIENTE_GERENCIA", "APROBADO_GERENCIA", "RECHAZADO_GERENCIA"}:
+            presupuesto.politica_aprobacion = "GERENCIA_LEGADA"
+            presupuesto.requiere_aprobacion_gerencia = True
         presupuesto.save()
         return presupuesto
 
@@ -54,7 +57,8 @@ class PresupuestoCreacionServiciosTests(ServiciosPresupuestoMixin, TestCase):
 
     def test_creacion_cabecera_y_evento_inicial(self):
         presupuesto = self.crear()
-        self.assertIs(presupuesto.requiere_aprobacion_gerencia, True)
+        self.assertIs(presupuesto.requiere_aprobacion_gerencia, False)
+        self.assertEqual(presupuesto.politica_aprobacion, "FINANZAS")
         self.assertEqual(presupuesto.descripcion, "Servicio de frío")
         self.assertEqual(presupuesto.estado, "BORRADOR")
         self.assertEqual(presupuesto.creado_por, self.usuario)
@@ -66,7 +70,7 @@ class PresupuestoCreacionServiciosTests(ServiciosPresupuestoMixin, TestCase):
         self.assertEqual(evento.motivo, "")
 
     def test_cliente_inactivo_persistido_no_instancia_obsoleta(self):
-        desactivar_cliente(self.cliente)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         self.assertTrue(self.cliente.activo)
         with self.assertRaises(ClienteInactivo):
             self.crear()
@@ -81,7 +85,8 @@ class PresupuestoCreacionServiciosTests(ServiciosPresupuestoMixin, TestCase):
     def test_usuario_interno_requerido(self):
         for usuario in (AnonymousUser(), "GERENCIA", None):
             with self.subTest(usuario=usuario):
-                with self.assertRaises(DatosInvalidos):
+                from rest_framework.exceptions import PermissionDenied
+                with self.assertRaises(PermissionDenied):
                     self.crear(usuario=usuario)
 
     def test_datos_invalidos_no_dejan_filas(self):
@@ -102,18 +107,18 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
         presupuesto = self.crear()
         actualizado = servicios.modificar_presupuesto(presupuesto, {
             "descripcion": "  Nueva propuesta  ",
-        })
+        }, usuario=self.usuario)
         self.assertEqual(actualizado.descripcion, "Nueva propuesta")
         self.assertEqual(actualizado.cliente_id, presupuesto.cliente_id)
-        self.assertTrue(actualizado.requiere_aprobacion_gerencia)
+        self.assertFalse(actualizado.requiere_aprobacion_gerencia)
         self.assertEqual(actualizado.eventos.count(), 1)
 
     def test_no_sobrescribe_instancia_obsoleta(self):
         presupuesto = self.crear()
-        servicios.modificar_presupuesto(presupuesto, {"descripcion": "Actual"})
+        servicios.modificar_presupuesto(presupuesto, {"descripcion": "Actual"}, usuario=self.usuario)
         actualizado = servicios.modificar_presupuesto(presupuesto, {
             "cliente": self.cliente.pk,
-        })
+        }, usuario=self.usuario)
         self.assertEqual(actualizado.descripcion, "Actual")
 
     def test_booleano_no_editable(self):
@@ -121,7 +126,7 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
             with self.assertRaises(DatosInvalidos):
                 servicios.modificar_presupuesto(self.presupuesto, {
                     "requiere_aprobacion_gerencia": valor,
-                })
+                }, usuario=self.usuario)
 
     def test_campos_administrados_rechazados(self):
         for campo in (
@@ -132,7 +137,7 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
                 with self.assertRaises(DatosInvalidos):
                     servicios.modificar_presupuesto(self.presupuesto, {
                         campo: "dato",
-                    })
+                    }, usuario=self.usuario)
 
     def test_cambio_cliente_activo(self):
         otro = Cliente.objects.create(
@@ -141,21 +146,21 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
         )
         actualizado = servicios.modificar_presupuesto(self.presupuesto, {
             "cliente": otro.pk,
-        })
+        }, usuario=self.usuario)
         self.assertEqual(actualizado.cliente_id, otro.pk)
 
     def test_cliente_explicito_inactivo_rechazado_incluso_mismo_id(self):
-        desactivar_cliente(self.cliente)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         with self.assertRaises(ClienteInactivo):
             servicios.modificar_presupuesto(self.presupuesto, {
                 "cliente": self.cliente.pk,
-            })
+            }, usuario=self.usuario)
 
     def test_puede_editar_otra_informacion_con_cliente_inactivo(self):
-        desactivar_cliente(self.cliente)
+        desactivar_cliente(self.cliente, usuario=self.usuario)
         actualizado = servicios.modificar_presupuesto(self.presupuesto, {
             "descripcion": "Actualizada",
-        })
+        }, usuario=self.usuario)
         self.assertEqual(actualizado.descripcion, "Actualizada")
 
     def test_congelado_en_todos_los_estados_no_borrador(self):
@@ -168,18 +173,18 @@ class PresupuestoCabeceraServiciosTests(ServiciosPresupuestoMixin, TestCase):
                 with self.assertRaises(EstadoIncompatible):
                     servicios.modificar_presupuesto(presupuesto, {
                         "descripcion": "No permitido",
-                    })
+                    }, usuario=self.usuario)
 
     def test_inexistente(self):
         with self.assertRaises(RecursoNoEncontrado):
-            servicios.modificar_presupuesto(999999, {})
+            servicios.modificar_presupuesto(999999, {}, usuario=self.usuario)
 
 
 class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
     def test_crud_trim_fechas_y_sin_renumerar(self):
         presupuesto = self.crear()
         fecha = presupuesto.actualizado_en
-        item = servicios.crear_item(presupuesto, datos_item())
+        item = servicios.crear_item(presupuesto, datos_item(), usuario=self.usuario)
         presupuesto.refresh_from_db()
         self.assertGreater(presupuesto.actualizado_en, fecha)
         self.assertEqual(item.descripcion, "Montaje")
@@ -187,15 +192,15 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
         fecha = presupuesto.actualizado_en
         actualizado = servicios.modificar_item(presupuesto, item, {
             "cantidad": Decimal("3"),
-        })
+        }, usuario=self.usuario)
         self.assertEqual(actualizado.cantidad, Decimal("3.000"))
         self.assertEqual(actualizado.precio_unitario, Decimal("100.25"))
         presupuesto.refresh_from_db()
         self.assertGreater(presupuesto.actualizado_en, fecha)
-        servicios.crear_item(presupuesto, datos_item(orden=9))
+        servicios.crear_item(presupuesto, datos_item(orden=9), usuario=self.usuario)
         presupuesto.refresh_from_db()
         fecha = presupuesto.actualizado_en
-        servicios.eliminar_item(presupuesto, item)
+        servicios.eliminar_item(presupuesto, item, usuario=self.usuario)
         presupuesto.refresh_from_db()
         self.assertGreater(presupuesto.actualizado_en, fecha)
         self.assertEqual(list(presupuesto.items.values_list(
@@ -210,26 +215,26 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
             presupuesto = self.preparar(estado)
             item = presupuesto.items.get()
             for operacion in (
-                lambda: servicios.crear_item(presupuesto, datos_item(orden=2)),
-                lambda: servicios.modificar_item(presupuesto, item, {}),
-                lambda: servicios.eliminar_item(presupuesto, item),
+                lambda: servicios.crear_item(presupuesto, datos_item(orden=2), usuario=self.usuario),
+                lambda: servicios.modificar_item(presupuesto, item, {}, usuario=self.usuario),
+                lambda: servicios.eliminar_item(presupuesto, item, usuario=self.usuario),
             ):
                 with self.subTest(estado=estado, operacion=operacion):
                     with self.assertRaises(EstadoIncompatible):
                         operacion()
 
     def test_orden_duplicado_creacion_y_modificacion(self):
-        primero = servicios.crear_item(self.presupuesto, datos_item())
-        segundo = servicios.crear_item(self.presupuesto, datos_item(orden=2))
+        primero = servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
+        segundo = servicios.crear_item(self.presupuesto, datos_item(orden=2), usuario=self.usuario)
         with self.assertRaises(OrdenDuplicado):
-            servicios.crear_item(self.presupuesto, datos_item())
+            servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
         with self.assertRaises(OrdenDuplicado):
-            servicios.modificar_item(self.presupuesto, segundo, {"orden": 1})
+            servicios.modificar_item(self.presupuesto, segundo, {"orden": 1}, usuario=self.usuario)
         self.assertEqual(self.presupuesto.items.count(), 2)
-        servicios.modificar_item(self.presupuesto, primero, {"orden": 1})
+        servicios.modificar_item(self.presupuesto, primero, {"orden": 1}, usuario=self.usuario)
 
     def test_integrity_orden_real_traducido(self):
-        servicios.crear_item(self.presupuesto, datos_item())
+        servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
         # Elude detección previa para verificar el respaldo real de PostgreSQL.
         def insertar_sin_comprobar_orden(item):
             item.full_clean(validate_constraints=False)
@@ -240,7 +245,7 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
             side_effect=insertar_sin_comprobar_orden,
         ):
             with self.assertRaises(OrdenDuplicado) as error:
-                servicios.crear_item(self.presupuesto, datos_item())
+                servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
         self.assertNotIn("presupuesto_item_orden_unico", str(error.exception))
         self.assertEqual(self.presupuesto.items.count(), 1)
 
@@ -249,7 +254,7 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
             servicios, "_guardar_item", side_effect=IntegrityError
         ):
             with self.assertRaises(IntegrityError):
-                servicios.crear_item(self.presupuesto, datos_item())
+                servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
 
     def test_datos_invalidos_y_fk_inyectada(self):
         for datos in (
@@ -258,25 +263,25 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
         ):
             with self.subTest(datos=datos):
                 with self.assertRaises(DatosInvalidos):
-                    servicios.crear_item(self.presupuesto, datos)
+                    servicios.crear_item(self.presupuesto, datos, usuario=self.usuario)
         self.assertFalse(self.presupuesto.items.exists())
 
     def test_item_ajeno_e_inexistente(self):
         otro = self.crear()
-        item = servicios.crear_item(otro, datos_item())
+        item = servicios.crear_item(otro, datos_item(), usuario=self.usuario)
         for referencia in (item, 999999):
             with self.subTest(item=referencia):
                 with self.assertRaises(RecursoNoEncontrado):
-                    servicios.modificar_item(self.presupuesto, referencia, {})
+                    servicios.modificar_item(self.presupuesto, referencia, {}, usuario=self.usuario)
                 with self.assertRaises(RecursoNoEncontrado):
-                    servicios.eliminar_item(self.presupuesto, referencia)
+                    servicios.eliminar_item(self.presupuesto, referencia, usuario=self.usuario)
 
     def test_rollback_si_falla_actualizacion_fecha(self):
         with patch.object(
             servicios, "_actualizar_fecha", side_effect=RuntimeError
         ):
             with self.assertRaises(RuntimeError):
-                servicios.crear_item(self.presupuesto, datos_item())
+                servicios.crear_item(self.presupuesto, datos_item(), usuario=self.usuario)
         self.assertFalse(self.presupuesto.items.exists())
 
     def test_total_relee_items_persistidos_no_cache(self):
@@ -291,7 +296,7 @@ class PresupuestoItemsServiciosTests(ServiciosPresupuestoMixin, TestCase):
             servicios.crear_item(presupuesto, datos_item(
                 cantidad=Decimal("0.500"), precio_unitario=Decimal("0.01"),
                 orden=orden,
-            ))
+            ), usuario=self.usuario)
         self.assertEqual(
             servicios.recalcular_monto_neto(cache), Decimal("0.02")
         )

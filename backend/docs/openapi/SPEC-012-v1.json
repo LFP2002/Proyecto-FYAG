@@ -1,6 +1,6 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "FYAG — Metadatos documentales SPEC-012A", "version": "1.0.0", "description": "MongoDB es autoridad solo de anotaciones; PostgreSQL de identidad, evidencia y pertenencia. Solo GERENCIA/SUPERVISOR_OBRAS. No binarios, rutas, hashes ni funciones 012B. Proyección eventual por reconciliador independiente. Identificadores JSON enteros positivos BIGINT; en JavaScript usar parser JSON sin pérdida para IDs fuera de Number.MAX_SAFE_INTEGER."},
+  "info": {"title": "FYAG — Metadatos documentales SPEC-012A", "version": "1.0.0", "description": "MongoDB es autoridad solo de anotaciones; PostgreSQL de identidad, evidencia y pertenencia. 020A: GERENCIA solo consulta; SUPERVISOR_OBRAS consulta y edita con revisión CAS. No binarios, rutas, hashes ni funciones 012B. Proyección eventual por reconciliador independiente. Identificadores JSON enteros positivos BIGINT; en JavaScript usar parser JSON sin pérdida para IDs fuera de Number.MAX_SAFE_INTEGER."},
   "security": [{"bearerAuth": []}],
   "paths": {
     "/api/documentos-metadata/": {
@@ -39,7 +39,7 @@
     "responses": {
       "Validacion": {"description": "JSON/valores/query inválidos; errores por campo sin eco de datos privados.", "content": {"application/json": {"schema": {"type": "object"}}}},
       "Sesion": {"description": "JWT ausente/expirado/revocado, actividad o sesion_version no vigente."},
-      "Permiso": {"description": "Solo GERENCIA/SUPERVISOR_OBRAS persistidos; sin bypass por flags/claims."},
+      "Permiso": {"description": "020A: GERENCIA consulta; solo SUPERVISOR_OBRAS edita metadatos. Roles persistidos; sin bypass por flags/claims."},
       "NoEncontrado": {"description": "Recurso SQL no disponible, antes de consultar Mongo; mensaje genérico."},
       "Metodo": {"description": "Método no permitido para actor autorizado. Listado GET/HEAD/OPTIONS; detalle además PATCH."},
       "Conflicto": {"description": "Proyección pendiente o revisión obsoleta, no indisponibilidad de Mongo.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["code", "detail"], "properties": {"code": {"enum": ["metadata_pendiente_sincronizacion", "revision_obsoleta"]}, "detail": {"type": "string"}}}}}},

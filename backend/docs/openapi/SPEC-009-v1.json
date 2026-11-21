@@ -3,7 +3,7 @@
   "info": {
     "title": "FYAG — Alertas operativas y financieras",
     "version": "1.0.0",
-    "description": "Bandeja compartida por rol: GERENCIA (presupuesto, obra y cobranza); SUPERVISOR_OBRAS (obra y turno). AF, Técnico y TI: 403. Atención no modifica la causa. Detección postcommit y reconciliación independiente cada 60 s; consistencia eventual, sin garantía de capturar incidentes fugaces si se pierde la callback."
+    "description": "020A: GERENCIA consulta obra, cobranza e historial presupuestario retirado, sin atender. SUPERVISOR_OBRAS consulta y atiende obra y turno. ADMINISTRATIVO_FINANZAS consulta y atiende revisión presupuestaria, incluidos pendientes históricos. Técnico, Bodeguero y TI: 403. Atención no modifica la causa. Detección postcommit y reconciliación independiente cada 60 s; consistencia eventual."
   },
   "security": [{"bearerAuth": []}],
   "paths": {
@@ -99,7 +99,7 @@
       "Interno": {"description": "Error genérico saneado, con X-Correlation-ID.", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["detail", "correlacion"], "properties": {"detail": {"type": "string"}, "correlacion": {"type": "string", "format": "uuid"}}}}}}
     },
     "schemas": {
-      "Tipo": {"type": "string", "enum": ["PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION", "COBRANZA_VENCIDA"]},
+      "Tipo": {"type": "string", "enum": ["PRESUPUESTO_PENDIENTE_FINANZAS", "PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION", "COBRANZA_VENCIDA"]},
       "Estado": {"type": "string", "enum": ["PENDIENTE", "ATENDIDA", "RESUELTA"]},
       "RecursoTipo": {"type": "string", "enum": ["PRESUPUESTO", "OBRA", "TURNO", "DOCUMENTO"]},
       "FechaNullable": {"type": ["string", "null"], "format": "date-time"},
@@ -109,7 +109,7 @@
         "properties": {
           "id": {"type": "integer", "minimum": 1}, "tipo": {"$ref": "#/components/schemas/Tipo"}, "estado": {"$ref": "#/components/schemas/Estado"},
           "severidad": {"type": "string", "enum": ["MEDIA", "ALTA"], "description": "MEDIA presupuesto/turno; ALTA obra/cobranza. Fija por tipo."},
-          "rol_destinatario": {"enum": ["GERENCIA", "SUPERVISOR_OBRAS"]}, "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"}, "recurso_id": {"type": "integer", "minimum": 1},
+          "rol_destinatario": {"enum": ["GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS"]}, "recurso_tipo": {"$ref": "#/components/schemas/RecursoTipo"}, "recurso_id": {"type": "integer", "minimum": 1},
           "recurso_codigo": {"type": ["string", "null"], "description": "PRE-<PK seis dígitos>, OB-<PK seis dígitos>, null para turno, folio externo de documento solo Gerencia; null si origen ausente."},
           "obra": {"type": ["integer", "null"], "description": "PK de Obra como contexto autorizado; null sin referencia disponible."},
           "titulo": {"type": "string"}, "descripcion": {"type": "string", "description": "Texto fijo del servidor, no descripción libre del negocio."},
@@ -125,6 +125,7 @@
       "Resumen": {"type": "object", "additionalProperties": false, "required": ["generado_en", "zona_horaria", "por_estado", "activas", "por_tipo", "sincronizacion"], "properties": {
         "generado_en": {"type": "string", "format": "date-time"}, "zona_horaria": {"const": "America/Santiago"}, "por_estado": {"$ref": "#/components/schemas/ConteosEstado"}, "activas": {"type": "integer", "minimum": 0},
         "por_tipo": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_FINANZAS"], "properties": {"PRESUPUESTO_PENDIENTE_FINANZAS": {"$ref": "#/components/schemas/ConteosEstado"}}},
           {"type": "object", "additionalProperties": false, "required": ["PRESUPUESTO_PENDIENTE_GERENCIA", "OBRA_SUSPENDIDA", "COBRANZA_VENCIDA"], "properties": {"PRESUPUESTO_PENDIENTE_GERENCIA": {"$ref": "#/components/schemas/ConteosEstado"}, "OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "COBRANZA_VENCIDA": {"$ref": "#/components/schemas/ConteosEstado"}}},
           {"type": "object", "additionalProperties": false, "required": ["OBRA_SUSPENDIDA", "TURNO_PENDIENTE_REVISION"], "properties": {"OBRA_SUSPENDIDA": {"$ref": "#/components/schemas/ConteosEstado"}, "TURNO_PENDIENTE_REVISION": {"$ref": "#/components/schemas/ConteosEstado"}}}
         ]},

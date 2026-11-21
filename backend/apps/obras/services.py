@@ -534,7 +534,7 @@ def reanudar_obra(referencia, usuario, motivo):
 
 @_operacion
 def crear_categoria(nombre, usuario):
-    actor = _actor_autorizado(usuario, GERENCIA)
+    actor = _actor_categoria(usuario)
     nombre = _texto(nombre, "nombre", maximo=100)
     categoria = CategoriaServicio.objects.create(nombre=nombre, creado_por=actor)
     _categoria_evento(
@@ -546,8 +546,9 @@ def crear_categoria(nombre, usuario):
 
 @_operacion
 def renombrar_categoria(referencia, nombre, usuario, motivo=""):
-    actor = _actor_autorizado(usuario, GERENCIA)
+    actor = _actor_categoria(usuario)
     categoria = _categoria_bloqueada(referencia)
+    actor = _actor_categoria(usuario)
     nuevo = _texto(nombre, "nombre", maximo=100)
     if nuevo == categoria.nombre:
         _motivo(motivo, obligatorio=False)
@@ -564,8 +565,9 @@ def renombrar_categoria(referencia, nombre, usuario, motivo=""):
 
 
 def _cambiar_actividad_categoria(referencia, usuario, motivo, activo):
-    actor = _actor_autorizado(usuario, GERENCIA)
+    actor = _actor_categoria(usuario)
     categoria = _categoria_bloqueada(referencia)
+    actor = _actor_categoria(usuario)
     if categoria.activo is activo:
         _motivo(motivo, obligatorio=False)
         return categoria
@@ -586,6 +588,14 @@ def _cambiar_actividad_categoria(referencia, usuario, motivo, activo):
 @_operacion
 def activar_categoria(referencia, usuario, motivo=""):
     return _cambiar_actividad_categoria(referencia, usuario, motivo, True)
+
+
+def _actor_categoria(usuario):
+    from apps.usuarios.acceso import sesion_operativa
+    actor = _actor_autorizado(usuario, SUPERVISOR)
+    if actor.sesion_version != usuario.sesion_version or not sesion_operativa(actor):
+        raise PermisoDenegado()
+    return actor
 
 
 @_operacion
