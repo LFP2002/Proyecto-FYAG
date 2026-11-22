@@ -95,3 +95,34 @@ class CupoChat(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['clave', 'ventana'], name='chat_cupo_unico')]
+
+
+class TicketChat(models.Model):
+    digest = models.CharField(max_length=64, unique=True, editable=False)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    sesion_version = models.PositiveBigIntegerField()
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+    vence_en = models.DateTimeField(editable=False)
+    usado_en = models.DateTimeField(null=True, editable=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(name='chat_ticket_digest', condition=Q(digest__regex=r'^[0-9a-f]{64}$')),
+            models.CheckConstraint(name='chat_ticket_version', condition=Q(sesion_version__gte=1)),
+            models.CheckConstraint(name='chat_ticket_tiempos', condition=Q(vence_en__gt=F('creado_en')) & (Q(usado_en__isnull=True) | Q(usado_en__gte=F('creado_en'), usado_en__lte=F('vence_en')))),
+        ]
+        indexes = [models.Index(fields=['vence_en'], name='chat_ticket_vencimiento')]
+
+
+class CanalChat(models.Model):
+    """Lease efímero compartido: sin ticket, JWT, contraseña o contenido."""
+    id = models.UUIDField(primary_key=True, default=uuid4, editable=False)
+    ip_digest = models.CharField(max_length=64)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, related_name='+')
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+    vence_en = models.DateTimeField()
+
+    class Meta:
+        indexes = [models.Index(fields=['usuario', 'vence_en'], name='chat_canales_usuario'),
+                   models.Index(fields=['ip_digest', 'vence_en'], name='chat_canales_ip'),
+                   models.Index(fields=['vence_en'], name='chat_canales_vencimiento')]

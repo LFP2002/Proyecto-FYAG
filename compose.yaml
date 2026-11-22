@@ -8,7 +8,7 @@ services:
 
     container_name: fyag_backend
 
-    command: python manage.py runserver 0.0.0.0:8000
+    command: daphne -b 0.0.0.0 -p 8000 --verbosity 0 --websocket_connect_timeout 5 --websocket-max-message-size 1024 --websocket-max-frame-size 1024 config.asgi:application
 
     volumes:
       - ./backend:/app
@@ -21,20 +21,41 @@ services:
       FYAG_ADJUNTOS_ROOT: /var/lib/fyag/adjuntos
       FYAG_CHAT_ARCHIVOS_ROOT: /var/lib/fyag/chat
       FYAG_CLAMD_HOST: clamav
+      FYAG_CHAT_REDIS_HOST: redis
+      FYAG_CHAT_REDIS_PASSWORD: ${FYAG_CHAT_REDIS_PASSWORD:?Configurar secreto Redis local}
       MONGO_INITDB_ROOT_USERNAME: ""
       MONGO_INITDB_ROOT_PASSWORD: ""
 
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
     env_file:
       - .env
 
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       migraciones:
         condition: service_completed_successfully
+
+  # Transporte efímero privado: sin puertos host, archivos ni persistencia.
+  redis:
+    image: redis:7.4.7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${FYAG_CHAT_REDIS_PASSWORD:?Configurar secreto Redis local}
+    command:
+      - /bin/sh
+      - -ec
+      - 'printf ''bind 0.0.0.0\nprotected-mode yes\nport 6379\nsave ""\nappendonly no\nmaxmemory 128mb\nmaxmemory-policy noeviction\nrequirepass %s\n'' "$$REDIS_PASSWORD" | redis-server -'
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -qx PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    tmpfs: [/data]
 
   migraciones:
     build:

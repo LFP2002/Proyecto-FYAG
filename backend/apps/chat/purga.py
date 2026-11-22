@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from . import almacen
 from .exceptions import NoDisponible
-from .models import ConversacionChat, MensajeChat, ArchivoChat, CupoChat
+from .models import ConversacionChat, MensajeChat, ArchivoChat, CupoChat, TicketChat, CanalChat
 from .services import retirar_recibo
 
 
@@ -49,4 +49,6 @@ def purgar(*, dry_run=False, lote=250):
             except NoDisponible:
                 conteo['fallos'] += 1
     CupoChat.objects.filter(ventana__lt=int(ahora.timestamp())//60-2).delete()
+    TicketChat.objects.filter(vence_en__lte=ahora).delete()
+    CanalChat.objects.filter(vence_en__lte=ahora).delete()
     return conteo

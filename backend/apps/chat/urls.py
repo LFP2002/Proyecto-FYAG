@@ -1,8 +1,10 @@
 from django.urls import path
 
 from .views import UsuariosView, ConversacionesView, ConversacionView, MensajesView, ArchivosView, LeidoView, DescargarView
+from .views import ConexionView
 
 urlpatterns = [
+    path('conexion/', ConexionView.as_view(), name='chat-conexion'),
     path('usuarios/', UsuariosView.as_view(), name='chat-usuarios'),
     path('conversaciones/', ConversacionesView.as_view(), name='chat-conversaciones'),
     path('conversaciones/<str:conversacion_id>/', ConversacionView.as_view(), name='chat-conversacion'),

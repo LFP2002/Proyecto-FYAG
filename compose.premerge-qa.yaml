@@ -2,6 +2,20 @@
 # Proyecto único por ejecución; sin container_name, puertos fijos, redes externas,
 # volúmenes persistentes ni .env de FYAG. Secretos efímeros vía --env-file externo.
 services:
+  redis:
+    image: redis:7.4.7-alpine
+    environment:
+      REDIS_PASSWORD: ${QA_REDIS_PASSWORD:?}
+    command:
+      - /bin/sh
+      - -ec
+      - 'printf ''bind 0.0.0.0\nprotected-mode yes\nport 6379\nsave ""\nappendonly no\nmaxmemory 128mb\nmaxmemory-policy noeviction\nrequirepass %s\n'' "$$REDIS_PASSWORD" | redis-server -'
+    tmpfs: [/data]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -qx PONG']
+      interval: 3s
+      timeout: 3s
+      retries: 40
   postgres:
     image: postgres:18
     environment:
@@ -79,6 +93,8 @@ services:
       FYAG_MONGO_TEST_ROOT_USER: qa_bootstrap
       FYAG_MONGO_TEST_ROOT_PASSWORD: ${QA_MONGO_ROOT_PASSWORD:?}
       FYAG_CLAMD_HOST: clamav
+      FYAG_CHAT_REDIS_HOST: redis
+      FYAG_CHAT_REDIS_PASSWORD: ${QA_REDIS_PASSWORD:?}
       FYAG_CLAMD_TEST_HOST: clamav
       FYAG_EVIDENCIAS_ROOT: /qa/evidencias
       FYAG_ADJUNTOS_ROOT: /qa/adjuntos
@@ -88,6 +104,7 @@ services:
       - ./backend:/app:ro
     command: [python, -c, 'import time; time.sleep(86400)']
     depends_on:
+      redis: {condition: service_healthy}
       postgres: {condition: service_healthy}
       mongo: {condition: service_healthy}
       clamav: {condition: service_healthy}

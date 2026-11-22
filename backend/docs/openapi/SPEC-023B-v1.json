@@ -1,0 +1,25 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "FYAG SPEC-023B — extensión Chat REST", "version": "1.0.0", "description": "Extensión aditiva de SPEC-023A-v1.json. El resto de endpoints conserva ese contrato. WebSocket documentado en SPEC-023B-IMPLEMENTACION.md y probado mediante test_ws_real.py."},
+  "servers": [{"url": "/"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/chat/conexion/": {
+      "post": {
+        "operationId": "emitirTicketChat",
+        "description": "JWT FYAG vigente, usuario activo, sesión y credencial PERSONAL operativas. Sin query. Cuerpo JSON vacío estricto. Cuota 10/usuario y 30/IP por minuto. Ticket opaco de uso único, 256 bits aleatorios, TTL máximo 45 segundos. No guardar, registrar ni transmitir por URL/subprotocolo. Presentar como primer frame de /ws/chat/ antes de 5 segundos con Origin autorizado. No requiere Redis disponible.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "maxProperties": 0}}}},
+        "responses": {
+          "201": {"description": "Ticket emitido", "headers": {"Cache-Control": {"schema": {"const": "private, no-store"}}, "Vary": {"schema": {"type": "string"}, "description": "Incluye Authorization"}, "X-Content-Type-Options": {"schema": {"const": "nosniff"}}}, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["ticket", "vence_en"], "properties": {"ticket": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}\\.[0-9a-f]{64}$", "writeOnly": false}, "vence_en": {"type": "string", "format": "date-time"}}}}}},
+          "400": {"description": "Cuerpo/query inválido"},
+          "401": {"description": "Sesión no disponible"},
+          "405": {"description": "Método no permitido"},
+          "413": {"description": "Cuerpo excesivo"},
+          "429": {"description": "Cuota agotada", "headers": {"Retry-After": {"schema": {"type": "string"}}}},
+          "503": {"description": "Infraestructura no disponible; sin detalles internos"}
+        }
+      }
+    }
+  },
+  "components": {"securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}}}
+}

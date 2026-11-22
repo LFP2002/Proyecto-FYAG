@@ -13,3 +13,8 @@ et-xmlfile==2.0.0
 charset-normalizer==3.5.2
 # Inspección estructural de PDFs sin reescritura, también usado por QA de Reportes.
 pypdf==7.0.1
+# SPEC-023B: ASGI y channel layer oficial; Redis solo avisos transitorios.
+channels==4.3.2
+daphne==4.2.3
+channels-redis==4.3.0
+redis==6.4.0
