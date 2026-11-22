@@ -153,7 +153,7 @@ class ChatTests(ChatBase, TestCase):
         SeguridadCredencial.objects.filter(usuario=self.actor).update(estado='INICIAL', emitida_en=ahora, vence_en=ahora+timedelta(hours=1))
         self.assertEqual(self.client.get(URL+'usuarios/').status_code, 401)
 
-    def test_get_sin_escrituras_headers_y_sin_conexion_ws(self):
+    def test_get_sin_escrituras_headers_y_ticket_ws(self):
         c = self.directa(); self.enviar(c)
         with CaptureQueriesContext(connection) as queries:
             for path in ['usuarios/', 'conversaciones/', f'conversaciones/{c.pk}/', f'conversaciones/{c.pk}/mensajes/']:
@@ -163,7 +163,7 @@ class ChatTests(ChatBase, TestCase):
                 self.assertIn('Authorization', r['Vary'])
                 self.assertEqual(r['X-Content-Type-Options'], 'nosniff')
         self.assertFalse(any(q['sql'].lstrip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')) for q in queries))
-        self.assertEqual(self.client.post(URL+'conexion/', {}, format='json').status_code, 404)
+        self.assertEqual(self.client.post(URL+'conexion/', {}, format='json').status_code, 201)
         self.assertEqual(self.client.patch(f'{URL}conversaciones/{c.pk}/', {}, format='json').status_code, 405)
 
     @override_settings(CHAT_LIMITES={'conversacion': (1, 100), 'mensaje': (1, 100), 'archivo': (1, 100)})

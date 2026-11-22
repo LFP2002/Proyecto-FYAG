@@ -9,8 +9,8 @@ from rest_framework.exceptions import Throttled
 from .models import CupoChat
 
 
-def limitar(request, accion):
-    limites = settings.CHAT_LIMITES[accion]
+def limitar(request, accion, *, limites=None):
+    limites = limites or settings.CHAT_LIMITES[accion]
     identidades = [f'u:{request.user.pk}', 'ip:'+request.META.get('REMOTE_ADDR', '')]
     keys = [hmac.new(settings.SECRET_KEY.encode(), (accion+':'+i).encode(), hashlib.sha256).hexdigest() for i in identidades]
     ventana = int(time())//60

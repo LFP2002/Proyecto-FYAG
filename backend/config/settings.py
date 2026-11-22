@@ -229,6 +229,41 @@ CHAT_RETENCION_DIAS = _chat_entero('FYAG_CHAT_RETENCION_DIAS', 30, 1, 90)
 CHAT_PURGA_INTERVALO = _chat_entero('FYAG_CHAT_PURGA_INTERVALO', 3600, 60, 86400)
 CHAT_LIMITES = {'conversacion': (10, 30), 'mensaje': (60, 180), 'archivo': (10, 30)}  # usuario/IP por minuto
 
+# SPEC-023B: lista exacta independiente de CORS/ALLOWED_HOSTS, sin wildcard.
+from urllib.parse import urlsplit
+
+CHAT_WS_ALLOWED_ORIGINS = tuple(x.strip() for x in os.getenv(
+    'FYAG_CHAT_WS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',') if x.strip())
+for _origin in CHAT_WS_ALLOWED_ORIGINS:
+    _parsed = urlsplit(_origin)
+    if ('*' in _origin or _parsed.scheme not in {'http', 'https'} or not _parsed.hostname
+        or _parsed.username or _parsed.password or _parsed.path or _parsed.query or _parsed.fragment
+        or _origin != f'{_parsed.scheme}://{_parsed.netloc}' or _parsed.netloc != _parsed.netloc.lower()):
+        raise ImproperlyConfigured('FYAG_CHAT_WS_ALLOWED_ORIGINS requiere orígenes exactos sin wildcard/rutas.')
+    try:
+        _parsed.port
+    except ValueError:
+        raise ImproperlyConfigured('Puerto de Origin inválido.') from None
+CHAT_WS_TICKET_TTL = _chat_entero('FYAG_CHAT_WS_TICKET_TTL', 45, 1, 45)
+CHAT_WS_HEARTBEAT = _chat_entero('FYAG_CHAT_WS_HEARTBEAT', 5, 1, 10)
+CHAT_WS_IO_TIMEOUT = 2
+CHAT_WS_AUTH_TIMEOUT = 5
+CHAT_WS_MAX_BYTES = 1024
+CHAT_WS_TICKET_RATE = (10, 30)
+CHAT_WS_LIMITES = {'usuario': 3, 'ip': 64, 'total': 512, 'pendientes': 64, 'pendientes_ip': 8,
+                   'handshakes_ip_minuto': 60, 'frames': 10, 'ventana_frames': 10}
+ASGI_APPLICATION = 'config.asgi.application'
+CHANNEL_LAYERS = {'default': {
+    'BACKEND': 'channels_redis.core.RedisChannelLayer',
+    'CONFIG': {'hosts': [{'host': os.getenv('FYAG_CHAT_REDIS_HOST', 'redis'),
+        'port': _chat_entero('FYAG_CHAT_REDIS_PORT', 6379, 1, 65535),
+        'password': os.getenv('FYAG_CHAT_REDIS_PASSWORD', ''),
+        # BZPOPMIN del receptor bloquea hasta 5 s: no cortarlo como caída Redis.
+        # group_add/send siguen acotados por wait_for (2 s).
+        'socket_connect_timeout': 1, 'socket_timeout': 10}],
+        'prefix': 'fyag-chat', 'expiry': 30, 'group_expiry': 45, 'capacity': 100},
+}}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

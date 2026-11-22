@@ -105,6 +105,8 @@ def _publicar(conv_id, contenido, key, digest, actor, archivo=None, metadata=Non
         archivo.save(update_fields=[*metadata, 'mensaje', 'estado'])
     Acto.objects.create(autor=actual, accion='MENSAJE', clave=key, huella=digest, conversacion=conv, mensaje_id=mensaje.pk)
     revalidar(actor)
+    from .eventos import avisar
+    transaction.on_commit(lambda conv=conv_id, pk=mensaje.pk: avisar(conv, pk))
     return mensaje, True
 
 

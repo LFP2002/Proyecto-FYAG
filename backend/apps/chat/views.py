@@ -2,6 +2,7 @@ import logging
 from uuid import uuid4
 
 from django.db import IntegrityError
+from django.conf import settings
 from django.http import FileResponse
 from django.utils.cache import patch_vary_headers
 from rest_framework.exceptions import APIException, UnsupportedMediaType
@@ -138,3 +139,17 @@ class DescargarView(ChatAPIView):
         consultas.query(request.query_params, set())
         archivo, copia = services.descargar(id_url(archivo_id), request.user)
         return FileResponse(copia, as_attachment=True, filename=archivo.nombre, content_type=archivo.mime)
+
+
+class ConexionView(ChatAPIView):
+    http_method_names = ['post', 'options']
+
+    def post(self, request):
+        from .tickets import emitir
+        from .validaciones import contrato
+        from .serializers import FechaUTC
+        consultas.query(request.query_params, set())
+        contrato(request.data, set(), set())
+        limitar(request, 'ticket', limites=settings.CHAT_WS_TICKET_RATE)
+        ticket, vence = emitir(request.user, request.auth)
+        return Response({'ticket': ticket, 'vence_en': FechaUTC().to_representation(vence)}, status=201)

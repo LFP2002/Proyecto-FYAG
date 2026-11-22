@@ -1,3 +1,4 @@
 -r requirements.txt
 # Lector binario de PDF para QA; no se importa desde código productivo.
 # pypdf ahora forma parte de runtime para validar adjuntos PDF (SPEC-012B).
+websockets==17.4
