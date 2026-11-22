@@ -151,6 +151,26 @@ jobs:
           done
           docker exec fyag_clamd_ci clamdcheck.sh
 
+      - name: Iniciar Redis QA efímero con autenticación
+        run: |
+          # 023B: los tests Channels/WS usan Redis real entre procesos Daphne.
+          # Se publica solo en loopback del runner; no reutilizar secretos reales.
+          REDIS_PASSWORD=$(python -c 'import secrets; print(secrets.token_hex(32))')
+          echo "::add-mask::$REDIS_PASSWORD"
+          echo "FYAG_CHAT_REDIS_PASSWORD=$REDIS_PASSWORD" >> "$GITHUB_ENV"
+          echo "FYAG_CHAT_REDIS_HOST=127.0.0.1" >> "$GITHUB_ENV"
+          echo "FYAG_CHAT_REDIS_PORT=6379" >> "$GITHUB_ENV"
+          export REDIS_PASSWORD
+          docker run -d --name fyag_redis_ci --tmpfs /data --memory 256m \
+            -p 127.0.0.1:6379:6379 -e REDIS_PASSWORD \
+            redis:7.4.7-alpine /bin/sh -ec \
+            'printf "bind 0.0.0.0\nprotected-mode yes\nport 6379\nsave \"\"\nappendonly no\nmaxmemory 128mb\nmaxmemory-policy noeviction\nrequirepass %s\n" "$REDIS_PASSWORD" | redis-server -'
+          for i in $(seq 1 40); do
+            if docker exec -e REDISCLI_AUTH="$REDIS_PASSWORD" fyag_redis_ci redis-cli ping | grep -qx PONG; then break; fi
+            sleep 1
+          done
+          docker exec -e REDISCLI_AUTH="$REDIS_PASSWORD" fyag_redis_ci redis-cli ping | grep -qx PONG
+
       - name: Aplicar migraciones sobre PostgreSQL limpio
         working-directory: backend
         run: python manage.py migrate --noinput
@@ -161,4 +181,4 @@ jobs:
 
       - name: Cerrar Mongo QA efímero
         if: always()
-        run: docker rm -f fyag_mongo_ci fyag_clamd_ci || true
+        run: docker rm -f fyag_mongo_ci fyag_clamd_ci fyag_redis_ci || true
