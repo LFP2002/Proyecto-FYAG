@@ -82,6 +82,7 @@ services:
       FYAG_CLAMD_TEST_HOST: clamav
       FYAG_EVIDENCIAS_ROOT: /qa/evidencias
       FYAG_ADJUNTOS_ROOT: /qa/adjuntos
+      FYAG_CHAT_ARCHIVOS_ROOT: /qa/chat
     tmpfs: [/qa]
     volumes:
       - ./backend:/app:ro

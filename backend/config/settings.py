@@ -61,6 +61,7 @@ ALLOWED_HOSTS = [
 # Application definition
 
 INSTALLED_APPS = [
+    "apps.chat.apps.ChatConfig",
     "apps.inventario",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -212,6 +213,21 @@ TEST_RUNNER = "apps.documentos.testing.DocumentalTestRunner"
 
 ADJUNTOS_ROOT = Path(os.getenv("FYAG_ADJUNTOS_ROOT", "/var/lib/fyag/adjuntos"))
 ADJUNTOS_SCANNER = {"host": os.getenv("FYAG_CLAMD_HOST", "clamav"), "puerto": os.getenv("FYAG_CLAMD_PORT", "3310"), "timeout": 15}
+
+# Chat temporal independiente; nunca publicar por MEDIA/STATIC. Purgador opt-in.
+CHAT_ARCHIVOS_ROOT = Path(os.getenv('FYAG_CHAT_ARCHIVOS_ROOT', '/var/lib/fyag/chat'))
+
+
+def _chat_entero(nombre, defecto, minimo, maximo):
+    value = os.getenv(nombre, str(defecto))
+    if not value.isascii() or not value.isdecimal() or not minimo <= int(value) <= maximo:
+        raise ImproperlyConfigured(f'{nombre}: entero entre {minimo} y {maximo} requerido.')
+    return int(value)
+
+
+CHAT_RETENCION_DIAS = _chat_entero('FYAG_CHAT_RETENCION_DIAS', 30, 1, 90)
+CHAT_PURGA_INTERVALO = _chat_entero('FYAG_CHAT_PURGA_INTERVALO', 3600, 60, 86400)
+CHAT_LIMITES = {'conversacion': (10, 30), 'mensaje': (60, 180), 'archivo': (10, 30)}  # usuario/IP por minuto
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

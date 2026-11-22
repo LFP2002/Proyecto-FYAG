@@ -14,10 +14,12 @@ services:
       - ./backend:/app
       - evidencias_data:/var/lib/fyag/evidencias
       - adjuntos_data:/var/lib/fyag/adjuntos
+      - chat_data:/var/lib/fyag/chat
 
     environment:
       FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
       FYAG_ADJUNTOS_ROOT: /var/lib/fyag/adjuntos
+      FYAG_CHAT_ARCHIVOS_ROOT: /var/lib/fyag/chat
       FYAG_CLAMD_HOST: clamav
       MONGO_INITDB_ROOT_USERNAME: ""
       MONGO_INITDB_ROOT_PASSWORD: ""
@@ -194,6 +196,30 @@ services:
       migraciones:
         condition: service_completed_successfully
 
+  # Opt-in explícito: no iniciar sobre datos institucionales sin revisar retención.
+  chat_purgador:
+    profiles: [chat-mantenimiento]
+    build:
+      context: ./backend
+    command: python manage.py purgar_chat --continuo
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    volumes:
+      - ./backend:/app:ro
+      - chat_data:/var/lib/fyag/chat
+    env_file:
+      - .env
+    environment:
+      FYAG_CHAT_ARCHIVOS_ROOT: /var/lib/fyag/chat
+      MONGO_INITDB_ROOT_USERNAME: ""
+      MONGO_INITDB_ROOT_PASSWORD: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migraciones:
+        condition: service_completed_successfully
+
   # Sin puerto host ni acceso al volumen de archivos. Solo INSTREAM privado.
   clamav: &clamav
     image: clamav/clamav:1.5.4-debian
@@ -236,3 +262,4 @@ volumes:
   mongodb_data:
   evidencias_data:
   adjuntos_data:
+  chat_data:
