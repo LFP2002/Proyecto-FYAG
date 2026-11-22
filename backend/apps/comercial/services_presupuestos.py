@@ -5,6 +5,7 @@ La autorización se revalida en dominio antes y después de adquirir locks.
 
 from collections.abc import Mapping
 from functools import wraps
+from inspect import signature
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -20,7 +21,7 @@ from .exceptions import (
     PresupuestoUtilizado,
 )
 from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem
-from .permissions import revalidar_escritura
+from .permissions_presupuestos import revalidar_presupuestos, presupuestos_visibles, S
 
 
 Estado = Presupuesto.Estado
@@ -38,7 +39,17 @@ def _operacion(funcion):
     def ejecutar(*args, **kwargs):
         try:
             with transaction.atomic():
-                return funcion(*args, **kwargs)
+                parametros = signature(funcion).bind(*args, **kwargs).arguments
+                usuario = parametros.get('usuario')
+                # recalcular_monto_neto es un cálculo interno, sin escrituras.
+                inicial = revalidar_presupuestos(usuario) if 'usuario' in signature(funcion).parameters else None
+                resultado = funcion(*args, **kwargs)
+                if inicial is not None:
+                    final = revalidar_presupuestos(usuario, bloquear=True)
+                    if final.rol != inicial.rol:
+                        from rest_framework.exceptions import PermissionDenied
+                        raise PermissionDenied('Operación presupuestaria no autorizada.')
+                return resultado
         except IntegrityError as exc:
             diagnostico = getattr(exc.__cause__, "diag", None)
             if getattr(diagnostico, "constraint_name", None) == (
@@ -64,9 +75,12 @@ def _pk(referencia, modelo):
     return pk
 
 
-def _presupuesto_bloqueado(referencia):
+def _presupuesto_bloqueado(referencia, usuario=None):
     try:
-        return Presupuesto.objects.select_for_update().get(
+        queryset = Presupuesto.objects.all()
+        if usuario is not None:
+            queryset = presupuestos_visibles(usuario, queryset)
+        return queryset.select_for_update().get(
             pk=_pk(referencia, Presupuesto)
         )
     except Presupuesto.DoesNotExist as exc:
@@ -85,8 +99,8 @@ def _cliente_activo_bloqueado(referencia):
     return cliente
 
 
-def _usuario_interno(usuario):
-    return revalidar_escritura(usuario)
+def _usuario_interno(usuario, accion='elaborar', presupuesto=None):
+    return revalidar_presupuestos(usuario, accion, presupuesto)
 
 
 def _datos_permitidos(datos, campos, *, completos=False):
@@ -114,7 +128,7 @@ def _evento(presupuesto, anterior, usuario, motivo=""):
     return PresupuestoEvento.objects.create(
         presupuesto=presupuesto, estado_anterior=anterior,
         estado_nuevo=presupuesto.estado,
-        registrado_por=_usuario_interno(usuario), motivo=motivo,
+        registrado_por=_usuario_interno(usuario, presupuesto=presupuesto), motivo=motivo,
     )
 
 
@@ -134,8 +148,8 @@ def crear_presupuesto(*, cliente, descripcion, usuario):
 @_operacion
 def modificar_presupuesto(presupuesto, cambios, usuario=None):
     _usuario_interno(usuario)
-    actual = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _datos_permitidos(cambios, CAMPOS_CABECERA)
     for campo, valor in cambios.items():
@@ -172,8 +186,8 @@ def _actualizar_fecha(presupuesto):
 @_operacion
 def crear_item(presupuesto, datos, usuario=None):
     _usuario_interno(usuario)
-    actual = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _datos_permitidos(datos, CAMPOS_ITEM, completos=True)
     item = PresupuestoItem(presupuesto=actual, **datos)
@@ -185,8 +199,8 @@ def crear_item(presupuesto, datos, usuario=None):
 @_operacion
 def modificar_item(presupuesto, item, cambios, usuario=None):
     _usuario_interno(usuario)
-    actual = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _datos_permitidos(cambios, CAMPOS_ITEM)
     item = _item_del_presupuesto(actual, item)
@@ -200,8 +214,8 @@ def modificar_item(presupuesto, item, cambios, usuario=None):
 @_operacion
 def eliminar_item(presupuesto, item, usuario=None):
     _usuario_interno(usuario)
-    actual = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _item_del_presupuesto(actual, item).delete()
     _actualizar_fecha(actual)
@@ -247,11 +261,11 @@ def _motivo_normalizado(motivo, obligatorio):
 @_operacion
 def _transicionar(
     presupuesto, usuario, motivo, *, origenes, destino,
-    motivo_obligatorio=False,
+    motivo_obligatorio=False, autorizacion='decision_finanzas',
 ):
-    _usuario_interno(usuario)
-    actual = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    _usuario_interno(usuario, autorizacion)
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    _usuario_interno(usuario, autorizacion, actual)
     anterior = actual.estado
     if anterior not in origenes:
         raise EstadoIncompatible()
@@ -264,6 +278,7 @@ def _transicionar(
     motivo = _motivo_normalizado(motivo, motivo_obligatorio)
     if anterior == Estado.BORRADOR and destino != Estado.ANULADO:
         _validar_salida(actual)
+    _usuario_interno(usuario, autorizacion, actual)
     actual.estado = destino
     actual.save(update_fields=["estado", "actualizado_en"])
     _evento(actual, anterior, usuario, motivo)
@@ -277,6 +292,7 @@ def enviar_finanzas(presupuesto, usuario, motivo=""):
     return _transicionar(
         presupuesto, usuario, motivo, origenes={Estado.BORRADOR},
         destino=Estado.PENDIENTE_FINANZAS,
+        autorizacion='enviar_revision',
     )
 
 
@@ -332,9 +348,11 @@ def anular_presupuesto(presupuesto, usuario, motivo):
 
 @_operacion
 def crear_revision(presupuesto, usuario):
-    _usuario_interno(usuario)
-    origen = _presupuesto_bloqueado(presupuesto)
-    _usuario_interno(usuario)
+    _usuario_interno(usuario, 'crear_revision')
+    origen = _presupuesto_bloqueado(presupuesto, usuario)
+    actor = _usuario_interno(usuario, 'crear_revision', origen)
+    if actor.rol == S and origen.estado != Estado.RECHAZADO_FINANZAS:
+        raise EstadoIncompatible()
     if origen.estado not in {
         Estado.RECHAZADO_FINANZAS, Estado.RECHAZADO_GERENCIA,
         Estado.RECHAZADO_CLIENTE, Estado.ANULADO,

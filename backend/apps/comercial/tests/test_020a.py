@@ -33,9 +33,18 @@ class AutoridadDominioTests(ServiciosPresupuestoMixin, TestCase):
                 lambda: presupuestos.anular_presupuesto(self.presupuesto, actor, 'Decisión'),
                 lambda: presupuestos.crear_presupuesto(cliente=self.cliente, descripcion='Servicio', usuario=actor),
             ]
-            for operacion in operaciones:
+            for numero, operacion in enumerate(operaciones):
                 with self.subTest(rol=rol, operacion=operacion):
-                    if rol != AF:
+                    if rol == Usuario.Rol.SUPERVISOR_OBRAS:
+                        # 024: Clientes/decisiones siguen 403; recursos AF son 404;
+                        # únicamente la creación nueva ahora está permitida.
+                        from apps.comercial.exceptions import RecursoNoEncontrado
+                        if numero == 12:
+                            self.assertEqual(operacion().creado_por_id, actor.pk)
+                        else:
+                            with self.assertRaises(RecursoNoEncontrado if numero in {3, 4, 5, 6, 7, 10} else PermissionDenied):
+                                operacion()
+                    elif rol != AF:
                         with self.assertRaises(PermissionDenied):
                             operacion()
             if rol == AF:
@@ -65,8 +74,8 @@ class AutoridadDominioTests(ServiciosPresupuestoMixin, TestCase):
         presupuesto = self.preparar('PENDIENTE_FINANZAS')
         original = presupuestos._presupuesto_bloqueado
 
-        def revocar(referencia):
-            actual = original(referencia)
+        def revocar(referencia, usuario=None):
+            actual = original(referencia, usuario)
             Usuario.objects.filter(pk=self.usuario.pk).update(sesion_version=self.usuario.sesion_version + 1)
             return actual
 

@@ -46,19 +46,25 @@ class PuedeOperarPresupuestos(BasePermission):
         "enviar_cliente", "registrar_aprobacion_cliente",
         "registrar_rechazo_cliente", "anular", "crear_revision",
     })
+    acciones_supervisor = frozenset({
+        'create', 'partial_update', 'items', 'item_detalle',
+        'enviar_finanzas', 'crear_revision',
+    })
 
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
-        rol = request.user.rol
-        if rol not in (
-            Usuario.Rol.GERENCIA, Usuario.Rol.ADMINISTRATIVO_FINANZAS,
-        ):
-            return False
         accion = getattr(view, "action", None)
-        if accion in {"enviar_gerencia", "aprobar_gerencia", "rechazar_gerencia"}:
+        acciones_ruta = set(getattr(view, 'action_map', {}).values())
+        if acciones_ruta & {"enviar_gerencia", "aprobar_gerencia", "rechazar_gerencia"}:
             return False  # Rutas retiradas: 403 uniforme antes de recurso/body.
+        from .permissions_presupuestos import revalidar_presupuestos
+        actual = revalidar_presupuestos(request.user)
+        rol = actual.rol
+        if 'clientes_elegibles' in acciones_ruta:
+            return rol in {Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS}
         if accion in self.acciones_comerciales:
-            return rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS
+            return (rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS or
+                    rol == Usuario.Rol.SUPERVISOR_OBRAS and accion in self.acciones_supervisor)
         # Lectura, OPTIONS y métodos sin handler: estos últimos llegarán a 405.
         return accion in {None, "metadata", "list", "retrieve", "historial"}

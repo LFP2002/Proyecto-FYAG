@@ -93,6 +93,12 @@ class PresupuestoRevisionSerializer(ContratoPresupuestoSerializer):
     """Sin overrides: crear-revision solo recibe un objeto vacío."""
 
 
+class ClienteElegibleSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    nombre_legal = serializers.CharField(read_only=True)
+    tipo_cliente = serializers.CharField(read_only=True)
+
+
 class PresupuestoItemSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     presupuesto = serializers.IntegerField(
