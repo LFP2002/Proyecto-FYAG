@@ -124,10 +124,10 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
         detalle = self.detalle(borrador)
         item_url = detalle + f"items/{borrador.items.get().pk}/"
         operaciones = [
-            ("get", self.url, {}, {AF, G}, 200),
+            ("get", self.url, {}, {AF, G, Usuario.Rol.SUPERVISOR_OBRAS}, 200),
             ("get", detalle, {}, {AF, G}, 200),
             ("get", detalle + "historial/", {}, {AF, G}, 200),
-            ("post", self.url, self.cabecera(), {AF}, 201),
+            ("post", self.url, self.cabecera(), {AF, Usuario.Rol.SUPERVISOR_OBRAS}, 201),
             ("patch", detalle, {"descripcion": "Actualizada"}, {AF}, 200),
             ("post", detalle + "items/", datos_item(orden=2), {AF}, 201),
             ("patch", item_url, {"cantidad": "3"}, {AF}, 200),
@@ -161,9 +161,13 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
                     respuesta = getattr(self.client, metodo)(
                         ruta, datos, format="json"
                     )
+                    scoped = rol == Usuario.Rol.SUPERVISOR_OBRAS and (
+                        metodo in {'get', 'patch', 'delete'} or
+                        ruta.endswith(('items/', 'enviar-finanzas/', 'crear-revision/'))
+                    ) and ruta != self.url
                     self.assertEqual(
                         respuesta.status_code,
-                        exito if rol in permitidos else 403,
+                        exito if rol in permitidos else 404 if scoped else 403,
                         respuesta.data,
                     )
 
@@ -175,7 +179,8 @@ class PresupuestoRolesAPITests(PresupuestoAPIBase):
                 self.cabecera(rol=AF, role=AF), format="json",
                 HTTP_X_ROLE=AF,
             )
-            self.assertEqual(respuesta.status_code, 403)
+            # 024 admite crear al Supervisor; los campos de rol siguen rechazados.
+            self.assertEqual(respuesta.status_code, 400 if rol == Usuario.Rol.SUPERVISOR_OBRAS else 403)
         self.autenticar(AF)
         respuesta = self.client.post(
             self.detalle() + "aprobar-gerencia/?rol=GERENCIA",

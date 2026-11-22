@@ -17,9 +17,11 @@ from .exceptions import (
     RecursoNoEncontrado,
     PresupuestoUtilizado,
 )
-from .models import Presupuesto, PresupuestoItem
+from .models import Cliente, Presupuesto, PresupuestoItem
 from .permissions import PuedeOperarPresupuestos
+from .permissions_presupuestos import presupuestos_visibles, revalidar_presupuestos
 from .serializers_presupuestos import (
+    ClienteElegibleSerializer,
     PresupuestoAccionSerializer,
     PresupuestoDetalleSerializer,
     PresupuestoEscrituraSerializer,
@@ -86,10 +88,11 @@ class PresupuestoViewSet(
         queryset = Presupuesto.objects.all()
         if self.action in {"list", "retrieve"}:
             queryset = presupuestos_con_lineas()
-        return queryset.order_by("-creado_en", "-id")
+        return presupuestos_visibles(self.request.user, queryset).order_by("-creado_en", "-id")
 
     def get_serializer_class(self):
         return {
+            'clientes_elegibles': ClienteElegibleSerializer,
             "list": PresupuestoListadoSerializer,
             "create": PresupuestoEscrituraSerializer,
             "partial_update": PresupuestoEscrituraSerializer,
@@ -123,7 +126,7 @@ class PresupuestoViewSet(
 
     def _detalle(self, presupuesto, codigo=status.HTTP_200_OK):
         actual = get_object_or_404(
-            presupuestos_con_lineas(), pk=presupuesto.pk
+            presupuestos_visibles(self.request.user, presupuestos_con_lineas()), pk=presupuesto.pk
         )
         return Response(
             PresupuestoDetalleSerializer(actual).data, status=codigo
@@ -134,6 +137,25 @@ class PresupuestoViewSet(
             **self._entrada(), usuario=request.user
         )
         return self._detalle(presupuesto, status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], url_path='clientes-elegibles')
+    def clientes_elegibles(self, request):
+        revalidar_presupuestos(request.user, 'selector')
+        params = request.query_params
+        if set(params)-{'buscar', 'page'} or any(len(params.getlist(k)) != 1 for k in params):
+            raise ValidationError({'query': ['Parámetros desconocidos o repetidos.']})
+        if 'page' in params and (len(params['page']) > 19 or not params['page'].isascii() or not params['page'].isdecimal()
+                                 or not 0 < int(params['page']) <= 9223372036854775807):
+            raise ValidationError({'page': ['Indique una página positiva.']})
+        queryset = Cliente.objects.filter(activo=True)
+        if 'buscar' in params:
+            buscar = params['buscar'].strip()
+            if not buscar or len(buscar) > 200 or any(ord(c) < 32 for c in buscar):
+                raise ValidationError({'buscar': ['Búsqueda inválida.']})
+            queryset = queryset.filter(nombre_legal__icontains=buscar)
+        # Proyección SQL mínima: nunca cargar PII para este selector.
+        pagina = self.paginate_queryset(queryset.order_by('nombre_legal', 'id').values('id', 'nombre_legal', 'tipo_cliente'))
+        return self.get_paginated_response(ClienteElegibleSerializer(pagina, many=True).data)
 
     def partial_update(self, request, pk=None):
         presupuesto = self.get_object()
