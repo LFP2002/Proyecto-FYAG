@@ -207,7 +207,7 @@ const annotation=(id=4,obra=7,revision=0)=>({adjunto_id:id,tipo:'INFORME_TECNICO
 function attachmentsBackend(){const state={calls:[],revision:0,conflict:false,lost:false};state.request=async(path,opts={})=>{state.calls.push({path,...opts});if(path.startsWith('/api/adjuntos/obras/')){const obra=Number(path.split('/')[4]);if(opts.method==='POST'){if(state.lost){state.lost=false;throw new ApiError(0,'Carga incierta');}return attachment(4,obra);}return {count:1,next:null,previous:null,results:[attachment(4,obra)]};}if(path.endsWith('/anotaciones/')){if(opts.method==='PATCH'){if(state.conflict)throw new ApiError(409,'Revisión obsoleta');state.revision+=1;}return annotation(4,7,state.revision);}if(path.endsWith('/descargar/'))return new Blob(['archivo sintético'],{type:'application/pdf'});return attachment();};return state;}
 test('Adjuntos: PATCH usa scope, conserva revisión CAS y bloquea doble envío y reenvío obsoleto',async()=>{
   const backend=attachmentsBackend();backend.conflict=true;const ui=await mount(Adjuntos,backend.request,'SUPERVISOR_OBRAS',{type:'INFORME_TECNICO',destinationId:7,canUpload:true});
-  try{const root=ui.renderer.root;await click(root,'Anotaciones');const form=root.findByProps({'aria-label':'Anotaciones de adjunto'});await act(async()=>{await Promise.all([form.props.onSubmit({preventDefault(){}}),form.props.onSubmit({preventDefault(){}})]);await flush();});assert.equal(backend.calls.filter((c)=>c.method==='PATCH').length,1);assert.equal(button(root,'Guardar anotaciones').props.disabled,true);await submit(root,'Anotaciones de adjunto');assert.equal(backend.calls.filter((c)=>c.method==='PATCH').length,1);backend.revision=3;backend.conflict=false;await click(root,'Reconsultar anotaciones seleccionadas');await submit(root,'Anotaciones de adjunto');assert.equal(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.revision,3);assert.deepEqual(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.etiquetas,['historico']);assert.deepEqual(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.atributos,{zona_tecnica:'Sala'});assert.equal(root.findAllByType('textarea').length,1);assert.doesNotMatch(text(ui.renderer.toJSON()),/Atributos técnicos JSON|Etiquetas separadas por coma/);assert.match(text(ui.renderer.toJSON()),/revisión 4/);}finally{await ui.close();}
+  try{const root=ui.renderer.root;await click(root,'Anotaciones');const form=root.findByProps({'aria-label':'Anotaciones de adjunto'});await act(async()=>{await Promise.all([form.props.onSubmit({preventDefault(){}}),form.props.onSubmit({preventDefault(){}})]);await flush();});assert.equal(backend.calls.filter((c)=>c.method==='PATCH').length,1);assert.equal(button(root,'Guardar anotaciones').props.disabled,true);await submit(root,'Anotaciones de adjunto');assert.equal(backend.calls.filter((c)=>c.method==='PATCH').length,1);backend.revision=3;backend.conflict=false;await click(root,'Actualizar anotaciones');await submit(root,'Anotaciones de adjunto');assert.equal(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.revision,3);assert.deepEqual(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.etiquetas,['historico']);assert.deepEqual(backend.calls.filter((c)=>c.method==='PATCH').at(-1).body.atributos,{zona_tecnica:'Sala'});assert.equal(root.findAllByType('textarea').length,1);assert.doesNotMatch(text(ui.renderer.toJSON()),/Atributos técnicos JSON|Etiquetas separadas por coma/);assert.match(text(ui.renderer.toJSON()),/Revisión 4/i);}finally{await ui.close();}
 });
 test('Adjuntos: carga FormData conserva clave/archivo tras incertidumbre, sin reintento automático',async()=>{
   const backend=attachmentsBackend();backend.lost=true;const ui=await mount(Adjuntos,backend.request,'SUPERVISOR_OBRAS',{type:'INFORME_TECNICO',destinationId:7,canUpload:true});
@@ -215,7 +215,7 @@ test('Adjuntos: carga FormData conserva clave/archivo tras incertidumbre, sin re
 });
 test('Adjuntos: cambio de destino borra selección, página e intención y descarta detalle tardío',async()=>{
   const backend=attachmentsBackend(),late=deferred();const ui=await mount(Adjuntos,(path,opts)=>path==='/api/adjuntos/4/'?late.promise:backend.request(path,opts),'SUPERVISOR_OBRAS',{type:'INFORME_TECNICO',destinationId:7,canUpload:true});
-  try{await act(async()=>{button(ui.renderer.root,'Detalle').props.onClick();await flush();});await ui.update({type:'INFORME_TECNICO',destinationId:8,canUpload:true});await act(async()=>{late.resolve(attachment(4,7));await flush();});assert.doesNotMatch(text(ui.renderer.toJSON()),/Detalle del adjunto|informe-7/);assert.match(text(ui.renderer.toJSON()),/informe-8/);assert.ok(backend.calls.some((c)=>c.path==='/api/adjuntos/obras/8/?page=1'));}finally{await ui.close();}
+  try{await act(async()=>{button(ui.renderer.root,'Información').props.onClick();await flush();});await ui.update({type:'INFORME_TECNICO',destinationId:8,canUpload:true});await act(async()=>{late.resolve(attachment(4,7));await flush();});assert.doesNotMatch(text(ui.renderer.toJSON()),/Información del archivo|informe-7/);assert.match(text(ui.renderer.toJSON()),/informe-8/);assert.ok(backend.calls.some((c)=>c.path==='/api/adjuntos/obras/8/?page=1'));}finally{await ui.close();}
 });
 test('Adjuntos: Gerencia solo lee anotaciones; AF y TI no acceden a informes aunque canUpload=true',async()=>{
   for(const role of ['GERENCIA','ADMINISTRATIVO_FINANZAS','ADMINISTRADOR_TI']){const backend=attachmentsBackend(),ui=await mount(Adjuntos,backend.request,role,{type:'INFORME_TECNICO',destinationId:7,canUpload:true});try{if(role==='GERENCIA'){await click(ui.renderer.root,'Anotaciones');assert.match(text(ui.renderer.toJSON()),/Vista frontal/);assert.equal(ui.renderer.root.findAllByType('textarea').length,0);assert.equal(ui.renderer.root.findAllByType('input').length,0);}else assert.equal(backend.calls.length,0);}finally{await ui.close();}}
@@ -284,5 +284,25 @@ test('Detalle financiero reemplaza el listado y oculta paginaciones sin más pá
     assert.equal(root.findByProps({id:'finance-11-history'}).props.hidden,false);
     await click(root,'Volver a documentos');
     assert.equal(root.findAllByProps({'aria-label':'Documentos financieros incluidos históricos'}).length,1);
+  }finally{await ui.close();}
+});
+
+test('Adjuntos: información y anotaciones son mutuamente excluyentes y sin paginación de una página',async()=>{
+  const backend=attachmentsBackend(),ui=await mount(Adjuntos,backend.request,'GERENCIA',{type:'INFORME_TECNICO',destinationId:7,canUpload:false});
+  try{
+    const root=ui.renderer.root;
+    assert.equal(root.findAllByProps({'aria-label':'Paginación de adjuntos'}).length,0);
+    await click(root,'Información');
+    assert.equal(button(root,'Información').props['aria-expanded'],true);
+    assert.equal(button(root,'Anotaciones').props['aria-expanded'],false);
+    assert.match(text(ui.renderer.toJSON()),/Información del archivo/);
+    assert.equal(root.findAllByType('button').some(b=>text(b)==='Actualizar anotaciones'),false);
+    await click(root,'Anotaciones');
+    assert.equal(button(root,'Información').props['aria-expanded'],false);
+    assert.equal(button(root,'Anotaciones').props['aria-expanded'],true);
+    assert.match(text(ui.renderer.toJSON()),/Vista frontal/);
+    await click(root,'Anotaciones');
+    assert.equal(button(root,'Anotaciones').props['aria-expanded'],false);
+    assert.equal(root.findAllByProps({'aria-label':'Anotaciones de adjunto'}).length,0);
   }finally{await ui.close();}
 });

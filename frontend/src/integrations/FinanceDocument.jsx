@@ -137,11 +137,9 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
       <EventHistory title="Historial de pagos" data={payEvents} path={payHistory} page={historyPage} onPage={setHistoryPage} disabled={pending||api.loading}/>
     </div>
     <div id={`finance-${doc.id}-files`} className="finance-tab-content card-fyag" hidden={activeTab!=='files'}>
-      <section aria-label="Respaldos documentales del documento financiero"><h4>Respaldos documentales</h4>
-        {detail&&showAttachments&&<>
-          {detail.estado==='REVERTIDO'&&<p className="commercial-help">Documento revertido: sus respaldos permanecen disponibles para consulta histórica, sin nuevas cargas ni edición de anotaciones.</p>}
-          <Adjuntos type="RESPALDO_FACTURA" destinationId={doc.id} canUpload={writable&&detail.estado==='VIGENTE'&&!blocked} readOnly={detail.estado==='REVERTIDO'}/>
-        </>}
+      <section aria-label="Respaldos documentales del documento financiero">
+        {detail&&showAttachments&&<Adjuntos embedded type="RESPALDO_FACTURA" destinationId={doc.id} canUpload={writable&&detail.estado==='VIGENTE'&&!blocked} readOnly={detail.estado==='REVERTIDO'}/>}
+        {!detail&&activeTab==='files'&&<p role="status" className="commercial-help">Información del documento aún no confirmada.</p>}
       </section>
     </div>
   </section>;
