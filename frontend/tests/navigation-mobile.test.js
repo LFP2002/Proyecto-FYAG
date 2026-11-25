@@ -76,7 +76,7 @@ test('diseño móvil no deja la navegación como barra horizontal desplazable', 
 });
 
 
-test('tamaño global: cuatro aumentos, reducción y persistencia local', async()=>{
+test('tamaño global: cuatro tamaños, restablecimiento y persistencia local', async()=>{
   const oldStorage=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
   const oldDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
   const values=new Map(), attrs=new Map();
@@ -90,19 +90,24 @@ test('tamaño global: cuatro aumentos, reducción y persistencia local', async()
     const choose=async number=>{
       await act(async()=>control('Tamaño de letra').props.onClick());
       assert.equal(control('Tamaño de letra').props['aria-expanded'],true);
-      assert.equal(view.root.findAllByType('button').filter(b=>/^Tamaño [1-5]$/.test(textContent(b))).length,5);
-      await act(async()=>btn(view,'Tamaño '+number).props.onClick());
+      assert.equal(view.root.findAllByType('button').filter(b=>b.props.className==='fyag-font-option').length,4);
+      await act(async()=>control(['Tamaño normal','Tamaño mediano','Tamaño grande','Tamaño muy grande'][number-1]).props.onClick());
       assert.equal(control('Tamaño de letra').props['aria-expanded'],false);
       assert.equal(attrs.get('data-fyag-font-level'),String(number-1));
     };
-    for(const number of [2,3,4,5,1,4])await choose(number);
+    for(const number of [2,3,4,1,4])await choose(number);
     assert.equal(values.get('fyag.font-level'),'3');
     await act(async()=>view.unmount());view=null;
     assert.equal(attrs.has('data-fyag-font-level'),false);
+    values.set('fyag.font-level','4'); // Preferencia anterior al retiro del quinto tamaño.
     view=await mount();
     await act(async()=>control('Tamaño de letra').props.onClick());
-    assert.equal(btn(view,'Tamaño 4').props['aria-pressed'],true);
-    assert.equal(btn(view,'Tamaño 1').props['aria-pressed'],false);
+    assert.equal(control('Tamaño muy grande').props['aria-pressed'],true);
+    assert.equal(control('Tamaño normal').props['aria-pressed'],false);
+    await act(async()=>view.root.findByProps({className:'fyag-font-reset'}).props.onClick());
+    assert.equal(attrs.get('data-fyag-font-level'),'0');
+    assert.equal(values.get('fyag.font-level'),'0');
+    await act(async()=>control('Tamaño de letra').props.onClick());
     const picker=view.root.findByProps({className:'fyag-font-picker'});
     await act(async()=>picker.props.onKeyDown({key:'Escape',preventDefault(){}}));
     assert.equal(control('Tamaño de letra').props['aria-expanded'],false);
@@ -111,4 +116,10 @@ test('tamaño global: cuatro aumentos, reducción y persistencia local', async()
     if(oldStorage)Object.defineProperty(globalThis,'localStorage',oldStorage);else delete globalThis.localStorage;
     if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else delete globalThis.document;
   }
+});
+
+test('selector de letra compacto con puntero y cuatro columnas', async()=>{
+  const css=await readFile(new URL('../src/styles/layout.css',import.meta.url),'utf8');
+  assert.match(css,/\.fyag-font-options::before\s*\{[^}]*rotate\(45deg\)/);
+  assert.match(css,/\.fyag-font-grid\s*\{[^}]*repeat\(4,/);
 });

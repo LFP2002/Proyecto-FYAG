@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TopBar, SideNav } from '../Shell';
 
-export const FONT_LEVELS = [100, 112.5, 125, 137.5, 150];
+export const FONT_LEVELS = [100, 112.5, 125, 137.5];
 const FONT_KEY='fyag.font-level';
-const savedFontLevel=()=>{try{const value=globalThis.localStorage?.getItem(FONT_KEY);return /^[0-4]$/.test(value||'')?Number(value):0;}catch{return 0;}};
+const savedFontLevel=()=>{try{const value=globalThis.localStorage?.getItem(FONT_KEY);return /^[0-4]$/.test(value||'')?Math.min(Number(value),FONT_LEVELS.length-1):0;}catch{return 0;}};
 
 export default function DesktopLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);

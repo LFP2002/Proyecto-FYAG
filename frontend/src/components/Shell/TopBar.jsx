@@ -1,12 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLES } from '../../data/constants';
 import { Icon } from '../ui';
 
-export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=5, onSelectFont }) {
+export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=4, onSelectFont }) {
   const { user, logout } = useAuth();
   const [fontOpen,setFontOpen]=useState(false);
-  const fontRef=useRef(null), fontButton=useRef(null);
+  const fontRef=useRef(null), fontButton=useRef(null), fontPanel=useRef(null);
+  useLayoutEffect(()=>{
+    if(!fontOpen)return;
+    const align=()=>{
+      const button=fontButton.current, panel=fontPanel.current;
+      if(!button||!panel)return;
+      const rect=button.getBoundingClientRect();
+      const center=rect.left+rect.width/2;
+      const width=panel.offsetWidth;
+      const viewport=globalThis.document.documentElement.clientWidth;
+      const left=Math.max(12,Math.min(center-width/2,viewport-width-12));
+      const shift=left-(center-width/2);
+      panel.style.setProperty('--font-panel-shift',`${shift}px`);
+    };
+    align();
+    globalThis.addEventListener?.('resize',align);
+    return ()=>globalThis.removeEventListener?.('resize',align);
+  },[fontOpen]);
   useEffect(()=>{
     if(!fontOpen)return;
     const closeOutside=event=>{if(fontRef.current&&!fontRef.current.contains(event.target))setFontOpen(false);};
@@ -39,12 +56,18 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, 
           onKeyDown={event=>{if(event.key==='Escape'&&fontOpen){event.preventDefault();closeFont();}}}>
           <button ref={fontButton} type="button" className="fyag-font-trigger" aria-label="Tamaño de letra" title="Tamaño de letra" aria-expanded={fontOpen} aria-controls="fyag-font-options" onClick={()=>setFontOpen(open=>!open)}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M3 19 9 5l6 14M5 15h8M17 11l3 8m-6 0 3-8m-2 5h4"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" focusable="false"><path d="m2 4 4 4 4-4"/></svg>
           </button>
-          {fontOpen&&<div id="fyag-font-options" className="fyag-font-options" role="group" aria-label="Elegir tamaño de letra">
+          {fontOpen&&<div ref={fontPanel} id="fyag-font-options" className="fyag-font-options" role="group" aria-label="Elegir tamaño de letra">
             <div className="fyag-font-heading">Tamaño de letra</div>
-            {Array.from({length:fontCount},(_,index)=><button key={index} type="button" className="fyag-font-option" aria-pressed={fontLevel===index} onClick={()=>{onSelectFont?.(index);closeFont();}}>
-              <span>Tamaño {index+1}</span>{fontLevel===index&&<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>}
-            </button>)}
+            <div className="fyag-font-grid">
+              {Array.from({length:fontCount},(_,index)=><button key={index} type="button" className="fyag-font-option" aria-label={['Tamaño normal','Tamaño mediano','Tamaño grande','Tamaño muy grande'][index]} aria-pressed={fontLevel===index} style={{'--font-sample-size':`${15+index*4}px`}} onClick={()=>{onSelectFont?.(index);closeFont();}}>
+                <span aria-hidden="true">A</span>{fontLevel===index&&<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>}
+              </button>)}
+            </div>
+            <button type="button" className="fyag-font-reset" onClick={()=>{onSelectFont?.(0);closeFont();}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg> Restablecer
+            </button>
           </div>}
         </div>
         <span className="d-inline-flex align-items-center gap-2">
