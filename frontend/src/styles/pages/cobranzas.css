@@ -116,3 +116,46 @@
 .manager-cobranzas .manager-facts { margin:0; }
 .manager-cobranzas .manager-work-tabs button[aria-pressed=true] { opacity:1; }
 .manager-cobranzas .portfolio-context span { overflow-wrap:anywhere; }
+
+/* Listado gerencial compacto, sin limitar el ancho del módulo. */
+.manager-cobranzas #manager-cob-list { scroll-margin-top:16px; }
+.manager-cobranzas .manager-cob-filter-toggle { display:inline-flex; gap:6px; align-items:center; min-height:36px; }
+.manager-cobranzas .manager-cob-filter-form { margin:0; padding:12px; background:#f6f9fc; border:1px solid var(--fyag-line); border-radius:8px; }
+.manager-cobranzas .manager-cob-applied { overflow-wrap:anywhere; }
+.manager-cob-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.875rem; }
+.manager-cob-table th { padding:10px 12px; background:#f6f9fc; color:var(--fyag-muted); font-size:.8125rem; font-weight:600; text-align:left; }
+.manager-cob-table th:nth-child(1) { width:47%; }
+.manager-cob-table th:nth-child(2) { width:27%; }
+.manager-cob-table th:nth-child(3) { width:auto; }
+.manager-cob-table th:last-child { width:54px; }
+.manager-cob-table td { padding:13px 12px; border-bottom:1px solid var(--fyag-line); vertical-align:middle; overflow-wrap:anywhere; }
+.manager-cob-table tbody tr:last-child td { border-bottom:0; }
+.manager-cob-table tbody tr:hover { background:#f8fafc; }
+.manager-cob-client,.manager-cob-title { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.manager-cob-client strong { color:var(--fyag-primary); font-weight:600; }
+.manager-cob-meta { margin-top:3px; font-size:.8125rem; color:var(--fyag-muted); }
+.manager-cob-late { color:#a62631; font-weight:600; }
+.manager-cob-table .manager-cob-num,.manager-cob-action { text-align:right; }
+.manager-cob-num strong { font-variant-numeric:tabular-nums; color:var(--fyag-primary); }
+.manager-cob-detail { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--fyag-line); border-radius:7px; background:#fff; color:var(--fyag-primary-light); }
+.manager-cob-detail:hover { background:#e4eefb; }
+.manager-cob-detail:focus-visible,.manager-cobranzas #manager-cob-list:focus-visible { outline:2px solid #3478DC; outline-offset:2px; }
+.manager-cob-progress { display:flex; flex-direction:column; gap:10px; padding:14px 16px; }
+.manager-cob-progress-head,.manager-cob-progress-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:center; }
+.manager-cob-progress-head h2 { font-size:1rem; margin:0; font-weight:700; }
+.manager-cob-progress-head strong { color:var(--fyag-primary); font-variant-numeric:tabular-nums; }
+.manager-cob-progress-track { height:10px; border-radius:5px; background:#ECA321; overflow:hidden; }
+.manager-cob-progress-track.is-overdue { background:#E34D59; }
+.manager-cob-progress-track span { display:block; background:#20AC73; height:100%; }
+.manager-cob-progress-legend { font-size:.8125rem; color:var(--fyag-muted); }
+@media(max-width:700px) {
+ .manager-cob-table,.manager-cob-table tbody { display:block; }
+ .manager-cob-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .manager-cob-table tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px; gap:6px 8px; padding:12px 0; border-bottom:1px solid var(--fyag-line); }
+ .manager-cob-table tr:last-child { border:0; }
+ .manager-cob-table td { display:block; padding:0; border:0; }
+ .manager-cob-table td:first-child { grid-column:1/-1; }
+ .manager-cob-table td:nth-child(2) { align-self:center; }
+ .manager-cob-table td:nth-child(2):not(:has(.manager-cob-late))::before { content:"Vencimiento"; display:block; color:var(--fyag-muted); font-size:.75rem; }
+ .manager-cob-action { align-self:center; }
+}

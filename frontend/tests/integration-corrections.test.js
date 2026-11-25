@@ -5,7 +5,7 @@ import Renderer,{act} from 'react-test-renderer';
 import {createServer} from 'vite';
 import {ApiError} from '../src/auth/client.js';
 import {createScope} from '../src/comercial/scope.js';
-import {financeBackend,document as doc,origin,payment,paginated} from './helpers/finance-contract.js';
+import {financeBackend,document as doc,origin,payment,paginated,event} from './helpers/finance-contract.js';
 
 let server,AuthProvider,Auditoria,FinanceAdmin,FinanceDocument,Adjuntos,EvidenceMetadata,Cobranzas,Dashboard,auditSources,validAuditRange;
 const flush=()=>new Promise((resolve)=>setImmediate(resolve));
@@ -272,7 +272,7 @@ test('Cobranzas: pestañas conservan consultas y filtros solo se aplican al conf
 });
 
 test('Cobranzas gerenciales: cartera exclusiva, prioridad, filtros y detalle bajo demanda',async()=>{
-  const backend=financeBackend();backend.events=[];backend.payEvents=[];
+  const backend=financeBackend();backend.events=[event()];backend.payEvents=[];
   backend.documents=[{...doc(),cobranza:{moneda:'CLP',abonado:'25.00',saldo:'75.00',estado:'VENCIDA'}},{...doc(12),estado:'REVERTIDO',cobranza:null}];
   const calls=[];
   let fail=false;
@@ -285,6 +285,7 @@ test('Cobranzas gerenciales: cartera exclusiva, prioridad, filtros y detalle baj
       const visible=rows.filter(r=>(url.searchParams.get('vista')==='documentos'||r.estado!=='REVERTIDO')&&(!url.searchParams.has('buscar')||r.cliente.toLowerCase().includes(url.searchParams.get('buscar').toLowerCase())));
       return {...paginated(visible,url),resumen:{moneda:'CLP',documentos:1,clientes_vencidos:1,total:'100.00',cobrado:'25.00',saldo:'75.00',vencido:'75.00',no_vencido:'0.00',fecha_corte:'2026-12-15'}};
     }
+    if(path.startsWith('/api/adjuntos/documentos-cobro/'))return {count:0,next:null,previous:null,results:[]};
     return backend.request(path,options);
   };
   const ui=await mount(Cobranzas,request,'GERENCIA');
@@ -295,7 +296,10 @@ test('Cobranzas gerenciales: cartera exclusiva, prioridad, filtros y detalle baj
     assert.match(text(ui.renderer.toJSON()),/5 días de atraso/);
     assert.doesNotMatch(text(ui.renderer.toJSON()),/ID de Obra|Consultar \/ administrar|Registrar documento externo/);
     await click(root,'Documentos');
-    assert.equal(root.findAllByProps({className:'portfolio-work portfolio-normal'}).length,1);
+    assert.equal(root.findAllByProps({'data-state':'REVERTIDO'}).length,1);
+    assert.equal(root.findByProps({id:'manager-cob-filters'}).props.hidden,true);
+    await click(root,'Filtros');
+    assert.equal(root.findByProps({id:'manager-cob-filters'}).props.hidden,false);
     await act(async()=>{root.findByProps({id:'cob-buscar'}).props.onChange({target:{value:'Cliente'}});});
     await act(async()=>{root.findByType('form').props.onSubmit({preventDefault(){}});await flush();});
     assert.match(calls.at(-1).path,/buscar=Cliente/);
@@ -306,13 +310,29 @@ test('Cobranzas gerenciales: cartera exclusiva, prioridad, filtros y detalle baj
     assert.ok(calls.slice(before).some(c=>c.path.endsWith('/11/pagos/?page=1')));
     assert.ok(calls.slice(before).every(c=>!c.path.includes('historial')));
     assert.match(text(ui.renderer.toJSON()),/Folio 0011/);
+    assert.equal(root.findByProps({role:'progressbar'}).props['aria-valuenow'],25);
+    assert.match(text(ui.renderer.toJSON()),/Saldo vencido/);
+    assert.equal(root.findAllByProps({className:'portfolio-kpi portfolio-red'}).length,2);
     assert.doesNotMatch(text(ui.renderer.toJSON()),/Registrar pago|Anular pago|Revertir documento/);
     await click(root,'Historial del documento');
     assert.match(calls.at(-1).path,/\/11\/historial\//);
     assert.equal(root.findAllByProps({'aria-label':'Paginación de historial'}).length,0);
+    assert.match(text(ui.renderer.toJSON()),/Usuario #9/);
+    await click(root,'Respaldos');
+    assert.doesNotMatch(text(ui.renderer.toJSON()),/Documento revertido/);
+    assert.equal(root.findAllByProps({type:'file'}).length,0);
     await click(root,'Volver al listado');
     assert.equal(root.findByProps({id:'cob-buscar'}).props.value,'Cliente');
     assert.equal(root.findAllByProps({'data-cobranza':11}).length,1);
+    await act(async()=>{root.findByProps({'data-cobranza':12}).props.onClick();await flush();});
+    assert.equal(root.findAllByProps({role:'progressbar'}).length,0);
+    await click(root,'Respaldos');
+    assert.match(text(ui.renderer.toJSON()),/Documento revertido/);
+    assert.equal(root.findAllByProps({type:'file'}).length,0);
+    await click(root,'Volver al listado');
+    await click(root,'Ver vencidos');
+    assert.equal(root.findByProps({id:'cob-buscar'}).props.value,'');
+    assert.equal(root.findAllByProps({'data-state':'REVERTIDO'}).length,0);
     assert.ok(calls.every(c=>c.method==='GET'));
     fail=true;
     await act(async()=>{root.findByProps({'aria-label':'Actualizar datos'}).props.onClick();await flush();});
