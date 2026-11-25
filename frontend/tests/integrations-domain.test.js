@@ -214,14 +214,15 @@ test('Dashboard dona muestra proporciones reales, total y cinco estados incluso 
   try{
     const root=renderer.root;
     assert.equal(text(root.findByProps({className:'dash-donut-center'})),'26obras');
-    const segments=root.findAllByType('circle').filter(node=>node.props.pathLength===100);
+    const segments=root.findAllByType('circle').filter(node=>node.props.className?.split(' ').includes('dash-donut-segment'));
     assert.equal(segments.length,3);
+    assert.ok(segments.every(node=>Number(node.props.pathLength)===100));
     assert.ok(Math.abs(segments.reduce((sum,node)=>sum+Number(node.props.strokeDasharray.split(' ')[0]),0)-100)<1e-9);
     assert.ok(Math.abs(Number(segments[0].props.strokeDasharray.split(' ')[0])-10/26*100)<1e-9);
     assert.equal(root.findByProps({className:'dash-donut-legend'}).findAllByType('li').length,5);
     counts={PLANIFICADA:0,EN_PROCESO:0,SUSPENDIDA:0,FINALIZADA:0,CANCELADA:0};
     await click(renderer,'Actualizar');
     assert.equal(text(root.findByProps({className:'dash-donut-center'})),'0obras');
-    assert.equal(root.findAllByType('circle').filter(node=>node.props.pathLength===100).length,0);
+    assert.equal(root.findAllByType('circle').filter(node=>node.props.className?.split(' ').includes('dash-donut-segment')).length,0);
   }finally{await act(async()=>renderer.unmount());}
 });
