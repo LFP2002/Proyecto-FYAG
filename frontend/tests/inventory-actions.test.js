@@ -54,3 +54,16 @@ test('Solicitudes y mermas usan scope/paginación de API y Técnico no recibe im
  assert.match(mermas,/new URLSearchParams\(\{page:String\(page\)\}\)/);
  assert.match(mermas,/role!=='TECNICO'/);
 });
+
+
+test('Bodega permite elegir materiales e ingresos de la API sin escribir identificadores',()=>{
+ const page=read('pages/Inventario.jsx'), actions=read('integrations/InventoryActions.jsx'), picker=read('integrations/InventoryPicker.jsx');
+ assert.match(page,/InventoryPicker label="Material recibido"/);
+ assert.doesNotMatch(page,/ID del artículo<input/);
+ assert.match(actions,/refs.includes\(key\)\?<InventoryPicker/);
+ assert.match(picker,/tipo:'INGRESO'/);
+ assert.match(picker,/query.set\('buscar',search.trim\(\)\)/);
+ assert.match(picker,/validatePage\(v,source.path\)/);
+ assert.match(picker,/api.cancelRead\('choices'\)/);
+ assert.match(page,/formatCLP\(value\)/);
+});
