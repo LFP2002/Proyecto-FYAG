@@ -132,15 +132,16 @@ test('Presupuestos montado: borrador, CRUD líneas, Finanzas, cliente, historial
     const post = b.calls.find((c) => c.path === '/api/presupuestos/' && c.method === 'POST'); assert.deepEqual(post.body, { cliente: 1, descripcion: 'Servicio' });
     await click(renderer, '+ Agregar nuevo ítem');
     for (const [k, v] of Object.entries({ descripcion: 'Trabajo', cantidad: '0.001', unidad: 'h', precio_unitario: '9999999999999.99', orden: '1' })) await input(renderer, k, v);
-    await submit(renderer); assert.match(text(renderer.root), /1\.234,56 CLP/);
+    await submit(renderer); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');
     const itemPost = b.calls.find((c) => c.path.endsWith('/items/') && c.method === 'POST'); assert.equal(itemPost.body.cantidad, '0.001'); assert.equal(itemPost.body.precio_unitario, '9999999999999.99'); assert.equal(itemPost.body.orden, 1);
     await click(renderer, 'Editar ítem'); await input(renderer, 'unidad', 'u'); await submit(renderer);
     assert.deepEqual(b.calls.find((c) => c.method === 'PATCH').body, { unidad: 'u' });
     await click(renderer, 'Enviar a Finanzas'); await submit(renderer); assert.equal(b.budgets[0].estado, 'PENDIENTE_FINANZAS');
     assert.equal(renderer.root.findAllByType('button').some((n) => text(n) === 'Editar cabecera'), false);
     await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request, 'ADMINISTRATIVO_FINANZAS');
-    await click(renderer, 'Ver presupuesto'); assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 1);
-    assert.match(text(renderer.root), /Creado por Usuario #1/);
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 1);
+    await click(renderer, 'Ver presupuesto'); assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 0);
+    assert.match(text(renderer.root), /Creado por Usuario ·/);
     await execute(renderer, 'Aprobar por Finanzas'); assert.equal(b.budgets[0].estado, 'APROBADO_FINANZAS');
     await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request);
     await click(renderer, 'Ver presupuesto'); await execute(renderer, 'Enviar al cliente'); await execute(renderer, 'Registrar aprobación del cliente');
@@ -148,7 +149,7 @@ test('Presupuestos montado: borrador, CRUD líneas, Finanzas, cliente, historial
     await execute(renderer, 'Anular', 'Corrección'); assert.equal(b.budgets[0].estado, 'ANULADO');
     await execute(renderer, 'Crear revisión'); assert.equal(b.budgets.length, 2); assert.equal(b.budgets[1].presupuesto_origen, 1); assert.equal(b.budgets[0].estado, 'ANULADO');
     assert.deepEqual(b.calls.find((c) => c.path.endsWith('/crear-revision/')).body, {});
-    await click(renderer, 'Eliminar ítem'); assert.equal(b.budgets[1].items.length, 0); assert.match(text(renderer.root), /0,00 CLP/);
+    await click(renderer, 'Eliminar ítem'); assert.equal(b.budgets[1].items.length, 0); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$0');
     assert.ok(b.calls.some((c) => c.method === 'DELETE' && c.path === '/api/presupuestos/2/items/1/'));
   } finally { await act(async () => renderer.unmount()); }
 });
@@ -250,6 +251,7 @@ test('cabecera: cliente histórico inactivo se conserva sin reenviar su ID; alta
     await click(renderer, 'Actualizar datos'); await click(renderer, 'Editar cabecera');
     await input(renderer, 'descripcion', 'Descripción nueva'); await submit(renderer);
     assert.deepEqual(b.calls.find((c) => c.method === 'PATCH').body, { descripcion: 'Descripción nueva' });
+    await click(renderer, 'Volver al listado');
     await click(renderer, 'Nuevo borrador');
     const select = renderer.root.findByProps({ id: 'com-cliente' });
     assert.equal(select.findAllByType('option').some((n) => n.props.value === '1'), false);
@@ -272,7 +274,9 @@ test('listado e historial navegan por página real sin seguir directamente next/
   try {
     await click(renderer, 'Siguiente'); assert.ok(calls.includes('/api/presupuestos/?page=2'));
     await click(renderer, 'Ver presupuesto');
+    await click(renderer, 'Historial comercial');
     const historyPager = renderer.root.findByProps({ 'aria-label': 'Paginación del historial' });
+    assert.match(historyPager.props.className, /commercial-pager/);
     const historyNext = historyPager.findAllByType('button').find((button) => text(button) === 'Siguiente');
     await act(async () => { await historyNext.props.onClick(); await flush(); });
     assert.ok(calls.includes('/api/presupuestos/1/historial/?page=2'));
@@ -320,14 +324,17 @@ test('presentación Comercial: controles Bootstrap, estados con texto, tablas ac
   renderer = await mount(Presupuestos, b.request);
   try {
     assert.equal(renderer.root.findByProps({ id: 'budget-filter' }).props.className, 'form-select');
-    const pager = renderer.root.findByProps({ 'aria-label': 'Paginación' });
-    assert.ok(pager.findAllByType('button').every((n) => n.props.disabled));
-    assert.match(pager.props.className, /commercial-pager/);
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Paginación' }).length, 0);
+    assert.equal(renderer.root.findByProps({ 'aria-label': 'Listado de presupuestos' }).props.tabIndex, 0);
     await createBudget(renderer); checkButtons(renderer);
     assert.ok(renderer.root.findAllByType('span').some((n) => n.props.className === 'chip gray' && text(n) === 'Borrador'));
-    assert.equal(renderer.root.findByProps({ 'aria-label': 'Listado de presupuestos' }).props.tabIndex, 0);
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Listado de presupuestos' }).length, 0);
+    assert.equal(renderer.root.findByProps({ 'aria-label': 'Ítems del presupuesto' }).props.tabIndex, 0);
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Paginación del historial' }).length, 0);
+    await click(renderer, 'Volver al listado');
     assert.ok(renderer.root.findAllByType('td').some((n) => n.props.className === 'commercial-money'));
-    assert.ok(renderer.root.findByProps({ 'aria-label': 'Paginación del historial' }));
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Paginación' }).length, 0);
+    await click(renderer, 'Ver presupuesto');
     await click(renderer, '+ Agregar nuevo ítem'); checkButtons(renderer);
     assert.equal(renderer.root.findByProps({ id: 'com-unidad' }).type, 'select');
     await click(renderer, 'Cancelar edición de ítem'); await click(renderer, 'Anular'); checkButtons(renderer);
@@ -362,11 +369,11 @@ test('fila fantasma: alta limpia, orden sugerido en cada creación, guardado exp
     assert.equal(text(renderer.root.findByProps({ id: 'com-cantidad-error' })), 'Ingresa una cantidad válida');
     await input(renderer, 'cantidad', '1.001'); await input(renderer, 'orden', '4');
     // Escribir no crea registros ni cambia el neto localmente.
-    assert.equal(b.budgets[0].items.length, 0); assert.match(text(renderer.root), /0,00 CLP/);
+    assert.equal(b.budgets[0].items.length, 0); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$0');
     await click(renderer, 'Guardar ítem');
     assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 4);
     assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Edición de ítem' }).length, 0);
-    assert.match(text(renderer.root), /1\.234,56 CLP/);
+    assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');
     await click(renderer, '+ Agregar nuevo ítem'); assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '5');
     await fillItem(renderer); await input(renderer, 'orden', '4');
     await click(renderer, 'Guardar ítem'); assert.match(text(renderer.root), /Orden ya utilizado/);
