@@ -79,6 +79,7 @@ export function safePage(link, path, filters = null) {
             : path === '/api/finanzas/cobranzas/'
             ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
+             : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
@@ -109,6 +110,9 @@ export function safePage(link, path, filters = null) {
     }
     if(path==='/api/finanzas/cobranzas/supervision-gerencial/'){
       if(!datePair('desde','hasta')||(value('vista')&&!['atencion','vigentes','documentos'].includes(value('vista')))||(value('buscar')||'').length>100)throw new Error('invalid');
+    }
+    if(path==='/api/finanzas/egresos/supervision-gerencial/'){
+      if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
     }
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;

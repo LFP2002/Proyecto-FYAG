@@ -1,0 +1,375 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Supervisión gerencial de egresos",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/finanzas/egresos/supervision-gerencial/": {
+      "get": {
+        "summary": "Consultar egresos de un período",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "desde",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "vista",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activos",
+                "anulados",
+                "todos"
+              ],
+              "default": "activos"
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "categoria",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MATERIALES",
+                "TRANSPORTE",
+                "SERVICIOS",
+                "ARRIENDO",
+                "OTROS"
+              ]
+            }
+          },
+          {
+            "name": "medio",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "TRANSFERENCIA",
+                "EFECTIVO",
+                "TARJETA",
+                "OTRO"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado y resumen de egresos activos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "naturaleza": {
+                            "const": "REGISTRO_ADMINISTRATIVO_DINERO_PAGADO"
+                          },
+                          "moneda": {
+                            "const": "CLP"
+                          },
+                          "monto": {
+                            "type": "string",
+                            "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                          },
+                          "fecha_pago": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "categoria": {
+                            "type": "string",
+                            "enum": [
+                              "MATERIALES",
+                              "TRANSPORTE",
+                              "SERVICIOS",
+                              "ARRIENDO",
+                              "OTROS"
+                            ]
+                          },
+                          "concepto": {
+                            "type": "string"
+                          },
+                          "beneficiario": {
+                            "type": "string"
+                          },
+                          "medio": {
+                            "type": "string",
+                            "enum": [
+                              "TRANSFERENCIA",
+                              "EFECTIVO",
+                              "TARJETA",
+                              "OTRO"
+                            ]
+                          },
+                          "referencia_respaldo": {
+                            "type": "string"
+                          },
+                          "observacion": {
+                            "type": "string"
+                          },
+                          "obra": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1
+                          },
+                          "registrado_por": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "registrado_en": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "activo": {
+                            "type": "boolean"
+                          },
+                          "anulado_por": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "minimum": 1
+                          },
+                          "anulado_en": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "motivo_anulacion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "referencia_correccion": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "naturaleza",
+                          "moneda",
+                          "monto",
+                          "fecha_pago",
+                          "categoria",
+                          "concepto",
+                          "beneficiario",
+                          "medio",
+                          "referencia_respaldo",
+                          "observacion",
+                          "obra",
+                          "registrado_por",
+                          "registrado_en",
+                          "activo",
+                          "anulado_por",
+                          "anulado_en",
+                          "motivo_anulacion",
+                          "referencia_correccion"
+                        ]
+                      }
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "properties": {
+                        "moneda": {
+                          "const": "CLP"
+                        },
+                        "desde": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "hasta": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "total": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                        },
+                        "pagos": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "beneficiarios": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mayor": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                        },
+                        "categorias": {
+                          "type": "array",
+                          "minItems": 5,
+                          "maxItems": 5,
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "categoria": {
+                                "type": "string",
+                                "enum": [
+                                  "MATERIALES",
+                                  "TRANSPORTE",
+                                  "SERVICIOS",
+                                  "ARRIENDO",
+                                  "OTROS"
+                                ]
+                              },
+                              "monto": {
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                              }
+                            },
+                            "required": [
+                              "categoria",
+                              "monto"
+                            ]
+                          }
+                        },
+                        "ranking": {
+                          "type": "array",
+                          "maxItems": 3,
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "beneficiario": {
+                                "type": "string"
+                              },
+                              "monto": {
+                                "type": "string",
+                                "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$"
+                              },
+                              "pagos": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "beneficiario",
+                              "monto",
+                              "pagos"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "moneda",
+                        "desde",
+                        "hasta",
+                        "total",
+                        "pagos",
+                        "beneficiarios",
+                        "mayor",
+                        "categorias",
+                        "ranking"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results",
+                    "resumen"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulta inválida"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Sin autorización"
+          },
+          "404": {
+            "description": "Página inexistente"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

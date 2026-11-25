@@ -1,0 +1,33 @@
+/* Vista ejecutiva de egresos: comparte escalas, no formularios de Finanzas. */
+.manager-egresos .manager-eg-chart,.manager-egresos .manager-eg-flow { padding:16px; min-width:0; display:flex; flex-direction:column; gap:12px; }
+.manager-egresos .manager-eg-chart h2,.manager-egresos .manager-eg-flow h2,.manager-egresos .manager-work-panel h2 { margin:0; font-size:1rem; font-weight:700; color:var(--fyag-primary); }
+.manager-eg-period > div { flex:0 1 220px; }
+.manager-eg-columns { display:block; width:100%; max-height:240px; }
+.manager-eg-category-values { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr)); gap:10px; }
+.manager-eg-category-values > div { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.manager-eg-category-values span { display:flex; align-items:center; gap:6px; font-size:.8125rem; color:var(--fyag-muted); }
+.manager-eg-category-values i { width:9px; height:9px; border-radius:2px; flex:none; }
+.manager-eg-category-values strong,.manager-eg-ranking strong { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.manager-eg-ranking { list-style:none; padding:0; margin:0; display:grid; gap:0; }
+.manager-eg-ranking li { display:grid; grid-template-columns:32px minmax(0,1fr) minmax(0,auto); align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--fyag-line); }
+.manager-eg-ranking li:last-child { border-bottom:0; }
+.manager-eg-rank { display:grid; place-items:center; width:32px; height:32px; border-radius:7px; background:#edf2f7; color:var(--fyag-primary-light); font-weight:700; }
+.manager-eg-ranking li > div { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.manager-eg-ranking small { font-size:.8125rem; color:var(--fyag-muted); }
+.manager-eg-chart-foot { margin-top:auto; border-top:1px solid var(--fyag-line); padding-top:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; color:var(--fyag-muted); font-size:.8125rem; }
+.manager-eg-chart-foot strong { color:var(--fyag-primary); }
+.manager-eg-flow #eg-flow { display:flex; flex-direction:column; gap:10px; }
+.manager-eg-flow .portfolio-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.manager-eg-concept { font-size:1rem; color:var(--fyag-primary); margin:10px 0 0; font-weight:600; overflow-wrap:anywhere; }
+.manager-egresos .manager-work-panel h2 { margin-bottom:12px; }
+.manager-egresos .finance-history-head h2 { margin:0; }
+.manager-egresos .manager-facts dd { overflow-wrap:anywhere; }
+@media(max-width:600px) {
+ .manager-eg-flow .portfolio-kpis { grid-template-columns:1fr; }
+ .manager-eg-ranking li { grid-template-columns:28px minmax(0,1fr); gap:8px; }
+ .manager-eg-ranking li > strong { grid-column:2; }
+ .manager-eg-rank { width:28px; height:28px; }
+ .manager-eg-period > div { flex:1 1 140px; }
+}
+
+@media(max-width:700px) { .manager-egresos .manager-eg-table td:nth-child(2):not(:has(.manager-cob-late))::before { content:"Fecha de pago"; } }

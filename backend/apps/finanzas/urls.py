@@ -6,11 +6,13 @@ from .views_pagos import PagosListaView, PagoDetalleView, PagoAnularView, PagosH
 from .views_egresos import EgresosListaView, EgresoDetalleView, EgresoAnularView, EgresoHistorialView, FlujoDineroResumenView
 
 from .views_supervision import SupervisionCobranzasView
+from .views_egresos_gerencia import SupervisionEgresosView
 
 router = SimpleRouter()
 router.register("documentos", DocumentoViewSet, basename="documento-financiero")
 urlpatterns = [
     path("egresos/", EgresosListaView.as_view(), name="egresos"),
+    path("egresos/supervision-gerencial/", SupervisionEgresosView.as_view(), name="supervision-egresos"),
     path("egresos/<str:egreso_id>/", EgresoDetalleView.as_view(), name="detalle-egreso"),
     path("egresos/<str:egreso_id>/anular/", EgresoAnularView.as_view(), name="anular-egreso"),
     path("egresos/<str:egreso_id>/historial/", EgresoHistorialView.as_view(), name="historial-egreso"),
