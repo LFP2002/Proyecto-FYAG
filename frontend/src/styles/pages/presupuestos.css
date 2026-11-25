@@ -17,7 +17,8 @@
 .commercial-page.budgets-page { max-width:none; min-width:0; }
 .budgets-page .page-head { display:flex; flex-direction:row; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
 .budgets-page .page-head h1 { font-size:1.75rem; font-weight:700; margin:0; }
-.budgets-page .budget-refresh { display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; min-width:44px; padding-inline:12px; }
+.commercial-page.budgets-page .budget-refresh { display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; flex:0 0 auto; min-width:44px; min-height:40px; padding:8px 12px; white-space:nowrap; }
+.commercial-page.budgets-page .budget-refresh svg,.commercial-page.budgets-page .budget-refresh .spinner-border { flex:none; }
 .budgets-page .budget-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:14px 0; }
 .budgets-page .budget-toolbar-filters { margin-inline-start:auto; display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .budgets-page .budget-toolbar-filters .form-label { margin:0; }

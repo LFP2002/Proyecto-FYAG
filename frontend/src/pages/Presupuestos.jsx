@@ -7,6 +7,11 @@ import { AF, actionsFor, dateLabel, emptyItem, itemPayload, labels, money, needs
 import { actionButtonClass, BudgetStatus, Errors, Fields, Pager, useCommercial } from '../comercial/ui.jsx';
 import ItemEditRow, { itemRowErrors } from '../comercial/ItemEditRow.jsx';
 
+// Agrupación exclusivamente visual; los estados originales conservan sus permisos e historial.
+const HISTORICAL_FILTERS = { PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS', APROBADO_GERENCIA:'APROBADO_FINANZAS', RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS' };
+const filterState = state => HISTORICAL_FILTERS[state] ?? state;
+const FILTER_OPTIONS = Object.entries(PRE_E).filter(([state])=>!Object.hasOwn(HISTORICAL_FILTERS,state));
+
 export default function Presupuestos() {
   const { user } = useAuth();
   const api = useCommercial();
@@ -148,14 +153,14 @@ export default function Presupuestos() {
       {canCreate && <button type="button" className="btn btn-fyag-primary" aria-label="Nuevo borrador" disabled={disabled} onClick={event=>{rememberList(event);setTab('items');api.setError(null);setSelected(null);setHistory(null);setLine(null);setAction(null);setHeader({cliente:'',descripcion:''});}}><span aria-hidden="true">+ </span>Nuevo borrador</button>}
       <div className="budget-toolbar-filters">
         <label className="form-label" htmlFor="budget-filter">Estado de esta página</label>
-        <select className="form-select" id="budget-filter" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">Todos</option>{Object.entries(PRE_E).map(([k,[v]])=><option key={k} value={k}>{v}</option>)}</select>
+        <select className="form-select" id="budget-filter" value={filter} onChange={e=>setFilter(e.target.value)}><option value="">Todos</option>{FILTER_OPTIONS.map(([k,[v]])=><option key={k} value={k}>{v}</option>)}</select>
       </div>
     </div>
     <div className="card-fyag commercial-table-card budget-list-card">
       <div className="table-responsive" role="region" aria-label="Listado de presupuestos" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">Código</th><th scope="col">Cliente</th><th scope="col">Descripción</th><th scope="col">Estado</th><th scope="col" className="text-end">Neto CLP</th><th scope="col">Detalle</th></tr></thead><tbody>
-        {(list?.results || []).filter((b) => !filter || b.estado === filter).map((b) => <tr key={b.id}><td className="commercial-code">{b.codigo}</td><td className="commercial-description">{clientLabel(b.cliente)}</td><td className="commercial-description">{b.descripcion}</td><td><BudgetStatus state={b.estado} /></td><td className="commercial-money">{compactMoney(b.monto_neto)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} data-budget-id={b.id} onClick={event => void detail(b.id,event)}>Ver presupuesto</button></td></tr>)}
+        {(list?.results || []).filter((b) => !filter || filterState(b.estado) === filter).map((b) => <tr key={b.id}><td className="commercial-code">{b.codigo}</td><td className="commercial-description">{clientLabel(b.cliente)}</td><td className="commercial-description">{b.descripcion}</td><td><BudgetStatus state={b.estado} /></td><td className="commercial-money">{compactMoney(b.monto_neto)}</td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} data-budget-id={b.id} onClick={event => void detail(b.id,event)}>Ver presupuesto</button></td></tr>)}
       </tbody></table></div>
-      {list && !api.loading && !api.error && !list.results.filter((b) => !filter || b.estado === filter).length && <div className="commercial-empty"><h2>{list.results.length ? 'No hay coincidencias en esta página.' : 'No hay presupuestos.'}</h2><p>{list.results.length ? 'Prueba con otro estado o consulta otra página.' : 'Los presupuestos aparecerán aquí cuando se creen borradores.'}</p></div>}
+      {list && !api.loading && !api.error && !list.results.filter((b) => !filter || filterState(b.estado) === filter).length && <div className="commercial-empty"><h2>{list.results.length ? 'No hay coincidencias en esta página.' : 'No hay presupuestos.'}</h2><p>{list.results.length ? 'Prueba con otro estado o consulta otra página.' : 'Los presupuestos aparecerán aquí cuando se creen borradores.'}</p></div>}
       {list&&(list.previous||list.next)&&<Pager data={list} page={page} setPage={setPage} disabled={disabled} />}
     </div>
     </>}

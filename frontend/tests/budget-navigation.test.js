@@ -14,12 +14,12 @@ test.before(async()=>{
 });
 test.after(async()=>{await server.close();});
 const budget={id:66,codigo:'PRE-000066',cliente:1,descripcion:'Servicio',estado:'BORRADOR',monto_neto:'45300.00',creado_por:3,creado_en:'2026-11-22T12:00:00Z',items:[]};
-async function mount(role){
+async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
   const calls=[];
   const request=async path=>{
     calls.push(path);
     if(path==='/api/clientes/')return [{id:1,nombre_legal:'Cliente de prueba',activo:true}];
-    if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:[{...budget,id:65,codigo:'PRE-000065'}]};
+    if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:firstPage};
     if(path==='/api/presupuestos/?page=2')return {count:2,previous:'/api/presupuestos/',next:null,results:[budget]};
     if(path==='/api/presupuestos/66/')return budget;
     if(path==='/api/presupuestos/66/historial/?page=1')return {count:0,previous:null,next:null,results:[]};
@@ -68,5 +68,23 @@ test('Presupuestos: Finanzas conserva edición y puede cancelar antes de volver'
     assert.equal(root.findAllByType('button').find(b=>text(b)==='Volver al listado').props.disabled,true);
     await click(root,'Cancelar');await click(root,'Volver al listado');
     assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,1);
+  }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Presupuestos: filtro agrupa estados históricos sin duplicar opciones ni alterar registros',async()=>{
+  const states=['BORRADOR','PENDIENTE_FINANZAS','PENDIENTE_GERENCIA','APROBADO_FINANZAS','APROBADO_GERENCIA','RECHAZADO_FINANZAS','RECHAZADO_GERENCIA'];
+  const rows=states.map((estado,i)=>({...budget,id:100+i,codigo:'PRE-'+(100+i),estado}));
+  const {renderer}=await mount('GERENCIA',rows);
+  try{
+    const root=renderer.root,select=root.findByProps({id:'budget-filter'});
+    const options=select.findAllByType('option');
+    assert.equal(options.length,9);
+    assert.ok(options.every(option=>!text(option).includes('legado')));
+    for(const [state,index] of [['PENDIENTE_FINANZAS',1],['APROBADO_FINANZAS',3],['RECHAZADO_FINANZAS',5]]){
+      await act(async()=>{select.props.onChange({target:{value:state}});});
+      const visible=root.findAllByType('button').filter(b=>b.props['data-budget-id']);
+      assert.deepEqual(visible.map(b=>b.props['data-budget-id']),[100+index,101+index]);
+    }
+    assert.equal(root.findByProps({'aria-label':'Actualizar datos'}).props.disabled,false);
   }finally{await act(async()=>renderer.unmount());}
 });
