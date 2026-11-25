@@ -14,7 +14,7 @@ export const ROLES = {
 
 export const ROLE_NOTE = {
   GERENCIA: 'Consulta operativa de Obras y administración de categorías.',
-  ADMINISTRATIVO_FINANZAS: 'Clientes, Presupuestos y consulta mínima de Obras.',
+  ADMINISTRATIVO_FINANZAS: 'Gestión comercial, cobranzas, egresos y costos de adquisición.',
   SUPERVISOR_OBRAS: 'Gestión operativa de Obras, presupuestos propios y técnicos participantes.',
   ADMINISTRADOR_TI: 'Administración de cuentas y auditoría de usuarios, sin acceso de negocio.',
   BODEGUERO: 'Operación de inventario, despachos y devoluciones autorizadas.'
@@ -22,7 +22,7 @@ export const ROLE_NOTE = {
 
 export const NAV = {
   GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
-  ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes', 'auditoria', 'mermas', 'egresos', 'chat'],
+  ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'inventario', 'mermas', 'auditoria', 'chat'],
   SUPERVISOR_OBRAS: ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
   TECNICO: ['obras', 'solicitudes', 'mermas', 'chat'],
   ADMINISTRADOR_TI: ['usuarios', 'auditoria', 'chat'],
@@ -72,7 +72,7 @@ export const MATRIX = [
   ['Obras', 'Lectura', '—', 'Crea y edita', 'Solo asignadas'],
   ['Costos y horas', 'Lectura', '—', 'Registra', '—'],
   ['Cobranzas y pagos', 'Lectura', 'Total', '—', '—'],
-  ['Alertas', 'Lectura', '—', 'Lectura', '—'],
+  ['Alertas', 'Lectura', 'Atiende las propias', 'Atiende las propias', '—'],
   ['Reportes', 'Total', 'Cobranza', '—', '—'],
   ['Usuarios y roles', '—', '—', '—', '—'],
   ['Registro de avances', '—', '—', 'Lectura', 'Registra']

@@ -38,7 +38,7 @@ export default function App() {
             : mod === 'auditoria' ? Auditoria
     : mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios
     : mod === 'obras' && canReadObras(user.role) ? Obras
-      : mod === 'alertas' && ['GERENCIA', 'SUPERVISOR_OBRAS'].includes(user.role) ? Alertas
+      : mod === 'alertas' && ['GERENCIA', 'SUPERVISOR_OBRAS', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Alertas
         : mod === 'dashboard' && user.role === 'GERENCIA' ? Dashboard
           : mod === 'reportes' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Reportes
             : mod === 'cobranzas' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Cobranzas

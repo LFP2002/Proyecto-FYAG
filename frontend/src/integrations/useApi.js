@@ -90,7 +90,7 @@ export function safePage(link, path, filters = null) {
     const datePair=(from,to)=>{const a=value(from),b=value(to);if(!!a!==!!b)return false;return !a||civilRange(a,b);};
     if(path==='/api/alertas/'){
       if(value('estado')&&!['PENDIENTE','ATENDIDA','RESUELTA','TODAS'].includes(value('estado')))throw new Error('invalid');
-      if(value('tipo')&&!['PRESUPUESTO_PENDIENTE_GERENCIA','OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION','COBRANZA_VENCIDA'].includes(value('tipo')))throw new Error('invalid');
+      if(value('tipo')&&!['PRESUPUESTO_PENDIENTE_FINANZAS','OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION','COBRANZA_VENCIDA'].includes(value('tipo')))throw new Error('invalid');
       if(value('recurso_tipo')&&!['PRESUPUESTO','OBRA','TURNO','DOCUMENTO'].includes(value('recurso_tipo')))throw new Error('invalid');
       if((value('recurso_id')&&!value('recurso_tipo'))||(value('recurso_id')&&!validId(value('recurso_id')))||!datePair('desde','hasta'))throw new Error('invalid');
     }

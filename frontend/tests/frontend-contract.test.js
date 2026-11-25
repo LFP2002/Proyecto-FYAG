@@ -78,7 +78,8 @@ test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece mód
   assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat']);
   assert.deepEqual(NAV.BODEGUERO, ['inventario', 'mermas', 'chat']);
   assert.ok(NAV.ADMINISTRATIVO_FINANZAS.includes('egresos'));
-  assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('inventario'), false);
+  assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('inventario'), true);
+  assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('alertas'), true);
   assert.equal(NAV.GERENCIA.includes('inventario'), true);
   assert.equal(NAV.TECNICO.includes('inventario'), false);
   assert.equal(NAV.TECNICO.includes('egresos'), false);

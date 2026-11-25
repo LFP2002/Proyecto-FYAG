@@ -4,19 +4,27 @@ import { PageHead } from '../components/ui';
 import { useApi, readPage, strictObject, positiveInteger } from '../integrations/useApi.js';
 import { Pager } from '../comercial/ui.jsx';
 
-const TYPES = ['PRESUPUESTO_PENDIENTE_GERENCIA', 'OBRA_SUSPENDIDA', 'TURNO_PENDIENTE_REVISION', 'COBRANZA_VENCIDA'];
+const RULES = {
+  PRESUPUESTO_PENDIENTE_FINANZAS: { responsable:'ADMINISTRATIVO_FINANZAS', lectores:['ADMINISTRATIVO_FINANZAS'], recurso:'PRESUPUESTO', severidad:'MEDIA', label:'Presupuesto pendiente de Finanzas' },
+  OBRA_SUSPENDIDA: { responsable:'SUPERVISOR_OBRAS', lectores:['SUPERVISOR_OBRAS','GERENCIA'], recurso:'OBRA', severidad:'ALTA', label:'Obra suspendida' },
+  TURNO_PENDIENTE_REVISION: { responsable:'SUPERVISOR_OBRAS', lectores:['SUPERVISOR_OBRAS'], recurso:'TURNO', severidad:'MEDIA', label:'Turno pendiente de revisión' },
+  COBRANZA_VENCIDA: { responsable:'ADMINISTRATIVO_FINANZAS', lectores:['ADMINISTRATIVO_FINANZAS','GERENCIA'], recurso:'DOCUMENTO', severidad:'ALTA', label:'Cobranza vencida' },
+};
+const typesFor = role => Object.keys(RULES).filter(type=>RULES[type].lectores.includes(role));
 const STATES = ['PENDIENTE', 'ATENDIDA', 'RESUELTA', 'TODAS'];
-const alertKeys = ['id','tipo','estado','severidad','rol_destinatario','recurso_tipo','recurso_id','recurso_codigo','obra','titulo','descripcion','creado_en','atendida_por','atendida_en','motivo_atencion','resuelta_en','acciones_permitidas'];
+const alertKeys = ['id','tipo','estado','severidad','rol_destinatario','rol_responsable','destinatarios','es_legada','generacion','recurso_tipo','recurso_id','recurso_codigo','obra','titulo','descripcion','creado_en','atendida_por','atendida_en','motivo_atencion','resuelta_en','acciones_permitidas'];
 function alertRow(row, role) {
   strictObject(row, alertKeys);
-  if (!positiveInteger(row.id) || !positiveInteger(row.recurso_id) || !TYPES.includes(row.tipo)
-    || !['PENDIENTE','ATENDIDA','RESUELTA'].includes(row.estado) || !['MEDIA','ALTA'].includes(row.severidad)
-    || !['OBRA','PRESUPUESTO','TURNO','DOCUMENTO'].includes(row.recurso_tipo)
-    || ![null, 'GERENCIA', 'SUPERVISOR_OBRAS'].includes(row.rol_destinatario)
+  const rule = Object.hasOwn(RULES,row.tipo) ? RULES[row.tipo] : null;
+  if (!positiveInteger(row.id) || !positiveInteger(row.recurso_id) || !positiveInteger(row.generacion)
+    || !rule || !rule.lectores.includes(role) || row.es_legada !== false
+    || !['PENDIENTE','ATENDIDA','RESUELTA'].includes(row.estado) || row.severidad !== rule.severidad
+    || row.recurso_tipo !== rule.recurso || row.rol_destinatario !== role || row.rol_responsable !== rule.responsable
+    || !Array.isArray(row.destinatarios) || row.destinatarios.length !== rule.lectores.length
+    || new Set(row.destinatarios).size !== rule.lectores.length || row.destinatarios.some(r=>!rule.lectores.includes(r))
     || typeof row.titulo !== 'string' || typeof row.descripcion !== 'string' || !Array.isArray(row.acciones_permitidas)
-    || row.acciones_permitidas.some((action) => action !== 'ATENDER')) throw new Error('Alerta inválida.');
-  if (role === 'SUPERVISOR_OBRAS' && row.tipo === 'COBRANZA_VENCIDA') throw new Error('Proyección no autorizada.');
-  if (role === 'GERENCIA' && row.tipo === 'TURNO_PENDIENTE_REVISION') throw new Error('Detalle de turno no autorizado.');
+    || row.acciones_permitidas.length > 1 || row.acciones_permitidas.some(action=>action!=='ATENDER')
+    || (row.acciones_permitidas.length && (role!==rule.responsable || row.estado!=='PENDIENTE'))) throw new Error('Alerta inválida o no autorizada.');
   if (row.recurso_codigo !== null && typeof row.recurso_codigo !== 'string') throw new Error('Código de recurso inválido.');
   if (row.obra !== null && !positiveInteger(row.obra)) throw new Error('Obra inválida.');
   return row;
@@ -34,7 +42,7 @@ function summaryShape(value, role) {
   if (value.zona_horaria !== 'America/Santiago' || !Number.isSafeInteger(value.activas)
       || Object.values(value.por_estado).some((count) => !Number.isSafeInteger(count) || count < 0)
       || typeof value.sincronizacion.desactualizada !== 'boolean' || !value.por_tipo || typeof value.por_tipo !== 'object') throw new Error('Resumen de alertas inválido.');
-  const allowed = role === 'GERENCIA' ? ['PRESUPUESTO_PENDIENTE_GERENCIA','OBRA_SUSPENDIDA','COBRANZA_VENCIDA'] : ['OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION'];
+  const allowed = typesFor(role);
   if (Object.keys(value.por_tipo).some((type) => !allowed.includes(type))) throw new Error('El resumen contiene tipos fuera del rol.');
   for (const item of Object.values(value.por_tipo)) { strictObject(item, ['PENDIENTE','ATENDIDA','RESUELTA']); if (Object.values(item).some((count) => !Number.isSafeInteger(count) || count < 0)) throw new Error('Conteo inválido.'); }
   return value;
@@ -78,7 +86,7 @@ export default function Alertas() {
   }
   async function reconcile() { const ok = await reload(); const selectedOk = await reloadSelected(); if (ok && selectedOk) api.reconcile(async () => true); }
   async function attend(event) {
-    event.preventDefault(); if (!selected || !reason.trim() || blocked || !detail?.acciones_permitidas.includes('ATENDER')) return;
+    event.preventDefault(); if (role==='GERENCIA' || !selected || !reason.trim() || blocked || !detail?.acciones_permitidas.includes('ATENDER')) return;
     setAttending(true);
     try {
       await api.write(`/api/alertas/${selected}/atender/`, 'POST', { motivo: reason.trim() }, async (saved) => {
@@ -89,16 +97,17 @@ export default function Alertas() {
       });
     } finally { setAttending(false); }
   }
-  const types = role === 'GERENCIA' ? TYPES.filter((x) => x !== 'TURNO_PENDIENTE_REVISION') : TYPES.filter((x) => x !== 'PRESUPUESTO_PENDIENTE_GERENCIA' && x !== 'COBRANZA_VENCIDA');
-  if (!['GERENCIA','SUPERVISOR_OBRAS'].includes(role)) return <section><PageHead title="Alertas"/><div className="alert alert-warning" role="alert">No tienes permiso para consultar alertas.</div></section>;
+  const types = typesFor(role);
+  const resources = [...new Set(types.map(t=>RULES[t].recurso))];
+  if (!['GERENCIA','SUPERVISOR_OBRAS','ADMINISTRATIVO_FINANZAS'].includes(role)) return <section><PageHead title="Alertas"/><div className="alert alert-warning" role="alert">No tienes permiso para consultar alertas.</div></section>;
   return <section className="commercial-page">
     <PageHead title="Alertas" sub={role === 'SUPERVISOR_OBRAS' ? undefined : 'Bandeja de alertas operativas asignadas a tu rol.'} />
     {summary && <><div className="kpis">{[['Activas',summary.activas],['Pendientes',summary.por_estado.PENDIENTE],['Atendidas',summary.por_estado.ATENDIDA],['Resueltas (histórico)',summary.por_estado.RESUELTA]].map(([label,value])=><div key={label} className="kpi"><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>
       {summary.sincronizacion.desactualizada && role !== 'SUPERVISOR_OBRAS' && <p className="alert alert-warning" role="status">La sincronización del backend está atrasada. Los datos pueden no estar actualizados.</p>}</>}
     <div className="d-flex flex-wrap gap-2 mb-3"><button className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={() => void api.reconcile(reload)}>Actualizar</button>
       <label className="form-label">Estado<select className="form-select" value={filters.estado} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,estado:e.target.value});}}><option value="">Activas</option>{STATES.map((s)=><option key={s}>{s}</option>)}</select></label>
-      <label className="form-label">Tipo<select className="form-select" value={filters.tipo} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,tipo:e.target.value});}}><option value="">Todos</option>{types.map((t)=><option key={t}>{t}</option>)}</select></label>
-      <label className="form-label">Recurso tipo<select className="form-select" value={filters.recurso_tipo} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,recurso_tipo:e.target.value});}}><option value="">Todos</option>{['PRESUPUESTO','OBRA','TURNO','DOCUMENTO'].filter((x)=>role==='GERENCIA'?x!=='TURNO':x!=='DOCUMENTO'&&x!=='PRESUPUESTO').map((x)=><option key={x}>{x}</option>)}</select></label>
+      <label className="form-label">Tipo<select className="form-select" value={filters.tipo} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,tipo:e.target.value});}}><option value="">Todos</option>{types.map((t)=><option key={t} value={t}>{RULES[t].label}</option>)}</select></label>
+      <label className="form-label">Recurso tipo<select className="form-select" value={filters.recurso_tipo} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,recurso_tipo:e.target.value});}}><option value="">Todos</option>{resources.map((x)=><option key={x} value={x}>{({PRESUPUESTO:'Presupuesto',OBRA:'Obra',TURNO:'Turno',DOCUMENTO:'Documento'})[x]}</option>)}</select></label>
       <label className="form-label">ID recurso<input className="form-control" inputMode="numeric" value={filters.recurso_id} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,recurso_id:e.target.value});}} /></label>
       <label className="form-label">Desde<input className="form-control" type="date" value={filters.desde} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,desde:e.target.value});}} /></label>
       <label className="form-label">Hasta<input className="form-control" type="date" value={filters.hasta} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,hasta:e.target.value});}} /></label>
@@ -110,7 +119,7 @@ export default function Alertas() {
     </div>
     {selected && <article className="card-fyag commercial-detail"><div className="commercial-section-head"><h2>{detail?.titulo||`Alerta #${selected}`}</h2><button className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>{setSelected(null);setDetail(null);}}>Cerrar</button></div>
       {detail&&<><p>{detail.descripcion}</p><p>{detail.tipo} · {detail.severidad} · {detail.estado} · {detail.recurso_tipo} {detail.recurso_codigo||`#${detail.recurso_id}`}</p>{detail.motivo_atencion&&<p>Motivo de atención: {detail.motivo_atencion}</p>}
-      {detail.acciones_permitidas.includes('ATENDER')&&<form className="commercial-form" onSubmit={attend}><label className="form-label" htmlFor="alert-reason">Motivo para atender</label><textarea id="alert-reason" className="form-control" value={reason} maxLength={2000} required disabled={blocked} onChange={(e)=>setReason(e.target.value)} /><button className="btn btn-fyag-primary mt-2" disabled={blocked||!reason.trim()}>Atender alerta</button></form>}</>}
+      {role!=='GERENCIA'&&detail.acciones_permitidas.includes('ATENDER')&&<form className="commercial-form" onSubmit={attend}><label className="form-label" htmlFor="alert-reason">Motivo para atender</label><textarea id="alert-reason" className="form-control" value={reason} maxLength={2000} required disabled={blocked} onChange={(e)=>setReason(e.target.value)} /><button className="btn btn-fyag-primary mt-2" disabled={blocked||!reason.trim()}>Atender alerta</button></form>}</>}
       <section className="commercial-history"><h3>Historial</h3><ol>{history?.results.map((event)=><li key={event.id}>{event.tipo}: {event.estado_anterior||'—'} → {event.estado_nuevo} · {new Date(event.registrado_en).toLocaleString('es-CL')} {event.motivo}</li>)}</ol><Pager data={history} page={historyPage} setPage={setHistoryPage} disabled={blocked || !history?.results?.length} label="Paginación del historial" /></section>
     </article>}
   </section>;

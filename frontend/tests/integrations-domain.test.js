@@ -23,10 +23,11 @@ const text = (node) => typeof node === 'string' ? node : (node.children || []).m
 const click = async (renderer,label)=>{const button=renderer.root.findAllByType('button').find((item)=>text(item)===label);assert.ok(button,`button ${label} missing`);await act(async()=>{button.props.onClick();await flush();});};
 
 function apiFor(role, calls) {
-  const alert = { id: 3, tipo: 'OBRA_SUSPENDIDA', estado: 'PENDIENTE', severidad: 'ALTA', rol_destinatario: role, recurso_tipo: 'OBRA', recurso_id: 4, recurso_codigo: 'OB-000004', obra: 4, titulo: 'Obra suspendida', descripcion: 'La obra se encuentra suspendida.', creado_en: '2026-11-14T10:00:00-03:00', atendida_por: null, atendida_en: null, motivo_atencion: null, resuelta_en: null, acciones_permitidas: ['ATENDER'] };
+  const alert = { id: 3, rol_responsable:'SUPERVISOR_OBRAS', destinatarios:['SUPERVISOR_OBRAS','GERENCIA'], es_legada:false, generacion:1, tipo: 'OBRA_SUSPENDIDA', estado: 'PENDIENTE', severidad: 'ALTA', rol_destinatario: role, recurso_tipo: 'OBRA', recurso_id: 4, recurso_codigo: 'OB-000004', obra: 4, titulo: 'Obra suspendida', descripcion: 'La obra se encuentra suspendida.', creado_en: '2026-11-14T10:00:00-03:00', atendida_por: null, atendida_en: null, motivo_atencion: null, resuelta_en: null, acciones_permitidas: role==='GERENCIA'?[]:['ATENDER'] };
+  if(role==='ADMINISTRATIVO_FINANZAS') Object.assign(alert,{tipo:'PRESUPUESTO_PENDIENTE_FINANZAS',rol_responsable:role,destinatarios:[role],severidad:'MEDIA',recurso_tipo:'PRESUPUESTO',recurso_codigo:'PRE-000004',obra:null,titulo:'Presupuesto pendiente de Finanzas',descripcion:'Requiere revisión de Finanzas.'});
   const send = async (path, options = {}) => {
     calls.push({ path, options });
-    if (path === '/api/alertas/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', por_estado: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 }, activas: 1, por_tipo: { OBRA_SUSPENDIDA: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 } }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } };
+    if (path === '/api/alertas/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', por_estado: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 }, activas: 1, por_tipo: { [alert.tipo]: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 } }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } };
     if (path === '/api/alertas/' || path === '/api/alertas/?page=1') return { count: 1, next: null, previous: null, results: [alert] };
     if (path === '/api/alertas/3/') return alert;
     if (path.startsWith('/api/alertas/3/historial/')) { const page = Number(new URL(path, 'http://localhost').searchParams.get('page') || 1); return { count: 26, next: page === 1 ? '/api/alertas/3/historial/?page=2' : null, previous: page === 2 ? '/api/alertas/3/historial/' : null, results: Array.from({length: page === 1 ? 25 : 1},(_,i)=>({id:(page-1)*25+i+1,alerta:3,tipo:'ATENCION',estado_anterior:'PENDIENTE',estado_nuevo:'ATENDIDA',actor:9,motivo:'Revisión',registrado_en:'2026-11-14T10:00:00-03:00'})) }; }
@@ -186,9 +187,9 @@ test('Alertas carga la página seleccionada del historial y habilita paginación
 });
 
 test('alertas solicita resumen/lista e impone matriz por rol', { timeout: 15000 }, async () => {
-  for (const role of ['GERENCIA', 'SUPERVISOR_OBRAS']) {
+  for (const role of ['GERENCIA', 'SUPERVISOR_OBRAS','ADMINISTRATIVO_FINANZAS']) {
     const { renderer, calls } = await mount(Alertas, role);
-    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), /Obra suspendida/); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
+    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), role==='ADMINISTRATIVO_FINANZAS'?/Presupuesto pendiente de Finanzas/:/Obra suspendida/); await click(renderer,role==='ADMINISTRATIVO_FINANZAS'?'Presupuesto pendiente de Finanzas':'Obra suspendida'); assert.equal(renderer.root.findAllByType('button').some(b=>text(b)==='Atender alerta'),role!=='GERENCIA'); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
   }
 });
 test('AuthClient mantiene metadata de descarga y códigos públicos de conflicto de alerta', async () => {
