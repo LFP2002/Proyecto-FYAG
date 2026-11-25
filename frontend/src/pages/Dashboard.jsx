@@ -32,7 +32,7 @@ function WorkStates({counts}) {
       <div className="dash-donut-center"><strong>{total.toLocaleString('es-CL')}</strong><span>{total===1?'obra':'obras'}</span></div>
     </div>
     <ul className="dash-donut-legend" aria-label="Distribución de obras por estado">
-      {STATES.map(state=><li key={state} className={`dash-${STATE_TONES[state]}`}><span className="dash-donut-dot" aria-hidden="true"/><span className="dash-donut-label">{STATE_LABELS[state]}</span><strong>{counts[state].toLocaleString('es-CL')}</strong></li>)}
+      {STATES.map(state=><li key={state} className={`dash-${STATE_TONES[state]}`}><span className="dash-donut-dot" aria-hidden="true"/><span className="dash-donut-label">{STATE_LABELS[state]}</span><strong>{counts[state].toLocaleString('es-CL')}</strong><span className="dash-donut-percent">{(total?counts[state]/total*100:0).toLocaleString('es-CL',{minimumFractionDigits:1,maximumFractionDigits:1})}%</span></li>)}
     </ul>
   </div>;
 }
@@ -96,7 +96,7 @@ function DashboardScreen(){
     <Kpi label="Incidencias críticas activas" value={incidents.criticas_activas} tone={incidents.criticas_activas?'danger':'good'}/>
   </div>}
   {(summary||series)&&<div className="dash-panels dash-operation">
-    {summary&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Estado actual de obras</h2></div><WorkStates counts={summary.operacion.obras_por_estado_actual}/></section>}
+    {summary&&<section className="card-fyag dash-panel dash-work-states"><div className="dash-panel-head"><h2>Estado actual de obras</h2></div><WorkStates counts={summary.operacion.obras_por_estado_actual}/></section>}
     {series&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Obras finalizadas por mes</h2><label className="dash-series-control">Meses<select className="form-select form-select-sm" value={months} onChange={e=>setMonths(e.target.value)}>{Array.from({length:12},(_,i)=>String(i+1)).map(m=><option key={m} value={m}>{m}</option>)}</select></label></div><MonthlyChart points={series.puntos}/></section>}
     {!series&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Obras finalizadas por mes</h2><label className="dash-series-control">Meses<select className="form-select form-select-sm" value={months} onChange={e=>setMonths(e.target.value)}>{Array.from({length:12},(_,i)=>String(i+1)).map(m=><option key={m} value={m}>{m}</option>)}</select></label></div><p className="commercial-help">{api.loading?'Cargando…':'No se pudo consultar la información.'}</p></section>}
   </div>}

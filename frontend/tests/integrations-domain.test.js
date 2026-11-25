@@ -220,9 +220,11 @@ test('Dashboard dona muestra proporciones reales, total y cinco estados incluso 
     assert.ok(Math.abs(segments.reduce((sum,node)=>sum+Number(node.props.strokeDasharray.split(' ')[0]),0)-100)<1e-9);
     assert.ok(Math.abs(Number(segments[0].props.strokeDasharray.split(' ')[0])-10/26*100)<1e-9);
     assert.equal(root.findByProps({className:'dash-donut-legend'}).findAllByType('li').length,5);
+    assert.deepEqual(root.findAllByProps({className:'dash-donut-percent'}).map(text),['38,5%','57,7%','0,0%','3,8%','0,0%']);
     counts={PLANIFICADA:0,EN_PROCESO:0,SUSPENDIDA:0,FINALIZADA:0,CANCELADA:0};
     await click(renderer,'Actualizar');
     assert.equal(text(root.findByProps({className:'dash-donut-center'})),'0obras');
+    assert.ok(root.findAllByProps({className:'dash-donut-percent'}).every(node=>text(node)==='0,0%'));
     assert.equal(root.findAllByType('circle').filter(node=>node.props.className?.split(' ').includes('dash-donut-segment')).length,0);
   }finally{await act(async()=>renderer.unmount());}
 });

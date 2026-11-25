@@ -147,12 +147,12 @@
 .dashboard-page .dash-period-fields input { font-size:.875rem; }
 .dashboard-page .dash-period-note { display:flex; flex-direction:column; gap:4px; color:var(--fyag-muted); font-size:.75rem; }
 .dashboard-page .dash-kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
-.dashboard-page .dash-active { --dash-accent:#245b91; --dash-bg:#e6eff8; }
-.dashboard-page .dash-good { --dash-accent:#176b4a; --dash-bg:#e5f3ea; }
-.dashboard-page .dash-pending { --dash-accent:#8a590d; --dash-bg:#fff2d6; }
-.dashboard-page .dash-danger { --dash-accent:#b12635; --dash-bg:#fce7e9; }
-.dashboard-page .dash-neutral { --dash-accent:#526578; --dash-bg:#eef2f6; }
-.dashboard-page .dash-kpi { background:#fff; border:1px solid var(--fyag-line); border-left:4px solid var(--dash-accent); border-radius:9px; padding:14px; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px; }
+.dashboard-page .dash-active { --dash-accent:#245b91; --dash-bg:#e6eff8; --dash-chart:#3478DC; }
+.dashboard-page .dash-good { --dash-accent:#176b4a; --dash-bg:#e5f3ea; --dash-chart:#20AC73; }
+.dashboard-page .dash-pending { --dash-accent:#8a590d; --dash-bg:#fff2d6; --dash-chart:#ECA321; }
+.dashboard-page .dash-danger { --dash-accent:#b12635; --dash-bg:#fce7e9; --dash-chart:#E34D59; }
+.dashboard-page .dash-neutral { --dash-accent:#526578; --dash-bg:#eef2f6; --dash-chart:#8492A6; }
+.dashboard-page .dash-kpi { background:#fff; border:1px solid var(--fyag-line); border-left:4px solid var(--dash-chart); border-radius:9px; padding:14px; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px; }
 .dashboard-page .dash-kpi-label { font-size:.8125rem; font-weight:600; color:var(--fyag-muted); }
 .dashboard-page .dash-kpi-value { display:block; font-size:1.9rem; line-height:1; color:var(--dash-accent); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 .dashboard-page .dash-panels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -166,19 +166,21 @@
 .dashboard-page .dash-state-label { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.8125rem; }
 .dashboard-page .dash-state-label dt { font-weight:500; }
 .dashboard-page .dash-state-label dd { margin:0; font-weight:700; }
-.dashboard-page .dash-donut-layout { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 24px; }
-.dashboard-page .dash-donut { position:relative; width:160px; max-width:100%; flex:0 1 160px; aspect-ratio:1; }
+.dashboard-page .dash-work-states { display:flex; flex-direction:column; }
+.dashboard-page .dash-donut-layout { flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 28px; width:100%; max-width:550px; margin-inline:auto; }
+.dashboard-page .dash-donut { position:relative; width:210px; max-width:100%; flex:0 1 210px; aspect-ratio:1; }
 .dashboard-page .dash-donut svg { display:block; width:100%; height:auto; }
 .dashboard-page .dash-donut-track { stroke:#edf1f5; }
-.dashboard-page .dash-donut-segment { stroke:var(--dash-accent); }
+.dashboard-page .dash-donut-segment { stroke:var(--dash-chart); }
 .dashboard-page .dash-donut-center { position:absolute; inset:24%; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; min-width:0; }
-.dashboard-page .dash-donut-center strong { font-size:clamp(1.1rem,2.1vw,1.8rem); line-height:1.1; color:var(--fyag-primary); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:100%; }
+.dashboard-page .dash-donut-center strong { font-size:clamp(1.5rem,2.2vw,2.15rem); line-height:1.1; color:var(--fyag-primary); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:100%; }
 .dashboard-page .dash-donut-center span { color:var(--fyag-muted); font-size:.75rem; }
-.dashboard-page .dash-donut-legend { flex:1 1 180px; min-width:0; list-style:none; margin:0; padding:0; display:grid; gap:9px; }
+.dashboard-page .dash-donut-legend { flex:1 1 200px; max-width:260px; min-width:0; list-style:none; margin:0; padding:0; display:grid; gap:12px; }
 .dashboard-page .dash-donut-legend li { display:flex; align-items:center; gap:8px; min-width:0; font-size:.8125rem; }
-.dashboard-page .dash-donut-dot { width:10px; height:10px; border-radius:3px; background:var(--dash-accent); flex:none; }
+.dashboard-page .dash-donut-dot { width:10px; height:10px; border-radius:3px; background:var(--dash-chart); flex:none; }
 .dashboard-page .dash-donut-label { flex:1; min-width:0; overflow-wrap:anywhere; }
 .dashboard-page .dash-donut-legend strong { font-variant-numeric:tabular-nums; }
+.dashboard-page .dash-donut-percent { min-width:3.6em; text-align:right; color:var(--fyag-muted); font-size:.75rem; font-variant-numeric:tabular-nums; }
 .dashboard-page .dash-financial { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:0; }
 .dashboard-page .dash-profit .dash-money:last-child { grid-column:1/-1; }
 .dashboard-page .dash-money { border-radius:6px; background:var(--dash-bg); padding:10px; min-width:0; }
@@ -194,7 +196,7 @@
 .dashboard-page .dash-month { display:flex; flex-direction:column; gap:6px; align-items:center; min-width:0; font-size:.75rem; color:var(--fyag-muted); }
 .dashboard-page .dash-month-plot { height:150px; width:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; border-bottom:1px solid var(--fyag-line); }
 .dashboard-page .dash-month-plot strong { color:var(--fyag-primary); font-size:.8125rem; }
-.dashboard-page .dash-month-bar { background:#3276b5; border-radius:4px 4px 0 0; width:65%; max-width:38px; max-height:calc(100% - 22px); flex-shrink:1; }
+.dashboard-page .dash-month-bar { background:#3478DC; border-radius:4px 4px 0 0; width:65%; max-width:38px; max-height:calc(100% - 22px); flex-shrink:1; }
 .dashboard-page .dash-works { border-radius:9px; margin:0; }
 .dashboard-page .dash-works .card-h { padding:12px 14px; margin:0; font-size:.75rem; color:var(--fyag-muted); }
 .dashboard-page .dash-works th { font-size:.75rem; white-space:nowrap; }
