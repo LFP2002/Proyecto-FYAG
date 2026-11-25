@@ -117,11 +117,11 @@ test('Dashboard descarta resumen tardío tras rango inválido y retira cifras an
   try {
     await date('2026-02-30');
     await act(async () => { const value = await base('/api/dashboard/resumen/'); resolveLate({ ...value, rentabilidad_cerrada_periodo: { ...value.rentabilidad_cerrada_periodo, presupuesto_neto: '12345.67' } }); await flush(); });
-    assert.doesNotMatch(text(renderer.toJSON()), /12345\.67/);
+    assert.doesNotMatch(text(renderer.toJSON()), /12\.345,67/);
     await date('');
-    assert.match(text(renderer.toJSON()), /98765\.43/);
+    assert.match(text(renderer.toJSON()), /98\.765,43/);
     fail = true; await click(renderer, 'Actualizar');
-    assert.doesNotMatch(text(renderer.toJSON()), /98765\.43|12345\.67/);
+    assert.doesNotMatch(text(renderer.toJSON()), /98\.765,43|12\.345,67/);
     assert.match(text(renderer.toJSON()), /Resumen no disponible/);
   } finally { await act(async () => renderer.unmount()); }
 });

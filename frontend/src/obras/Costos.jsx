@@ -1,3 +1,4 @@
+import { formatCLP } from '../utils/format.js';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/ui';
@@ -11,7 +12,7 @@ const decimal = (value, scale) => new RegExp(`^[0-9]{1,${scale === 2 ? 13 : 9}}(
 const validId = (value) => /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
 const compareDecimal = (left, right, scale = 3) => { const unit = 10n ** BigInt(scale); const toInt = (value) => { const [whole, fraction = ''] = String(value).split('.'); return BigInt(whole || '0') * unit + BigInt((fraction + '0'.repeat(scale)).slice(0, scale)); }; return toInt(left) - toInt(right); };
 const object = (data) => data && typeof data === 'object' && !Array.isArray(data);
-function money(value) { return typeof value === 'string' ? `$${value} CLP` : '—'; }
+function money(value) { return formatCLP(value); }
 function strictKeys(value, keys) { return object(value) && Object.keys(value).every((key) => keys.includes(key)); }
 function projectExpense(row) {
   const keys = ['id', 'obra', 'tipo', 'descripcion', 'unidad', 'cantidad', 'cantidad_devuelta', 'costo_unitario_neto', 'subtotal', 'fecha_gasto', 'referencia_respaldo', 'observacion', 'vigente', 'anulado_por', 'anulado_en', 'motivo_anulacion', 'registrado_por', 'creado_en', 'actualizado_en'];

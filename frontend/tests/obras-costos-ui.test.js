@@ -76,7 +76,7 @@ test('Gerencia separa la pestaña Materiales y gastos de Costos y solo consulta'
   try {
     await openExpenses(renderer);
     assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/gastos/?page=1'));
-    assert.match(text(renderer.root), /\$25\.00 CLP/);
+    assert.match(text(renderer.root), /\$25,00 CLP/);
     assert.doesNotMatch(text(renderer.root), /Resumen económico|Control de rubros|Historial de costos/);
     assert.equal(buttons(renderer, 'Registrar gasto').length, 0);
     await click(renderer, 'Costos');
