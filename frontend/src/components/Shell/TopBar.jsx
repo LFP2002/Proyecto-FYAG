@@ -21,9 +21,13 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, 
       panel.style.setProperty('--font-panel-shift',`${shift}px`);
     };
     align();
+    const frame=globalThis.requestAnimationFrame?.(align);
     globalThis.addEventListener?.('resize',align);
-    return ()=>globalThis.removeEventListener?.('resize',align);
-  },[fontOpen]);
+    return ()=>{
+      globalThis.removeEventListener?.('resize',align);
+      if(frame!=null)globalThis.cancelAnimationFrame?.(frame);
+    };
+  },[fontOpen,fontLevel]);
   useEffect(()=>{
     if(!fontOpen)return;
     const closeOutside=event=>{if(fontRef.current&&!fontRef.current.contains(event.target))setFontOpen(false);};
@@ -55,18 +59,23 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, 
           onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setFontOpen(false);}}
           onKeyDown={event=>{if(event.key==='Escape'&&fontOpen){event.preventDefault();closeFont();}}}>
           <button ref={fontButton} type="button" className="fyag-font-trigger" aria-label="Tamaño de letra" title="Tamaño de letra" aria-expanded={fontOpen} aria-controls="fyag-font-options" onClick={()=>setFontOpen(open=>!open)}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="M3 19 9 5l6 14M5 15h8M17 11l3 8m-6 0 3-8m-2 5h4"/></svg>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" focusable="false"><path d="m2 4 4 4 4-4"/></svg>
+            {/* Bootstrap Icons v1.13.1 (MIT), SVG inline sin dependencias externas. */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-fonts" viewBox="0 0 16 16"><path d="M12.258 3h-8.51l-.083 2.46h.479c.26-1.544.758-1.783 2.693-1.845l.424-.013v7.827c0 .663-.144.82-1.3.923v.52h4.082v-.52c-1.162-.103-1.306-.26-1.306-.923V3.602l.431.013c1.934.062 2.434.301 2.693 1.846h.479z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-chevron-down" viewBox="0 0 16 16"><path fillRule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"/></svg>
           </button>
           {fontOpen&&<div ref={fontPanel} id="fyag-font-options" className="fyag-font-options" role="group" aria-label="Elegir tamaño de letra">
             <div className="fyag-font-heading">Tamaño de letra</div>
-            <div className="fyag-font-grid">
-              {Array.from({length:fontCount},(_,index)=><button key={index} type="button" className="fyag-font-option" aria-label={['Tamaño normal','Tamaño mediano','Tamaño grande','Tamaño muy grande'][index]} aria-pressed={fontLevel===index} style={{'--font-sample-size':`${15+index*4}px`}} onClick={()=>{onSelectFont?.(index);closeFont();}}>
-                <span aria-hidden="true">A</span>{fontLevel===index&&<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>}
-              </button>)}
+            <div className="fyag-font-controls">
+              <button type="button" className="fyag-font-adjust" aria-label="Disminuir tamaño" aria-disabled={fontLevel===0} onClick={()=>{if(fontLevel>0)onSelectFont?.(fontLevel-1);}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-dash-lg" viewBox="0 0 16 16"><path fillRule="evenodd" d="M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8"/></svg>
+              </button>
+              <output className="fyag-font-level" aria-label="Nivel de tamaño de letra" aria-live="polite" aria-atomic="true">{fontLevel+1}</output>
+              <button type="button" className="fyag-font-adjust" aria-label="Aumentar tamaño" aria-disabled={fontLevel===fontCount-1} onClick={()=>{if(fontLevel<fontCount-1)onSelectFont?.(fontLevel+1);}}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-plus-lg" viewBox="0 0 16 16"><path fillRule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/></svg>
+              </button>
             </div>
-            <button type="button" className="fyag-font-reset" onClick={()=>{onSelectFont?.(0);closeFont();}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5"/></svg> Restablecer
+            <button type="button" className="fyag-font-reset" onClick={()=>onSelectFont?.(0)}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-arrow-counterclockwise" viewBox="0 0 16 16"><path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/></svg> Restablecer
             </button>
           </div>}
         </div>

@@ -52,16 +52,18 @@
 }
 
 .fyag-font-picker { position:relative; flex:none; }
-.fyag-font-trigger { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-width:44px; min-height:44px; background:transparent; color:#fff; border:0; border-radius:8px; padding:8px; }
+.fyag-font-trigger { display:inline-flex; align-items:center; justify-content:center; gap:4px; width:44px; min-height:44px; background:transparent; color:#fff; border:0; border-radius:8px; padding:5px; }
 .fyag-font-trigger:hover,.fyag-font-trigger[aria-expanded=true] { background:#1f4064; }
-.fyag-font-options { position:absolute; left:50%; transform:translateX(calc(-50% + var(--font-panel-shift, 0px))); top:calc(100% + 10px); z-index:1050; width:248px; max-width:calc(100vw - 24px); background:#fff; color:var(--fyag-text); border:1px solid var(--fyag-line); border-radius:10px; box-shadow:0 5px 22px #14202e26; padding:10px; }
+.fyag-font-options { position:absolute; left:50%; transform:translateX(calc(-50% + var(--font-panel-shift, 0px))); top:calc(100% + 10px); z-index:1050; width:184px; max-width:calc(100vw - 24px); background:#fff; color:var(--fyag-text); border:1px solid var(--fyag-line); border-radius:10px; box-shadow:0 5px 22px #14202e26; padding:10px; }
 .fyag-font-options::before { content:""; position:absolute; left:clamp(12px, calc(50% - var(--font-panel-shift, 0px)), calc(100% - 12px)); top:-7px; width:12px; height:12px; background:#fff; border-top:1px solid var(--fyag-line); border-left:1px solid var(--fyag-line); transform:translateX(-50%) rotate(45deg); pointer-events:none; }
-.fyag-font-heading { margin-bottom:8px; font-size:.875rem; color:var(--fyag-primary); font-weight:600; text-align:center; }
-.fyag-font-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
-.fyag-font-option { position:relative; display:grid; place-items:center; min-width:0; min-height:48px; border:1px solid var(--fyag-line); border-radius:6px; padding:4px; background:#fff; color:var(--fyag-primary); font-family:inherit; font-size:var(--font-sample-size); line-height:1; }
-.fyag-font-option:hover,.fyag-font-option[aria-pressed=true] { background:#e2edf8; border-color:var(--fyag-primary-light); }
-.fyag-font-option svg { position:absolute; top:3px; right:3px; }
-.fyag-font-reset { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:10px; padding:8px 4px 0; min-height:40px; width:100%; border:0; border-top:1px solid var(--fyag-line); background:transparent; color:var(--fyag-primary); font:inherit; }
+.fyag-font-heading { margin-bottom:8px; font-size:.8125rem; color:var(--fyag-primary); font-weight:600; text-align:center; line-height:1.25; }
+.fyag-font-controls { display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:center; gap:4px; }
+.fyag-font-adjust { display:grid; place-items:center; width:44px; min-height:44px; border:1px solid var(--fyag-line); border-radius:6px; padding:0; background:#fff; color:var(--fyag-primary); }
+.fyag-font-adjust:not([aria-disabled=true]):hover { background:#e2edf8; border-color:var(--fyag-primary-light); }
+.fyag-font-adjust[aria-disabled=true] { opacity:.4; cursor:default; }
+.fyag-font-level { display:block; text-align:center; font-size:1.25rem; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; }
+.fyag-font-reset { display:flex; align-items:center; justify-content:center; gap:5px; margin-top:7px; padding:5px 0 0; min-height:36px; width:100%; border:0; border-top:1px solid var(--fyag-line); background:transparent; color:var(--fyag-primary); font:inherit; font-size:.75rem; line-height:1.2; }
+.fyag-font-reset svg { flex:none; }
 .fyag-font-reset:hover { color:var(--fyag-primary-light); }
 .fyag-top .top-right > span { overflow-wrap:anywhere; }
 .fyag-side .navbtn span { min-width:0; overflow-wrap:anywhere; }
