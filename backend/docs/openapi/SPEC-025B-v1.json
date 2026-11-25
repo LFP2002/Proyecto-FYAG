@@ -1,0 +1,298 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — SPEC-025B",
+    "version": "1.0.0",
+    "description": "Extensión aditiva de SPEC-024. Las operaciones conservan autorización, alcance, estado BORRADOR y errores previos."
+  },
+  "paths": {
+    "/api/presupuestos/{id}/items/": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Crear ítem libre o vinculado a material activo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ítem creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Campos inválidos o material no disponible"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Presupuesto fuera de alcance"
+          },
+          "409": {
+            "description": "Estado incompatible"
+          }
+        }
+      }
+    },
+    "/api/presupuestos/{id}/items/{item_id}/": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "item_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "patch": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Editar ítem o cambiar vínculo; null desvincula",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ítem actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRead"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Campos inválidos o material no disponible"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Recurso fuera de alcance"
+          },
+          "409": {
+            "description": "Estado incompatible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ItemPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 9223372036854776000,
+            "description": "Omitido conserva relación en PATCH; null desvincula."
+          },
+          "descripcion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "unidad": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$"
+          },
+          "precio_unitario": {
+            "type": "string",
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,2})?$",
+            "description": "Precio neto de venta explícito; independiente de costos."
+          },
+          "orden": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      },
+      "ItemCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "descripcion",
+          "unidad",
+          "cantidad",
+          "precio_unitario",
+          "orden"
+        ],
+        "properties": {
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 9223372036854776000,
+            "description": "Omitido conserva relación en PATCH; null desvincula."
+          },
+          "descripcion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "unidad": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$"
+          },
+          "precio_unitario": {
+            "type": "string",
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,2})?$",
+            "description": "Precio neto de venta explícito; independiente de costos."
+          },
+          "orden": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      },
+      "ItemRead": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "descripcion",
+          "unidad",
+          "cantidad",
+          "precio_unitario",
+          "orden",
+          "id",
+          "presupuesto",
+          "codigo_articulo",
+          "subtotal"
+        ],
+        "properties": {
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 9223372036854776000,
+            "description": "Omitido conserva relación en PATCH; null desvincula."
+          },
+          "descripcion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "unidad": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$"
+          },
+          "precio_unitario": {
+            "type": "string",
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,2})?$",
+            "description": "Precio neto de venta explícito; independiente de costos."
+          },
+          "orden": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "presupuesto": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo_articulo": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Instantánea de código; vacío para línea libre."
+          },
+          "subtotal": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
