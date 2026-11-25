@@ -74,3 +74,5 @@
  .chat-workspace:not(.has-selection) .chat-main,.chat-workspace.has-selection .chat-sidebar {display:none;}
  .chat-msg {max-width:90%;}
 }
+
+.chat-attachment-limits { margin:5px 6px 0; color:var(--fyag-muted); font-size:.72rem; overflow-wrap:anywhere; }

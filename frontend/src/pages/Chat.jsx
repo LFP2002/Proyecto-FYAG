@@ -5,6 +5,20 @@ import { API_ORIGIN } from '../auth/config.js';
 import { ROLES } from '../data/constants.js';
 
 const BASE = '/api/chat/';
+const ATTACHMENT_LIMITS='JPEG/PNG: hasta 5 MB y 2048 × 2048 px. PDF: hasta 8 MB.';
+export async function validateChatAttachment(file, decode=globalThis.createImageBitmap){
+  const extension=file.name.split('.').pop().toLowerCase();
+  if(!['jpg','jpeg','png','pdf'].includes(extension))return 'Selecciona un archivo JPEG, PNG o PDF.';
+  if(!file.size)return 'El archivo está vacío.';
+  if(file.size>(extension==='pdf'?8:5)*1024*1024)return extension==='pdf'?'El PDF supera los 8 MB.':'La imagen supera los 5 MB.';
+  if(extension!=='pdf'&&typeof decode==='function'){
+    let bitmap;
+    try{bitmap=await decode(file);if(bitmap.width>2048||bitmap.height>2048)return 'La imagen supera las dimensiones máximas de 2048 × 2048 píxeles.';}
+    catch{return 'No fue posible leer la imagen. Usa un JPEG o PNG válido.';}
+    finally{bitmap?.close?.();}
+  }
+  return '';
+}
 const uuid = () => crypto.randomUUID();
 const nameOf = (person) => person?.nombre || 'Usuario';
 const convName = (conversation, details, userId) => conversation.tipo === 'GRUPAL'
@@ -43,7 +57,7 @@ export default function Chat() {
   const thread=useRef(null),fileInput=useRef(null),composeInput=useRef(null),dialogSearch=useRef(null),newButton=useRef(null),scrollIntent=useRef(null),messagesRef=useRef([]),olderRef=useRef(null),readCursor=useRef(new Map());
 
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;listVersion.current++;dirVersion.current++;messageVersion.current++;};},[]);
-  const showError = e => {if(alive.current)setError(e?.message||'No fue posible completar la operación.');};
+  const showError = e => {if(alive.current){const fields=e?.fieldErrors||{};const validation=['archivo','texto','body','detail','clave_idempotencia'].flatMap(key=>Array.isArray(fields[key])?fields[key]:[]);setError(validation.join(' ')||(e?.status===413?'El archivo excede el tamaño permitido.':e?.message)||'No fue posible completar la operación.');}};
   function detailFor(id) {
     if(detailsRef.current[id])return Promise.resolve(detailsRef.current[id]);
     if(detailPending.current.has(id))return detailPending.current.get(id);
@@ -235,6 +249,7 @@ export default function Chat() {
     writeLock.current=true;setBusy(true);setError('');
     try{
       if(file){
+        const invalid=await validateChatAttachment(file);if(invalid){setError(invalid);return;}
         const body=new FormData();body.set('archivo',file);if(text.trim())body.set('texto',text.trim());
         await request(`${BASE}conversaciones/${active.id}/archivos/`,{method:'POST',body,headers:{'Idempotency-Key':fileKey.current}});
       }else await request(`${BASE}conversaciones/${active.id}/mensajes/`,{method:'POST',body:{texto:text.trim(),clave_idempotencia:messageKey.current}});
@@ -280,7 +295,8 @@ export default function Chat() {
         <form className="chat-composer" onSubmit={send}>
           {file&&<div className="chat-attachment"><Icon name="file"/><span>{file.name}</span><IconButton icon="close" label="Quitar archivo" disabled={blocked} onClick={()=>{setFile(null);if(fileInput.current)fileInput.current.value='';}}/></div>}
           {uncertain&&<p className="chat-uncertain" role="alert">No se confirmó el envío. Puedes reintentar exactamente el mismo mensaje sin duplicarlo.</p>}
-          <div className="chat-composer-row"><input ref={fileInput} type="file" className="visually-hidden" accept="image/jpeg,image/png,application/pdf" aria-label="Archivo adjunto" disabled={blocked} onChange={e=>setFile(e.target.files?.[0]||null)}/><IconButton icon="paperclip" label="Adjuntar archivo" disabled={blocked} onClick={()=>fileInput.current?.click()}/><textarea ref={composeInput} aria-label="Mensaje" placeholder="Escribe un mensaje…" rows={1} maxLength={2000} value={text} disabled={blocked} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent?.isComposing){e.preventDefault();void send();}}}/><button type="submit" className="chat-send" aria-label={uncertain?'Reintentar envío':'Enviar mensaje'} title="Enviar" disabled={busy||(!text.trim()&&!file)}><Icon name="send"/></button></div>
+          <div className="chat-composer-row"><input ref={fileInput} type="file" className="visually-hidden" accept="image/jpeg,image/png,application/pdf" aria-label="Archivo adjunto" disabled={blocked} onChange={e=>setFile(e.target.files?.[0]||null)}/><IconButton icon="paperclip" label="Adjuntar archivo" aria-describedby="chat-attachment-limits" disabled={blocked} onClick={()=>fileInput.current?.click()}/><textarea ref={composeInput} aria-label="Mensaje" placeholder="Escribe un mensaje…" rows={1} maxLength={2000} value={text} disabled={blocked} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent?.isComposing){e.preventDefault();void send();}}}/><button type="submit" className="chat-send" aria-label={uncertain?'Reintentar envío':'Enviar mensaje'} title="Enviar" disabled={busy||(!text.trim()&&!file)}><Icon name="send"/></button></div>
+          <p id="chat-attachment-limits" className="chat-attachment-limits">{ATTACHMENT_LIMITS}</p>
         </form>
       </>:<div className="chat-welcome"><Icon name="chat"/><h2>Chat interno FYAG</h2><p>Selecciona una conversación o inicia un nuevo chat con tu equipo.</p><button type="button" className="chat-new" onClick={startCreate}><Icon name="plus"/> Nuevo chat</button></div>}</section>
     </div>

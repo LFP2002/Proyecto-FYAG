@@ -4,12 +4,12 @@ import { createServer } from 'vite';
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 
-let server, AuthProvider, Chat;
+let server, AuthProvider, Chat, validateChatAttachment;
 const previous = {};
 test.before(async () => {
   server = await createServer({configFile:false,esbuild:{jsx:'automatic'},server:{middlewareMode:true,ws:false,hmr:false},appType:'custom',optimizeDeps:{noDiscovery:true,include:[]}});
   ({AuthProvider}=await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
-  ({default:Chat}=await server.ssrLoadModule('/src/pages/Chat.jsx'));
+  ({default:Chat,validateChatAttachment}=await server.ssrLoadModule('/src/pages/Chat.jsx'));
   for(const key of ['location','WebSocket'])previous[key]=Object.getOwnPropertyDescriptor(globalThis,key);
   Object.defineProperty(globalThis,'location',{configurable:true,value:{protocol:'http:',hostname:'localhost',port:'5173'}});
   Object.defineProperty(globalThis,'WebSocket',{configurable:true,value:class {close(){} send(){}}});
@@ -73,4 +73,14 @@ test('Chat descarta respuestas tardías al cambiar de conversación',async()=>{
     assert.doesNotMatch(text(renderer.toJSON()),/Mensaje atrasado/);
     assert.ok(!calls.some(c=>c.path==='/api/chat/conversaciones/1/leido/'));
   }finally{await act(async()=>renderer.unmount());}
+});
+
+
+test('Chat anticipa límites de tamaño y dimensiones sin modificar el archivo',async()=>{
+  let closed=false;
+  assert.match(await validateChatAttachment({name:'logo.png',size:20000},async()=>({width:2500,height:1141,close(){closed=true;}})),/2048/);
+  assert.equal(closed,true);
+  assert.equal(await validateChatAttachment({name:'qa.png',size:200},async()=>({width:320,height:200,close(){}})),'');
+  assert.match(await validateChatAttachment({name:'qa.pdf',size:9*1024*1024}),/8 MB/);
+  assert.match(await validateChatAttachment({name:'qa.exe',size:100}),/JPEG, PNG o PDF/);
 });

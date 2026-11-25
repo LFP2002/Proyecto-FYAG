@@ -98,6 +98,9 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
             for (const field of ['motivo', 'estado', 'tipo', 'recurso_tipo', 'recurso_id', 'desde', 'hasta', 'page']) allowed.add(field);
             if (['alerta_ya_atendida', 'alerta_resuelta', 'alerta_desactualizada'].includes(data?.code)) code = data.code;
           }
+          if (path.startsWith('/api/chat/')) {
+            for (const field of ['archivo','texto','body','clave_idempotencia','ultimo_mensaje_id','participantes','destinatario','titulo']) allowed.add(field);
+          }
           if (path.startsWith('/api/usuarios/')) {
             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
           }
