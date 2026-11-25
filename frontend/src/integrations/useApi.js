@@ -78,6 +78,7 @@ export function safePage(link, path, filters = null) {
             ? ['desde','hasta','cliente','estado']
             : path === '/api/finanzas/cobranzas/'
             ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
+             : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
@@ -105,6 +106,9 @@ export function safePage(link, path, filters = null) {
     if(path==='/api/finanzas/cobranzas/'){
       if((value('cliente')&&!validId(value('cliente')))||(value('obra')&&!validId(value('obra')))||!datePair('fecha_emision_desde','fecha_emision_hasta')||!datePair('fecha_vencimiento_desde','fecha_vencimiento_hasta'))throw new Error('invalid');
       if(value('estado')&&!['PENDIENTE','PARCIAL','PAGADA','VENCIDA'].includes(value('estado')))throw new Error('invalid');
+    }
+    if(path==='/api/finanzas/cobranzas/supervision-gerencial/'){
+      if(!datePair('desde','hasta')||(value('vista')&&!['atencion','vigentes','documentos'].includes(value('vista')))||(value('buscar')||'').length>100)throw new Error('invalid');
     }
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;

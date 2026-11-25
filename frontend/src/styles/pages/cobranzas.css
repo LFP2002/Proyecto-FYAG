@@ -101,3 +101,18 @@
 .finance-detail .finance-correction { margin:18px 0 0; padding:14px; border:1px solid #e3b3af; border-radius:8px; background:#fffafa; }
 .finance-detail .finance-correction .form-label { display:block; max-width:100%; margin-bottom:10px; }
 @media(max-width:600px) { .finance-summary { padding:12px; gap:12px; } .finance-detail .finance-tab-content { padding:12px; } }
+
+/* Supervisión gerencial, misma escala y distribución de Obras y Presupuestos. */
+.manager-cobranzas .portfolio-green { --tone:#20AC73; }
+.manager-cobranzas .portfolio-kpi small,.manager-cob-amount small { font-size:.8125rem; color:var(--fyag-muted); }
+.manager-cobranzas .portfolio-kpi strong,.manager-cob-amount strong { overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.manager-cob-amount { display:flex; flex-direction:column; gap:3px; text-align:right; min-width:0; }
+.manager-cob-amount strong { color:var(--fyag-primary); font-size:1.15rem; }
+.manager-cobranzas .commercial-donut-layout { max-width:620px; }
+.manager-cobranzas .commercial-acceptance-legend { max-width:300px; flex-basis:210px; }
+.manager-cobranzas .commercial-acceptance-legend strong { overflow-wrap:anywhere; }
+.manager-cobranzas .manager-budget-back { display:inline-flex; align-items:center; gap:7px; background:transparent; border:0; color:var(--fyag-primary-light); padding:6px 0; min-height:36px; font:inherit; font-weight:600; }
+.manager-cobranzas .manager-budget-back:hover { text-decoration:underline; }
+.manager-cobranzas .manager-facts { margin:0; }
+.manager-cobranzas .manager-work-tabs button[aria-pressed=true] { opacity:1; }
+.manager-cobranzas .portfolio-context span { overflow-wrap:anywhere; }

@@ -5,6 +5,7 @@ import { Pager } from '../comercial/ui.jsx';
 import { decimalString, positiveInteger, readPage, safePage, strictObject, useApi } from '../integrations/useApi.js';
 import Adjuntos from '../integrations/Adjuntos.jsx';
 import FinanceAdmin from '../integrations/FinanceAdmin.jsx';
+import GerenciaCobranzas from '../integrations/GerenciaCobranzas.jsx';
 import { formatCompactCLP, formatCivilDate } from '../utils/format.js';
 
 const STATES = ['PENDIENTE', 'PARCIAL', 'PAGADA', 'VENCIDA'];
@@ -46,6 +47,10 @@ function FilterField({ title, value, onChange, type = 'text' }) {
   return <label className="form-label">{title}<input className="form-control" type={type} inputMode={type==='text'?'numeric':undefined} value={value} onChange={(e)=>onChange(e.target.value)} /></label>;
 }
 export default function Cobranzas() {
+  const {user}=useAuth();
+  return user.role==='GERENCIA'?<GerenciaCobranzas key={user.id}/>:<CobranzasOperativas key={user.id+':'+user.role}/>;
+}
+function CobranzasOperativas() {
   const { user } = useAuth(); const api = useApi();
   const canRead = ['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role);
   const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState(EMPTY_FILTERS), [page,setPage]=useState(1), [selectedDocument,setSelectedDocument]=useState(null);

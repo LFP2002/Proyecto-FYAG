@@ -271,19 +271,53 @@ test('Cobranzas: pestañas conservan consultas y filtros solo se aplican al conf
   }finally{await ui.close();}
 });
 
-test('Detalle financiero reemplaza el listado y oculta paginaciones sin más páginas',async()=>{
+test('Cobranzas gerenciales: cartera exclusiva, prioridad, filtros y detalle bajo demanda',async()=>{
   const backend=financeBackend();backend.events=[];backend.payEvents=[];
-  const ui=await mount(Cobranzas,backend.request,'GERENCIA');
+  backend.documents=[{...doc(),cobranza:{moneda:'CLP',abonado:'25.00',saldo:'75.00',estado:'VENCIDA'}},{...doc(12),estado:'REVERTIDO',cobranza:null}];
+  const calls=[];
+  let fail=false;
+  const request=async(path,options={})=>{
+    calls.push({path,method:options.method||'GET'});
+    const url=new URL(path,'http://localhost');
+    if(url.pathname==='/api/finanzas/cobranzas/supervision-gerencial/'){
+      if(fail)throw new ApiError(500,'Fallo de lectura');
+      const rows=backend.documents.map(d=>({id:d.id,folio:d.folio_externo,cliente:d.origen.cliente.nombre_legal,obra:d.origen.codigo_obra,emision:d.fecha_emision,vencimiento:d.fecha_vencimiento,total:d.monto_total,cobrado:d.cobranza?.abonado??null,saldo:d.cobranza?.saldo??null,estado:d.cobranza?.estado??'REVERTIDO',dias_atraso:d.cobranza?.estado==='VENCIDA'?5:0}));
+      const visible=rows.filter(r=>(url.searchParams.get('vista')==='documentos'||r.estado!=='REVERTIDO')&&(!url.searchParams.has('buscar')||r.cliente.toLowerCase().includes(url.searchParams.get('buscar').toLowerCase())));
+      return {...paginated(visible,url),resumen:{moneda:'CLP',documentos:1,clientes_vencidos:1,total:'100.00',cobrado:'25.00',saldo:'75.00',vencido:'75.00',no_vencido:'0.00',fecha_corte:'2026-12-15'}};
+    }
+    return backend.request(path,options);
+  };
+  const ui=await mount(Cobranzas,request,'GERENCIA');
   try{
-    const root=ui.renderer.root;await click(root,'Documentos y pagos');await click(root,'Consultar / administrar');
-    assert.equal(root.findAllByProps({'aria-label':'Documentos financieros incluidos históricos'}).length,0);
-    assert.equal(root.findAllByProps({'aria-label':'Paginación de pagos'}).length,0);
-    assert.equal(root.findByProps({id:'finance-11-payments'}).props.hidden,false);
+    const root=ui.renderer.root;
+    assert.equal(calls.length,1);
+    assert.match(text(ui.renderer.toJSON()),/25%/);
+    assert.match(text(ui.renderer.toJSON()),/5 días de atraso/);
+    assert.doesNotMatch(text(ui.renderer.toJSON()),/ID de Obra|Consultar \/ administrar|Registrar documento externo/);
+    await click(root,'Documentos');
+    assert.equal(root.findAllByProps({className:'portfolio-work portfolio-normal'}).length,1);
+    await act(async()=>{root.findByProps({id:'cob-buscar'}).props.onChange({target:{value:'Cliente'}});});
+    await act(async()=>{root.findByType('form').props.onSubmit({preventDefault(){}});await flush();});
+    assert.match(calls.at(-1).path,/buscar=Cliente/);
+    const before=calls.length;
+    await act(async()=>{root.findByProps({'data-cobranza':11}).props.onClick();await flush();});
+    assert.equal(root.findAllByProps({'data-cobranza':11}).length,0);
+    assert.equal(calls.length,before+2);
+    assert.ok(calls.slice(before).some(c=>c.path.endsWith('/11/pagos/?page=1')));
+    assert.ok(calls.slice(before).every(c=>!c.path.includes('historial')));
+    assert.match(text(ui.renderer.toJSON()),/Folio 0011/);
+    assert.doesNotMatch(text(ui.renderer.toJSON()),/Registrar pago|Anular pago|Revertir documento/);
     await click(root,'Historial del documento');
-    assert.equal(root.findByProps({id:'finance-11-payments'}).props.hidden,true);
-    assert.equal(root.findByProps({id:'finance-11-history'}).props.hidden,false);
-    await click(root,'Volver a documentos');
-    assert.equal(root.findAllByProps({'aria-label':'Documentos financieros incluidos históricos'}).length,1);
+    assert.match(calls.at(-1).path,/\/11\/historial\//);
+    assert.equal(root.findAllByProps({'aria-label':'Paginación de historial'}).length,0);
+    await click(root,'Volver al listado');
+    assert.equal(root.findByProps({id:'cob-buscar'}).props.value,'Cliente');
+    assert.equal(root.findAllByProps({'data-cobranza':11}).length,1);
+    assert.ok(calls.every(c=>c.method==='GET'));
+    fail=true;
+    await act(async()=>{root.findByProps({'aria-label':'Actualizar datos'}).props.onClick();await flush();});
+    assert.doesNotMatch(text(ui.renderer.toJSON()),/\$100|\$75|25%/);
+    assert.match(text(ui.renderer.toJSON()),/Fallo de lectura/);
   }finally{await ui.close();}
 });
 

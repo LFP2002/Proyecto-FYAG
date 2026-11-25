@@ -5,6 +5,8 @@ from .views_documentos import DocumentoViewSet, ObrasElegiblesView, RegistrarSin
 from .views_pagos import PagosListaView, PagoDetalleView, PagoAnularView, PagosHistorialView, CobranzasView, CobranzasResumenView
 from .views_egresos import EgresosListaView, EgresoDetalleView, EgresoAnularView, EgresoHistorialView, FlujoDineroResumenView
 
+from .views_supervision import SupervisionCobranzasView
+
 router = SimpleRouter()
 router.register("documentos", DocumentoViewSet, basename="documento-financiero")
 urlpatterns = [
@@ -17,6 +19,7 @@ urlpatterns = [
     path("documentos/<str:documento_id>/pagos/historial/", PagosHistorialView.as_view(), name="historial-pagos-documento"),
     path("documentos/<str:documento_id>/pagos/<str:pago_id>/anular/", PagoAnularView.as_view(), name="anular-pago-documento"),
     path("documentos/<str:documento_id>/pagos/<str:pago_id>/", PagoDetalleView.as_view(), name="detalle-pago-documento"),
+    path("cobranzas/supervision-gerencial/", SupervisionCobranzasView.as_view(), name="supervision-cobranzas"),
     path("cobranzas/resumen/", CobranzasResumenView.as_view(), name="resumen-cobranzas"),
     path("cobranzas/", CobranzasView.as_view(), name="cobranzas"),
     path("obras-elegibles/", ObrasElegiblesView.as_view(), name="obras-elegibles-finanzas"),
