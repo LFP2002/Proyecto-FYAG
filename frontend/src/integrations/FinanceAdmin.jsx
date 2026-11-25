@@ -80,6 +80,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       });
     } finally { pending.current = false; }
   }
+  if(selected)return <FinanceDocument document={selected} onClose={()=>setSelected(null)} onChanged={refreshAffected} onMutationStart={invalidate} onBlockedChange={setChildBlocked} />;
   return <section className="card-fyag p-3 my-3" aria-label="Administración de documentos financieros">
     <div className="d-flex flex-wrap justify-content-between gap-2"><h3>Documentos y pagos informados</h3><div className="d-flex gap-2">
       <button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading || api.busy || childBlocked} onClick={()=>{setMessage('');void refreshAffected().catch(api.setError);}}>Actualizar documentos y estado</button>
@@ -120,7 +121,6 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
     </form>}
     <div className="table-responsive" role="region" aria-label="Documentos financieros incluidos históricos" tabIndex={0}><table className="table table-hover commercial-table"><thead><tr>{['Folio externo','Obra','Fecha emisión','Vencimiento','Total CLP','Estado','Detalle / pagos'].map((label)=><th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>{data?.results.map((doc)=><tr key={doc.id}><td>{doc.folio_externo}</td><td>#{doc.origen.obra}</td><td>{formatCivilDate(doc.fecha_emision)}</td><td>{formatCivilDate(doc.fecha_vencimiento)}</td><td className="num">{formatCompactCLP(doc.monto_total)}</td><td><span className="cobranzas-estado" data-estado={doc.estado}>{doc.estado}</span></td><td><button className="btn btn-outline-secondary btn-sm" type="button" disabled={blocked} onClick={()=>{setSelected(doc);setCreate(false);}}>Consultar / administrar</button></td></tr>)}</tbody></table></div>
     {data && !data.count && <p>No hay documentos financieros registrados.</p>}
-    {data && <nav className="commercial-pager" aria-label="Paginación de documentos"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!data.previous} onClick={()=>setPage(safePage(data.previous,DOCUMENTS))}>Anterior</button><span>Página {page} · {data.count} documentos</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!data.next} onClick={()=>setPage(safePage(data.next,DOCUMENTS))}>Siguiente</button></nav>}
-    {selected && <FinanceDocument document={selected} onClose={()=>setSelected(null)} onChanged={refreshAffected} onMutationStart={invalidate} onBlockedChange={setChildBlocked} />}
+    {data && (data.previous||data.next) && <nav className="commercial-pager" aria-label="Paginación de documentos"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!data.previous} onClick={()=>setPage(safePage(data.previous,DOCUMENTS))}>Anterior</button><span>Página {page} · {data.count} documentos</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!data.next} onClick={()=>setPage(safePage(data.next,DOCUMENTS))}>Siguiente</button></nav>}
   </section>;
 }

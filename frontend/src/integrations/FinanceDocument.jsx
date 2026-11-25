@@ -5,8 +5,14 @@ import { safePage, useApi } from './useApi.js';
 import { financialDocument, financialEvent, financialPage, financialPayment } from './finance.js';
 import { isoDate, todayInSantiago } from './dates.js';
 import Adjuntos from './Adjuntos.jsx';
+import { formatCompactCLP, formatCivilDate } from '../utils/format.js';
 
 const confirm = (text) => (globalThis.confirm || globalThis.window?.confirm)?.(text) === true;
+const EVENT_LABELS = { DOCUMENTO_REGISTRADO:'Documento registrado', DOCUMENTO_REVERTIDO:'Documento revertido', PAGO_REGISTRADO:'Pago registrado', PAGO_ANULADO:'Pago anulado' };
+const formatTimestamp = value => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',dateStyle:'medium',timeStyle:'short'}).format(date);
+};
 const EMPTY = { monto:'',fecha_pago:'',medio:'TRANSFERENCIA',referencia_respaldo:'',observacion:'' };
 export default function FinanceDocument(props) {
   const { user } = useAuth();
@@ -17,7 +23,9 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
   const { user } = useAuth(), api = useApi();
   const [detail,setDetail] = useState(null), [payments,setPayments] = useState(null), [docEvents,setDocEvents] = useState(null), [payEvents,setPayEvents] = useState(null);
   const [paymentPage,setPaymentPage] = useState(1), [docPage,setDocPage] = useState(1), [historyPage,setHistoryPage] = useState(1);
+  const [activeTab,setActiveTab] = useState(doc.estado==='REVERTIDO'?'history':'payments');
   const [showAttachments,setShowAttachments] = useState(false);
+  function openTab(tab){setActiveTab(tab);if(tab==='files')setShowAttachments(true);}
   const [form,setForm] = useState(EMPTY), [reason,setReason] = useState(''), [reference,setReference] = useState('');
   const [message,setMessage] = useState(''), [intent,setIntent] = useState(null), [pending,setPending] = useState(false);
   const intention = useRef(null), submitting = useRef(false);
@@ -83,11 +91,13 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
   const justification = () => {
     if(!reason.trim()||!reference.trim()){setMessage('Motivo y referencia externa son obligatorios.');return false;}return true;
   };
-  return <section className="card-fyag p-3 my-3" aria-label={`Administración del documento ${doc.id}`}>
-    <div className="d-flex flex-wrap justify-content-between gap-2"><h3>Documento externo #{doc.id} · folio {doc.folio_externo}</h3>
-      <button className="btn btn-outline-secondary btn-sm" type="button" disabled={pending||api.locked||!!intent} onClick={onClose}>Cerrar detalle</button>
+  return <section className="finance-detail" aria-label={`Administración del documento ${doc.id}`}>
+    <div className="finance-detail-toolbar">
+      <button className="btn btn-outline-secondary btn-sm" type="button" disabled={pending||api.locked||!!intent} onClick={onClose}><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="bi bi-arrow-left" aria-hidden="true"><path fillRule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.647-3.646a.5.5 0 1 0-.708-.708l-4.5 4.5a.5.5 0 0 0 0 .708l4.5 4.5a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"/></svg>Volver a documentos</button>
       <button className="btn btn-outline-secondary btn-sm" type="button" disabled={pending||api.loading} onClick={()=>{setMessage('');void afterWrite().catch(api.setError);}}>Actualizar detalle financiero</button>
     </div>
+    <div className="finance-detail-title"><h2>Documento #{doc.id}</h2>{detail&&<span className="cobranzas-estado" data-estado={detail.estado}>{detail.estado==='REVERTIDO'?'Revertido':'Vigente'}</span>}</div>
+    <p className="finance-detail-sub">Folio {doc.folio_externo} · Obra #{doc.origen.obra}</p>
     {api.error&&<p className="alert alert-warning" role="alert">{api.error.status===409?'Conflicto financiero: reconsulta antes de decidir; no se repitió la operación.':api.error.status===403?'Operación financiera no autorizada.':api.error.message}</p>}
     {api.locked&&<p role="alert">Falta confirmar el resultado. No se habilitan nuevas escrituras; los pagos solo admiten un reintento explícito de la misma intención.</p>}
     {message&&<p className="alert alert-info" role="status">{message}</p>}
@@ -95,32 +105,64 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
       <button type="button" className="btn btn-outline-secondary" disabled={pending||api.loading} onClick={()=>void retryPayment()}>Reintentar misma intención de pago</button>
       {!api.locked&&[400,403,404,405,422].includes(api.error?.status)&&<button type="button" className="btn btn-outline-secondary" disabled={pending} onClick={()=>{intention.current=null;setIntent(null);api.setError(null);setMessage('Intención rechazada descartada. Corrige el contenido antes de un nuevo registro explícito.');}}>Nueva intención tras rechazo</button>}
     </div>}
-    {detail&&<dl className="commercial-facts"><div><dt>Estado</dt><dd>{detail.estado}</dd></div><div><dt>Total documento externo</dt><dd>{detail.monto_total} CLP</dd></div><div><dt>Registrado</dt><dd>{detail.registrado_en}</dd></div><div><dt>Saldo / estado</dt><dd>{detail.cobranza?.saldo??'No aplica'} · {detail.cobranza?.estado??'—'}</dd></div></dl>}
-    {detail&&<section aria-label="Respaldos documentales del documento financiero" className="my-3">
-      <button type="button" className="btn btn-outline-secondary btn-sm" disabled={pending||api.busy} onClick={()=>setShowAttachments((visible)=>!visible)}>{showAttachments?'Ocultar respaldos documentales':'Consultar respaldos documentales'}</button>
-      {showAttachments&&<>
-        {detail.estado==='REVERTIDO'&&<p className="commercial-help">Documento revertido: sus respaldos permanecen disponibles para consulta histórica, sin nuevas cargas ni edición de anotaciones.</p>}
-        <Adjuntos type="RESPALDO_FACTURA" destinationId={doc.id} canUpload={writable&&detail.estado==='VIGENTE'&&!blocked} readOnly={detail.estado==='REVERTIDO'}/>
-      </>}
-    </section>}
+    {detail&&<dl className="finance-summary card-fyag">
+      <div><dt>Total del documento</dt><dd className="finance-amount">{formatCompactCLP(detail.monto_total)}</dd><small>CLP</small></div>
+      <div><dt>Saldo pendiente</dt><dd className="finance-amount">{detail.cobranza?formatCompactCLP(detail.cobranza.saldo):'—'}</dd><small>{detail.cobranza?.estado??'No aplica'}</small></div>
+      <div><dt>Emisión</dt><dd>{formatCivilDate(detail.fecha_emision)}</dd><dt>Vencimiento</dt><dd>{formatCivilDate(detail.fecha_vencimiento)}</dd></div>
+      <div><dt>Registrado</dt><dd><time dateTime={detail.registrado_en} title={detail.registrado_en}>{formatTimestamp(detail.registrado_en)}</time></dd></div>
+    </dl>}
+    <div className="cobranzas-tabs finance-tabs" role="group" aria-label="Secciones del documento">
+      {[['payments','Pagos'],['history','Historial del documento'],['payhistory','Historial de pagos'],['files','Respaldos']].map(([id,label])=><button key={id} type="button" aria-pressed={activeTab===id} aria-controls={`finance-${doc.id}-${id}`} onClick={()=>openTab(id)}>{label}</button>)}
+    </div>
+    <div id={`finance-${doc.id}-payments`} className="finance-tab-content card-fyag" hidden={activeTab!=='payments'}>
     {writable&&detail?.estado==='VIGENTE'&&<form className="commercial-form" onSubmit={submitPayment} aria-label="Registro de pago informado"><h4>Registrar pago real informado externamente</h4><p>No transfiere dinero. Una intención conserva exactamente su clave y contenido hasta confirmar sus relecturas.</p>
       <div className="obras-form-grid">{[['monto','Monto decimal'],['fecha_pago','Fecha de pago'],['referencia_respaldo','Referencia externa del pago'],['observacion','Observación del pago']].map(([key,label])=><label className="form-label" key={key}>{label}<input className="form-control" type={key==='fecha_pago'?'date':'text'} value={form[key]} disabled={blocked} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}
       <label className="form-label">Medio<select className="form-select" value={form.medio} disabled={blocked} onChange={(e)=>setForm({...form,medio:e.target.value})}>{['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].map((value)=><option key={value}>{value}</option>)}</select></label></div>
       <button className="btn btn-fyag-primary mt-2" disabled={blocked}>Registrar pago informado</button>
     </form>}
-    <section aria-label="Lista de pagos"><h4 className="mt-3">Pagos del documento</h4>{payments&&<ul>{payments.results.map((payment)=><li key={payment.id}>Pago #{payment.id}: {payment.monto} CLP · {payment.fecha_pago} · {payment.medio} · {payment.activo?'Activo':'Anulado'}
+    <section aria-label="Lista de pagos"><h4>Pagos del documento</h4>
+      {payments&&!payments.count&&<div className="finance-empty"><strong>No hay pagos registrados</strong><span>Este documento no tiene pagos informados.</span></div>}
+      {payments&&!!payments.count&&<ul className="finance-payments">{payments.results.map((payment)=><li key={payment.id}><div><strong>{formatCompactCLP(payment.monto)}</strong><span>Pago #{payment.id} · {formatCivilDate(payment.fecha_pago)} · {payment.medio}</span></div><span className="cobranzas-estado" data-estado={payment.activo?'PAGADA':'REVERTIDO'}>{payment.activo?'Activo':'Anulado'}</span>
       {writable&&payment.activo&&<button type="button" className="btn btn-outline-danger btn-sm ms-2" disabled={blocked} onClick={()=>{if(justification()&&confirm(`¿Anular el registro de pago #${payment.id}? No se genera un reembolso.`))void mutate(`${paymentsBase}${payment.id}/anular/`,{motivo:reason.trim(),referencia_reversion_externa:reference.trim()});}}>Anular pago #{payment.id}</button>}
     </li>)}</ul>}<FinancialPager data={payments} path={paymentsBase} page={paymentPage} onPage={setPaymentPage} disabled={pending||api.loading} label="Paginación de pagos" /></section>
-    <EventHistory title="Historial del documento" data={docEvents} path={docHistory} page={docPage} onPage={setDocPage} disabled={pending||api.loading}/>
-    <EventHistory title="Historial de pagos" data={payEvents} path={payHistory} page={historyPage} onPage={setHistoryPage} disabled={pending||api.loading}/>
-    {writable&&<div className="commercial-form mt-3"><label className="form-label">Motivo de reversión o anulación<input className="form-control" maxLength={2000} value={reason} disabled={blocked} onChange={(e)=>setReason(e.target.value)}/></label><label className="form-label">Referencia externa de rectificación o reversión<input className="form-control" maxLength={500} value={reference} disabled={blocked} onChange={(e)=>setReference(e.target.value)}/></label>
+
+    {writable&&<div className="commercial-form finance-correction"><h4>Reversión y anulación</h4><label className="form-label">Motivo de reversión o anulación<input className="form-control" maxLength={2000} value={reason} disabled={blocked} onChange={(e)=>setReason(e.target.value)}/></label><label className="form-label">Referencia externa de rectificación o reversión<input className="form-control" maxLength={500} value={reference} disabled={blocked} onChange={(e)=>setReference(e.target.value)}/></label>
       {detail?.estado==='VIGENTE'&&<button type="button" className="btn btn-outline-danger mt-2" disabled={blocked} onClick={()=>{if(justification()&&confirm(`¿Revertir administrativamente el documento externo #${doc.id}? Resuelve primero los pagos activos.`))void mutate(`${base}revertir/`,{motivo:reason.trim(),referencia_rectificacion_externa:reference.trim()});}}>Revertir documento externo</button>}
     </div>}
+    </div>
+    <div id={`finance-${doc.id}-history`} className="finance-tab-content card-fyag" hidden={activeTab!=='history'}>
+      <EventHistory title="Historial del documento" data={docEvents} path={docHistory} page={docPage} onPage={setDocPage} disabled={pending||api.loading}/>
+    </div>
+    <div id={`finance-${doc.id}-payhistory`} className="finance-tab-content card-fyag" hidden={activeTab!=='payhistory'}>
+      <EventHistory title="Historial de pagos" data={payEvents} path={payHistory} page={historyPage} onPage={setHistoryPage} disabled={pending||api.loading}/>
+    </div>
+    <div id={`finance-${doc.id}-files`} className="finance-tab-content card-fyag" hidden={activeTab!=='files'}>
+      <section aria-label="Respaldos documentales del documento financiero"><h4>Respaldos documentales</h4>
+        {detail&&showAttachments&&<>
+          {detail.estado==='REVERTIDO'&&<p className="commercial-help">Documento revertido: sus respaldos permanecen disponibles para consulta histórica, sin nuevas cargas ni edición de anotaciones.</p>}
+          <Adjuntos type="RESPALDO_FACTURA" destinationId={doc.id} canUpload={writable&&detail.estado==='VIGENTE'&&!blocked} readOnly={detail.estado==='REVERTIDO'}/>
+        </>}
+      </section>
+    </div>
   </section>;
 }
 function FinancialPager({data,path,page,onPage,disabled,label}) {
+  if(data&&!data.previous&&!data.next)return null;
+  if(!data)return null;
   return <nav className="commercial-pager" aria-label={label}><button type="button" className="btn btn-outline-secondary btn-sm" disabled={disabled||!data?.previous} onClick={()=>onPage(safePage(data.previous,path))}>Anterior</button><span>Página {page}{data?` · ${data.count} registros`:' · lectura no confirmada'}</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={disabled||!data?.next} onClick={()=>onPage(safePage(data.next,path))}>Siguiente</button></nav>;
 }
 function EventHistory({title,data,...pager}) {
-  return <section aria-label={title}><h4>{title}</h4><p>Se muestra únicamente la página indicada, no el historial completo.</p><ol>{data?.results.map((event)=><li key={event.id}>{event.tipo} · {event.creado_en} · actor #{event.actor} · {event.motivo||'Sin motivo'}</li>)}</ol><FinancialPager {...pager} data={data} label={`Paginación: ${title}`}/></section>;
+  const events=data?[...data.results].sort((a,b)=>Date.parse(b.creado_en)-Date.parse(a.creado_en)||b.id-a.id):[];
+  return <section aria-label={title}>
+    <div className="finance-history-head"><h4>{title==='Historial del documento'?'Actividad del documento':title}</h4>{data&&<span>{data.count} registros</span>}</div>
+    {!data&&<p className="commercial-help">Lectura no confirmada.</p>}
+    {data&&!data.count&&<div className="finance-empty"><strong>{title==='Historial de pagos'?'Sin historial de pagos':'Sin actividad registrada'}</strong><span>No existen movimientos registrados.</span></div>}
+    {!!events.length&&<ol className="finance-timeline">{events.map(event=><li key={event.id} data-type={event.tipo}>
+      <strong>{EVENT_LABELS[event.tipo]||event.tipo.replaceAll('_',' ')}</strong>
+      <div className="finance-event-meta"><time dateTime={event.creado_en} title={event.creado_en}>{formatTimestamp(event.creado_en)}</time> · Usuario #{event.actor}</div>
+      {event.motivo&&<div className="finance-event-reason"><strong>Motivo</strong><p>{event.motivo}</p></div>}
+    </li>)}</ol>}
+    {data&&(data.previous||data.next)&&<p className="commercial-help">Se muestran los registros de esta página.</p>}
+    <FinancialPager {...pager} data={data} label={`Paginación: ${title}`}/>
+  </section>;
 }

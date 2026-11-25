@@ -118,9 +118,9 @@ test('Sin cobro confirmado con relectura fallida conserva motivo y no habilita o
 test('Documento: tres paginaciones independientes y reset completo al cambiar de documento',async()=>{
   const backend=financeBackend();backend.payments=Array.from({length:26},(_,i)=>payment(i+1));const ui=await mount(FinanceDocument,backend.request,'GERENCIA',{document:doc(),onClose(){}});
   try{
-    const root=ui.renderer.root;for(const label of ['Paginación de pagos','Paginación: Historial del documento','Paginación: Historial de pagos'])await click(root.findByProps({'aria-label':label}),'Siguiente');
+    const root=ui.renderer.root;for(const [tab,label] of [['Pagos','Paginación de pagos'],['Historial del documento','Paginación: Historial del documento'],['Historial de pagos','Paginación: Historial de pagos']]){await click(root,tab);await click(root.findByProps({'aria-label':label}),'Siguiente');}
     for(const suffix of ['pagos/','historial/','pagos/historial/'])assert.ok(backend.calls.some((c)=>c.path===`/api/finanzas/documentos/11/${suffix}?page=2`));
-    await click(root.findByProps({'aria-label':'Paginación de pagos'}),'Anterior');assert.match(text(root.findByProps({'aria-label':'Paginación: Historial del documento'})),/Página 2/);
+    await click(root,'Pagos');await click(root.findByProps({'aria-label':'Paginación de pagos'}),'Anterior');assert.match(text(root.findByProps({'aria-label':'Paginación: Historial del documento'})),/Página 2/);
     await ui.update({document:doc(12),onClose(){}});assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/documentos/12/pagos/?page=1'));assert.match(text(root.findByProps({'aria-label':'Paginación: Historial del documento'})),/Página 1/);
   }finally{await ui.close();}
 });
@@ -169,7 +169,7 @@ test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin
     try{
       const root=ui.renderer.root;
       assert.equal(calls.length,0,'la sección debe cargar solo al abrirse');
-      await click(root,'Consultar respaldos documentales');
+      await click(root,'Respaldos');
       assert.ok(calls.some((c)=>c.path==='/api/adjuntos/documentos-cobro/11/?page=1'));
       assert.match(text(ui.renderer.toJSON()),/factura-historica\.pdf/);
       assert.equal(root.findAllByType('button').some((b)=>text(b)==='Subir archivo'),false);
@@ -178,8 +178,8 @@ test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin
       assert.match(text(ui.renderer.toJSON()),/Consulta de solo lectura/);
       assert.equal(root.findAllByType('button').some((b)=>text(b)==='Guardar anotaciones'),false);
       assert.equal(calls.filter((c)=>['POST','PATCH'].includes(c.method)).length,0);
-      await click(root,'Ocultar respaldos documentales');
-      assert.equal(root.findAllByProps({'aria-label':'Adjuntos de factura externa'}).length,0);
+      await click(root,'Historial del documento');
+      assert.equal(root.findByProps({id:'finance-11-files'}).props.hidden,true);
     }finally{await ui.close();}
   }
 });
@@ -194,7 +194,7 @@ test('Factura vigente: Finanzas puede subir respaldos y Gerencia solo consultarl
     };
     const ui=await mount(FinanceDocument,request,role,{document:doc(),onClose(){}});
     try{
-      await click(ui.renderer.root,'Consultar respaldos documentales');
+      await click(ui.renderer.root,'Respaldos');
       assert.equal(calls.length,1);
       assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Subir archivo'),role==='ADMINISTRATIVO_FINANZAS');
       assert.equal(ui.renderer.root.findAllByProps({type:'file'}).length,role==='ADMINISTRATIVO_FINANZAS'?1:0);
@@ -268,5 +268,21 @@ test('Cobranzas: pestañas conservan consultas y filtros solo se aplican al conf
     assert.equal(control(root,'ID de cliente').props.value,'');
     await submit(root,'Filtros de cobranzas');
     assert.equal(root.findByProps({id:'cobranzas-filtros'}).props.hidden,true);
+  }finally{await ui.close();}
+});
+
+test('Detalle financiero reemplaza el listado y oculta paginaciones sin más páginas',async()=>{
+  const backend=financeBackend();backend.events=[];backend.payEvents=[];
+  const ui=await mount(Cobranzas,backend.request,'GERENCIA');
+  try{
+    const root=ui.renderer.root;await click(root,'Documentos y pagos');await click(root,'Consultar / administrar');
+    assert.equal(root.findAllByProps({'aria-label':'Documentos financieros incluidos históricos'}).length,0);
+    assert.equal(root.findAllByProps({'aria-label':'Paginación de pagos'}).length,0);
+    assert.equal(root.findByProps({id:'finance-11-payments'}).props.hidden,false);
+    await click(root,'Historial del documento');
+    assert.equal(root.findByProps({id:'finance-11-payments'}).props.hidden,true);
+    assert.equal(root.findByProps({id:'finance-11-history'}).props.hidden,false);
+    await click(root,'Volver a documentos');
+    assert.equal(root.findAllByProps({'aria-label':'Documentos financieros incluidos históricos'}).length,1);
   }finally{await ui.close();}
 });
