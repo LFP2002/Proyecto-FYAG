@@ -306,7 +306,24 @@ test('cambio de usuario/rol y logout desmontan Comercial y abortan respuestas ta
 test('presentación Comercial: controles Bootstrap, estados con texto, tablas accesibles y acciones diferenciadas', async () => {
   const b = fakeBackend();
   const checkButtons = (renderer) => {
-    for (const button of renderer.root.findAllByType('button')) assert.match(button.props.className, /\bbtn\b/);
+    // Las pestañas del detalle usan estilos propios, no botones Bootstrap.
+    const groups = renderer.root.findAllByProps({ className: 'budget-tabs' });
+    const tabs = groups.flatMap(group => group.findAllByType('button'));
+    for (const button of renderer.root.findAllByType('button')) {
+      if (!tabs.includes(button)) assert.match(button.props.className, /\bbtn\b/, text(button));
+    }
+    for (const group of groups) {
+      assert.equal(group.props.role, 'group');
+      assert.equal(group.props['aria-label'], 'Secciones del presupuesto');
+      const buttons = group.findAllByType('button');
+      assert.deepEqual(buttons.map(button => button.props['aria-controls']), ['budget-items', 'budget-history']);
+      assert.equal(buttons.filter(button => button.props['aria-pressed'] === true).length, 1);
+      for (const button of buttons) {
+        assert.equal(button.props.type, 'button');
+        assert.equal(typeof button.props['aria-pressed'], 'boolean');
+        assert.equal(renderer.root.findByProps({ id: button.props['aria-controls'] }).props.hidden, !button.props['aria-pressed']);
+      }
+    }
   };
   let renderer = await mount(Clientes, b.request);
   try {
