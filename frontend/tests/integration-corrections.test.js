@@ -232,9 +232,9 @@ for(const status of [403,404,413,422,503])test(`Adjuntos: carga rechazada/incier
   }finally{await ui.close();}
 });
 const evidence=(id=1,obra=7,revision=0)=>({evidencia_id:id,obra_id:obra,turno_id:2,tipo_mime:'image/png',tamano_bytes:20,creado_en:'2026-11-17T12:00:00Z',sincronizado_en:'2026-11-17T12:00:00Z',descripcion:'Estado inicial',etiquetas:['historico'],atributos:{zona_tecnica:'Sala'},revision});
-test('012A: roles G/S editan con CAS, conflicto bloquea y cambio de Obra invalida selección',async()=>{
+test('012A: Supervisor edita con CAS, conflicto bloquea y cambio de Obra invalida selección',async()=>{
   let revision=0,conflict=true;const calls=[];const request=async(path,opts={})=>{calls.push({path,...opts});if(path.startsWith('/api/documentos-metadata/?')){const obra=Number(new URL(path,'http://localhost').searchParams.get('obra'));return {count:1,next:null,previous:null,results:[evidence(1,obra,revision)],proyeccion:'EVENTUAL',fuente_autoritativa:'POSTGRESQL'};}if(opts.method==='PATCH'){if(conflict)throw new ApiError(409,'CAS obsoleto');revision+=1;}return evidence(1,7,revision);};
-  const ui=await mount(EvidenceMetadata,request,'GERENCIA',{obraId:7});
+  const ui=await mount(EvidenceMetadata,request,'SUPERVISOR_OBRAS',{obraId:7});
   try{await click(ui.renderer.root,'Editar descripción');await submit(ui.renderer.root,'Anotaciones de evidencia');assert.equal(button(ui.renderer.root,'Guardar anotaciones').props.disabled,true);conflict=false;revision=2;await click(ui.renderer.root,'Reconsultar revisión');await submit(ui.renderer.root,'Anotaciones de evidencia');assert.equal(calls.filter((c)=>c.method==='PATCH').at(-1).body.revision,2);assert.deepEqual(calls.filter((c)=>c.method==='PATCH').at(-1).body.etiquetas,['historico']);assert.deepEqual(calls.filter((c)=>c.method==='PATCH').at(-1).body.atributos,{zona_tecnica:'Sala'});assert.equal(ui.renderer.root.findAllByType('textarea').length,1);assert.doesNotMatch(text(ui.renderer.toJSON()),/Atributos técnicos JSON|Etiquetas separadas por coma|image\/png/);await ui.update({obraId:8});assert.equal(ui.renderer.root.findAllByType('textarea').length,0);assert.ok(calls.some((c)=>c.path==='/api/documentos-metadata/?obra=8&page=1'));}finally{await ui.close();}
 });
 test('012A: Técnico, AF y TI no consultan metadatos aunque se monte el componente',async()=>{
@@ -304,5 +304,18 @@ test('Adjuntos: información y anotaciones son mutuamente excluyentes y sin pagi
     await click(root,'Anotaciones');
     assert.equal(button(root,'Anotaciones').props['aria-expanded'],false);
     assert.equal(root.findAllByProps({'aria-label':'Anotaciones de adjunto'}).length,0);
+  }finally{await ui.close();}
+});
+
+test('Gerencia consulta evidencias sin acciones de edición',async()=>{
+  const calls=[];const ui=await mount(EvidenceMetadata,async(path,opts={})=>{
+    calls.push({path,method:opts.method||'GET'});
+    return {count:1,next:null,previous:null,results:[evidence()],proyeccion:'EVENTUAL',fuente_autoritativa:'POSTGRESQL'};
+  },'GERENCIA',{obraId:7});
+  try{
+    assert.match(text(ui.renderer.toJSON()),/Estado inicial/);
+    assert.equal(ui.renderer.root.findAllByType('button').some(b=>text(b)==='Editar descripción'),false);
+    assert.equal(ui.renderer.root.findAllByType('textarea').length,0);
+    assert.ok(calls.length>0&&calls.every(c=>c.method==='GET'));
   }finally{await ui.close();}
 });

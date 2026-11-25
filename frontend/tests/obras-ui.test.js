@@ -133,8 +133,8 @@ test('participantes: PK de miembro independiente, reactivación, baja y principa
     await input(renderer, 'miembros_activo', 'true'); assert.ok(b.calls.some((c) => c.path === '/api/obras/1/participantes/?page=1&activo=true'));
   } finally { await unmount(renderer); }
 });
-test('catálogo G: alta, renombre, activación/desactivación con motivo e historial', async () => {
-  const b = obrasBackend(G), renderer = await mount(b);
+test('catálogo S: alta, renombre, activación/desactivación con motivo e historial', async () => {
+  const b = obrasBackend(S), renderer = await mount(b);
   try {
     await click(renderer, 'Categorías de servicio'); await click(renderer, 'Nueva categoría'); await input(renderer, 'nombre', 'Servicio nuevo'); await submit(renderer);
     assert.deepEqual(b.calls.find((c) => c.method === 'POST').body, { nombre: 'Servicio nuevo' });
@@ -149,17 +149,30 @@ test('catálogo G: alta, renombre, activación/desactivación con motivo e histo
     await click(renderer, 'Volver a categorías'); await input(renderer, 'categorias_activo', 'false'); assert.equal(b.calls.at(-1).path, '/api/categorias-servicio/?page=1&activo=false');
   } finally { await unmount(renderer); }
 });
-test('S consulta categorías sin escrituras ni historial de catálogo; G lee participantes sin operar', async () => {
+test('G consulta categorías e historial sin escrituras; S conserva gestión de catálogo', async () => {
   for (const role of [G, S]) {
     const b = obrasBackend(role), renderer = await mount(b);
     try {
-      if (role === S) {
+      if (role === G) {
         await click(renderer, 'Categorías de servicio'); assert.equal(buttons(renderer, 'Nueva categoría').length, 0); await click(renderer, 'Ver categoría');
-        assert.equal(buttons(renderer, 'Renombrar categoría').length, 0); assert.ok(b.calls.every((c) => !c.path.includes('/historial/')));
-      } else {
+        assert.equal(buttons(renderer, 'Renombrar categoría').length, 0);
+        assert.equal(buttons(renderer, 'Activar categoría').length, 0);
+        assert.equal(buttons(renderer, 'Desactivar categoría').length, 0);
+        assert.ok(b.calls.some(c=>c.path.includes('/categorias-servicio/1/historial/')));
+        await click(renderer, 'Volver a categorías'); await click(renderer, 'Volver a obras');
         await click(renderer, 'Ver obra'); await click(renderer, 'Técnicos');
         assert.equal(buttons(renderer, 'Asignar participante').length, 0); assert.equal(buttons(renderer, 'Reactivar').length, 0);
+        assert.ok(renderer.root.findAllByType('th').every(th=>text(th)!=='Acción'));
         await click(renderer, 'Historial'); assert.ok(b.calls.some((c) => c.path.includes('/participantes/historial/')));
+        await click(renderer,'Costos');
+        assert.equal(buttons(renderer,'Guardar declaración de rubro').length,0);
+        assert.equal(renderer.root.findAllByType('select').length,0);
+        assert.match(text(renderer.root.findByProps({'aria-label':'Estado de los rubros'})),/MaterialesPendienteOtros gastosPendiente/);
+        await click(renderer,'Materiales y gastos');
+        assert.ok(renderer.root.findAllByType('th').every(th=>text(th)!=='Acciones'));
+        assert.ok(b.calls.every(c=>c.method==='GET'));
+      } else {
+        await click(renderer,'Categorías de servicio');assert.equal(buttons(renderer,'Nueva categoría').length,1);
       }
     } finally { await unmount(renderer); }
   }

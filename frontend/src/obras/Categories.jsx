@@ -2,19 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Chip } from '../components/ui';
 import { categoryPath, collectionPath, readPage } from './api.js';
-import { canReadTeam, G } from './domain.js';
+import { canReadTeam, S } from './domain.js';
 import { EventList, Feedback, Field, focusError, Pager, RefreshButton, useOperational } from './ui.jsx';
 
 function CategoryDetail({ id, onBack }) {
   const { user } = useAuth(), api = useOperational();
   const [category, setCategory] = useState(null), [history, setHistory] = useState(null), [page, setPage] = useState(1);
   const [form, setForm] = useState(null), [errors, setErrors] = useState({});
-  const base = categoryPath(id), admin = user.role === G;
+  const base = categoryPath(id), admin = user.role === S;
   const read = () => { setCategory(null); return api.load('detail', base, setCategory); };
   const readHistory = () => api.load('history', collectionPath(`${base}historial/`, page), (data) => setHistory(readPage(data, `${base}historial/`)));
   useEffect(() => { void read(); }, [id]);
-  useEffect(() => { if (admin) { setHistory(null); void readHistory(); } }, [id, page]);
-  async function refresh() { const a = await read(); return admin ? (await readHistory()) && a : a; }
+  useEffect(() => { if (canReadTeam(user.role)) { setHistory(null); void readHistory(); } }, [id, page]);
+  async function refresh() { const a = await read(); return canReadTeam(user.role) ? (await readHistory()) && a : a; }
   async function submit(event) {
     event.preventDefault();
     if (!admin || api.busy || api.loading || api.locked) return;
@@ -40,7 +40,7 @@ function CategoryDetail({ id, onBack }) {
         <Field name="motivo" label="Motivo" value={form.motivo} onChange={(motivo) => setForm({ ...form, motivo })} type="textarea" error={errors.motivo} disabled={api.busy} maxLength={2000} />
         <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={blocked}>Guardar categoría</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div>
       </form>}
-      {admin && <><EventList title="Historial de categoría" data={history} /><Pager label="Paginación del historial de categoría" data={history} page={page} setPage={setPage} disabled={blocked || !!form} /></>}
+      {canReadTeam(user.role) && <><EventList title="Historial de categoría" data={history} /><Pager label="Paginación del historial de categoría" data={history} page={page} setPage={setPage} disabled={blocked || !!form} /></>}
     </>}
   </article>;
 }
@@ -52,7 +52,7 @@ export default function Categories({ onBack }) {
   useEffect(() => { setData(null); if (canReadTeam(user.role)) void read(); }, [query]);
   async function create(event) {
     event.preventDefault();
-    if (user.role !== G || api.busy || api.locked) return;
+    if (user.role !== S || api.busy || api.locked) return;
     const invalid = !name.trim() || name.trim().length > 100 ? { nombre: 'Ingresa un nombre de hasta 100 caracteres' } : {};
     setErrors(invalid); focusError(event, invalid); if (Object.keys(invalid).length) return;
     await api.write(categoryPath(), 'POST', { nombre: name.trim() }, async (result) => {
@@ -65,7 +65,7 @@ export default function Categories({ onBack }) {
   if (selected) return <CategoryDetail key={`${user.id}:${user.role}:${selected}`} id={selected} onBack={() => { setSelected(null); void read(); }} />;
   return <section>
     <div className="commercial-section-head"><h2>Categorías de servicio</h2><button className="btn btn-outline-secondary" disabled={api.busy} onClick={onBack}>Volver a obras</button></div>
-    <div className="budget-toolbar">{user.role === G && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { api.setError(null); setErrors({}); setCreating(true); }}>Nueva categoría</button>}
+    <div className="budget-toolbar">{user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { api.setError(null); setErrors({}); setCreating(true); }}>Nueva categoría</button>}
       <Field name="categorias_activo" label="Vigencia" options={[[ '', 'Todas' ], ['true', 'Activas'], ['false', 'Inactivas']]} value={query.activo} onChange={(activo) => setQuery({ page: 1, activo })} disabled={api.busy || creating} />
       <RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(read)} />
     </div>
@@ -75,6 +75,6 @@ export default function Categories({ onBack }) {
       <Pager label="Paginación de categorías" data={data} page={query.page} setPage={(page) => setQuery({ ...query, page })} disabled={blocked || creating} />
       {api.error?.status === 404 && query.page !== 1 && <button className="btn btn-outline-secondary m-3" onClick={() => setQuery({ ...query, page: 1 })}>Volver a la primera página</button>}
     </div>
-    {creating && user.role === G && <form className="card-fyag commercial-form" noValidate onSubmit={create}><h2>Nueva categoría</h2><Field name="nombre" label="Nombre" value={name} onChange={setName} disabled={api.busy} error={errors.nombre} required maxLength={100} /><div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={blocked} type="submit">Crear categoría</button><button className="btn btn-outline-secondary" disabled={api.busy} type="button" onClick={() => setCreating(false)}>Cancelar</button></div></form>}
+    {creating && user.role === S && <form className="card-fyag commercial-form" noValidate onSubmit={create}><h2>Nueva categoría</h2><Field name="nombre" label="Nombre" value={name} onChange={setName} disabled={api.busy} error={errors.nombre} required maxLength={100} /><div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={blocked} type="submit">Crear categoría</button><button className="btn btn-outline-secondary" disabled={api.busy} type="button" onClick={() => setCreating(false)}>Cancelar</button></div></form>}
   </section>;
 }

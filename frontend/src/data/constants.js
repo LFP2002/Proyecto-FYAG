@@ -13,7 +13,7 @@ export const ROLES = {
 };
 
 export const ROLE_NOTE = {
-  GERENCIA: 'Consulta operativa de Obras y administración de categorías.',
+  GERENCIA: 'Consulta y supervisión de obras.',
   ADMINISTRATIVO_FINANZAS: 'Gestión comercial, cobranzas, egresos y costos de adquisición.',
   SUPERVISOR_OBRAS: 'Gestión operativa de Obras, presupuestos propios y técnicos participantes.',
   ADMINISTRADOR_TI: 'Administración de cuentas y auditoría de usuarios, sin acceso de negocio.',

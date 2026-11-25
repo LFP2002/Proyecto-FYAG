@@ -132,13 +132,13 @@ export function obrasBackend(role = S) {
       const match = route.match(/^\/api\/categorias-servicio\/(\d+)\/(.*)$/);
       if (!match) {
         if (method === 'GET') return paginate(backend.categories.filter((c) => !url.searchParams.has('activo') || String(c.activo) === url.searchParams.get('activo')), url);
-        assertRole([G]); const category = { id: Math.max(...backend.categories.map((c) => c.id)) + 1, nombre: body.nombre, activo: true }; backend.categories.push(category); return clone(category);
+        assertRole([S]); const category = { id: Math.max(...backend.categories.map((c) => c.id)) + 1, nombre: body.nombre, activo: true }; backend.categories.push(category); return clone(category);
       }
       const category = backend.categories.find((c) => c.id === Number(match[1]));
       if (!category) throw new ApiError(404, 'Categoría no disponible.');
       if (method === 'GET' && !match[2]) return clone(category);
-      assertRole([G]);
-      if (match[2] === 'historial/') return paginate(backend.categoryEvents, url);
+      if (match[2] === 'historial/' && method === 'GET') return paginate(backend.categoryEvents, url);
+      assertRole([S]);
       if (method === 'PATCH') category.nombre = body.nombre;
       if (match[2] === 'activar/') category.activo = true;
       if (match[2] === 'desactivar/') category.activo = false;
