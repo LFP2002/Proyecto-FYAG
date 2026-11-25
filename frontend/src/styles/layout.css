@@ -51,10 +51,14 @@
   .fyag-content { padding: 16px 12px 64px; }
 }
 
-.fyag-font-controls { display:inline-flex; align-items:center; gap:4px; flex:none; border:1px solid #5a7a9c; border-radius:8px; padding:2px; }
-.fyag-font-controls button { background:transparent; color:#fff; border:0; border-radius:5px; padding:5px 8px; min-height:36px; font-weight:700; line-height:1.25; }
-.fyag-font-controls button:hover:not(:disabled) { background:#1f4064; }
-.fyag-font-controls button:disabled { opacity:.45; }
-.fyag-font-controls output { min-width:3.2em; text-align:center; font-size:.75rem; }
+.fyag-font-picker { position:relative; flex:none; }
+.fyag-font-trigger { display:inline-flex; align-items:center; justify-content:center; width:44px; min-height:44px; background:transparent; color:#fff; border:0; border-radius:8px; padding:8px; }
+.fyag-font-trigger:hover,.fyag-font-trigger[aria-expanded=true] { background:#1f4064; }
+.fyag-font-options { position:absolute; inset-inline-end:0; top:calc(100% + 8px); z-index:1050; width:11rem; max-width:calc(100vw - 24px); background:#fff; color:var(--fyag-text); border:1px solid var(--fyag-line); border-radius:10px; box-shadow:0 5px 22px #14202e26; padding:6px; }
+.fyag-font-heading { padding:8px 10px; font-size:.75rem; color:var(--fyag-muted); font-weight:600; }
+.fyag-font-option { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:40px; border:0; border-radius:6px; padding:8px 10px; background:transparent; color:var(--fyag-primary); font:inherit; text-align:left; }
+.fyag-font-option:hover,.fyag-font-option[aria-pressed=true] { background:#e2edf8; }
+.fyag-font-option svg { flex:none; }
+@media(max-width:880px) { .fyag-font-options { inset-inline-start:0; inset-inline-end:auto; } }
 .fyag-top .top-right > span { overflow-wrap:anywhere; }
 .fyag-side .navbtn span { min-width:0; overflow-wrap:anywhere; }

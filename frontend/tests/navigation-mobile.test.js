@@ -86,18 +86,26 @@ test('tamaño global: cuatro aumentos, reducción y persistencia local', async()
   const control=(label)=>view.root.findByProps({'aria-label':label});
   try{
     view=await mount();
-    assert.equal(control('Reducir tamaño de letra').props.disabled,true);
-    for(const [index,percent] of [112.5,125,137.5,150].entries()){
-      await act(async()=>control('Aumentar tamaño de letra').props.onClick());
-      assert.equal(textContent(control('Tamaño actual')),percent+'%');
-      assert.equal(attrs.get('data-fyag-font-level'),String(index+1));
-    }
-    assert.equal(control('Aumentar tamaño de letra').props.disabled,true);
-    await act(async()=>control('Reducir tamaño de letra').props.onClick());
+    assert.equal(control('Tamaño de letra').props['aria-expanded'],false);
+    const choose=async number=>{
+      await act(async()=>control('Tamaño de letra').props.onClick());
+      assert.equal(control('Tamaño de letra').props['aria-expanded'],true);
+      assert.equal(view.root.findAllByType('button').filter(b=>/^Tamaño [1-5]$/.test(textContent(b))).length,5);
+      await act(async()=>btn(view,'Tamaño '+number).props.onClick());
+      assert.equal(control('Tamaño de letra').props['aria-expanded'],false);
+      assert.equal(attrs.get('data-fyag-font-level'),String(number-1));
+    };
+    for(const number of [2,3,4,5,1,4])await choose(number);
     assert.equal(values.get('fyag.font-level'),'3');
     await act(async()=>view.unmount());view=null;
     assert.equal(attrs.has('data-fyag-font-level'),false);
-    view=await mount();assert.equal(textContent(control('Tamaño actual')),'137.5%');
+    view=await mount();
+    await act(async()=>control('Tamaño de letra').props.onClick());
+    assert.equal(btn(view,'Tamaño 4').props['aria-pressed'],true);
+    assert.equal(btn(view,'Tamaño 1').props['aria-pressed'],false);
+    const picker=view.root.findByProps({className:'fyag-font-picker'});
+    await act(async()=>picker.props.onKeyDown({key:'Escape',preventDefault(){}}));
+    assert.equal(control('Tamaño de letra').props['aria-expanded'],false);
   }finally{
     if(view)await act(async()=>view.unmount());
     if(oldStorage)Object.defineProperty(globalThis,'localStorage',oldStorage);else delete globalThis.localStorage;

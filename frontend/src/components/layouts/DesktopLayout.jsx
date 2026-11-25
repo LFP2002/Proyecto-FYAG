@@ -14,7 +14,7 @@ export default function DesktopLayout({ children }) {
     try{globalThis.localStorage?.setItem(FONT_KEY,String(fontLevel));}catch{/* preferencia opcional */}
     return ()=>root?.removeAttribute('data-fyag-font-level');
   },[fontLevel]);
-  const adjustFont=delta=>setFontLevel(level=>Math.min(FONT_LEVELS.length-1,Math.max(0,level+delta)));
+  const selectFont=level=>{if(Number.isInteger(level)&&level>=0&&level<FONT_LEVELS.length)setFontLevel(level);};
   const menuButtonRef = useRef(null);
   const mainRef = useRef(null);
 
@@ -30,7 +30,7 @@ export default function DesktopLayout({ children }) {
 
   return (
     <>
-      <TopBar menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} menuButtonRef={menuButtonRef} fontLevel={fontLevel} fontPercent={FONT_LEVELS[fontLevel]} maxFontLevel={FONT_LEVELS.length-1} onAdjustFont={adjustFont} />
+      <TopBar menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} menuButtonRef={menuButtonRef} fontLevel={fontLevel} fontCount={FONT_LEVELS.length} onSelectFont={selectFont} />
       <div className="fyag-body">
         <SideNav mobileOpen={menuOpen} onNavigate={closeOnNavigate} onEscape={closeOnEscape} />
         <main ref={mainRef} tabIndex={-1} className="fyag-content">{children}</main>
