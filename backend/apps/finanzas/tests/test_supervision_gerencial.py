@@ -40,6 +40,11 @@ class SupervisionCobranzasTests(PagosBase, TestCase):
         self.assertEqual((s["total"], s["cobrado"], s["saldo"], s["vencido"], s["no_vencido"]), ("2180.35", "100.13", "2080.22", "2080.22", "0.00"))
         self.assertEqual(s["clientes_vencidos"], 1)
         self.assertEqual(r.data["results"][0]["dias_atraso"], 2)
+        self.assertEqual(r.data["results"][0]["obra"], self.obra.codigo)
+        por_codigo = self.client.get(self.supervision_url, {"buscar": self.obra.codigo.lower()})
+        self.assertEqual(por_codigo.status_code, 200, por_codigo.data)
+        self.assertEqual(por_codigo.data["count"], 1)
+        self.assertEqual(por_codigo.data["results"][0]["obra"], self.obra.codigo)
         self.assertEqual(self.client.get(self.supervision_url, {"buscar":"no existe"}).data["resumen"], s)
         self.assertEqual(self.client.get(self.supervision_url, {"desde":hoy_santiago().isoformat(),"hasta":hoy_santiago().isoformat()}).data["resumen"]["documentos"], 0)
 

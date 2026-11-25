@@ -6,6 +6,7 @@ from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.usuarios.models import Usuario
+from apps.obras.models import Obra
 from .consultas_cobranzas import con_cobranza
 from .models import DocumentoCobro
 from .services_documentos import ConflictoFinanciero
@@ -38,7 +39,7 @@ class SupervisionCobranzasView(APIView):
         if "desde" in params:
             qs = filtrar_fechas(qs, {"fecha_emision_desde": params["desde"], "fecha_emision_hasta": params["hasta"]}, "fecha_emision")
         qs = con_cobranza(qs, hoy=hoy).order_by("fecha_vencimiento", "id").values(
-            "id", "folio_externo", "obra__presupuesto__cliente_id", "obra__codigo", "obra__presupuesto__cliente__nombre_legal",
+            "id", "folio_externo", "obra__presupuesto__cliente_id", "obra_id", "obra__presupuesto__cliente__nombre_legal",
             "fecha_emision", "fecha_vencimiento", "estado", "monto_total", "abonado_calculado",
             "saldo_calculado", "estado_cobranza_calculado")
         total = cobrado = saldo = vencido = Decimal("0.00")
@@ -63,7 +64,10 @@ class SupervisionCobranzasView(APIView):
                         clientes_vencidos.add(d["obra__presupuesto__cliente_id"])
                 if vista == "atencion" and estado != "VENCIDA" or vista == "vigentes" and not vigente:
                     continue
-                cliente, obra = d["obra__presupuesto__cliente__nombre_legal"], d["obra__codigo"]
+                cliente = d["obra__presupuesto__cliente__nombre_legal"]
+                # codigo es una propiedad del modelo, no una columna SQL.
+                # Reutilizarla con el PK proyectado no requiere consultas adicionales.
+                obra = Obra(pk=d["obra_id"]).codigo
                 if buscar and buscar not in " ".join((cliente, obra, d["folio_externo"])).casefold():
                     continue
                 rows.append({"id": d["id"], "folio": d["folio_externo"], "cliente": cliente, "obra": obra,
