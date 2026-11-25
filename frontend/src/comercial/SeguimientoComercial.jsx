@@ -90,53 +90,15 @@ export default function SeguimientoComercial(){
     </section><p className="commercial-help">Montos netos cotizados, no ingresos percibidos. Indicadores por presupuesto registrado (incluidas revisiones), según fecha de creación y estado actual.</p>
   </section>;
 }
-// Preserve exact decimal quantities; remove only trailing fractional zeros.
-function compactQuantity(value){
-  if(typeof value!=='string'||!/^\d+(?:\.\d{1,3})?$/.test(value))return '—';
-  const [integer,fraction='']=value.split('.');
-  const significant=fraction.replace(/0+$/,'');
-  return integer.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(significant?','+significant:'');
-}
 function BudgetDetail({row,onBack}){
   const api=useCommercial(),[budget,setBudget]=useState(null),[tab,setTab]=useState('items'),[history,setHistory]=useState(null),[page,setPage]=useState(1);
   const base=budgetPath(row.id);
   useEffect(()=>{void api.load('budget',base,b=>{if(b?.id!==row.id||!Array.isArray(b.items)||!money(b.monto_neto))throw new ApiError(502,'No se pudo confirmar el presupuesto.');setBudget(b);});},[row.id]);
   useEffect(()=>{if(tab==='history'){setHistory(null);void api.load('history',pagePath(base+'historial/',page),v=>setHistory(validatePage(v,base+'historial/')));}},[tab,page]);
-  return <section className="commercial-page budgets-page manager-budget-detail">
-    <button type="button" className="manager-budget-back" onClick={onBack}>
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" className="bi bi-arrow-left" aria-hidden="true" focusable="false"><path fillRule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.647-3.646a.5.5 0 1 0-.708-.708l-4.5 4.5a.5.5 0 0 0 0 .708l4.5 4.5a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"/></svg>
-      <span>Volver al listado</span>
-    </button>
-    <Errors error={api.error}/>{api.loading&&<p role="status" className="commercial-loading">Cargando datos…</p>}
-    {budget&&<article className="card-fyag manager-budget-card" aria-labelledby="manager-budget-title">
-      <header className="manager-budget-header">
-        <div className="manager-budget-identity"><h1 id="manager-budget-title">{budget.codigo}</h1><BudgetStatus state={budget.estado}/></div>
-        <div className="manager-budget-total"><span>Total neto · CLP</span><strong>{formatCompactCLP(budget.monto_neto)}</strong></div>
-      </header>
-      <dl className="manager-budget-facts">
-        <div><dt>Cliente</dt><dd>{row.cliente_nombre}</dd></div>
-        <div><dt>Fecha de creación</dt><dd><time dateTime={budget.creado_en}>{when(budget.creado_en)}</time></dd></div>
-        <div className="manager-budget-description"><dt>Descripción</dt><dd>{budget.descripcion}</dd></div>
-      </dl>
-      <div className="budget-tabs" role="group" aria-label="Secciones del presupuesto">
-        <button type="button" aria-pressed={tab==='items'} aria-controls="budget-items" onClick={()=>setTab('items')}>Ítems del presupuesto</button>
-        <button type="button" aria-pressed={tab==='history'} aria-controls="budget-history" onClick={()=>setTab('history')}>Historial comercial</button>
-      </div>
-      <div id="budget-items" hidden={tab!=='items'}>
-        <div className="table-responsive manager-budget-table" role="region" aria-label="Ítems del presupuesto" tabIndex={0}>
-          <table className="table commercial-table">
-            <thead><tr>{['Descripción','Cantidad','Precio unit. CLP','Subtotal CLP'].map((x,i)=><th key={x} scope="col" className={i?'text-end':undefined}>{x}</th>)}</tr></thead>
-            <tbody>{budget.items.map(i=><tr key={i.id}><td>{i.descripcion}</td><td className="text-end manager-budget-quantity">{compactQuantity(i.cantidad)} {i.unidad}</td><td className="text-end manager-budget-amount">{formatCompactCLP(i.precio_unitario)}</td><td className="text-end manager-budget-amount manager-budget-subtotal">{formatCompactCLP(i.subtotal)}</td></tr>)}</tbody>
-          </table>
-        </div>
-        {!budget.items.length&&<p className="commercial-help manager-budget-empty">No hay ítems registrados.</p>}
-        <footer className="manager-budget-footer"><span>{budget.items.length} {budget.items.length===1?'ítem':'ítems'}</span><strong>Total neto: {formatCompactCLP(budget.monto_neto)}</strong></footer>
-      </div>
-      <section id="budget-history" hidden={tab!=='history'} aria-label="Historial comercial">
-        <ol className="commercial-timeline">{history?.results.map(e=><li key={e.id}><BudgetStatus state={e.estado_nuevo}/><p>{when(e.creado_en)}</p>{e.motivo&&<p>{e.motivo}</p>}</li>)}</ol>
-        {history&&!history.count&&<p>No hay decisiones registradas.</p>}
-        {history&&(history.next||history.previous)&&<Pager label="Paginación del historial" data={history} page={page} setPage={setPage} disabled={api.loading}/>}
-      </section>
-    </article>}
+  return <section className="commercial-page budgets-page"><button type="button" className="btn btn-outline-secondary budget-back" onClick={onBack}>Volver al listado</button><Errors error={api.error}/>{api.loading&&<p role="status">Cargando datos…</p>}
+    {budget&&<article className="card-fyag commercial-detail"><div className="budget-detail-heading"><h2>{budget.codigo}</h2><BudgetStatus state={budget.estado}/></div><div className="commercial-summary"><div><strong>{row.cliente_nombre}</strong><p>{budget.descripcion}</p><small>Creado el {when(budget.creado_en)}</small></div><div className="commercial-total"><span>Total neto · CLP</span><strong>{formatCompactCLP(budget.monto_neto)}</strong></div></div>
+    <div className="budget-tabs" role="group" aria-label="Secciones del presupuesto"><button type="button" aria-pressed={tab==='items'} onClick={()=>setTab('items')}>Ítems del presupuesto</button><button type="button" aria-pressed={tab==='history'} onClick={()=>setTab('history')}>Historial comercial</button></div>
+    <div id="budget-items" hidden={tab!=='items'}><div className="table-responsive"><table className="table commercial-table"><thead><tr>{['Descripción','Cantidad','Unidad','Precio unitario CLP','Subtotal CLP'].map(x=><th key={x} scope="col">{x}</th>)}</tr></thead><tbody>{budget.items.map(i=><tr key={i.id}><td>{i.descripcion}</td><td>{i.cantidad}</td><td>{i.unidad}</td><td>{formatCompactCLP(i.precio_unitario)}</td><td>{formatCompactCLP(i.subtotal)}</td></tr>)}</tbody></table></div>{!budget.items.length&&<p>No hay ítems registrados.</p>}</div>
+    <section id="budget-history" hidden={tab!=='history'}><ol className="commercial-timeline">{history?.results.map(e=><li key={e.id}><BudgetStatus state={e.estado_nuevo}/><p>{when(e.creado_en)}</p>{e.motivo&&<p>{e.motivo}</p>}</li>)}</ol>{history&&!history.count&&<p>No hay decisiones registradas.</p>}{history&&(history.next||history.previous)&&<Pager label="Paginación del historial" data={history} page={page} setPage={setPage} disabled={api.loading}/>}</section></article>}
   </section>;
 }
