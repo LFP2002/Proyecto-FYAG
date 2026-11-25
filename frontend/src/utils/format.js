@@ -14,3 +14,11 @@ export function formatCLP(value) {
   const [integer, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   return `${negative ? '-' : ''}$${integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${fraction.padEnd(2, '0')} CLP`;
 }
+
+// Para listados en CLP: omitir solo la fracción cero, sin redondear ni perder precisión.
+export function formatCompactCLP(value) {
+  return formatCLP(value).replace(/,00 CLP$/, '').replace(/ CLP$/, '');
+}
+export function formatCivilDate(value) {
+  return typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.split('-').reverse().join('/') : value;
+}

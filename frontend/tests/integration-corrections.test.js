@@ -146,7 +146,7 @@ test('Documento: anulación y reversión reconsultan recursos y un callback fall
 });
 test('Cobranzas recibe callbacks de pago y actualiza lista administrativa, cartera y resumen',async()=>{
   const backend=financeBackend(),ui=await mount(Cobranzas,backend.request);
-  try{const root=ui.renderer.root;await click(root,'Consultar / administrar');await paymentForm(root);const before=backend.calls.length;await submit(root,'Registro de pago informado');const reads=backend.calls.slice(before).filter((c)=>c.method==='GET');for(const prefix of ['/api/finanzas/documentos/?','/api/finanzas/cobranzas/','/api/finanzas/cobranzas/resumen/'])assert.ok(reads.some((c)=>c.path.startsWith(prefix)),prefix);assert.match(text(ui.renderer.toJSON()),/75\.00/);}finally{await ui.close();}
+  try{const root=ui.renderer.root;await click(root,'Documentos y pagos');await click(root,'Consultar / administrar');await paymentForm(root);const before=backend.calls.length;await submit(root,'Registro de pago informado');const reads=backend.calls.slice(before).filter((c)=>c.method==='GET');for(const prefix of ['/api/finanzas/documentos/?','/api/finanzas/cobranzas/','/api/finanzas/cobranzas/resumen/'])assert.ok(reads.some((c)=>c.path.startsWith(prefix)),prefix);assert.match(text(root.findByProps({id:'cobranzas-cartera'})),/\$75/);}finally{await ui.close();}
 });
 
 test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin permitir cargas ni PATCH',async()=>{
@@ -243,4 +243,30 @@ test('012A: Técnico, AF y TI no consultan metadatos aunque se monte el componen
 test('Scope: error sin status y relectura fallida tras escritura confirmada mantienen bloqueo',async()=>{
   for(const failure of [new Error('Infraestructura'),new ApiError(400,'Lectura inválida')]){const scope=createScope();await assert.rejects(scope.write(async()=>({id:1}),async()=>{throw failure;}));assert.equal(scope.locked,true);assert.equal(await scope.write(async()=>{},async()=>{}),false);scope.dispose();}
   const scope=createScope(),late=deferred();let applied=false;const pending=scope.read('summary',()=>late.promise,()=>{applied=true;});scope.cancelRead('summary');late.resolve({});await pending;assert.equal(applied,false);scope.dispose();
+});
+
+test('Cobranzas: pestañas conservan consultas y filtros solo se aplican al confirmar',async()=>{
+  const backend=financeBackend(),ui=await mount(Cobranzas,backend.request);
+  try{
+    const root=ui.renderer.root;
+    assert.equal(root.findByProps({id:'cobranzas-cartera'}).props.hidden,false);
+    assert.equal(root.findByProps({id:'cobranzas-documentos'}).props.hidden,true);
+    await click(root,'Documentos y pagos');
+    await change(root,'ID de Obra para consulta financiera','80');
+    await click(root,'Cobranzas vigentes');await click(root,'Documentos y pagos');
+    assert.equal(control(root,'ID de Obra para consulta financiera').props.value,'80');
+    await click(root,'Cobranzas vigentes');await click(root,'Filtros');
+    const before=backend.calls.length;
+    await change(root,'ID de cliente','0');
+    assert.equal(button(root,'Aplicar filtros').props.disabled,true);
+    await change(root,'ID de cliente','9');
+    assert.equal(backend.calls.length,before);
+    await submit(root,'Filtros de cobranzas');
+    assert.ok(backend.calls.slice(before).some(c=>c.path.startsWith('/api/finanzas/cobranzas/')&&c.path.includes('cliente=9')));
+    assert.equal(root.findByProps({id:'cobranzas-filtros'}).props.hidden,true);
+    await click(root,'Filtros (1)');await click(root,'Limpiar');
+    assert.equal(control(root,'ID de cliente').props.value,'');
+    await submit(root,'Filtros de cobranzas');
+    assert.equal(root.findByProps({id:'cobranzas-filtros'}).props.hidden,true);
+  }finally{await ui.close();}
 });
