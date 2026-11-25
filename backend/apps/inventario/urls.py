@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from .views import ArticuloViewSet, ExistenciaViewSet, MovimientoViewSet, IngresoView
+from .views_supervision import SupervisionInventarioView
 from .views_materiales import OperacionesViewSet, EstadosValoracionViewSet
 from .views_mermas import MermasView, MermaDetalleView, MermaDecidirView
 from .views_solicitudes import ArticulosSolicitablesView, SolicitudesMaterialesView, SolicitudDetalleView, SolicitudDecidirView
@@ -11,7 +12,7 @@ router.register("articulos", ArticuloViewSet, basename="articulo-inventario")
 router.register("existencias", ExistenciaViewSet, basename="existencia-inventario")
 router.register("movimientos", MovimientoViewSet, basename="movimiento-inventario")
 router.register('estados-valorizacion', EstadosValoracionViewSet, basename='estado-valorizacion')
-urlpatterns = [path("ingresos/", IngresoView.as_view(), name="ingreso-inventario")] + router.urls
+urlpatterns = [path("ingresos/", IngresoView.as_view(), name="ingreso-inventario"), path("supervision-gerencial/", SupervisionInventarioView.as_view(), name="supervision-inventario")] + router.urls
 for ruta, ambito in [('mermas-bodega', 'BODEGA'), ('mermas-obra', 'OBRA')]:
     urlpatterns += [
         path(ruta+'/', MermasView.as_view(ambito=ambito), name=ruta),

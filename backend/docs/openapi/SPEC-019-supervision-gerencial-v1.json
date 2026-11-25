@@ -1,0 +1,298 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Supervisión gerencial de inventario",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/inventario/supervision-gerencial/": {
+      "get": {
+        "summary": "Consultar inventario (solo GERENCIA)",
+        "description": "Stock actual, importes valorizados y mermas aprobadas del mes calendario. Mermas de obra no aditivas.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "seccion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "existencias",
+                "mermas"
+              ]
+            }
+          },
+          {
+            "name": "filtro",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sin_stock",
+                "pendiente",
+                "bodega",
+                "obra"
+              ]
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen y registros paginados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "resumen",
+                    "results"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "required": [
+                        "valor_stock_valorado",
+                        "sin_stock",
+                        "pendientes_valoracion",
+                        "mermas_bodega_neto",
+                        "mermas_obra_informativo",
+                        "mermas_bodega",
+                        "mermas_obra",
+                        "mermas_sin_valor",
+                        "mermas_pendientes",
+                        "desde",
+                        "hasta"
+                      ],
+                      "properties": {
+                        "valor_stock_valorado": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "sin_stock": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "pendientes_valoracion": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mermas_bodega_neto": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "mermas_obra_informativo": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "mermas_bodega": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mermas_obra": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mermas_sin_valor": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "mermas_pendientes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "desde": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "hasta": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      }
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "codigo",
+                              "nombre",
+                              "unidad",
+                              "activo",
+                              "saldo",
+                              "valor_neto",
+                              "pendiente_valoracion"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "activo": {
+                                "type": "boolean"
+                              },
+                              "saldo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "valor_neto": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "pattern": "^[0-9]+\\.[0-9]{2}$"
+                              },
+                              "pendiente_valoracion": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "codigo",
+                              "nombre",
+                              "ambito",
+                              "obra",
+                              "cantidad",
+                              "unidad",
+                              "tipo",
+                              "fecha",
+                              "valor_neto"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "ambito": {
+                                "type": "string",
+                                "enum": [
+                                  "BODEGA",
+                                  "OBRA"
+                                ]
+                              },
+                              "obra": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "cantidad": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "tipo": {
+                                "type": "string"
+                              },
+                              "fecha": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "valor_neto": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "pattern": "^[0-9]+\\.[0-9]{2}$"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulta inválida"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

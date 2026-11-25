@@ -16,7 +16,7 @@ export default function SideNav({ mobileOpen = false, onNavigate, onEscape }) {
         }
       }}
     >
-      {NAV[role].map((k) => (
+      {NAV[role].filter(k => role !== 'GERENCIA' || k !== 'auditoria').map((k) => (
         <button
           type="button"
           key={k}
@@ -25,7 +25,7 @@ export default function SideNav({ mobileOpen = false, onNavigate, onEscape }) {
           onClick={() => { go(k); onNavigate?.(); }}
         >
           <Icon d={MODS[k].icon} />
-          <span>{MODS[k].label}</span>
+          <span>{role==='GERENCIA'&&k==='inventario'?'Inventario':MODS[k].label}</span>
         </button>
       ))}
       <div className="side-note">

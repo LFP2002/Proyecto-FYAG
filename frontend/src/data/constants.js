@@ -13,7 +13,7 @@ export const ROLES = {
 };
 
 export const ROLE_NOTE = {
-  GERENCIA: 'Consulta y supervisión de obras.',
+  GERENCIA: 'Supervisión empresarial.',
   ADMINISTRATIVO_FINANZAS: 'Gestión comercial, cobranzas, egresos y costos de adquisición.',
   SUPERVISOR_OBRAS: 'Gestión operativa de Obras, presupuestos propios y técnicos participantes.',
   ADMINISTRADOR_TI: 'Administración de cuentas y auditoría de usuarios, sin acceso de negocio.',
@@ -21,7 +21,7 @@ export const ROLE_NOTE = {
 };
 
 export const NAV = {
-  GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
+  GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'egresos', 'inventario', 'alertas', 'reportes', 'chat', 'auditoria'],
   ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'inventario', 'mermas', 'auditoria', 'chat'],
   SUPERVISOR_OBRAS: ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
   TECNICO: ['obras', 'solicitudes', 'mermas', 'chat'],

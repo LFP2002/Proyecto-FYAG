@@ -5,6 +5,7 @@ import { useCommercial, Pager, Errors } from '../comercial/ui.jsx';
 import InventoryActions from '../integrations/InventoryActions.jsx';
 import InventoryPicker from '../integrations/InventoryPicker.jsx';
 import { formatCLP } from '../utils/format.js';
+import GerenciaInventario from '../integrations/GerenciaInventario.jsx';
 
 
 const ROOT='/api/inventario/';
@@ -14,6 +15,10 @@ const emptyArticle={codigo:'',nombre:'',descripcion:'',unidad:''};
 function page(value){if(!value||!Number.isSafeInteger(value.count)||!Array.isArray(value.results)||value.results.length>25)throw new Error('Respuesta de inventario inesperada.');return value;}
 
 export default function Inventario(){
+ const {user}=useAuth();
+ return user.role==='GERENCIA'?<GerenciaInventario key={user.id}/>:<InventarioOperativo key={user.id+':'+user.role}/>;
+}
+function InventarioOperativo(){
  const {user}=useAuth(),api=useCommercial(); const [tab,setTab]=useState('catalogo'),[pageNo,setPage]=useState(1),[data,setData]=useState(null),[filter,setFilter]=useState(''),[form,setForm]=useState(null),[ingress,setIngress]=useState(null),[act,setAct]=useState(null),[message,setMessage]=useState('');
  const [filters,setFilters]=useState({articulo:'',obra:'',autorizacion:'',entrega:'',tipo:'',desde:'',hasta:''});
  const bodeguero=user.role==='BODEGUERO',financeReader=['ADMINISTRATIVO_FINANZAS','GERENCIA'].includes(user.role);
