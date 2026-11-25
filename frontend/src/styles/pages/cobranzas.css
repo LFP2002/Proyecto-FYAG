@@ -3,14 +3,14 @@
 .commercial-page.cobranzas-page { max-width: 1560px; margin-inline: auto; display: flex; flex-direction: column; gap: 22px; }
 .cobranzas-page > * { margin-bottom: 0 !important; }
 .cobranzas-page .page-head { margin: 0; }
-.cobranzas-page .page-head h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.015em; color: var(--fyag-primary); }
+.cobranzas-page .page-head h1 { margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.015em; color: var(--fyag-primary); }
 
 /* Filtros en una fila; "Actualizar" a la derecha */
 .cobranzas-filtros { gap: 14px 16px !important; }
-.cobranzas-filtros .form-label { display: flex; flex-direction: column; gap: 5px; margin: 0; font-size: 12px; font-weight: 600; color: #2f4258; }
-.cobranzas-filtros :is(.form-control, .form-select) { height: 44px; border-radius: 10px; border-color: #c3cfdb; font-size: 14px; font-weight: 400; color: var(--fyag-text); }
+.cobranzas-filtros .form-label { display: flex; flex-direction: column; gap: 5px; margin: 0; font-size: 0.75rem; font-weight: 600; color: #2f4258; }
+.cobranzas-filtros :is(.form-control, .form-select) { min-height: 44px; border-radius: 10px; border-color: #c3cfdb; font-size: 0.875rem; font-weight: 400; color: var(--fyag-text); }
 .cobranzas-filtros .form-control:not([type="date"]) { width: 130px; }
-.cobranzas-filtros > .btn { height: 44px; padding: 0 22px; border-radius: 10px; background: #fff; border-color: #c3cfdb; color: var(--fyag-primary-light); font-size: 15px; font-weight: 600; }
+.cobranzas-filtros > .btn { min-height: 44px; padding: 0 22px; border-radius: 10px; background: #fff; border-color: #c3cfdb; color: var(--fyag-primary-light); font-size: 0.9375rem; font-weight: 600; }
 .cobranzas-filtros > .btn:first-of-type { margin-left: 0; }
 .cobranzas-filtros > .btn:nth-last-of-type(1) { margin-left: auto; }
 .cobranzas-filtros > .btn:hover:not(:disabled) { background: #e8eff7; color: var(--fyag-primary); }
@@ -18,41 +18,41 @@
 /* Tarjetas de resumen */
 .cobranzas-page .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 0; }
 .cobranzas-page .kpi { background: #fff; border: 1px solid var(--fyag-line); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(20, 40, 70, 0.05); }
-.cobranzas-page .kpi-l { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fyag-muted); }
-.cobranzas-page .kpi-v { margin-top: 8px; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--fyag-primary); }
+.cobranzas-page .kpi-l { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fyag-muted); }
+.cobranzas-page .kpi-v { margin-top: 8px; font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--fyag-primary); }
 .cobranzas-page .kpi-alert .kpi-v { color: #b42318; }
 
 /* Tablas */
 .cobranzas-page .card-fyag { border-radius: 14px; box-shadow: 0 1px 2px rgba(20, 40, 70, 0.05); }
-.cobranzas-page .commercial-table th { background: #f6f9fc; color: var(--fyag-muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 14px 12px; }
-.cobranzas-page .commercial-table td { padding: 16px 12px; font-size: 13.5px; }
+.cobranzas-page .commercial-table th { background: #f6f9fc; color: var(--fyag-muted); font-size: 0.71875rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 14px 12px; }
+.cobranzas-page .commercial-table td { padding: 16px 12px; font-size: 0.84375rem; }
 .cobranzas-page .commercial-table td:first-child .btn-link { font-weight: 600; text-decoration: none; }
 .cobranzas-page .commercial-table th:nth-child(n+6):nth-child(-n+10) { text-align: right; }
 .cobranzas-page .commercial-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .cobranzas-page .commercial-table td.saldo { font-weight: 600; }
-.cobranzas-page .commercial-empty { margin: 0; padding: 40px 24px; text-align: center; font-size: 15px; color: var(--fyag-muted); }
+.cobranzas-page .commercial-empty { margin: 0; padding: 40px 24px; text-align: center; font-size: 0.9375rem; color: var(--fyag-muted); }
 
 /* Estado como etiqueta de color */
-.cobranzas-estado { display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; background: #eef1f4; color: #4b5563; }
+.cobranzas-estado { display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 0.78125rem; font-weight: 500; background: #eef1f4; color: #4b5563; }
 .cobranzas-estado[data-estado="PARCIAL"] { background: #fdeedd; color: #8a4a07; }
 .cobranzas-estado[data-estado="PAGADA"] { background: #e3f4ea; color: #14633a; }
 .cobranzas-estado[data-estado="VENCIDA"] { background: #fde8e8; color: #9b1c1c; }
 .cobranzas-estado[data-estado="PENDIENTE"] { background: #e4eefb; color: #1b4f8f; }
 
 /* Paginación */
-.cobranzas-page .commercial-pager { font-size: 13px; color: var(--fyag-muted); }
-.cobranzas-page .commercial-pager .btn { height: 36px; padding: 0 16px; border-radius: 8px; font-weight: 600; }
+.cobranzas-page .commercial-pager { font-size: 0.8125rem; color: var(--fyag-muted); }
+.cobranzas-page .commercial-pager .btn { min-height: 36px; padding: 0 16px; border-radius: 8px; font-weight: 600; }
 .cobranzas-page .commercial-pager .btn:disabled { background: #f6f9fc; border-color: var(--fyag-line); color: #6b7785; opacity: 1; }
 
 /* Documentos y pagos informados */
 .cobranzas-page section[aria-label="Administración de documentos financieros"] { margin: 0 !important; padding: 24px !important; border-radius: 14px; display: flex; flex-direction: column; gap: 18px; }
-.cobranzas-page section[aria-label="Administración de documentos financieros"] h3 { margin: 0; font-size: 20px; font-weight: 700; color: var(--fyag-primary); }
-.cobranzas-page section[aria-label="Administración de documentos financieros"] .btn { height: 44px; padding: 0 20px; border-radius: 10px; font-size: 15px; font-weight: 600; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] h3 { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--fyag-primary); }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] .btn { min-height: 44px; padding: 0 20px; border-radius: 10px; font-size: 0.9375rem; font-weight: 600; }
 .cobranzas-page section[aria-label="Administración de documentos financieros"] .btn-outline-secondary { background: #fff; border-color: #c3cfdb; color: var(--fyag-primary-light); }
 .cobranzas-page section[aria-label="Administración de documentos financieros"] form { margin: 0 !important; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.cobranzas-page section[aria-label="Administración de documentos financieros"] form .form-label { display: flex; flex-direction: column; gap: 5px; width: 100%; max-width: 480px; margin: 0; font-size: 13px; font-weight: 600; color: #2f4258; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] form .form-label { display: flex; flex-direction: column; gap: 5px; width: 100%; max-width: 480px; margin: 0; font-size: 0.8125rem; font-weight: 600; color: #2f4258; }
 .cobranzas-page section[aria-label="Administración de documentos financieros"] form .btn { margin: 0 !important; }
 .cobranzas-page section[aria-label="Administración de documentos financieros"] form[aria-label="Consulta del estado financiero de una obra"] .btn-outline-secondary { background: var(--fyag-primary-light); border-color: var(--fyag-primary-light); color: #fff; }
-.cobranzas-page section[aria-label="Administración de documentos financieros"] form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fyag-muted); }
-.cobranzas-page section[aria-label="Administración de documentos financieros"] .table th { background: #f6f9fc; color: var(--fyag-muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-.cobranzas-page .commercial-help { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fyag-muted); }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] form p { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--fyag-muted); }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] .table th { background: #f6f9fc; color: var(--fyag-muted); font-size: 0.71875rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.cobranzas-page .commercial-help { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--fyag-muted); }
