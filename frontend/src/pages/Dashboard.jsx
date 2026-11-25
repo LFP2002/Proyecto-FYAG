@@ -14,7 +14,28 @@ const isNegative=(value)=>typeof value==='string'&&value.startsWith('-')&&/[1-9]
 const hasAmount=(value)=>typeof value==='string'&&/[1-9]/.test(value);
 function Kpi({label,value,tone}) {return <article className={`dash-kpi dash-${tone}`}><div className="dash-kpi-label">{label}</div><strong className="dash-kpi-value">{value.toLocaleString('es-CL')}</strong></article>;}
 function MoneyStat({label,value,tone='neutral'}) {return <div className={`dash-money dash-${tone}`}><dt>{label}</dt><dd>{formatCompactCLP(value)}</dd></div>;}
-function WorkStates({counts}) {const total=Math.max(1,STATES.reduce((sum,state)=>sum+counts[state],0));return <div className="dash-state-list">{STATES.map(state=><div className={`dash-state dash-${STATE_TONES[state]}`} key={state}><div className="dash-state-label"><span>{STATE_LABELS[state]}</span><strong>{counts[state].toLocaleString('es-CL')}</strong></div><div className="dash-track" aria-hidden="true"><div className="dash-fill" style={{width:`${counts[state]/total*100}%`}} /></div></div>)}</div>;}
+function WorkStates({counts}) {
+  const total=STATES.reduce((sum,state)=>sum+counts[state],0);
+  let offset=0;
+  const segments=STATES.filter(state=>counts[state]>0).map(state=>{
+    const share=counts[state]/total*100;
+    const segment={state,share,offset};
+    offset+=share;
+    return segment;
+  });
+  return <div className="dash-donut-layout">
+    <div className="dash-donut">
+      <svg viewBox="0 0 160 160" aria-hidden="true" focusable="false">
+        <circle className="dash-donut-track" cx="80" cy="80" r="62" fill="none" strokeWidth="26"/>
+        {segments.map(({state,share,offset})=><circle key={state} className={`dash-donut-segment dash-${STATE_TONES[state]}`} cx="80" cy="80" r="62" fill="none" strokeWidth="26" pathLength="100" strokeDasharray={`${share} ${100-share}`} strokeDashoffset={-offset} transform="rotate(-90 80 80)"/>)}
+      </svg>
+      <div className="dash-donut-center"><strong>{total.toLocaleString('es-CL')}</strong><span>{total===1?'obra':'obras'}</span></div>
+    </div>
+    <ul className="dash-donut-legend" aria-label="Distribución de obras por estado">
+      {STATES.map(state=><li key={state} className={`dash-${STATE_TONES[state]}`}><span className="dash-donut-dot" aria-hidden="true"/><span className="dash-donut-label">{STATE_LABELS[state]}</span><strong>{counts[state].toLocaleString('es-CL')}</strong></li>)}
+    </ul>
+  </div>;
+}
 function MonthlyChart({points}) {const max=Math.max(1,...points.map(p=>p.cantidad));return <div className="dash-month-scroll" role="region" aria-label="Gráfico de obras finalizadas por mes" tabIndex={0}><div className="dash-month-chart" style={{gridTemplateColumns:`repeat(${points.length},minmax(54px,1fr))`}}>{points.map(p=><div className="dash-month" key={p.mes}><div className="dash-month-plot"><strong>{p.cantidad.toLocaleString('es-CL')}</strong><div className="dash-month-bar" style={{height:`${p.cantidad/max*100}%`}} /></div><span>{new Date(`${p.mes}-01T12:00:00Z`).toLocaleDateString('es-CL',{month:'short',year:'2-digit',timeZone:'UTC'})}</span></div>)}</div></div>;}
 const SUMMARY='/api/dashboard/resumen/'; const SERIES='/api/dashboard/serie-obras/'; const ACTIVE='/api/dashboard/obras-activas/';
 const moneyKeys=['presupuesto_neto','costo_real_neto','margen_real_neto','monto_documentado_bruto','abonado','saldo','saldo_vencido'];
@@ -75,7 +96,7 @@ function DashboardScreen(){
     <Kpi label="Incidencias críticas activas" value={incidents.criticas_activas} tone={incidents.criticas_activas?'danger':'good'}/>
   </div>}
   {(summary||series)&&<div className="dash-panels dash-operation">
-    {summary&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Estado actual de obras</h2><span>{STATES.reduce((sum,state)=>sum+summary.operacion.obras_por_estado_actual[state],0)} obras</span></div><WorkStates counts={summary.operacion.obras_por_estado_actual}/></section>}
+    {summary&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Estado actual de obras</h2></div><WorkStates counts={summary.operacion.obras_por_estado_actual}/></section>}
     {series&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Obras finalizadas por mes</h2><label className="dash-series-control">Meses<select className="form-select form-select-sm" value={months} onChange={e=>setMonths(e.target.value)}>{Array.from({length:12},(_,i)=>String(i+1)).map(m=><option key={m} value={m}>{m}</option>)}</select></label></div><MonthlyChart points={series.puntos}/></section>}
     {!series&&<section className="card-fyag dash-panel"><div className="dash-panel-head"><h2>Obras finalizadas por mes</h2><label className="dash-series-control">Meses<select className="form-select form-select-sm" value={months} onChange={e=>setMonths(e.target.value)}>{Array.from({length:12},(_,i)=>String(i+1)).map(m=><option key={m} value={m}>{m}</option>)}</select></label></div><p className="commercial-help">{api.loading?'Cargando…':'No se pudo consultar la información.'}</p></section>}
   </div>}

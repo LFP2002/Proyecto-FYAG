@@ -198,3 +198,30 @@ test('AuthClient mantiene metadata de descarga y códigos públicos de conflicto
   await client.login({ email: 'g@example.test', password: 'dummy' }); const result = await client.request('/api/reportes/obras/exportar/?formato=pdf', { responseType: 'blob-response' }); assert.equal(result.contentType, 'application/pdf'); assert.match(result.contentDisposition, /filename="fyag-obras-/); assert.equal(await result.blob.text(), '%PDF-test');
   await assert.rejects(client.request('/api/alertas/3/atender/', { method: 'POST', body: { motivo: 'Revisar' } }), (error) => error instanceof ApiError && error.code === 'alerta_ya_atendida' && !Object.hasOwn(error.fieldErrors, 'password'));
 });
+
+test('Dashboard dona muestra proporciones reales, total y cinco estados incluso sin obras', async()=>{
+  const calls=[],base=apiFor('GERENCIA',calls);
+  let counts={PLANIFICADA:10,EN_PROCESO:15,SUSPENDIDA:0,FINALIZADA:1,CANCELADA:0};
+  const request=async(path,options)=>{
+    const value=await base(path,options);
+    if(path==='/api/dashboard/resumen/')value.operacion.obras_por_estado_actual=counts;
+    return value;
+  };
+  const session={status:'authenticated',user:{id:9,username:'Gerencia',role:'GERENCIA'}};
+  const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request};
+  let renderer;
+  await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(Dashboard)));await flush();});
+  try{
+    const root=renderer.root;
+    assert.equal(text(root.findByProps({className:'dash-donut-center'})),'26obras');
+    const segments=root.findAllByType('circle').filter(node=>node.props.pathLength===100);
+    assert.equal(segments.length,3);
+    assert.ok(Math.abs(segments.reduce((sum,node)=>sum+Number(node.props.strokeDasharray.split(' ')[0]),0)-100)<1e-9);
+    assert.ok(Math.abs(Number(segments[0].props.strokeDasharray.split(' ')[0])-10/26*100)<1e-9);
+    assert.equal(root.findByProps({className:'dash-donut-legend'}).findAllByType('li').length,5);
+    counts={PLANIFICADA:0,EN_PROCESO:0,SUSPENDIDA:0,FINALIZADA:0,CANCELADA:0};
+    await click(renderer,'Actualizar');
+    assert.equal(text(root.findByProps({className:'dash-donut-center'})),'0obras');
+    assert.equal(root.findAllByType('circle').filter(node=>node.props.pathLength===100).length,0);
+  }finally{await act(async()=>renderer.unmount());}
+});
