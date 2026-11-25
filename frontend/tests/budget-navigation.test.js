@@ -18,6 +18,16 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
   const calls=[];
   const request=async path=>{
     calls.push(path);
+    if(path.startsWith('/api/presupuestos/seguimiento-comercial/')){
+      const url=new URL(path,'http://localhost'),all=[...firstPage,budget],group={PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS',APROBADO_GERENCIA:'APROBADO_FINANZAS',RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS'};
+      const states=['BORRADOR','PENDIENTE_FINANZAS','APROBADO_FINANZAS','RECHAZADO_FINANZAS','ENVIADO_CLIENTE','APROBADO_CLIENTE','RECHAZADO_CLIENTE','ANULADO'];
+      const rows=all.map(b=>({...b,cliente_nombre:'Cliente de prueba',estado_original:b.estado,estado:group[b.estado]||b.estado,sin_actualizar:false}));
+      const estados=Object.fromEntries(states.map(k=>[k,{cantidad:rows.filter(r=>r.estado===k).length,monto_neto:(rows.filter(r=>r.estado===k).length*45300).toFixed(2)}]));
+      const filtered=rows.filter(r=>!url.searchParams.has('estado')||r.estado===url.searchParams.get('estado'));
+      const page=Number(url.searchParams.get('page')),size=firstPage.length>1?25:1;
+      const link=n=>'/api/presupuestos/seguimiento-comercial/?page='+n+(url.searchParams.has('estado')?'&estado='+url.searchParams.get('estado'):'');
+      return {count:filtered.length,results:filtered.slice((page-1)*size,page*size),next:page*size<filtered.length?link(page+1):null,previous:page>1?link(page-1):null,resumen:{total:rows.length,estados,sin_actualizar:0,dias_sin_actualizar:7,respuestas_cliente:0,tasa_aceptacion:null}};
+    }
     if(path==='/api/clientes/')return [{id:1,nombre_legal:'Cliente de prueba',activo:true}];
     if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:firstPage};
     if(path==='/api/presupuestos/?page=2')return {count:2,previous:'/api/presupuestos/',next:null,results:[budget]};
@@ -40,8 +50,8 @@ test('Presupuestos: detalle sustituye listado y conserva página y filtro al vol
   const {renderer,calls}=await mount('GERENCIA');
   try{
     const root=renderer.root;
-    await click(root,'Siguiente');
     await act(async()=>{root.findByProps({id:'budget-filter'}).props.onChange({target:{value:'BORRADOR'}});await flush();});
+    await click(root,'Siguiente');
     await click(root,'Ver presupuesto');
     assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,0);
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,false);
@@ -51,11 +61,11 @@ test('Presupuestos: detalle sustituye listado y conserva página y filtro al vol
     await click(root,'Historial comercial');
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,true);
     assert.equal(root.findByProps({id:'budget-history'}).props.hidden,false);
-    assert.equal(calls.length,before);
+    assert.equal(calls.length,before+1);
     await click(root,'Volver al listado');
     assert.equal(root.findByProps({id:'budget-filter'}).props.value,'BORRADOR');
     assert.match(text(renderer.toJSON()),/PRE-000066/);
-    assert.equal(calls.filter(p=>p==='/api/presupuestos/?page=2').length,1);
+    assert.equal(calls.filter(p=>p.includes('seguimiento-comercial/')&&p.includes('page=2')).length,1);
   }finally{await act(async()=>renderer.unmount());}
 });
 test('Presupuestos: Finanzas conserva edición y puede cancelar antes de volver',async()=>{
@@ -82,9 +92,21 @@ test('Presupuestos: filtro agrupa estados históricos sin duplicar opciones ni a
     assert.ok(options.every(option=>!text(option).includes('legado')));
     for(const [state,index] of [['PENDIENTE_FINANZAS',1],['APROBADO_FINANZAS',3],['RECHAZADO_FINANZAS',5]]){
       await act(async()=>{select.props.onChange({target:{value:state}});});
-      const visible=root.findAllByType('button').filter(b=>b.props['data-budget-id']);
-      assert.deepEqual(visible.map(b=>b.props['data-budget-id']),[100+index,101+index]);
+      const visible=root.findAllByType('button').filter(b=>b.props['data-manager-budget']);
+      assert.deepEqual(visible.map(b=>b.props['data-manager-budget']),[100+index,101+index]);
     }
     assert.equal(root.findByProps({'aria-label':'Actualizar datos'}).props.disabled,false);
+  }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Gerencia carga cartera sin consultar clientes ni detalles y filtra por período',async()=>{
+  const {renderer,calls}=await mount('GERENCIA');
+  try{
+    assert.deepEqual(calls,['/api/presupuestos/seguimiento-comercial/?page=1']);
+    assert.match(text(renderer.toJSON()),/Seguimiento comercial/);
+    await act(async()=>{renderer.root.findByProps({id:'manager-budget-from'}).props.onChange({target:{value:'2026-11-01'}});});
+    await act(async()=>{renderer.root.findByType('form').props.onSubmit({preventDefault(){}});await flush();});
+    assert.match(calls.at(-1),/desde=2026-11-01/);
+    assert.ok(calls.every(p=>p.startsWith('/api/presupuestos/seguimiento-comercial/')));
   }finally{await act(async()=>renderer.unmount());}
 });

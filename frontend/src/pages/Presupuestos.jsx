@@ -6,6 +6,7 @@ import { budgetPath, clientPath, eligibleClientPath, itemPath, pagePath, validat
 import { AF, actionsFor, dateLabel, emptyItem, itemPayload, labels, money, needsReason, nextItemOrder } from '../comercial/domain.js';
 import { actionButtonClass, BudgetStatus, Errors, Fields, Pager, useCommercial } from '../comercial/ui.jsx';
 import ItemEditRow, { itemRowErrors } from '../comercial/ItemEditRow.jsx';
+import SeguimientoComercial from '../comercial/SeguimientoComercial.jsx';
 
 // Agrupación exclusivamente visual; los estados originales conservan sus permisos e historial.
 const HISTORICAL_FILTERS = { PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS', APROBADO_GERENCIA:'APROBADO_FINANZAS', RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS' };
@@ -13,6 +14,10 @@ const filterState = state => HISTORICAL_FILTERS[state] ?? state;
 const FILTER_OPTIONS = Object.entries(PRE_E).filter(([state])=>!Object.hasOwn(HISTORICAL_FILTERS,state));
 
 export default function Presupuestos() {
+  const {user}=useAuth();
+  return user.role==='GERENCIA'?<SeguimientoComercial key={user.id}/>:<PresupuestosOperativos key={user.id+':'+user.role}/>;
+}
+function PresupuestosOperativos() {
   const { user } = useAuth();
   const api = useCommercial();
   const [clients, setClients] = useState([]);

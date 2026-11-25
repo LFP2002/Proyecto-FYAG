@@ -40,3 +40,28 @@
 .budgets-page .commercial-history { margin-top:0; padding-top:0; border-top:0; }
 .budgets-page .commercial-detail .commercial-form { margin:12px 0; }
 @media(max-width:600px) { .budgets-page .commercial-detail { padding:12px; } .budgets-page .budget-toolbar-filters { margin-inline-start:0; } .budget-tabs { gap:12px; } }
+
+/* Seguimiento comercial de Gerencia */
+.commercial-manager .portfolio-green { --tone:#20AC73; }
+.commercial-manager .portfolio-kpi small { color:var(--fyag-muted); font-size:.875rem; overflow-wrap:anywhere; }
+.commercial-period { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; padding:12px; }
+.commercial-period > div { flex:1 1 140px; min-width:0; }
+.commercial-period > .commercial-search { flex:2 1 220px; }
+.commercial-period label { display:block; font-size:.8125rem; margin-bottom:4px; font-weight:600; }
+.commercial-period > p { flex-basis:100%; color:#b12635; margin:0; }
+.commercial-insights { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:12px; }
+.commercial-acceptance,.commercial-followup { padding:16px; min-width:0; }
+.commercial-insights h2 { font-size:1rem; font-weight:700; margin:0 0 12px; }
+.commercial-donut-layout { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:18px; }
+.commercial-donut { width:156px; flex:0 1 156px; max-width:100%; position:relative; aspect-ratio:1; }
+.commercial-donut svg { display:block; width:100%; }
+.commercial-donut > div { position:absolute; inset:20%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.commercial-donut strong,.commercial-followup > strong { font-size:1.7rem; color:var(--fyag-primary); }
+.commercial-donut span,.commercial-acceptance-legend small { color:var(--fyag-muted); font-size:.75rem; }
+.commercial-acceptance-legend { flex:1 1 170px; max-width:240px; display:grid; gap:10px; }
+.commercial-acceptance-legend > div,.commercial-acceptance-legend > div span { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.commercial-acceptance-legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.commercial-followup p { color:var(--fyag-muted); font-size:.875rem; margin:8px 0; }
+.commercial-row-net { color:var(--fyag-primary); font-size:1.1rem; overflow-wrap:anywhere; }
+.commercial-manager .portfolio-context span { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:760px) { .commercial-insights { grid-template-columns:1fr; } }

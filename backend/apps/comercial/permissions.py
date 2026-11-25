@@ -61,6 +61,8 @@ class PuedeOperarPresupuestos(BasePermission):
         from .permissions_presupuestos import revalidar_presupuestos
         actual = revalidar_presupuestos(request.user)
         rol = actual.rol
+        if accion == 'seguimiento_comercial' or 'seguimiento_comercial' in acciones_ruta:
+            return rol == Usuario.Rol.GERENCIA
         if acciones_ruta & {'clientes_elegibles', 'materiales_elegibles'}:
             return rol in {Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS}
         if accion in self.acciones_comerciales:

@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from apps.inventario.models import ArticuloInventario
 
 from . import services_presupuestos as servicios
+from .services_seguimiento import seguimiento_comercial
 from .exceptions import (
     ClienteInactivo,
     DatosInvalidos,
@@ -135,6 +136,13 @@ class PresupuestoViewSet(
         return Response(
             PresupuestoDetalleSerializer(actual).data, status=codigo
         )
+
+    @action(detail=False, methods=["get"], url_path="seguimiento-comercial")
+    def seguimiento_comercial(self, request):
+        rows, resumen = seguimiento_comercial(self.get_queryset(), request.query_params)
+        response = self.get_paginated_response(self.paginate_queryset(rows))
+        response.data["resumen"] = resumen
+        return response
 
     def create(self, request):
         presupuesto = servicios.crear_presupuesto(

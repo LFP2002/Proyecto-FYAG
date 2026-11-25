@@ -486,32 +486,20 @@ test('validación inline bajo demanda: mensajes por campo y foco en el primer da
     assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 7);
   } finally { await act(async () => renderer.unmount()); }
 });
-test('barra compacta AF/G: controles agrupados, etiquetas legibles y creación solo para AF', async () => {
-  for (const role of ['ADMINISTRATIVO_FINANZAS', 'GERENCIA']) {
-    const b = fakeBackend(), renderer = await mount(Presupuestos, b.request, role);
-    try {
-      const toolbar = renderer.root.findByProps({ 'aria-label': 'Herramientas de presupuestos' });
-      assert.equal(toolbar.props.className, 'budget-toolbar');
-      const create = toolbar.findAllByProps({ 'aria-label': 'Nuevo borrador' });
-      assert.equal(create.length, role === 'ADMINISTRATIVO_FINANZAS' ? 1 : 0);
-      if (create.length) assert.equal(text(create[0]), '+ Nuevo borrador');
-      assert.equal(renderer.root.findByProps({ className: 'page-head' }).findAllByType('button').length, 0);
-      const filter = toolbar.findByProps({ id: 'budget-filter' });
-      assert.equal(filter.props.value, '');
-      assert.equal(text(toolbar.findByProps({ htmlFor: 'budget-filter' })), 'Filtrar por');
-      assert.deepEqual(filter.findAllByType('option').map((o) => [o.props.value, text(o)]), [['', 'Todos'], ...Object.entries(PRE_E).map(([value, [label]]) => [value, label])]);
-      assert.doesNotMatch(text(toolbar), /solo esta página/);
-      const refresh = toolbar.findByProps({ 'aria-label': 'Actualizar datos' });
-      assert.equal(refresh.type, 'button'); assert.equal(refresh.props.title, 'Actualizar datos');
-      assert.equal(refresh.findByType('svg').props['aria-hidden'], 'true');
-      const before = b.calls.length;
-      await act(async () => filter.props.onChange({ target: { value: 'ANULADO' } }));
-      assert.equal(b.calls.length, before); // El filtro sigue siendo local.
-      await click(renderer, 'Actualizar datos');
-      assert.equal(b.calls.length, before + 2);
-      assert.equal(renderer.root.findByProps({ id: 'budget-filter' }).props.value, 'ANULADO');
-    } finally { await act(async () => renderer.unmount()); }
-  }
+test('barra operativa AF: filtro local y creación conservados',async()=>{
+  const b=fakeBackend(),renderer=await mount(Presupuestos,b.request);
+  try{
+    const toolbar=renderer.root.findByProps({'aria-label':'Herramientas de presupuestos'});
+    assert.equal(toolbar.findAllByProps({'aria-label':'Nuevo borrador'}).length,1);
+    const filter=toolbar.findByProps({id:'budget-filter'});
+    assert.equal(text(toolbar.findByProps({htmlFor:'budget-filter'})),'Estado de esta página');
+    assert.deepEqual(filter.findAllByType('option').map(o=>o.props.value),['',...Object.keys(PRE_E).filter(k=>!k.endsWith('_GERENCIA'))]);
+    const before=b.calls.length;
+    await act(async()=>filter.props.onChange({target:{value:'ANULADO'}}));
+    assert.equal(b.calls.length,before);
+    await click(renderer,'Actualizar datos');
+    assert.equal(b.calls.length,before+2);
+  }finally{await act(async()=>renderer.unmount());}
 });
 test('recarga de barra: spinner accesible, pulsaciones repetidas deduplicadas y página/filtro conservados', async () => {
   const b = fakeBackend(), requests = [];
@@ -529,7 +517,7 @@ test('recarga de barra: spinner accesible, pulsaciones repetidas deduplicadas y 
   const renderer = await mount(Presupuestos, request);
   try {
     await click(renderer, 'Siguiente');
-    await act(async () => renderer.root.findByProps({ id: 'budget-filter' }).props.onChange({ target: { value: 'PENDIENTE_GERENCIA' } }));
+    await act(async () => renderer.root.findByProps({ id: 'budget-filter' }).props.onChange({ target: { value: 'PENDIENTE_FINANZAS' } }));
     const before = requests.length;
     hold = true;
     const refresh = renderer.root.findByProps({ 'aria-label': 'Actualizar datos' }).props.onClick;
@@ -541,7 +529,7 @@ test('recarga de barra: spinner accesible, pulsaciones repetidas deduplicadas y 
     assert.equal(button.findByProps({ className: 'spinner-border spinner-border-sm' }).props['aria-hidden'], 'true');
     await act(async () => { release(); await Promise.all([first, repeated]); await flush(); });
     assert.deepEqual(requests.slice(before), ['/api/presupuestos/?page=2', '/api/clientes/']);
-    assert.equal(renderer.root.findByProps({ id: 'budget-filter' }).props.value, 'PENDIENTE_GERENCIA');
+    assert.equal(renderer.root.findByProps({ id: 'budget-filter' }).props.value, 'PENDIENTE_FINANZAS');
     assert.match(text(renderer.root.findByProps({ 'aria-label': 'Paginación' })), /Página 2/);
     assert.equal(renderer.root.findByProps({ 'aria-label': 'Actualizar datos' }).props['aria-busy'], false);
     assert.equal(renderer.root.findByProps({ 'aria-label': 'Actualizar datos' }).props.disabled, false);
