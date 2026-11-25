@@ -31,6 +31,7 @@ export function obrasBackend(role = S) {
     if (method === 'GET' && backend.readFailure?.(path)) throw new ApiError(500, 'Relectura fallida.');
 
     const url = new URL(path, 'http://localhost'), route = url.pathname;
+    if (/^\/api\/presupuestos\/\d+\/$/.test(route) && method==='GET') { assertRole([G,AF]); const id=Number(route.split('/')[3]); return {id,monto_neto:'45300.00'}; }
     if (route === '/api/obras/presupuestos-disponibles/') { assertRole([S]); return paginate(backend.budgets, url); }
     if (route === '/api/obras/tecnicos-disponibles/') { assertRole([S]); return paginate(backend.technicians, url); }
     if (route === '/api/obras/' || route === '/api/obras/mis-obras/') {

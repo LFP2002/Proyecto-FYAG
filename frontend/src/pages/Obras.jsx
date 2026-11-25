@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/ui';
 import { collectionPath, obraPath, readPage } from '../obras/api.js';
-import { canReadObras, canReadTeam, emptyFilters, filterErrors, OBRA_STATES, orderingOptions, projectObra, S, shortDate, T } from '../obras/domain.js';
+import { canReadObras, G, emptyFilters, filterErrors, OBRA_STATES, orderingOptions, projectObra, S, shortDate, T } from '../obras/domain.js';
 import Categories from '../obras/Categories.jsx';
 import NewObra from '../obras/ObraForm.jsx';
 import ObraDetail from '../obras/ObraDetail.jsx';
+import GerenciaObra from '../obras/GerenciaObra.jsx';
 import { Feedback, Field, focusError, ObraStatus, Pager, RefreshButton, useOperational } from '../obras/ui.jsx';
 
 export default function Obras() {
@@ -14,6 +15,17 @@ export default function Obras() {
   const [draft, setDraft] = useState({ ...emptyFilters }), [errors, setErrors] = useState({});
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [selectedSection, setSelectedSection] = useState('resumen'), [creating, setCreating] = useState(false), [categories, setCategories] = useState(false), [expanded, setExpanded] = useState(false);
   const refreshFlight = useRef(false);
+  const manager=user.role===G;
+  const scrollPosition=useRef(null);
+  function openObra(id,event){
+    if(manager)scrollPosition.current=globalThis.window?.scrollY??0;
+    setSelectedSection('resumen');setSelected(id);
+  }
+  React.useLayoutEffect(()=>{
+    if(!manager||scrollPosition.current===null)return;
+    if(selected)globalThis.window?.scrollTo?.({top:0,behavior:'instant'});
+    else{globalThis.window?.scrollTo?.({top:scrollPosition.current,behavior:'instant'});scrollPosition.current=null;}
+  },[selected,manager]);
   const path = user.role === T ? `${obraPath()}mis-obras/` : obraPath();
   const read = () => { setData(null); return api.load('list', collectionPath(path, query.page, query.filters), (result) => {
     const page = readPage(result, path); setData({ ...page, results: page.results.map((row) => projectObra(row, user.role)) });
@@ -31,13 +43,14 @@ export default function Obras() {
   }
   const blocked = api.busy || api.loading || api.locked;
   if (!canReadObras(user.role)) return <p role="alert">No tienes acceso a Obras.</p>;
-  if (categories && canReadTeam(user.role)) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
+  if (categories && user.role === S) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
+  if (selected && manager) return <section className="commercial-page obras-page"><GerenciaObra key={`${user.id}:${selected}`} id={selected} onBack={()=>{setSelected(null);setSelectedSection('resumen');}} /></section>;
   if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} initialTab={selectedSection} onBack={() => { setSelected(null); setSelectedSection('resumen'); void read(); }} /></section>;
   return <section className="commercial-page obras-page">
-    <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : undefined} />
+    <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : manager?'Consulta el avance y los costos de las obras.':undefined} />
     <div className="budget-toolbar">
       {user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { setExpanded(false); setCreating(true); }}>Nueva obra</button>}
-      {canReadTeam(user.role) && <button className="btn btn-outline-secondary" disabled={blocked || creating} onClick={() => setCategories(true)}>Categorías de servicio</button>}
+      {user.role === S && <button className="btn btn-outline-secondary" disabled={blocked || creating} onClick={() => setCategories(true)}>Categorías de servicio</button>}
       <div className="budget-toolbar-filters"><button className="btn btn-outline-secondary" type="button" aria-expanded={expanded} aria-controls="obras-filters" disabled={api.busy || creating} onClick={() => setExpanded(!expanded)}>Filtros</button><RefreshButton busy={api.busy || api.loading} onClick={refresh} /></div>
     </div>
     {expanded && <form id="obras-filters" className="card-fyag commercial-form" noValidate onSubmit={apply}>
@@ -51,10 +64,10 @@ export default function Obras() {
     </form>}
     <Feedback api={api} />
     <div className="card-fyag commercial-table-card"><div className="table-responsive" role="region" aria-label={user.role === T ? 'Mis obras asignadas' : 'Listado de obras'} tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Código', 'Cliente', 'Categoría', 'Responsable', 'Estado', 'Programación', 'Detalle'].map((label) => <th scope="col" key={label}>{label}</th>)}</tr></thead><tbody>
-      {data?.results.map((obra) => <tr key={obra.id}><td className="commercial-code">{obra.codigo} · #{obra.id}</td><td className="commercial-description">{obra.cliente_nombre} · #{obra.cliente}</td><td>{obra.categoria_nombre} · #{obra.categoria_servicio}</td><td>{obra.tecnico_nombre || 'Sin asignar'}{obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</td><td><ObraStatus state={obra.estado} /></td><td>{shortDate(obra.fecha_programada)}</td><td><div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={blocked || creating} onClick={() => { setSelectedSection('resumen'); setSelected(obra.id); }}>Ver obra</button>{user.role === T && <button className="btn btn-fyag-primary btn-sm" disabled={blocked || creating} onClick={() => { setSelectedSection('turnos'); setSelected(obra.id); }}>Ver mis turnos</button>}</div></td></tr>)}
+      {data?.results.map((obra) => <tr key={obra.id}><td className="commercial-code">{obra.codigo}{!manager&&` · #${obra.id}`}</td><td className="commercial-description">{obra.cliente_nombre}{!manager&&` · #${obra.cliente}`}</td><td>{obra.categoria_nombre}{!manager&&` · #${obra.categoria_servicio}`}</td><td>{obra.tecnico_nombre || 'Sin asignar'}{!manager&&obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</td><td><ObraStatus state={obra.estado} /></td><td>{shortDate(obra.fecha_programada)}</td><td><div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={blocked || creating} onClick={event => openObra(obra.id,event)}>Ver obra</button>{user.role === T && <button className="btn btn-fyag-primary btn-sm" disabled={blocked || creating} onClick={() => { setSelectedSection('turnos'); setSelected(obra.id); }}>Ver mis turnos</button>}</div></td></tr>)}
     </tbody></table></div>
       {data && !data.count && <div className="commercial-empty"><h2>{user.role === T ? 'No tienes obras asignadas.' : 'No hay obras para esta consulta.'}</h2><p>{user.role === T ? 'Los turnos aparecerán dentro de cada obra cuando te asignen a una.' : 'Prueba con otros filtros.'}</p></div>}
-      <Pager label="Paginación de obras" data={data} page={query.page} setPage={(page) => setQuery({ ...query, page })} disabled={blocked || creating} />
+      {(!manager||data&&(data.next||data.previous))&&<Pager label="Paginación de obras" data={data} page={query.page} setPage={(page) => setQuery({ ...query, page })} disabled={blocked || creating} />}
       {api.error?.status === 404 && query.page !== 1 && <button className="btn btn-outline-secondary m-3" onClick={() => setQuery({ ...query, page: 1 })}>Volver a la primera página</button>}
     </div>
     {creating && user.role === S && <NewObra onClose={() => setCreating(false)} onCreated={(id) => { setCreating(false); setSelectedSection('resumen'); setSelected(id); }} />}

@@ -44,14 +44,14 @@ for (const role of [G, S, AF, T]) test(`Obras ${role}: rutas autorizadas y proye
   try {
     assert.equal(b.calls[0].path, role === T ? '/api/obras/mis-obras/?page=1' : '/api/obras/?page=1');
     assert.equal(buttons(renderer, 'Nueva obra').length, role === S ? 1 : 0);
-    assert.equal(buttons(renderer, 'Categorías de servicio').length, [G, S].includes(role) ? 1 : 0);
+    assert.equal(buttons(renderer, 'Categorías de servicio').length, role === S ? 1 : 0);
     await click(renderer, 'Ver obra');
     assert.ok(b.calls.some((c) => c.path === '/api/obras/1/'));
     assert.doesNotMatch(text(renderer.root), /999999|NO EXPONER|Usuario #999/);
     assert.equal(text(renderer.root).includes('Descripción operativa privada'), role !== AF);
     assert.equal(buttons(renderer, 'Editar obra').length, role === S ? 1 : 0);
-    assert.equal(buttons(renderer, 'Técnicos').length, [G, S].includes(role) ? 1 : 0);
-    assert.equal(buttons(renderer, 'Historial').length, [G, S].includes(role) ? 1 : 0);
+    assert.equal(buttons(renderer, 'Técnicos').length, role === S ? 1 : 0);
+    assert.equal(buttons(renderer, 'Historial').length, role === S ? 1 : 0);
     if (role === AF || role === T) assert.ok(b.calls.every((c) => !/participantes|historial|categorias-servicio|disponibles/.test(c.path)));
     if (role === T) { assert.doesNotMatch(text(renderer.root), /Costos|Materiales y gastos/); assert.equal(b.obras[0].tecnico_responsable, 7); } // Miembro adicional, no filtrar por principal.
   } finally { await unmount(renderer); }
@@ -149,33 +149,27 @@ test('catálogo S: alta, renombre, activación/desactivación con motivo e histo
     await click(renderer, 'Volver a categorías'); await input(renderer, 'categorias_activo', 'false'); assert.equal(b.calls.at(-1).path, '/api/categorias-servicio/?page=1&activo=false');
   } finally { await unmount(renderer); }
 });
-test('G consulta categorías e historial sin escrituras; S conserva gestión de catálogo', async () => {
-  for (const role of [G, S]) {
-    const b = obrasBackend(role), renderer = await mount(b);
-    try {
-      if (role === G) {
-        await click(renderer, 'Categorías de servicio'); assert.equal(buttons(renderer, 'Nueva categoría').length, 0); await click(renderer, 'Ver categoría');
-        assert.equal(buttons(renderer, 'Renombrar categoría').length, 0);
-        assert.equal(buttons(renderer, 'Activar categoría').length, 0);
-        assert.equal(buttons(renderer, 'Desactivar categoría').length, 0);
-        assert.ok(b.calls.some(c=>c.path.includes('/categorias-servicio/1/historial/')));
-        await click(renderer, 'Volver a categorías'); await click(renderer, 'Volver a obras');
-        await click(renderer, 'Ver obra'); await click(renderer, 'Técnicos');
-        assert.equal(buttons(renderer, 'Asignar participante').length, 0); assert.equal(buttons(renderer, 'Reactivar').length, 0);
-        assert.ok(renderer.root.findAllByType('th').every(th=>text(th)!=='Acción'));
-        await click(renderer, 'Historial'); assert.ok(b.calls.some((c) => c.path.includes('/participantes/historial/')));
-        await click(renderer,'Costos');
-        assert.equal(buttons(renderer,'Guardar declaración de rubro').length,0);
-        assert.equal(renderer.root.findAllByType('select').length,0);
-        assert.match(text(renderer.root.findByProps({'aria-label':'Estado de los rubros'})),/MaterialesPendienteOtros gastosPendiente/);
-        await click(renderer,'Materiales y gastos');
-        assert.ok(renderer.root.findAllByType('th').every(th=>text(th)!=='Acciones'));
-        assert.ok(b.calls.every(c=>c.method==='GET'));
-      } else {
-        await click(renderer,'Categorías de servicio');assert.equal(buttons(renderer,'Nueva categoría').length,1);
-      }
-    } finally { await unmount(renderer); }
-  }
+test('Gerencia tiene ficha propia, resume datos reales y carga información secundaria bajo demanda',async()=>{
+  const b=obrasBackend(G),renderer=await mount(b);
+  try{
+    assert.equal(buttons(renderer,'Categorías de servicio').length,0);
+    await click(renderer,'Ver obra');
+    assert.match(text(renderer.root),/Presupuesto neto\$45\.300/);
+    assert.match(text(renderer.root),/Técnicos activos1/);
+    assert.ok(b.calls.some(c=>c.path==='/api/obras/1/participantes/?page=1&activo=true'));
+    assert.ok(b.calls.every(c=>!c.path.includes('/historial/')&&!c.path.includes('/turnos/')));
+    assert.equal(buttons(renderer,'Editar obra').length,0);
+    await click(renderer,'Resumen económico');
+    assert.match(text(renderer.root),/Costos pendientes de validación/);
+    assert.equal(renderer.root.findAllByType('select').length,0);
+    await click(renderer,'Actividad reciente');
+    assert.match(text(renderer.root),/Obra creada/);
+    await click(renderer,'Turnos');
+    assert.match(text(renderer.root),/No hay turnos registrados/);
+    assert.ok(b.calls.every(c=>c.method==='GET'));
+    await click(renderer,'Volver al listado');
+    assert.equal(buttons(renderer,'Ver obra').length,1);
+  }finally{await unmount(renderer);}
 });
 async function nextIn(renderer, label) {
   await act(async () => { const nav = renderer.root.findByProps({ 'aria-label': label }); const next = nav.findAllByType('button').find((b) => text(b) === 'Siguiente'); assert.ok(!next.props.disabled); next.props.onClick(); await flush(); });
@@ -200,7 +194,7 @@ test('selecciones de presupuestos/técnicos/categorías respetan páginas y cons
   } finally { await unmount(renderer); }
 });
 test('participantes, historial operativo e historial de membresías tienen paginaciones independientes', async () => {
-  const b = obrasBackend(G);
+  const b = obrasBackend(S);
   b.members.push(...Array.from({ length: 24 }, (_, i) => ({ ...b.members[1], id: 103 + i, tecnico: 30 + i })));
   b.events = Array.from({ length: 26 }, (_, i) => ({ ...b.events[0], id: i + 1 }));
   b.memberEvents = Array.from({ length: 26 }, (_, i) => ({ id: i + 1, participante: 102, tipo: 'ASIGNACION', registrado_por: 2, motivo: 'Apoyo', datos_anteriores: {}, datos_nuevos: { activo: true }, creado_en: '2026-11-08T12:00:00Z' }));
@@ -214,7 +208,7 @@ test('participantes, historial operativo e historial de membresías tienen pagin
   } finally { await unmount(renderer); }
 });
 test('catálogo e historial de categoría paginados; filtro activo es del servidor', async () => {
-  const b = obrasBackend(G);
+  const b = obrasBackend(S);
   b.categories.push(...Array.from({ length: 24 }, (_, i) => ({ id: 3 + i, nombre: `Servicio ${i}`, activo: true })));
   b.categoryEvents = Array.from({ length: 26 }, (_, i) => ({ id: i + 1, tipo: 'EDICION', registrado_por: 1, motivo: 'Ajuste', datos_anteriores: { nombre: 'Antes' }, datos_nuevos: { nombre: 'Después' }, creado_en: '2026-11-08T12:00:00Z' }));
   const renderer = await mount(b);
@@ -284,7 +278,7 @@ test('historial tardío de otra Obra queda abortado y no se mezcla al navegar', 
   };
   const renderer = await mount(b);
   try {
-    await click(renderer, 'Ver obra'); await click(renderer, 'Historial');
+    await click(renderer, 'Ver obra'); await click(renderer, 'Actividad reciente');
     await click(renderer, 'Volver al listado'); assert.ok(signal.aborted);
     await click(renderer, 'Ver obra', 1); release(); await act(async () => { await flush(); });
     assert.match(text(renderer.root), /Segunda obra/); assert.doesNotMatch(text(renderer.root), /Descripción operativa privada/);
@@ -407,7 +401,7 @@ test('roles de lectura y técnico no muestran acciones administrativas ni fotos 
       if (role === AF) continue;
       await click(renderer, 'Ver obra'); await click(renderer, 'Turnos');
       assert.equal(buttons(renderer, 'Iniciar turno').length, 0); assert.equal(buttons(renderer, 'Revisar turno').length, 0);
-      assert.match(text(renderer.root), /Costo mano de obra neto: 10.00/);
+      assert.match(text(renderer.root), /Pendiente de revisión/);
     } finally { await unmount(renderer); }
   }
 });
