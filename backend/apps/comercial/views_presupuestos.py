@@ -1,4 +1,4 @@
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -6,6 +6,8 @@ from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from apps.inventario.models import ArticuloInventario
 
 from . import services_presupuestos as servicios
 from .exceptions import (
@@ -22,6 +24,7 @@ from .permissions import PuedeOperarPresupuestos
 from .permissions_presupuestos import presupuestos_visibles, revalidar_presupuestos
 from .serializers_presupuestos import (
     ClienteElegibleSerializer,
+    MaterialElegibleSerializer,
     PresupuestoAccionSerializer,
     PresupuestoDetalleSerializer,
     PresupuestoEscrituraSerializer,
@@ -93,6 +96,7 @@ class PresupuestoViewSet(
     def get_serializer_class(self):
         return {
             'clientes_elegibles': ClienteElegibleSerializer,
+            'materiales_elegibles': MaterialElegibleSerializer,
             "list": PresupuestoListadoSerializer,
             "create": PresupuestoEscrituraSerializer,
             "partial_update": PresupuestoEscrituraSerializer,
@@ -156,6 +160,28 @@ class PresupuestoViewSet(
         # Proyección SQL mínima: nunca cargar PII para este selector.
         pagina = self.paginate_queryset(queryset.order_by('nombre_legal', 'id').values('id', 'nombre_legal', 'tipo_cliente'))
         return self.get_paginated_response(ClienteElegibleSerializer(pagina, many=True).data)
+
+    @action(detail=False, methods=['get'], url_path='materiales-elegibles')
+    def materiales_elegibles(self, request):
+        revalidar_presupuestos(request.user, 'selector')
+        params = request.query_params
+        if set(params) - {'buscar', 'page'} or any(len(params.getlist(k)) != 1 for k in params):
+            raise ValidationError({'query': ['Parámetros desconocidos o repetidos.']})
+        if 'page' in params:
+            page = params['page']
+            if len(page) > 19 or not page.isascii() or not page.isdecimal() or not 0 < int(page) <= 9223372036854775807:
+                raise ValidationError({'page': ['Indique una página positiva.']})
+        queryset = ArticuloInventario.objects.filter(activo=True)
+        if 'buscar' in params:
+            buscar = params['buscar'].strip()
+            if not buscar or len(buscar) > 150 or any(ord(c) < 32 for c in buscar):
+                raise ValidationError({'buscar': ['Búsqueda inválida.']})
+            queryset = queryset.filter(Q(codigo__icontains=buscar) | Q(nombre__icontains=buscar))
+        # Catálogo mínimo: no consultar existencias, costos ni datos de actores.
+        pagina = self.paginate_queryset(
+            queryset.order_by('nombre', 'id').values('id', 'codigo', 'nombre', 'unidad')
+        )
+        return self.get_paginated_response(MaterialElegibleSerializer(pagina, many=True).data)
 
     def partial_update(self, request, pk=None):
         presupuesto = self.get_object()

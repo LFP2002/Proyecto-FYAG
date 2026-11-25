@@ -99,6 +99,14 @@ class ClienteElegibleSerializer(serializers.Serializer):
     tipo_cliente = serializers.CharField(read_only=True)
 
 
+class MaterialElegibleSerializer(serializers.Serializer):
+    """SPEC-025A: proyección comercial de catálogo, sin valorización ni stock."""
+    id = serializers.IntegerField(read_only=True)
+    codigo = serializers.CharField(read_only=True)
+    nombre = serializers.CharField(read_only=True)
+    unidad = serializers.CharField(read_only=True)
+
+
 class PresupuestoItemSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     presupuesto = serializers.IntegerField(

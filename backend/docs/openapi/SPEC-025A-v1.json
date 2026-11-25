@@ -1,0 +1,140 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — SPEC-025A",
+    "version": "1.0.0",
+    "description": "Selector comercial de artículos activos; no expone costos ni existencias. Complementa SPEC-024."
+  },
+  "paths": {
+    "/api/presupuestos/materiales-elegibles/": {
+      "get": {
+        "summary": "Consultar materiales para presupuestos",
+        "description": "Exclusivo de Supervisor y Finanzas. No produce escrituras.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "description": "Nombre o código, búsqueda insensible a mayúsculas"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de hasta 25 artículos activos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "Sesión no disponible"
+          },
+          "403": {
+            "description": "Rol sin autorización"
+          },
+          "404": {
+            "description": "Página inexistente"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Material": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "codigo",
+          "nombre",
+          "unidad"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "unidad": {
+            "type": "string",
+            "maxLength": 30
+          }
+        }
+      },
+      "MaterialPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Material"
+            }
+          }
+        }
+      }
+    }
+  }
+}
