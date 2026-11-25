@@ -74,3 +74,33 @@ test('diseño móvil no deja la navegación como barra horizontal desplazable', 
   assert.match(css, /\.fyag-side\s*\{[^}]*display:\s*none;/s);
   assert.doesNotMatch(css, /overflow-x:\s*auto/);
 });
+
+
+test('tamaño global: cuatro aumentos, reducción y persistencia local', async()=>{
+  const oldStorage=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+  const oldDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
+  const values=new Map(), attrs=new Map();
+  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)}});
+  Object.defineProperty(globalThis,'document',{configurable:true,value:{documentElement:{setAttribute:(k,v)=>attrs.set(k,v),removeAttribute:k=>attrs.delete(k)}}});
+  let view;
+  const control=(label)=>view.root.findByProps({'aria-label':label});
+  try{
+    view=await mount();
+    assert.equal(control('Reducir tamaño de letra').props.disabled,true);
+    for(const [index,percent] of [112.5,125,137.5,150].entries()){
+      await act(async()=>control('Aumentar tamaño de letra').props.onClick());
+      assert.equal(textContent(control('Tamaño actual')),percent+'%');
+      assert.equal(attrs.get('data-fyag-font-level'),String(index+1));
+    }
+    assert.equal(control('Aumentar tamaño de letra').props.disabled,true);
+    await act(async()=>control('Reducir tamaño de letra').props.onClick());
+    assert.equal(values.get('fyag.font-level'),'3');
+    await act(async()=>view.unmount());view=null;
+    assert.equal(attrs.has('data-fyag-font-level'),false);
+    view=await mount();assert.equal(textContent(control('Tamaño actual')),'137.5%');
+  }finally{
+    if(view)await act(async()=>view.unmount());
+    if(oldStorage)Object.defineProperty(globalThis,'localStorage',oldStorage);else delete globalThis.localStorage;
+    if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else delete globalThis.document;
+  }
+});

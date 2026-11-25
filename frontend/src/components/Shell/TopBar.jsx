@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { ROLES } from '../../data/constants';
 import { Icon } from '../ui';
 
-export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef }) {
+export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontPercent=100, maxFontLevel=4, onAdjustFont }) {
   const { user, logout } = useAuth();
   return (
     <header className="fyag-top">
@@ -25,6 +25,11 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef }
         {menuOpen ? 'Cerrar menú' : 'Menú'}
       </button>
       <div className="top-right">
+        <div className="fyag-font-controls" role="group" aria-label="Tamaño de letra">
+          <button type="button" aria-label="Reducir tamaño de letra" title="Reducir tamaño de letra" disabled={fontLevel===0} onClick={()=>onAdjustFont?.(-1)}>A−</button>
+          <output aria-live="polite" aria-label="Tamaño actual">{fontPercent}%</output>
+          <button type="button" aria-label="Aumentar tamaño de letra" title="Aumentar tamaño de letra" disabled={fontLevel===maxFontLevel} onClick={()=>onAdjustFont?.(1)}>A+</button>
+        </div>
         <span className="d-inline-flex align-items-center gap-2">
           <Icon d="M20 21v-1a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
           {user.username} · {ROLES[user.role].short}

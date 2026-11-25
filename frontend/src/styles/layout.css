@@ -50,3 +50,11 @@
   .fyag-side.is-open { grid-template-columns: 1fr; }
   .fyag-content { padding: 16px 12px 64px; }
 }
+
+.fyag-font-controls { display:inline-flex; align-items:center; gap:4px; flex:none; border:1px solid #5a7a9c; border-radius:8px; padding:2px; }
+.fyag-font-controls button { background:transparent; color:#fff; border:0; border-radius:5px; padding:5px 8px; min-height:36px; font-weight:700; line-height:1.25; }
+.fyag-font-controls button:hover:not(:disabled) { background:#1f4064; }
+.fyag-font-controls button:disabled { opacity:.45; }
+.fyag-font-controls output { min-width:3.2em; text-align:center; font-size:.75rem; }
+.fyag-top .top-right > span { overflow-wrap:anywhere; }
+.fyag-side .navbtn span { min-width:0; overflow-wrap:anywhere; }

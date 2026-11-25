@@ -1,6 +1,6 @@
 body { margin: 0; font-variant-numeric: tabular-nums; }
 *, *::before, *::after { box-sizing: border-box; }
-.app-root { font-family: var(--bs-body-font-family); color: var(--fyag-text); background: var(--fyag-bg); min-height: 100vh; font-size: 14px; line-height: 1.45; }
+.app-root { font-family: var(--bs-body-font-family); color: var(--fyag-text); background: var(--fyag-bg); min-height: 100vh; font-size: .875rem; line-height: 1.45; }
 :focus-visible { outline: 3px solid #6aa5e0; outline-offset: 2px; }
 
 .btn-fyag-primary { background: var(--fyag-primary-light); border-color: var(--fyag-primary-light); color: #fff; }
@@ -9,3 +9,8 @@ body { margin: 0; font-variant-numeric: tabular-nums; }
 .btn-fyag-danger:hover { background: #fbe6e4; color: var(--fyag-red-dark); }
 .btn-fyag-white { background: transparent; color: #fff; border-color: #5a7a9c; }
 .btn-fyag-white:hover { background: #1f4064; color: #fff; }
+/* Preferencia local: conservar el tamaño original y escalar las unidades rem. */
+:root[data-fyag-font-level='1'] { font-size: 112.5%; }
+:root[data-fyag-font-level='2'] { font-size: 125%; }
+:root[data-fyag-font-level='3'] { font-size: 137.5%; }
+:root[data-fyag-font-level='4'] { font-size: 150%; }
