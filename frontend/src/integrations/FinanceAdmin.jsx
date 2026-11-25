@@ -86,13 +86,12 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       <button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading || api.busy || childBlocked} onClick={()=>{setMessage('');void refreshAffected().catch(api.setError);}}>Actualizar documentos y estado</button>
       {canWrite && <button type="button" className="btn btn-fyag-primary btn-sm" disabled={blocked} onClick={()=>{setCreate(!create);setEligiblePage(1);setSelected(null);}}>Registrar documento externo</button>}
     </div></div>
-    {api.error && <p className="alert alert-warning" role="alert">{({400:'Revisa los datos financieros ingresados.',403:'El backend no autorizó esta operación.',404:'La obra, documento o página ya no está disponible.',409:'Conflicto financiero: vuelve a consultar antes de decidir.'})[api.error.status] || api.error.message}</p>}
+    {api.error && <p className="alert alert-warning" role="alert">{({400:'Revisa los datos financieros ingresados.',403:'No tienes permiso para esta operación.',404:'La obra, documento o página ya no está disponible.',409:'Conflicto financiero: vuelve a consultar antes de decidir.'})[api.error.status] || api.error.message}</p>}
     {api.locked && <p role="alert">Escritura bloqueada: falta confirmar el resultado. Reconsultar no reenvía ni desbloquea una operación administrativa incierta.</p>}
     {message && <p className="alert alert-info" role="status">{message}</p>}
     <form className="commercial-form my-3" onSubmit={lookup} aria-label="Consulta del estado financiero de una obra">
       <label className="form-label">ID de Obra para consulta financiera<input className="form-control" inputMode="numeric" value={obraInput} disabled={blocked} onChange={(e)=>{setObraInput(e.target.value);setObraId('');setState(null);api.cancelRead('financial-state');}} /></label>
       <button className="btn btn-outline-secondary mt-2" disabled={blocked || api.loading}>Consultar estado financiero</button>
-      <p>Esta consulta permite localizar también cortesías SIN_COBRO, excluidas del selector de facturación. No autoriza crear una cortesía.</p>
     </form>
     {state && <section aria-label="Estado financiero de la obra"><h4>{state.origen.codigo_obra} · {state.estado_financiero}</h4>
       <p>Presupuesto {state.origen.codigo_presupuesto} · Cliente {state.origen.cliente.nombre_legal} · Neto aprobado {state.origen.monto_neto_aprobado} {state.origen.moneda}</p>
@@ -100,13 +99,12 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       {state.documento_vigente && <><p>Documento vigente #{state.documento_vigente.id} · {state.documento_vigente.monto_total} CLP</p><button type="button" className="btn btn-outline-secondary" disabled={blocked} onClick={()=>setSelected(state.documento_vigente)}>Consultar / administrar documento vigente</button></>}
       {state.cierre_sin_cobro && <p>Cierre sin cobro #{state.cierre_sin_cobro.id}: {state.cierre_sin_cobro.motivo_registro} · registrado {state.cierre_sin_cobro.registrado_en}</p>}
       {canWrite && canRegisterWithoutCharge(state) && <form className="commercial-form" onSubmit={closeWithoutCharge} aria-label="Registro administrativo sin cobro"><h4>Registrar cierre administrativo sin cobro</h4>
-        <p>Django verifica Obra FINALIZADA, presupuesto APROBADO_CLIENTE, cierre histórico de costos, cortesía autorizada por Supervisor y ausencia de documentos incompatibles.</p>
         <label className="form-label">Motivo de registro sin cobro<textarea className="form-control" required maxLength={2000} value={reason} disabled={blocked} onChange={(e)=>setReason(e.target.value)} /></label>
         <button className="btn btn-fyag-primary mt-2" disabled={blocked || api.loading || !reason.trim()}>Confirmar cierre sin cobro</button>
       </form>}
     </section>}
     {create && canWrite && <form className="commercial-form my-3" onSubmit={submit} aria-label="Registro de documento externo"><h4>Registrar factura externa ya emitida</h4>
-      <p>Registro administrativo solamente. El backend valida elegibilidad e importes; no se calculan impuestos aquí.</p>
+      <p>Ingresa los datos de la factura ya emitida.</p>
       <label className="form-label">Obra elegible para facturación<select className="form-select" value={form.obra} disabled={blocked || api.loading} onChange={(e)=>{const next=eligible?.results.find((row)=>row.obra===Number(e.target.value)) || (chosen?.obra===Number(e.target.value)?chosen:null);setChosen(next);setForm({...form,obra:e.target.value});}}>
         <option value="">Selecciona una obra elegible</option>{eligible?.results.map((row)=><option key={row.obra} value={String(row.obra)}>{row.codigo_obra} · {row.cliente.nombre_legal} · #{row.obra}</option>)}
         {chosen && !eligible?.results.some((row)=>row.obra===chosen.obra) && <option value={String(chosen.obra)}>{chosen.codigo_obra} · seleccionada #{chosen.obra}</option>}
@@ -114,7 +112,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       {eligible && <nav className="commercial-pager" aria-label="Paginación de obras elegibles"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!eligible.previous} onClick={()=>setEligiblePage(safePage(eligible.previous,ELIGIBLE))}>Anterior</button><span>Página {eligiblePage} · {eligible.count} obras elegibles</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading||!eligible.next} onClick={()=>setEligiblePage(safePage(eligible.next,ELIGIBLE))}>Siguiente</button></nav>}
       {eligible && !eligible.count && <p>No hay obras elegibles para facturación en esta consulta.</p>}
       <button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading} onClick={()=>void loadEligible()}>Reconsultar obras elegibles</button>
-      {chosen && <p>Neto aprobado por backend: {chosen.monto_neto_aprobado} CLP. La selección se conserva al navegar páginas; se revalida al registrar.</p>}
+      {chosen && <p>Neto aprobado: {formatCompactCLP(chosen.monto_neto_aprobado)} CLP.</p>}
       <div className="obras-form-grid">{[['folio_externo','Folio externo exacto'],['fecha_emision','Fecha de emisión'],['fecha_vencimiento','Fecha de vencimiento'],['monto_neto','Neto decimal'],['monto_impuesto','Impuesto decimal'],['monto_total','Total decimal'],['referencia_respaldo','Referencia externa']].map(([key,label])=><label className="form-label" key={key}>{label}<input className="form-control" type={key.startsWith('fecha_')?'date':'text'} disabled={blocked} value={form[key]} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}
         <label className="form-label">Tipo<select className="form-select" value={form.tipo_documento} disabled={blocked} onChange={(e)=>setForm({...form,tipo_documento:e.target.value})}><option value="FACTURA_AFECTA">Factura afecta</option><option value="FACTURA_EXENTA">Factura exenta</option></select></label></div>
       <button className="btn btn-fyag-primary mt-2" disabled={blocked||api.loading}>Registrar documento externo</button><button className="btn btn-outline-secondary mt-2 ms-2" type="button" disabled={blocked} onClick={()=>setCreate(false)}>Cancelar</button>

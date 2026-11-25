@@ -1,7 +1,8 @@
 /* Cobranzas: presentación compacta, sin alterar los contratos financieros. */
 .commercial-page.cobranzas-page { max-width:none; margin-inline:auto; display:flex; flex-direction:column; gap:16px; }
 .cobranzas-page > * { margin-bottom:0 !important; min-width:0; }
-.cobranzas-page .page-head { margin:0; flex-wrap:wrap; }
+.commercial-page.cobranzas-page .page-head { display:flex; flex-direction:row; justify-content:space-between; align-items:center; margin:0; flex-wrap:wrap; gap:12px; }
+.commercial-page.cobranzas-page .page-head > .d-flex { margin-inline-start:auto; }
 .cobranzas-page .page-head h1 { margin:0; font-size:1.75rem; font-weight:700; letter-spacing:-.015em; color:var(--fyag-primary); }
 .cobranzas-page .page-head .sub { margin:4px 0 0; color:var(--fyag-muted); }
 .cobranzas-refresh,.cobranzas-panel-actions .btn { display:inline-flex; align-items:center; gap:6px; }

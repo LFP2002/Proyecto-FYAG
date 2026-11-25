@@ -129,7 +129,7 @@ test('Dashboard descarta resumen tardío tras rango inválido y retira cifras an
 
 test('dashboard consulta los tres endpoints y despliega respuestas reales, sin mock', { timeout: 15000 }, async () => {
   const { renderer, calls } = await mount(Dashboard, 'GERENCIA');
-  try { assert.ok(calls.some((c) => c.path === '/api/dashboard/resumen/')); assert.ok(calls.some((c) => c.path === '/api/dashboard/serie-obras/?meses=6')); assert.ok(calls.some((c) => c.path === '/api/dashboard/obras-activas/')); assert.match(text(renderer.toJSON()), /Obras finalizadas por mes/); assert.doesNotMatch(text(renderer.toJSON()), /Margen proyectado|Exportación generada/); } finally { await act(async () => renderer.unmount()); }
+  try { assert.ok(calls.some((c) => c.path === '/api/dashboard/resumen/')); assert.ok(calls.some((c) => c.path === '/api/dashboard/serie-obras/?meses=6')); assert.ok(calls.some((c) => c.path === '/api/dashboard/obras-activas/')); assert.match(text(renderer.toJSON()), /Obras finalizadas por mes/); assert.doesNotMatch(text(renderer.toJSON()), /Margen proyectado|Exportación generada|Datos del servidor|America\/Santiago/); assert.match(text(renderer.toJSON()), /Cobranza actual/); assert.equal(renderer.root.findAllByProps({'aria-label':'Paginación de Obras en proceso'}).length,0); } finally { await act(async () => renderer.unmount()); }
 });
 test('Cobranzas oculta cifras previas cuando la consulta actual falla', { timeout: 15000 }, async () => {
   let fail=false;

@@ -116,13 +116,12 @@ export default function Cobranzas() {
       </form>
       <div className="table-responsive" role="region" aria-label="Cartera de cobranzas" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Folio externo','Obra','Cliente','Emisión','Vencimiento','Neto CLP','Impuesto CLP','Bruto CLP','Abonado CLP','Saldo CLP','Estado','Adjuntos'].map((x)=><th scope="col" key={x}>{x}</th>)}</tr></thead><tbody>{(snapshotKey===currentSnapshotKey?data?.results:null)?.map((row)=><tr key={row.id}><td><button className="btn btn-link p-0" type="button" onClick={()=>setSelectedDocument(row.id)}>{row.folio_externo}</button></td><td>{row.origen.codigo_obra} · #{row.origen.obra}</td><td>{row.origen.cliente.nombre_legal}</td><td>{formatCivilDate(row.fecha_emision)}</td><td>{formatCivilDate(row.fecha_vencimiento)}</td><td className="num">{formatCompactCLP(row.monto_neto)}</td><td className="num">{formatCompactCLP(row.monto_impuesto)}</td><td className="num">{formatCompactCLP(row.monto_total)}</td><td className="num">{formatCompactCLP(row.cobranza.abonado)}</td><td className="num saldo">{formatCompactCLP(row.cobranza.saldo)}</td><td><span className="cobranzas-estado" data-estado={row.cobranza.estado}>{row.cobranza.estado}</span></td><td><button type="button" className="btn btn-outline-secondary btn-sm" onClick={()=>setSelectedDocument(row.id)}>Adjuntos</button></td></tr>)}</tbody></table></div>
       {snapshotKey===currentSnapshotKey&&data&&!data.count&&<div className="commercial-empty"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg><strong>Sin documentos vigentes</strong><span>No hay documentos vigentes para esos filtros.</span></div>}
-      <Pager data={snapshotKey===currentSnapshotKey?data:null} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />
+      {snapshotKey===currentSnapshotKey&&data&&(data.next||data.previous)&&<Pager data={data} page={page} setPage={setPage} disabled={blocked||invalidId||invalidDates} label="Paginación de cobranzas" />}
     </div>
     {selectedDocument && <Adjuntos type="RESPALDO_FACTURA" destinationId={selectedDocument} canUpload={user.role==='ADMINISTRATIVO_FINANZAS'&&data?.results.some((row)=>row.id===selectedDocument&&row.estado==='VIGENTE')} />}
     </div>
     <div id="cobranzas-documentos" className="cobranzas-view" hidden={activeView!=='documentos'}>
       <FinanceAdmin onChanged={reload} onMutationStart={invalidateFinancial} />
     </div>
-    <p className="commercial-help">FYAG registra documentos externos y pagos ya informados; no emite DTE, no procesa cobros ni realiza transferencias. Totales y estados vienen del backend.</p>
   </section>;
 }
