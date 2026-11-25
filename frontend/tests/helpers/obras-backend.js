@@ -32,6 +32,18 @@ export function obrasBackend(role = S) {
 
     const url = new URL(path, 'http://localhost'), route = url.pathname;
     if (/^\/api\/presupuestos\/\d+\/$/.test(route) && method==='GET') { assertRole([G,AF]); const id=Number(route.split('/')[3]); return {id,monto_neto:'45300.00'}; }
+    if (route === '/api/obras/supervision-gerencial/') {
+      assertRole([G]);
+      const rows=backend.obras.map(o=>{const cost=o.test_cost||'0.00',budget='45300.00',alerts=[];
+        if(Number(cost)>Number(budget))alerts.push('PRESUPUESTO_SUPERADO');
+        if(o.estado==='SUSPENDIDA')alerts.push('SUSPENDIDA');
+        if(o.estado==='PLANIFICADA'&&!o.fecha_programada)alerts.push('SIN_PROGRAMAR');
+        return {...o,presupuesto_neto:budget,costo_total:cost,diferencia_neta:(Number(budget)-Number(cost)).toFixed(2),porcentaje_utilizado:(Number(cost)/Number(budget)*100).toFixed(1),costos_provisionales:true,sin_cobro:false,alertas:alerts,nivel:alerts.includes('PRESUPUESTO_SUPERADO')?'critica':alerts.length?'atencion':'normal'};
+      }).sort((a,b)=>['critica','atencion','normal'].indexOf(a.nivel)-['critica','atencion','normal'].indexOf(b.nivel));
+      const resumen={total:rows.length,en_ejecucion:rows.filter(o=>o.estado==='EN_PROCESO').length,sin_programar:rows.filter(o=>o.alertas.includes('SIN_PROGRAMAR')).length,presupuesto_superado:rows.filter(o=>o.alertas.includes('PRESUPUESTO_SUPERADO')).length,suspendidas:rows.filter(o=>o.estado==='SUSPENDIDA').length,requieren_atencion:rows.filter(o=>o.alertas.length).length};
+      const filtered=rows.filter(o=>(!url.searchParams.has('estado')||o.estado===url.searchParams.get('estado'))&&(url.searchParams.get('atencion')!=='requiere'||o.alertas.length)&&(url.searchParams.get('atencion')!=='sin_alertas'||!o.alertas.length)&&(!url.searchParams.has('buscar')||o.codigo.includes(url.searchParams.get('buscar')))&&(!url.searchParams.has('prioridad')||o.alertas.includes(({sin_programar:'SIN_PROGRAMAR',presupuesto_superado:'PRESUPUESTO_SUPERADO',suspendidas:'SUSPENDIDA'})[url.searchParams.get('prioridad')])));
+      return {...paginate(filtered,url),resumen};
+    }
     if (route === '/api/obras/presupuestos-disponibles/') { assertRole([S]); return paginate(backend.budgets, url); }
     if (route === '/api/obras/tecnicos-disponibles/') { assertRole([S]); return paginate(backend.technicians, url); }
     if (route === '/api/obras/' || route === '/api/obras/mis-obras/') {

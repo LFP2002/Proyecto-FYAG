@@ -19,6 +19,7 @@ from apps.comercial.models import Presupuesto
 from apps.usuarios.models import Usuario
 
 from . import services, services_finalizacion
+from .services_supervision import supervision_gerencial
 from .exceptions import (
     DatosInvalidos, ErrorObras, EstadoIncompatible, PermisoDenegado,
     PresupuestoUtilizado, RecursoNoEncontrado, SinCambios,
@@ -239,6 +240,15 @@ class ObraViewSet(
             else:
                 queryset = queryset.order_by(orden, "-id" if descendente else "id")
         return self._paginado(queryset, self.get_serializer_class())
+
+    @action(detail=False, methods=["get"], url_path="supervision-gerencial")
+    def supervision_gerencial(self, request):
+        _validar_query_params(request.query_params, {"estado", "atencion", "buscar", "prioridad"})
+        rows, resumen = supervision_gerencial(self.get_queryset(), request.query_params)
+        page = self.paginate_queryset(rows)
+        response = self.get_paginated_response(page)
+        response.data["resumen"] = resumen
+        return response
 
     def create(self, request, *args, **kwargs):
         obra = services.crear_obra(self._datos(), request.user)

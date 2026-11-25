@@ -27,6 +27,8 @@ class PuedeOperarObras(BasePermission):
         # OPTIONS debe respetar también el ámbito de la subruta.
         if accion == "metadata":
             accion = view.action_map.get("get") or view.action_map.get("post")
+        if accion == "supervision_gerencial":
+            return usuario.rol == G
         if accion == "mis_obras":
             return usuario.rol == T
         if accion in {"iniciar_turno", "finalizar_turno", "subsanar_turno"}:

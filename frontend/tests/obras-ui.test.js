@@ -42,7 +42,7 @@ for (const role of [G, S, AF, T]) test(`Obras ${role}: rutas autorizadas y proye
   }
   const renderer = await mount(b);
   try {
-    assert.equal(b.calls[0].path, role === T ? '/api/obras/mis-obras/?page=1' : '/api/obras/?page=1');
+    assert.equal(b.calls[0].path, role === T ? '/api/obras/mis-obras/?page=1' : role===G?'/api/obras/supervision-gerencial/?page=1':'/api/obras/?page=1');
     assert.equal(buttons(renderer, 'Nueva obra').length, role === S ? 1 : 0);
     assert.equal(buttons(renderer, 'Categorías de servicio').length, role === S ? 1 : 0);
     await click(renderer, 'Ver obra');
@@ -416,4 +416,26 @@ test('reconsulta tras conflicto de participante respeta el principal actual sin 
     await click(renderer, 'Actualizar datos'); assert.equal(b.calls.filter((c) => c.method === 'POST').length, count);
     assert.ok(buttons(renderer, 'Guardar cambios')[0].props.disabled); assert.match(text(renderer.root), /ya no permiten esta acción/);
   } finally { await unmount(renderer); }
+});
+
+test('Panel gerencial: indicadores globales, prioridad y filtros remotos sin consultas por obra',async()=>{
+  const b=obrasBackend(G);
+  b.obras=Array.from({length:26},(_,i)=>({...b.obras[0],id:i+1,codigo:'OB-'+(i+1),estado:i===25?'EN_PROCESO':'PLANIFICADA',test_cost:i===25?'50000.00':'0.00'}));
+  const renderer=await mount(b);
+  try{
+    assert.equal(b.calls.length,1);
+    assert.match(text(renderer.root.findAllByType('article')[0]),/OB-26/);
+    assert.match(text(renderer.root),/26 obras/);
+    await click(renderer,'Requieren atención');
+    assert.match(b.calls.at(-1).path,/atencion=requiere/);
+    assert.equal(renderer.root.findAllByType('article').length,1);
+    assert.match(text(renderer.root),/26 obras/);
+    await click(renderer,'Limpiar filtros');
+    await click(renderer,'Siguiente');
+    assert.match(b.calls.at(-1).path,/page=2/);
+    assert.ok(b.calls.every(c=>c.path.startsWith('/api/obras/supervision-gerencial/')));
+    b.readFailure=()=>true;
+    await click(renderer,'Actualizar datos');
+    assert.equal(renderer.root.findAllByType('article').length,0);
+  }finally{await unmount(renderer);}
 });
