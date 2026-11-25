@@ -13,3 +13,29 @@
 .kv span:first-child { color: var(--fyag-muted); }
 .li { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid #edf1f5; }
 .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Presupuestos: listado y detalle independientes. */
+.commercial-page.budgets-page { max-width:none; min-width:0; }
+.budgets-page .page-head { display:flex; flex-direction:row; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+.budgets-page .page-head h1 { font-size:1.75rem; font-weight:700; margin:0; }
+.budgets-page .budget-refresh { display:inline-flex; align-items:center; justify-content:center; gap:7px; width:auto; min-width:44px; padding-inline:12px; }
+.budgets-page .budget-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin:14px 0; }
+.budgets-page .budget-toolbar-filters { margin-inline-start:auto; display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.budgets-page .budget-toolbar-filters .form-label { margin:0; }
+.budgets-page .budget-list-card .commercial-table th,.budgets-page .budget-list-card .commercial-table td { padding:10px 12px; }
+.budgets-page .budget-list-card .commercial-description { overflow-wrap:anywhere; }
+.budgets-page .budget-list-card .commercial-money { white-space:nowrap; }
+.budget-detail-view { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.budget-detail-view:focus { outline:none; }
+.budget-back { align-self:flex-start; display:inline-flex; align-items:center; gap:6px; }
+.budgets-page .commercial-detail { margin:0; }
+.budget-detail-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.budget-detail-heading h2 { margin:0; font-size:1.5rem; font-weight:700; }
+.budgets-page .commercial-summary { background:#f7f9fc; border:1px solid var(--fyag-line); padding:14px; border-radius:8px; margin-bottom:12px; gap:12px; }
+.budget-tabs { display:flex; flex-wrap:wrap; gap:18px; border-bottom:1px solid var(--fyag-line); margin:16px 0; }
+.budget-tabs button { border:0; border-bottom:3px solid transparent; background:transparent; color:var(--fyag-muted); padding:10px 2px; min-height:44px; font:inherit; font-weight:600; }
+.budget-tabs button[aria-pressed=true] { color:var(--fyag-primary-light); border-bottom-color:var(--fyag-primary-light); }
+.budget-tabs button:disabled { opacity:.55; cursor:not-allowed; }
+.budgets-page [hidden] { display:none!important; }
+.budgets-page .commercial-history { margin-top:0; padding-top:0; border-top:0; }
+.budgets-page .commercial-detail .commercial-form { margin:12px 0; }
+@media(max-width:600px) { .budgets-page .commercial-detail { padding:12px; } .budgets-page .budget-toolbar-filters { margin-inline-start:0; } .budget-tabs { gap:12px; } }
