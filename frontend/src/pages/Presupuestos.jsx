@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/ui';
 import { PRE_E } from '../data/constants';
-import { budgetPath, clientPath, itemPath, pagePath, validatePage } from '../comercial/api.js';
+import { budgetPath, clientPath, eligibleClientPath, itemPath, pagePath, validatePage } from '../comercial/api.js';
 import { AF, actionsFor, dateLabel, emptyItem, itemPayload, labels, money, needsReason } from '../comercial/domain.js';
 import { actionButtonClass, BudgetStatus, Errors, Fields, Pager, useCommercial } from '../comercial/ui.jsx';
 import ItemEditRow, { itemRowErrors } from '../comercial/ItemEditRow.jsx';
@@ -11,6 +11,8 @@ export default function Presupuestos() {
   const { user } = useAuth();
   const api = useCommercial();
   const [clients, setClients] = useState([]);
+  const [clientPage, setClientPage] = useState(1);
+  const [clientPageInfo, setClientPageInfo] = useState(null);
   const [list, setList] = useState(null);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState(null);
@@ -31,10 +33,16 @@ export default function Presupuestos() {
   const [filter, setFilter] = useState('');
   const refreshFlight = useRef(false);
   const reload = () => api.load('list', pagePath(budgetPath(), page), (data) => setList(validatePage(data, budgetPath())));
-  const loadClients = () => api.load('clients', clientPath(), setClients);
+  const loadClients = () => user.role === 'SUPERVISOR_OBRAS'
+    ? api.load('clients', eligibleClientPath(clientPage), (data) => {
+      const valid = validatePage(data, '/api/presupuestos/clientes-elegibles/');
+      setClients(valid.results);
+      setClientPageInfo(valid);
+    })
+    : api.load('clients', clientPath(), (data) => { setClients(data); setClientPageInfo(null); });
   const loadHistory = (pk, p = 1) => api.load('history', pagePath(`${budgetPath(pk)}historial/`, p), (data) => setHistory(validatePage(data, `${budgetPath(pk)}historial/`)));
   useEffect(() => { setList(null); void reload(); }, [page]);
-  useEffect(() => { void loadClients(); }, []);
+  useEffect(() => { void loadClients(); }, [user.id, user.role, clientPage]);
   useEffect(() => { if (selected) { setHistory(null); void loadHistory(selected.id, historyPage); } }, [selected?.id, historyPage]);
   async function detail(pk) {
     setSelected(null); setHistory(null); setHeader(null); setLine(null); setAction(null); setHistoryPage(1);
@@ -60,8 +68,8 @@ export default function Presupuestos() {
     await api.requiredLoad('history', pagePath(`${budgetPath(pk)}historial/`, historyPage), (data) => setHistory(validatePage(data, `${budgetPath(pk)}historial/`)));
   }
   const disabled = api.busy || api.locked || api.loading;
-  const editable = user.role === AF && selected?.estado === 'BORRADOR';
-  const clientOptions = [['', 'Selecciona cliente activo'], ...clients.filter((c) => c.activo || c.id === selected?.cliente).map((c) => [String(c.id), `${c.nombre_legal} · #${c.id}${c.activo ? '' : ' (inactivo, solo conservar)'}`])];
+  const editable = [AF, 'SUPERVISOR_OBRAS'].includes(user.role) && selected?.estado === 'BORRADOR';
+  const clientOptions = [['', 'Selecciona cliente activo'], ...clients.filter((c) => user.role === 'SUPERVISOR_OBRAS' || c.activo || c.id === selected?.cliente).map((c) => [String(c.id), `${c.nombre_legal} · #${c.id}${c.activo === false ? ' (inactivo, solo conservar)' : ''}`])];
   const clientLabel = (pk) => clients.find((c) => c.id === pk)?.nombre_legal || `Cliente #${pk}`;
   async function saveHeader(event) {
     event.preventDefault();
@@ -69,7 +77,7 @@ export default function Presupuestos() {
     const cliente = Number(header.cliente);
     if (!Number.isSafeInteger(cliente) || cliente <= 0 || !header.descripcion.trim()) { api.setError({ message: 'Selecciona un cliente e ingresa descripción.' }); return; }
     const data = { ...(selected && cliente === selected.cliente ? {} : { cliente }), ...(selected && header.descripcion === selected.descripcion ? {} : { descripcion: header.descripcion.trim() }) };
-    if (data.cliente && !clients.some((c) => c.id === cliente && c.activo)) { api.setError({ message: 'El cliente debe estar activo.' }); return; }
+    if (data.cliente && !(user.role === 'SUPERVISOR_OBRAS' ? clients.some((c) => c.id === cliente) : clients.some((c) => c.id === cliente && c.activo))) { api.setError({ message: 'El cliente debe estar activo y disponible.' }); return; }
     await api.write(budgetPath(selected?.id), selected ? 'PATCH' : 'POST', data, async (result) => {
       await refreshedDetail(result.id); setHeader(null); setHistoryPage(1);
     });
@@ -94,7 +102,7 @@ export default function Presupuestos() {
     <PageHead title="Presupuestos" sub="Consulta y gestiona tus presupuestos." />
     {!line && <Errors error={api.error} />}
     <div className="budget-toolbar" role="group" aria-label="Herramientas de presupuestos">
-      {user.role === AF && <button type="button" className="btn btn-fyag-primary" aria-label="Nuevo borrador" disabled={disabled} onClick={() => { setSelected(null); setHistory(null); setLine(null); setAction(null); setHeader({ cliente: '', descripcion: '' }); }}><span aria-hidden="true">+ </span>Nuevo borrador</button>}
+      {[AF, 'SUPERVISOR_OBRAS'].includes(user.role) && <button type="button" className="btn btn-fyag-primary" aria-label="Nuevo borrador" disabled={disabled} onClick={() => { setSelected(null); setHistory(null); setLine(null); setAction(null); setHeader({ cliente: '', descripcion: '' }); }}><span aria-hidden="true">+ </span>Nuevo borrador</button>}
       <div className="budget-toolbar-filters">
         <label className="form-label" htmlFor="budget-filter">Filtrar por</label>
         <select className="form-select" id="budget-filter" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">Todos</option>{Object.entries(PRE_E).map(([k, [v]]) => <option key={k} value={k}>{v}</option>)}</select>
@@ -120,7 +128,7 @@ export default function Presupuestos() {
         <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setHistory(null); setHeader(null); setLine(null); setAction(null); }}>Volver al listado</button>
       </div>
       <div className="commercial-summary"><div><p className="commercial-code">{clientLabel(selected.cliente)}</p><p className="commercial-long-text mb-0">{selected.descripcion}</p></div><div className="commercial-total"><span>Neto</span><strong>{money(selected.monto_neto)}</strong></div></div>
-      <p className="commercial-help">Origen: {selected.presupuesto_origen ? <button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!header || !!line || !!action} onClick={() => void detail(selected.presupuesto_origen)}>Ver origen #{selected.presupuesto_origen}</button> : 'Original'} · Creado por #{selected.creado_por} · {dateLabel(selected.creado_en)}</p>
+      <p className="commercial-help">Creado por {selected.creador_nombre || 'Usuario'} #{selected.creado_por} · {new Date(selected.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
       {editable && <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!header || !!line || !!action} onClick={() => setHeader({ cliente: String(selected.cliente), descripcion: selected.descripcion })}>Editar cabecera</button></div>}
       <div className="commercial-table-frame"><div className="table-responsive" role="region" aria-label="Ítems del presupuesto" tabIndex={0}><table className="table table-hover align-middle commercial-table commercial-items-table"><thead><tr><th scope="col">Descripción</th><th scope="col" className="text-end">Cantidad</th><th scope="col">Unidad</th><th scope="col" className="text-end">Precio unitario</th><th scope="col">Orden</th><th scope="col" className="text-end">Subtotal</th><th scope="col">Acciones</th></tr></thead><tbody>
         {selected.items.map((i) => line?.original?.id === i.id ? <ItemEditRow key={i.id} line={line} items={selected.items} onChange={(form) => setLine({ ...line, form })} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled} busy={api.busy} editable={editable} error={api.error} /> : <tr key={i.id} className="commercial-item-read"><td data-label="Descripción" className="commercial-description">{i.descripcion}</td><td data-label="Cantidad" className="text-end">{i.cantidad}</td><td data-label="Unidad">{i.unidad}</td><td data-label="Precio unitario" className="commercial-money">{money(i.precio_unitario)}</td><td data-label="Orden">{i.orden}</td><td data-label="Subtotal" className="commercial-money">{money(i.subtotal)}</td><td data-label="Acciones">{editable && <div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...i }, original: i }); }}>Editar ítem</button><button className="btn btn-outline-danger btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => {
@@ -139,6 +147,7 @@ export default function Presupuestos() {
     </article>}
     {header && <form className="card-fyag commercial-form" onSubmit={saveHeader}><h2>{selected ? 'Editar cabecera' : 'Nuevo borrador'}</h2>
       <Fields form={header} setForm={setHeader} fields={[[ 'cliente', 'Cliente', clientOptions ], ['descripcion', 'Descripción (máximo 2000 caracteres)']]} disabled={api.busy || (selected && !editable)} />
+      {user.role === 'SUPERVISOR_OBRAS' && <nav className="commercial-pager" aria-label="Clientes elegibles"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={!clientPageInfo?.previous || api.busy || api.loading} onClick={() => setClientPage((current) => current - 1)}>Clientes anteriores</button><span>Página {clientPage} · {clientPageInfo?.count ?? 0} clientes elegibles</span><button type="button" className="btn btn-outline-secondary btn-sm" disabled={!clientPageInfo?.next || api.busy || api.loading} onClick={() => setClientPage((current) => current + 1)}>Clientes siguientes</button></nav>}
       {selected && !editable && <p>El presupuesto ya no es BORRADOR. El formulario se conserva solo para consulta; cancélalo para continuar.</p>}
       <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={disabled || (selected && !editable)} type="submit">Guardar cabecera</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setHeader(null)}>Cancelar</button></div>
     </form>}

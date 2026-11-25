@@ -30,9 +30,8 @@ function backend() {
       return page(accounts.filter((a) => (!query.has('rol') || a.rol === query.get('rol')) && (!query.has('activo') || String(a.is_active) === query.get('activo'))));
     }
     if (path === '/api/usuarios/' && method === 'POST') {
-      const { password, ...profile } = options.body;
-      const obj = { ...account(accounts.length + 1), ...profile };
-      accounts.push(obj); return structuredClone(obj);
+      const obj = { ...account(accounts.length + 1), ...options.body };
+      accounts.push(obj); return { ...structuredClone(obj), credencial_temporal: 'A'.repeat(43), credencial_vence_en: '2026-11-12T12:00:00Z' };
     }
     const match = path.match(/^\/api\/usuarios\/(\d+)\/(.*)$/);
     if (!match) throw new Error(`Ruta inesperada ${path}`);
@@ -43,6 +42,7 @@ function backend() {
     if (action === 'activar/') obj.is_active = true;
     if (action === 'desactivar/') obj.is_active = false;
     if (action === 'cambiar-rol/') obj.rol = options.body.rol;
+    if (action === 'restablecer-clave/') return { ...structuredClone(obj), credencial_temporal: 'B'.repeat(43), credencial_vence_en: '2026-11-12T12:00:00Z' };
     if (method !== 'GET') events.push({ id: events.length + 1, usuario_objetivo: obj.id, actor: 1, tipo: action === 'establecer-clave/' ? 'ESTABLECER_CLAVE' : 'EDICION', motivo: options.body.motivo || '', datos_anteriores: {}, datos_nuevos: action === 'establecer-clave/' ? {} : { is_active: obj.is_active }, creado_en: '2026-11-11T12:00:00Z' });
     return structuredClone(obj);
   }
@@ -77,7 +77,7 @@ test('TI monta exclusivamente Usuarios y Gerencia pierde menú/consultas adminis
     try {
       if (role === 'ADMINISTRADOR_TI') {
         const nav = renderer.root.findByProps({ id: 'fyag-modules-nav' });
-        assert.deepEqual(nav.findAllByType('button').map(text), ['Usuarios y roles', 'Auditoría']);
+        assert.deepEqual(nav.findAllByType('button').map(text), ['Usuarios y roles', 'Auditoría', 'Chat interno']);
         assert.ok(api.calls.some((call) => call.path.startsWith('/api/usuarios/')));
       } else {
         assert.equal(api.calls.length, 0);
@@ -91,19 +91,32 @@ test('Usuarios consulta, crea inactiva, edita, activa/desactiva, cambia rol y es
   const api = backend(), { renderer } = await mount(api.request);
   try {
     await click(renderer, 'Nueva cuenta');
-    await input(renderer, 'email', 'nueva@example.test'); await input(renderer, 'username', 'nueva'); await input(renderer, 'password', 'fixture-segura');
+    await input(renderer, 'email', 'nueva@example.test'); await input(renderer, 'username', 'nueva');
+    assert.equal(renderer.root.findAllByProps({ id: 'usuario-password' }).length, 0);
     await submit(renderer);
     const post = api.calls.find((c) => c.method === 'POST');
-    assert.deepEqual(Object.keys(post.body).sort(), ['email', 'first_name', 'last_name', 'password', 'rol', 'username']);
+    assert.deepEqual(Object.keys(post.body).sort(), ['email', 'first_name', 'last_name', 'rol', 'username']);
+    assert.doesNotMatch(text(renderer.root), /Credencial temporal generada/);
     assert.equal(api.accounts[2].is_active, false);
+    assert.doesNotMatch(text(renderer.root), /Vence:/);
+    await click(renderer, 'Ver cuenta #3');
+    assert.match(text(renderer.root), /Credencial temporal generada/);
+    assert.match(text(renderer.root), /Vence:/);
+    assert.match(text(renderer.root), /A{43}/);
+    await click(renderer, 'Ocultar credencial');
+    assert.doesNotMatch(text(renderer.root), /Credencial temporal generada/);
     await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Cuenta preparada'); await submit(renderer);
     assert.equal(api.accounts[2].is_active, true);
     await click(renderer, 'Editar perfil'); await input(renderer, 'first_name', 'Nombre actualizado'); await submit(renderer);
     assert.equal(api.accounts[2].first_name, 'Nombre actualizado');
     await click(renderer, 'Cambiar rol'); await input(renderer, 'rol', 'ADMINISTRADOR_TI'); await input(renderer, 'motivo', 'Nueva función'); await submit(renderer);
     assert.equal(api.accounts[2].rol, 'ADMINISTRADOR_TI');
-    await click(renderer, 'Establecer contraseña'); await input(renderer, 'nueva_clave', 'fixture-nueva'); await input(renderer, 'motivo', 'Restablecimiento'); await submit(renderer);
-    assert.match(text(renderer.root), /ESTABLECER CLAVE/);
+    await click(renderer, 'Restablecer acceso'); await input(renderer, 'motivo', 'Restablecimiento solicitado'); await submit(renderer);
+    const reset = api.calls.find((call) => call.path.endsWith('/restablecer-clave/'));
+    assert.deepEqual(reset.body, { motivo: 'Restablecimiento solicitado' });
+    assert.equal(api.calls.some((call) => call.path.endsWith('/establecer-clave/')), false);
+    assert.match(text(renderer.root), /B{43}/);
+    assert.match(text(renderer.root), /Vence:/);
     assert.doesNotMatch(text(renderer.root), /fixture-nueva/);
     await click(renderer, 'Desactivar'); await input(renderer, 'motivo', 'Baja autorizada'); await submit(renderer);
     assert.equal(api.accounts[2].is_active, false);
@@ -111,15 +124,16 @@ test('Usuarios consulta, crea inactiva, edita, activa/desactiva, cambia rol y es
   } finally { await act(async () => renderer.unmount()); }
 });
 
-test('400 conserva perfil pero limpia contraseña; 409 bloquea reenvío hasta reconsulta sin fingir éxito', async () => {
+test('400 conserva perfil sin campo de contraseña; 409 bloquea reenvío hasta reconsulta sin fingir éxito', async () => {
   const api = backend(), { renderer } = await mount(api.request);
   try {
     await click(renderer, 'Nueva cuenta');
-    await input(renderer, 'email', 'nueva@example.test'); await input(renderer, 'password', 'no-conservar');
+    await input(renderer, 'email', 'nueva@example.test');
+    assert.equal(renderer.root.findAllByProps({ id: 'usuario-password' }).length, 0);
     api.setFailure(new ApiError(400, 'Revisa datos', null, { fieldErrors: { username: ['Alias obligatorio.'] } }));
     await submit(renderer);
     assert.equal(renderer.root.findByProps({ id: 'usuario-email' }).props.value, 'nueva@example.test');
-    assert.equal(renderer.root.findByProps({ id: 'usuario-password' }).props.value, '');
+    assert.equal(renderer.root.findByProps({ id: 'usuario-email' }).props.value, 'nueva@example.test');
     assert.match(text(renderer.root), /Alias obligatorio/);
     await click(renderer, 'Cancelar');
     await click(renderer, 'Ver cuenta #2'); await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Preparada');

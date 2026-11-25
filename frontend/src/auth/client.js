@@ -3,7 +3,7 @@
 import { API_ORIGIN, trustedOrigin } from './config.js';
 export const USER_ROLES = Object.freeze([
   'GERENCIA', 'ADMINISTRATIVO_FINANZAS', 'SUPERVISOR_OBRAS', 'TECNICO',
-  'ADMINISTRADOR_TI',
+  'ADMINISTRADOR_TI', 'BODEGUERO',
 ]);
 
 export class ApiError extends Error {
@@ -33,6 +33,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   const origin = trustedOrigin(apiOrigin);
   let access = null;
   let csrf = null;
+  let firstChange = null;
   let epoch = 0;
   let csrfFlight = null;
   let refreshFlight = null;
@@ -54,6 +55,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   function clear(notice = null) {
     epoch += 1;
     access = null;
+    firstChange = null;
     emit('anonymous', null, notice);
   }
 
@@ -200,6 +202,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     const previousRefresh = refreshFlight;
     const version = ++epoch;
     access = null;
+    firstChange = null;
     emit('authenticating');
     const pending = (async () => {
       if (previousRefresh) await previousRefresh.catch(() => null);
@@ -215,6 +218,15 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       assertCurrent(version);
       if (typeof data?.csrfToken !== 'string' || !data.csrfToken) throw new ApiError(502, 'No fue posible verificar la protección CSRF.');
       csrf = data.csrfToken; // Login rota CSRF: no reutilizar el token anterior.
+      if (data?.estado === 'CAMBIO_OBLIGATORIO') {
+        if (typeof data.desafio !== 'string' || data.desafio.length < 1 || data.desafio.length > 128 || /[\x00-\x1f]/.test(data.desafio)
+            || typeof data.desafio_vence_en !== 'string' || !Number.isFinite(Date.parse(data.desafio_vence_en))) {
+          throw new ApiError(502, 'La respuesta de primer acceso es inesperada.');
+        }
+        firstChange = Object.freeze({ desafio: data.desafio, venceEn: data.desafio_vence_en });
+        emit('password-change-required', null);
+        return null;
+      }
       const user = await identify(data.access, version);
       access = data.access;
       emit('authenticated', user);
@@ -227,11 +239,34 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     return pending;
   }
 
+  async function completeFirstPasswordChange(newPassword) {
+    if (snapshot.status !== 'password-change-required' || !firstChange) throw new ApiError(401, 'No hay un cambio inicial pendiente.');
+    if (typeof newPassword !== 'string' || !newPassword || newPassword.length > 4096) throw new ApiError(400, 'Ingresa una contraseña válida.');
+    const version = epoch;
+    const challenge = firstChange.desafio;
+    const protection = await csrfToken();
+    assertCurrent(version);
+    if (snapshot.status !== 'password-change-required' || firstChange?.desafio !== challenge) throw new ApiError(401, 'El desafío de primer acceso ya no está disponible.');
+    try {
+      const result = await http('/api/auth/primer-cambio-clave/', { method: 'POST', body: { desafio: challenge, nueva_clave: newPassword }, csrfToken: protection });
+      assertCurrent(version);
+      if (result?.estado !== 'CLAVE_PERSONAL_CONFIRMADA' || result.login_requerido !== true) throw new ApiError(502, 'La confirmación del cambio inicial es inesperada.');
+      firstChange = null;
+      access = null;
+      emit('anonymous', null, 'Contraseña personal confirmada. Inicia sesión con tu nueva contraseña.');
+      return true;
+    } catch (error) {
+      if (error.status === 400 || error.status === 401) { firstChange = null; emit('anonymous', null, error.status === 401 ? 'El desafío venció o ya fue utilizado. Inicia sesión nuevamente con la credencial temporal.' : 'El desafío no es válido o la contraseña nueva no cumple los requisitos. Inicia sesión nuevamente con la credencial temporal.'); }
+      throw error;
+    }
+  }
+
   function logout() {
     if (logoutFlight) return logoutFlight;
     const pendingAuth = [loginFlight, refreshFlight].filter(Boolean);
     const version = ++epoch;
     access = null;
+    firstChange = null;
     emit('logging-out'); // Retirar identidad y contenido antes de esperar la red.
     const pending = (async () => {
       // Una respuesta tardía puede haber rotado la cookie HttpOnly. Revocar
@@ -279,7 +314,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    restore, login, logout, request, sessionInvalidatedByEmailChange,
+    restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
   });
 }
 

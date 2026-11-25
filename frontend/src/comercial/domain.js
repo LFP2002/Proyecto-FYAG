@@ -1,14 +1,15 @@
 export const AF = 'ADMINISTRATIVO_FINANZAS';
 export const G = 'GERENCIA';
-export const canRead = (role) => [AF, G].includes(role);
+export const canRead = (role, module) => [AF, G].includes(role) || (role === 'SUPERVISOR_OBRAS' && module === 'presupuestos');
 export const actionsFor = (role, state) => {
-  if (role === G) return state === 'PENDIENTE_GERENCIA' ? ['aprobar-gerencia', 'rechazar-gerencia'] : [];
+  if (role === G) return [];
+  if (role === 'SUPERVISOR_OBRAS') return state === 'BORRADOR' ? ['enviar-finanzas'] : state === 'RECHAZADO_FINANZAS' ? ['crear-revision'] : [];
   if (role !== AF) return [];
-  const actions = ({ BORRADOR: ['enviar-gerencia'], APROBADO_GERENCIA: ['enviar-cliente'], ENVIADO_CLIENTE: ['registrar-aprobacion-cliente', 'registrar-rechazo-cliente'] })[state] || [];
-  return [...actions, ...(['RECHAZADO_GERENCIA', 'RECHAZADO_CLIENTE', 'ANULADO'].includes(state) ? ['crear-revision'] : []), ...(['BORRADOR', 'PENDIENTE_GERENCIA', 'APROBADO_GERENCIA', 'ENVIADO_CLIENTE', 'APROBADO_CLIENTE'].includes(state) ? ['anular'] : [])];
+  const actions = ({ BORRADOR: ['enviar-finanzas'], PENDIENTE_FINANZAS: ['aprobar-finanzas', 'rechazar-finanzas'], PENDIENTE_GERENCIA: ['aprobar-finanzas', 'rechazar-finanzas'], APROBADO_FINANZAS: ['enviar-cliente'], APROBADO_GERENCIA: ['enviar-cliente'], ENVIADO_CLIENTE: ['registrar-aprobacion-cliente', 'registrar-rechazo-cliente'] })[state] || [];
+  return [...actions, ...(['RECHAZADO_FINANZAS', 'RECHAZADO_GERENCIA', 'RECHAZADO_CLIENTE', 'ANULADO'].includes(state) ? ['crear-revision'] : []), ...(['BORRADOR', 'PENDIENTE_FINANZAS', 'PENDIENTE_GERENCIA', 'APROBADO_FINANZAS', 'APROBADO_GERENCIA', 'ENVIADO_CLIENTE', 'APROBADO_CLIENTE'].includes(state) ? ['anular'] : [])];
 };
-export const needsReason = (action) => ['rechazar-gerencia', 'registrar-rechazo-cliente', 'anular'].includes(action);
-export const labels = { 'enviar-gerencia': 'Enviar a Gerencia', 'aprobar-gerencia': 'Aprobar por Gerencia', 'rechazar-gerencia': 'Rechazar por Gerencia', 'enviar-cliente': 'Enviar al cliente', 'registrar-aprobacion-cliente': 'Registrar aprobación del cliente', 'registrar-rechazo-cliente': 'Registrar rechazo del cliente', anular: 'Anular', 'crear-revision': 'Crear revisión' };
+export const needsReason = (action) => ['rechazar-finanzas', 'rechazar-gerencia', 'registrar-rechazo-cliente', 'anular'].includes(action);
+export const labels = { 'enviar-finanzas': 'Enviar a Finanzas', 'aprobar-finanzas': 'Aprobar por Finanzas', 'rechazar-finanzas': 'Rechazar por Finanzas', 'enviar-gerencia': 'Enviar a Gerencia (retirado)', 'aprobar-gerencia': 'Aprobar por Gerencia (legado)', 'rechazar-gerencia': 'Rechazar por Gerencia (legado)', 'enviar-cliente': 'Enviar al cliente', 'registrar-aprobacion-cliente': 'Registrar aprobación del cliente', 'registrar-rechazo-cliente': 'Registrar rechazo del cliente', anular: 'Anular', 'crear-revision': 'Crear revisión' };
 export const emptyClient = { tipo_cliente: 'PERSONA', tipo_identificacion: 'RUT', numero_identificacion: '', pais_identificacion: '', tipo_documento_extranjero: '', nombre_legal: '', nombre_contacto: '', correo: '', telefono: '' };
 export const emptyItem = { descripcion: '', cantidad: '', unidad: '', precio_unitario: '', orden: '' };
 export function validRut(value) {

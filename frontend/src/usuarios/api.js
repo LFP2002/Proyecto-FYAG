@@ -35,14 +35,14 @@ export function readHistory(data, pk) {
   const page = validatePage(data, `${userPath(pk)}historial/`);
   const fields = new Set(['email', 'username', 'first_name', 'last_name', 'rol', 'is_active']);
   const snapshot = (data) => Object.fromEntries(Object.entries(data || {}).filter(([key, value]) => fields.has(key) && typeof value === (key === 'is_active' ? 'boolean' : 'string')));
-  const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA'];
+  const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'];
   for (const e of page.results) {
     if (!e || !Number.isSafeInteger(e.id) || e.id <= 0 || !Number.isSafeInteger(e.actor) || e.actor <= 0
         || !types.includes(e.tipo) || typeof e.motivo !== 'string' || typeof e.creado_en !== 'string') throw new ApiError(502, 'Historial de usuarios inesperado.');
   }
   return { count: page.count, next: page.next, previous: page.previous, results: page.results.map((e) => ({
     id: e.id, tipo: e.tipo, actor: e.actor, motivo: e.motivo, creado_en: e.creado_en,
-    datos_anteriores: /CLAVE/.test(e.tipo) ? {} : snapshot(e.datos_anteriores),
-    datos_nuevos: /CLAVE/.test(e.tipo) ? {} : snapshot(e.datos_nuevos),
+    datos_anteriores: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_anteriores),
+    datos_nuevos: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_nuevos),
   })) };
 }

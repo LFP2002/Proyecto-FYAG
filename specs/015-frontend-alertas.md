@@ -50,3 +50,9 @@ Alerta: ID, tipo, estado `PENDIENTE/ATENDIDA/RESUELTA`, severidad `MEDIA/ALTA`, 
 - Fallo o conflicto no presenta una escritura como confirmada ni duplica POST.
 
 Pruebas locales en `frontend/tests/integrations-domain.test.js` y suite de sesión/scopes; resultados actuales en `Cosas pendientes.txt`. Pendiente QA con sesiones y sincronización reales; las simulaciones no acreditan despliegue. Revisar informe antes de publicar; no abrir PR ni fusionar sin autorización separada. Referencias: SPEC-009, `backend/apps/alertas/`, OpenAPI SPEC-009 y `frontend/src/pages/Alertas.jsx`.
+
+## Seguimiento del worktree frontend — 25-11-2026
+
+- La vista local continúa leyendo `GET /api/alertas/resumen/`; para GERENCIA muestra el aviso de sincronización únicamente cuando `sincronizacion.desactualizada` viene como `true`. No estima la salud del reconciliador en el navegador ni permite ocultar/editar la condición.
+- En esta sesión, `main-alertas_reconciliador-1` se inició mediante `docker compose up --pull always -d alertas_reconciliador`; sus logs registraron un ciclo correcto (`examinados: 2`, `transiciones: 0`). Esto evidencia el entorno local en ese momento, no el estado continuo ni un despliegue.
+- No se cambiaron rutas, esquema API ni backend. La sincronización se considera fresca solo tras una respuesta actualizada del resumen backend.

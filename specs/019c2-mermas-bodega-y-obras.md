@@ -129,3 +129,9 @@ El usuario aprobó explícitamente:
 Se adopta como decisión técnica complementaria de mínima segregación de funciones para MB que **Bodeguero reporta y Administrativo/Finanzas aprueba o rechaza**, manteniendo Gerencia en solo lectura. El diseño prioriza invariantes de entrega/retorno y control económico: cualquier conflicto con los contratos existentes se debe **reportar a ChatGPT sin cambiar esta SPEC**.
 
 La aprobación de este documento autoriza exclusivamente preparar implementación backend mediante PR y controles CI posteriores; no equivale a producción autorizada. La auditoría integral final de FYAG Beta queda programada para cuando concluyan las funcionalidades del backend.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- `frontend/src/pages/Mermas.jsx` expone la presentación por ámbito y conserva la matriz del contrato: Bodeguero informa mermas de Bodega; Técnico informa mermas de Obra; Administrativo/Finanzas decide Bodega y Supervisor de Obras decide Obra. El Técnico no recibe campos monetarios.
+- La vista mapea códigos API a etiquetas en español solo para presentar, mantiene payloads con códigos originales y ofrece filtros, formulario, detalle, historial y paginación. Se añadió `frontend/src/styles/pages/mermas.css`, enlazado desde `main.jsx`.
+- Test de contrato existente `tests/inventory-actions.test.js` comprueba scope, paginación y ocultación de importes a Técnico. Estado local de frontend; no implica cambios backend, CI completa, merge ni despliegue.

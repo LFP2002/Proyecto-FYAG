@@ -92,9 +92,9 @@ export default function Alertas() {
   const types = role === 'GERENCIA' ? TYPES.filter((x) => x !== 'TURNO_PENDIENTE_REVISION') : TYPES.filter((x) => x !== 'PRESUPUESTO_PENDIENTE_GERENCIA' && x !== 'COBRANZA_VENCIDA');
   if (!['GERENCIA','SUPERVISOR_OBRAS'].includes(role)) return <section><PageHead title="Alertas"/><div className="alert alert-warning" role="alert">No tienes permiso para consultar alertas.</div></section>;
   return <section className="commercial-page">
-    <PageHead title="Alertas" sub="Bandeja de alertas operativas asignadas a tu rol." />
+    <PageHead title="Alertas" sub={role === 'SUPERVISOR_OBRAS' ? undefined : 'Bandeja de alertas operativas asignadas a tu rol.'} />
     {summary && <><div className="kpis">{[['Activas',summary.activas],['Pendientes',summary.por_estado.PENDIENTE],['Atendidas',summary.por_estado.ATENDIDA],['Resueltas (histórico)',summary.por_estado.RESUELTA]].map(([label,value])=><div key={label} className="kpi"><div className="kpi-l">{label}</div><div className="kpi-v">{value}</div></div>)}</div>
-      {summary.sincronizacion.desactualizada && <p className="alert alert-warning" role="status">La sincronización del backend está atrasada. Los datos pueden no estar actualizados.</p>}</>}
+      {summary.sincronizacion.desactualizada && role !== 'SUPERVISOR_OBRAS' && <p className="alert alert-warning" role="status">La sincronización del backend está atrasada. Los datos pueden no estar actualizados.</p>}</>}
     <div className="d-flex flex-wrap gap-2 mb-3"><button className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={() => void api.reconcile(reload)}>Actualizar</button>
       <label className="form-label">Estado<select className="form-select" value={filters.estado} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,estado:e.target.value});}}><option value="">Activas</option>{STATES.map((s)=><option key={s}>{s}</option>)}</select></label>
       <label className="form-label">Tipo<select className="form-select" value={filters.tipo} disabled={blocked} onChange={(e)=>{setPage(1);setFilters({...filters,tipo:e.target.value});}}><option value="">Todos</option>{types.map((t)=><option key={t}>{t}</option>)}</select></label>

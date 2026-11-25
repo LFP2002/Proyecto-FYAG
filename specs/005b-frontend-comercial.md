@@ -267,5 +267,13 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - **Funcionalidad integrada:** CRUD autorizado de Clientes; presupuestos e ítems reales; aprobación obligatoria de Gerencia; historial, rechazos, revisiones y anulación conforme al backend; selector de unidades y edición en línea.
 - **Interfaz:** barra de herramientas compacta, filtros de estado, controles de actualización y estilo Bootstrap 5/CSS FYAG; estándar acordado de Bootstrap Icons para nuevos íconos.
 - **Verificación:** la implementación fue revisada y el usuario completó pruebas manuales exitosas de flujo G/AF en navegador. Las pruebas de CI constan en GitHub. No atribuir a este registro resultados de una suite no ejecutada en este commit documental.
-- **Límites vigentes:** Obras, Finanzas, Dashboard, Alertas, Reportes y Usuarios no quedaron integrados como resultado de 005B. El filtrado por estado de Presupuestos opera sobre la página cargada (25 registros), no como filtro global de servidor.
+- **Límites de 005B:** el filtrado por estado de Presupuestos opera sobre la página cargada (25 registros), no como filtro global de servidor. Las integraciones posteriores se registran por separado abajo.
 - **Continuidad:** [SPEC-005C](005c-frontend-obras.md) define la integración de Gestión de Obras en bloques revisables.
+
+## Seguimiento frontend local posterior — 25-11-2026
+
+- El flujo visual vigente se alinea con SPEC-024: Supervisor de Obras puede crear y editar solo borradores propios, usar `/api/presupuestos/clientes-elegibles/` (proyección mínima) y enviar a Finanzas mediante `/enviar-finanzas/`. Finanzas puede aprobar/rechazar en revisión interna y, tras aprobar, enviar al cliente y registrar su respuesta. Gerencia conserva lectura; el frontend no llama las acciones gerenciales retiradas.
+- La navegación muestra Presupuestos para Supervisor sin habilitarle Clientes. Se conservan scopes y permisos backend como autoridad, y se mantiene separado el selector mínimo de clientes del CRUD de Clientes.
+- En el mismo worktree local se implementaron pantallas frontend para Chat, Solicitudes de materiales, Mermas, Inventario y Egresos, además de estilos de chat/solicitudes/mermas, auditoría visual y el flujo de cambio de contraseña temporal. Cada UI reutiliza los contratos API existentes; esta nota no constituye aprobación de cambios backend, merge ni despliegue.
+- El chat presenta la hora (hora:minuto) de envío y no muestra fecha ni vencimiento del mensaje. Los alias de conversación viven solo en estado de la vista, sin almacenamiento persistente.
+- Validaciones ejecutadas por incrementos se registran en la conversación de trabajo; no se declara aquí una suite completa final para todo el worktree. La autorización de publicación sigue siendo independiente.

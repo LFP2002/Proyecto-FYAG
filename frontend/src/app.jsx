@@ -16,6 +16,11 @@ import Cobranzas from './pages/Cobranzas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Reportes from './pages/Reportes.jsx';
 import Auditoria from './pages/Auditoria.jsx';
+import Inventario from './pages/Inventario.jsx';
+import Solicitudes from './pages/Solicitudes.jsx';
+import Mermas from './pages/Mermas.jsx';
+import Egresos from './pages/Egresos.jsx';
+import Chat from './pages/Chat.jsx';
 
 export default function App() {
   const { status, user } = useAuth();
@@ -24,14 +29,19 @@ export default function App() {
     return <main className="login-page"><div className="login-card" role="status">Restaurando sesión…</div></main>;
   }
   if (status !== 'authenticated' || !user) return <Login />;
-  if (user.role === 'TECNICO') return <TecnicoApp key={`${user.id}:${user.role}`} />;
-  const Page = mod === 'auditoria' ? Auditoria
+
+  const Page = mod === 'inventario' ? Inventario
+    : mod === 'solicitudes' ? Solicitudes
+      : mod === 'mermas' ? Mermas
+        : mod === 'egresos' ? Egresos
+          : mod === 'chat' ? Chat
+            : mod === 'auditoria' ? Auditoria
     : mod === 'usuarios' && user.role === 'ADMINISTRADOR_TI' ? Usuarios
     : mod === 'obras' && canReadObras(user.role) ? Obras
       : mod === 'alertas' && ['GERENCIA', 'SUPERVISOR_OBRAS'].includes(user.role) ? Alertas
         : mod === 'dashboard' && user.role === 'GERENCIA' ? Dashboard
           : mod === 'reportes' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Reportes
             : mod === 'cobranzas' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Cobranzas
-              : canRead(user.role) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
+              : canRead(user.role, mod) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
   return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
 }

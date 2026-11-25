@@ -71,7 +71,7 @@ export default function Cobranzas() {
   async function refresh(){const ok=await reload();if(ok)api.reconcile(async()=>true);}
   if (!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role)) return <section><PageHead title="Cobranzas"/><p role="alert">No tienes permiso para consultar cobranzas.</p></section>;
   return <section className="commercial-page">
-    <PageHead title="Cobranzas" sub="Cartera y saldos calculados por el backend; las operaciones administrativas se registran solo para Finanzas." />
+    <PageHead title="Cobranzas" />
     {api.error&&<div className="alert alert-warning" role="alert">{api.error.status===403?'Acceso denegado.':api.error.message}</div>}
     <div className="d-flex flex-wrap gap-2 mb-3 align-items-end">
       <button type="button" className="btn btn-outline-secondary" disabled={blocked} onClick={()=>void refresh()}>Actualizar</button>

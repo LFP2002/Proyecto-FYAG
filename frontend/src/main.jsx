@@ -21,6 +21,10 @@ import './styles/pages/alertas.css';
 import './styles/pages/reportes.css';
 import './styles/pages/usuarios.css';
 import './styles/pages/comercial.css';
+import './styles/pages/auditoria.css';
+import './styles/pages/chat.css';
+import './styles/pages/mermas.css';
+import './styles/pages/solicitudes.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

@@ -122,4 +122,12 @@ Los ingresos, entregas, devoluciones y gastos derivados de Bodega **siguen exclu
 
 1. PR documental de esta SPEC separado del código; tras integrar contrato, implementar sobre rama `feature/backend-024-presupuestos-supervisor-finanzas`.
 2. OpenCode implementa **solo backend**, agrega pruebas/OpenAPI/Postman y publica commit/push en su rama, no PR/merge. ChatGPT realiza revisión técnica, abre PR y comprueba CI antes de proponer/fusionar implementación según autorización.
-3. Mantener `main` intacto durante desarrollo, no forzar push, no eliminar datos ni volúmenes del proyecto. QA aislado. Frontend sigue bajo responsabilidad de compañeros; su adaptación posterior debe consumir permisos/selector publicados.
+3. Mantener `main` intacto durante desarrollo, no forzar push, no eliminar datos ni volúmenes del proyecto. QA aislado. Frontend consume permisos/selector publicados según el seguimiento local siguiente.
+
+## Seguimiento frontend local — 25-11-2026
+
+- `Presupuestos.jsx` y la navegación local muestran Presupuestos a Supervisor de Obras, sin habilitar Clientes. Para seleccionar clientes usa únicamente `/api/presupuestos/clientes-elegibles/?page=...`, conserva la paginación y la proyección mínima; no llama a `GET /api/clientes/` bajo rol Supervisor.
+- Acciones de presentación locales: Supervisor crea/edita BORRADOR propio, añade/elimina/edita ítems permitidos y usa `enviar-finanzas`; Finanzas aprueba/rechaza `PENDIENTE_FINANZAS`, envía `APROBADO_FINANZAS` al cliente y registra aprobación/rechazo de cliente en `ENVIADO_CLIENTE`. Las rutas gerenciales retiradas no se llaman desde la UI. Los estados gerenciales se muestran como legados, sin atribuir su decisión a Gerencia actual.
+- La aprobación del cliente es un registro efectuado por Finanzas sobre la respuesta recibida; no existe portal o sesión de cliente en este cambio.
+- Cobertura local añadida/actualizada en `frontend/tests/comercial-domain.test.js`, `comercial-ui.test.js` y `frontend-contract.test.js`, incluida una prueba de Supervisor que verifica selector elegible y envío a Finanzas. En esta sesión, 49 pruebas focalizadas y `npm.cmd run build` pasaron.
+- Alcance limitado a frontend y pruebas. La SPEC es contrato de backend; no se cambió backend, no se publicó y no se afirma integración en `main`, QA E2E ni aprobación de PR.

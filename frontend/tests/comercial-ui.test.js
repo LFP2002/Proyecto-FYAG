@@ -51,6 +51,7 @@ function fakeBackend() {
   async function request(path, options = {}) {
     const method = options.method || 'GET'; calls.push({ path, method, body: options.body });
     if (method !== 'GET' && fail) throw fail;
+    if (path.startsWith('/api/presupuestos/clientes-elegibles/')) return page(clients.filter((client) => client.activo).map(({ id, nombre_legal, tipo_cliente }) => ({ id, nombre_legal, tipo_cliente })));
     if (path === '/api/clientes/') {
       if (method === 'GET') return structuredClone(clients);
       const client = { ...options.body, id: clients.length + 1, activo: true }; clients.push(client); return structuredClone(client);
@@ -64,7 +65,7 @@ function fakeBackend() {
     }
     if (path.startsWith('/api/presupuestos/?')) return page(structuredClone(budgets));
     if (path === '/api/presupuestos/' && method === 'POST') {
-      const budget = { ...options.body, id: budgets.length + 1, codigo: `PRE-${budgets.length + 1}`, estado: 'BORRADOR', monto_neto: '0.00', items: [], creado_por: 1, creado_en: '2026-11-08T12:00:00Z', presupuesto_origen: null }; budgets.push(budget); return structuredClone(budget);
+      const budget = { ...options.body, id: budgets.length + 1, codigo: `PRE-${budgets.length + 1}`, estado: 'BORRADOR', monto_neto: '0.00', items: [], creado_por: 1, creador_nombre: 'Usuario', creado_en: '2026-11-08T12:00:00Z', presupuesto_origen: null }; budgets.push(budget); return structuredClone(budget);
     }
     const match = path.match(/^\/api\/presupuestos\/(\d+)\/(.*)$/);
     if (!match) throw new Error(`Ruta inesperada: ${path}`);
@@ -83,7 +84,7 @@ function fakeBackend() {
     if (suffix === 'crear-revision/') {
       const revision = { ...structuredClone(budget), id: budgets.length + 1, codigo: `PRE-${budgets.length + 1}`, presupuesto_origen: budget.id, estado: 'BORRADOR' }; budgets.push(revision); return structuredClone(revision);
     }
-    const states = { 'enviar-gerencia/': 'PENDIENTE_GERENCIA', 'aprobar-gerencia/': 'APROBADO_GERENCIA', 'rechazar-gerencia/': 'RECHAZADO_GERENCIA', 'enviar-cliente/': 'ENVIADO_CLIENTE', 'registrar-aprobacion-cliente/': 'APROBADO_CLIENTE', 'registrar-rechazo-cliente/': 'RECHAZADO_CLIENTE', 'anular/': 'ANULADO' };
+    const states = { 'enviar-finanzas/': 'PENDIENTE_FINANZAS', 'aprobar-finanzas/': 'APROBADO_FINANZAS', 'rechazar-finanzas/': 'RECHAZADO_FINANZAS', 'enviar-gerencia/': 'PENDIENTE_GERENCIA', 'aprobar-gerencia/': 'APROBADO_GERENCIA', 'rechazar-gerencia/': 'RECHAZADO_GERENCIA', 'enviar-cliente/': 'ENVIADO_CLIENTE', 'registrar-aprobacion-cliente/': 'APROBADO_CLIENTE', 'registrar-rechazo-cliente/': 'RECHAZADO_CLIENTE', 'anular/': 'ANULADO' };
     events.push({ id: events.length + 1, presupuesto: budget.id, estado_anterior: budget.estado, estado_nuevo: states[suffix], registrado_por: 1, motivo: options.body.motivo, creado_en: '2026-11-08T12:00:00Z' });
     budget.estado = states[suffix]; return structuredClone(budget);
   }
@@ -93,6 +94,12 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
   const backend = fakeBackend(), renderer = await mount(Clientes, backend.request);
   try {
     assert.match(text(renderer.root), /Cliente activo/);
+    const listRows = () => renderer.root.findByProps({ 'aria-label': 'Listado de clientes' }).findAllByType('tr').slice(1).map((row) => text(row));
+    backend.clients.push({ ...backend.clients[0], id: 0, nombre_legal: 'Cliente cero' });
+    await click(renderer, 'Reconsultar datos');
+    assert.deepEqual(listRows().map((row) => row.includes('Cliente cero') ? 0 : 1), [0, 1]);
+    backend.clients.shift();
+    await click(renderer, 'Reconsultar datos');
     await click(renderer, 'Nuevo cliente');
     await input(renderer, 'tipo_identificacion', 'SIN_IDENTIFICACION');
     await input(renderer, 'nombre_legal', 'Cliente nuevo'); await input(renderer, 'telefono', '456');
@@ -117,7 +124,7 @@ async function execute(renderer, label, reason = '') {
   if (field) await act(async () => field.props.onChange({ target: { value: reason } }));
   await submit(renderer);
 }
-test('Presupuestos montado: borrador, CRUD líneas, Gerencia, cliente, historial, anulación y revisión', async () => {
+test('Presupuestos montado: borrador, CRUD líneas, Finanzas, cliente, historial, anulación y revisión', async () => {
   const b = fakeBackend(); let renderer = await mount(Presupuestos, b.request);
   try {
     await createBudget(renderer);
@@ -128,11 +135,12 @@ test('Presupuestos montado: borrador, CRUD líneas, Gerencia, cliente, historial
     const itemPost = b.calls.find((c) => c.path.endsWith('/items/') && c.method === 'POST'); assert.equal(itemPost.body.cantidad, '0.001'); assert.equal(itemPost.body.precio_unitario, '9999999999999.99'); assert.equal(itemPost.body.orden, 1);
     await click(renderer, 'Editar ítem'); await input(renderer, 'unidad', 'u'); await submit(renderer);
     assert.deepEqual(b.calls.find((c) => c.method === 'PATCH').body, { unidad: 'u' });
-    await click(renderer, 'Enviar a Gerencia'); await submit(renderer); assert.equal(b.budgets[0].estado, 'PENDIENTE_GERENCIA');
+    await click(renderer, 'Enviar a Finanzas'); await submit(renderer); assert.equal(b.budgets[0].estado, 'PENDIENTE_FINANZAS');
     assert.equal(renderer.root.findAllByType('button').some((n) => text(n) === 'Editar cabecera'), false);
-    await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request, 'GERENCIA');
-    await click(renderer, 'Ver presupuesto'); assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 0);
-    await execute(renderer, 'Aprobar por Gerencia'); assert.equal(b.budgets[0].estado, 'APROBADO_GERENCIA');
+    await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request, 'ADMINISTRATIVO_FINANZAS');
+    await click(renderer, 'Ver presupuesto'); assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Nuevo borrador' }).length, 1);
+    assert.match(text(renderer.root), /Creado por Usuario #1/);
+    await execute(renderer, 'Aprobar por Finanzas'); assert.equal(b.budgets[0].estado, 'APROBADO_FINANZAS');
     await act(async () => renderer.unmount()); renderer = await mount(Presupuestos, b.request);
     await click(renderer, 'Ver presupuesto'); await execute(renderer, 'Enviar al cliente'); await execute(renderer, 'Registrar aprobación del cliente');
     assert.equal(b.budgets[0].estado, 'APROBADO_CLIENTE'); assert.match(text(renderer.root), /Usuario #1/);
@@ -141,6 +149,27 @@ test('Presupuestos montado: borrador, CRUD líneas, Gerencia, cliente, historial
     assert.deepEqual(b.calls.find((c) => c.path.endsWith('/crear-revision/')).body, {});
     await click(renderer, 'Eliminar ítem'); assert.equal(b.budgets[1].items.length, 0); assert.match(text(renderer.root), /0,00 CLP/);
     assert.ok(b.calls.some((c) => c.method === 'DELETE' && c.path === '/api/presupuestos/2/items/1/'));
+  } finally { await act(async () => renderer.unmount()); }
+});
+test('Supervisor crea presupuesto propio y lo envía a Finanzas sin consultar API de Clientes', async () => {
+  const b = fakeBackend();
+  const renderer = await mount(Presupuestos, b.request, 'SUPERVISOR_OBRAS');
+  try {
+    assert.ok(b.calls.some((call) => call.path.startsWith('/api/presupuestos/clientes-elegibles/')));
+    assert.equal(b.calls.some((call) => call.path === '/api/clientes/'), false);
+    await click(renderer, 'Nuevo borrador');
+    await input(renderer, 'cliente', '1');
+    await input(renderer, 'descripcion', 'Presupuesto de obra');
+    await submit(renderer);
+    assert.equal(b.budgets[0].estado, 'BORRADOR');
+    await click(renderer, '+ Agregar nuevo ítem');
+    for (const [key, value] of Object.entries({ descripcion: 'Materiales', cantidad: '1', unidad: 'u', precio_unitario: '100', orden: '1' })) await input(renderer, key, value);
+    await submit(renderer);
+    await click(renderer, 'Enviar a Finanzas');
+    await submit(renderer);
+    assert.equal(b.budgets[0].estado, 'PENDIENTE_FINANZAS');
+    assert.ok(b.calls.some((call) => call.path.endsWith('/enviar-finanzas/')));
+    assert.equal(b.calls.some((call) => call.path.endsWith('/enviar-gerencia/')), false);
   } finally { await act(async () => renderer.unmount()); }
 });
 test('409 utilizado bloquea reenvío; relectura no repite POST y conserva motivo', async () => {
@@ -198,7 +227,7 @@ test('unidad de medida en alta/edición: catálogo, Otra, límite, valor histór
 });
 test('rechazos Gerencia/cliente requieren motivo y solo habilitan revisión', async () => {
   for (const [state, role, label, expected] of [
-    ['PENDIENTE_GERENCIA', 'GERENCIA', 'Rechazar por Gerencia', 'RECHAZADO_GERENCIA'],
+    ['PENDIENTE_FINANZAS', 'ADMINISTRATIVO_FINANZAS', 'Rechazar por Finanzas', 'RECHAZADO_FINANZAS'],
     ['ENVIADO_CLIENTE', 'ADMINISTRATIVO_FINANZAS', 'Registrar rechazo del cliente', 'RECHAZADO_CLIENTE'],
   ]) {
     const b = fakeBackend(); let renderer = await mount(Presupuestos, b.request);
@@ -241,7 +270,10 @@ test('listado e historial navegan por página real sin seguir directamente next/
   renderer = await mount(Presupuestos, request);
   try {
     await click(renderer, 'Siguiente'); assert.ok(calls.includes('/api/presupuestos/?page=2'));
-    await click(renderer, 'Ver presupuesto'); await click(renderer, 'Siguiente', 1);
+    await click(renderer, 'Ver presupuesto');
+    const historyPager = renderer.root.findByProps({ 'aria-label': 'Paginación del historial' });
+    const historyNext = historyPager.findAllByType('button').find((button) => text(button) === 'Siguiente');
+    await act(async () => { await historyNext.props.onClick(); await flush(); });
     assert.ok(calls.includes('/api/presupuestos/1/historial/?page=2'));
   } finally { await act(async () => renderer.unmount()); }
 });

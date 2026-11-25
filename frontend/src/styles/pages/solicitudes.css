@@ -1,0 +1,12 @@
+/* Solicitudes de materiales. Reutiliza comercial.css (toolbar, tabla, detalle, formularios) y ui.css (chips). */
+.commercial-page .solicitudes-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.solicitudes-toolbar p { margin: 0; color: var(--fyag-muted); flex: 1 1 320px; }
+.card-fyag.solicitudes-form h2, .card-fyag.solicitudes-detail h2 { font-size: 1.125rem; }
+.solicitudes-note { margin: 0 0 16px; color: var(--fyag-muted); font-size: .8125rem; }
+.solicitudes-detail-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.card-fyag .solicitudes-detail-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; }
+.commercial-page .solicitudes-detail-head .commercial-actions { margin: 0; }
+.solicitudes-fact-wide { grid-column: 1 / -1; }
+@media (max-width: 575.98px) {
+  .commercial-page .solicitudes-toolbar > .btn { width: 100%; }
+}

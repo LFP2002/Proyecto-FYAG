@@ -182,3 +182,8 @@ Estas políticas definen el **contrato autorizado para implementación**, no cap
 5. Luego retomar SPEC-019B simplificada (entregas/devoluciones) y, solo si aporta valor al objetivo Beta, SPEC-019C.
 
 **No usar SPEC-021 como excusa para activar dinero ficticio en Bodega, crear DTE, modificar créditos de clientes ni implementar un libro contable completo.**
+
+## Seguimiento del frontend local — 25-11-2026
+
+- Se añadió localmente `frontend/src/pages/Egresos.jsx` para consultar y registrar egresos mediante las rutas existentes, con filtros, paginación, detalle e historial; no realiza transferencias ni deriva egresos de movimientos de inventario o costos de Obras.
+- El alcance implementado es solo frontend y sus contratos disponibles. No se cambió backend, no se ejecutó QA financiero real ni se declara publicación.

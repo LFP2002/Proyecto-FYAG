@@ -70,17 +70,26 @@ test('orden nuevo vacío: solo acepta un entero positivo explícito dentro del l
   for (const orden of ['', '0', '-1', '1.5', '2147483648']) assert.ok(validateItem({ ...form, orden }).orden);
   assert.equal(validateItem({ ...form, orden: '2147483647' }).orden, undefined);
 });
-test('roles G/AF/S/T, sin saltos de Gerencia ni excepción monetaria', () => {
-  for (const role of ['TECNICO', 'SUPERVISOR_OBRAS']) { assert.equal(canRead(role), false); assert.deepEqual(actionsFor(role, 'BORRADOR'), []); }
+test('roles y flujo actual de presupuestos para Finanzas y Supervisor', () => {
+  assert.deepEqual(actionsFor('TECNICO', 'BORRADOR'), []);
+  assert.equal(canRead('SUPERVISOR_OBRAS'), false);
+  assert.equal(canRead('SUPERVISOR_OBRAS', 'presupuestos'), true);
+  assert.equal(canRead('SUPERVISOR_OBRAS', 'clientes'), false);
   assert.ok(canRead(AF)); assert.ok(canRead(G));
-  assert.deepEqual(actionsFor(AF, 'BORRADOR'), ['enviar-gerencia', 'anular']);
-  assert.deepEqual(actionsFor(G, 'PENDIENTE_GERENCIA'), ['aprobar-gerencia', 'rechazar-gerencia']);
-  assert.deepEqual(actionsFor(AF, 'PENDIENTE_GERENCIA'), ['anular']);
+  assert.deepEqual(actionsFor(AF, 'BORRADOR'), ['enviar-finanzas', 'anular']);
+  assert.deepEqual(actionsFor('SUPERVISOR_OBRAS', 'BORRADOR'), ['enviar-finanzas']);
+  assert.deepEqual(actionsFor(AF, 'PENDIENTE_FINANZAS'), ['aprobar-finanzas', 'rechazar-finanzas', 'anular']);
+  assert.deepEqual(actionsFor(AF, 'APROBADO_FINANZAS'), ['enviar-cliente', 'anular']);
+  assert.deepEqual(actionsFor(G, 'PENDIENTE_FINANZAS'), []);
+  assert.deepEqual(actionsFor(G, 'PENDIENTE_GERENCIA'), []);
+  assert.deepEqual(actionsFor(AF, 'PENDIENTE_GERENCIA'), ['aprobar-finanzas', 'rechazar-finanzas', 'anular']);
+  assert.deepEqual(actionsFor(AF, 'RECHAZADO_FINANZAS'), ['crear-revision']);
+  assert.deepEqual(actionsFor('SUPERVISOR_OBRAS', 'RECHAZADO_FINANZAS'), ['crear-revision']);
   assert.deepEqual(actionsFor(AF, 'RECHAZADO_GERENCIA'), ['crear-revision']);
   assert.deepEqual(actionsFor(AF, 'RECHAZADO_CLIENTE'), ['crear-revision']);
   assert.deepEqual(actionsFor(AF, 'ANULADO'), ['crear-revision']);
   assert.equal(actionsFor(AF, 'APROBADO_CLIENTE').includes('crear-revision'), false);
-  for (const action of ['anular', 'rechazar-gerencia', 'registrar-rechazo-cliente']) assert.ok(needsReason(action));
+  for (const action of ['anular', 'rechazar-finanzas', 'registrar-rechazo-cliente']) assert.ok(needsReason(action));
 });
 test('rutas numéricas y paginación segura de listado e historial', () => {
   assert.equal(clientPath(4), '/api/clientes/4/'); assert.equal(itemPath(2, 3), '/api/presupuestos/2/items/3/');

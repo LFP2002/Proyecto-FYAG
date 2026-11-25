@@ -52,7 +52,7 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /PendingIntegration/);
   assert.match(app, /pages\/Clientes/);
   assert.match(app, /pages\/Presupuestos/);
-  assert.match(app, /canRead\(user.role\)/);
+  assert.match(app, /canRead\(user.role, mod\)/);
   assert.match(app, /pages\/Obras/);
   assert.match(app, /canReadObras\(user.role\)/);
   assert.match(app, /pages\/Cobranzas/);
@@ -71,11 +71,17 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
 });
 
 test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {
-  assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
-  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios', 'auditoria']);
+  assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'BODEGUERO', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
+  assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios', 'auditoria', 'chat']);
   assert.equal(NAV.GERENCIA.includes('usuarios'), false);
-  assert.deepEqual(NAV.TECNICO, ['obras']);
-  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'alertas', 'auditoria']);
+  assert.deepEqual(NAV.TECNICO, ['obras', 'solicitudes', 'mermas', 'chat']);
+  assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat']);
+  assert.deepEqual(NAV.BODEGUERO, ['inventario', 'mermas', 'chat']);
+  assert.ok(NAV.ADMINISTRATIVO_FINANZAS.includes('egresos'));
+  assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('inventario'), false);
+  assert.equal(NAV.GERENCIA.includes('inventario'), true);
+  assert.equal(NAV.TECNICO.includes('inventario'), false);
+  assert.equal(NAV.TECNICO.includes('egresos'), false);
   assert.ok(NAV.GERENCIA.includes('clientes'));
   for (const role of Object.keys(NAV)) assert.ok(NAV[role].includes(DEFMOD[role]));
 });

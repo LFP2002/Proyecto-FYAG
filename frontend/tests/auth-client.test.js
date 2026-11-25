@@ -51,6 +51,29 @@ test('cliente autenticado soporta multipart sin forzar Content-Type y respuesta 
   assert.equal(await image.text(), 'imagen');
 });
 
+test('login con credencial temporal solo habilita primer cambio y no consulta /me', async () => {
+  const challenge = 'T'.repeat(43), calls = [];
+  const client = createAuthClient({ fetchImpl: async (path, options) => {
+    calls.push({ path, ...options });
+    if (path === '/api/auth/csrf/') return json({ csrfToken: 'csrf-inicial' });
+    if (path === '/api/auth/login/') return json({ estado: 'CAMBIO_OBLIGATORIO', desafio: challenge, desafio_vence_en: '2026-11-25T12:05:00Z', csrfToken: 'csrf-rotado' });
+    if (path === '/api/auth/primer-cambio-clave/') return json({ estado: 'CLAVE_PERSONAL_CONFIRMADA', login_requerido: true });
+    throw new Error(`Ruta no esperada: ${path}`);
+  } });
+  await client.login(credentials);
+  assert.equal(client.getSnapshot().status, 'password-change-required');
+  assert.equal(client.getSnapshot().user, null);
+  assert.deepEqual(calls.map(call => call.path), ['/api/auth/csrf/', '/api/auth/login/']);
+  await client.completeFirstPasswordChange('clave-personal-de-prueba');
+  assert.equal(client.getSnapshot().status, 'anonymous');
+  assert.equal(client.getSnapshot().user, null);
+  assert.deepEqual(calls.map(call => call.path), ['/api/auth/csrf/', '/api/auth/login/', '/api/auth/primer-cambio-clave/']);
+  assert.deepEqual(JSON.parse(calls[2].body), { desafio: challenge, nueva_clave: 'clave-personal-de-prueba' });
+  assert.equal(calls[2].headers.get('X-CSRFToken'), 'csrf-rotado');
+  assert.equal(calls[2].headers.get('Authorization'), null);
+  assert.equal(client.getSnapshot().notice, 'Contraseña personal confirmada. Inicia sesión con tu nueva contraseña.');
+});
+
 test('login real: normaliza email, no altera password y confirma identidad con /me', async () => {
   const { client, calls } = backend();
   assert.equal(client.getSnapshot().status, 'restoring');

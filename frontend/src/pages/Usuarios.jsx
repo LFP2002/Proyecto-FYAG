@@ -6,8 +6,19 @@ import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { canManageUsers, userPath, usersPath, historyPath, readUser, readUsers, readHistory } from '../usuarios/api.js';
 
 const roles = Object.entries(ROLES).map(([key, value]) => [key, value.short]);
-const empty = { email: '', username: '', first_name: '', last_name: '', rol: 'TECNICO', password: '', motivo: '', nueva_clave: '', clave_actual: '' };
+const empty = { email: '', username: '', first_name: '', last_name: '', rol: 'TECNICO', motivo: '', nueva_clave: '', clave_actual: '' };
 const conflicts = { ultima_ti: 'Debe permanecer una cuenta TI activa.', ultima_gerencia: 'Debe permanecer una Gerencia activa.', autooperacion_protegida: 'Esta acción no está permitida sobre su propia cuenta.', asignaciones_pendientes: 'Resuelva primero las asignaciones y turnos desde Obras.', sin_cambios: 'El rol ya está asignado.', version_agotada: 'La cuenta requiere revisión técnica.' };
+
+const roleTone = { ADMINISTRADOR_TI: 'ti', GERENCIA: 'gerencia', ADMINISTRATIVO_FINANZAS: 'finanzas', SUPERVISOR_OBRAS: 'supervisor', TECNICO: 'tecnico' };
+const HIDDEN_ACCOUNT_CREATION_REASON = 'Aprovisionamiento manual inicial de TI mediante comando Django';
+// Textos del historial de la cuenta, en lenguaje simple (solo presentación).
+const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada', CREACION_CREDENCIAL_TEMPORAL: 'Credencial temporal emitida', REEMISION: 'Credencial temporal reemitida', CAMBIO_INICIAL: 'Contraseña personal establecida' };
+const fieldLabel = { username: 'Usuario', email: 'Correo', rol: 'Rol', is_active: 'Estado', first_name: 'Nombres', last_name: 'Apellidos' };
+const showValue = (key, value) => (key === 'rol' ? ROLES[value]?.short ?? String(value) : key === 'is_active' ? (value ? 'Activa' : 'Inactiva') : value === '' ? 'sin dato' : String(value));
+const hasValue = (value) => value !== undefined && value !== null && value !== '';
+const changeRows = (event) => Object.keys(fieldLabel).filter((key) => key in event.datos_nuevos && (hasValue(event.datos_nuevos[key]) || hasValue(event.datos_anteriores[key])))
+  .map((key) => [key, hasValue(event.datos_anteriores[key]) ? `${showValue(key, event.datos_anteriores[key])} → ${showValue(key, event.datos_nuevos[key])}` : showValue(key, event.datos_nuevos[key])]);
+const cellTone = (value) => (value === '—' ? 'none' : value === 'Total' ? 'total' : value === 'Lectura' || value === 'Cobranza' ? 'read' : value === 'Solo asignadas' || value === 'Aprueba o rechaza' ? 'limit' : 'edit');
 
 function Feedback({ api }) {
   return <>
@@ -31,17 +42,27 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
   const { user: authenticatedUser, logout, sessionInvalidatedByEmailChange } = useAuth();
   const [form, setForm] = useState({ ...empty, ...(account || {}) });
   const busy = api.busy || api.loading || api.locked;
-  const titles = { crear: 'Crear cuenta inactiva', editar: 'Editar perfil', activar: 'Activar cuenta', desactivar: 'Desactivar cuenta', rol: 'Cambiar rol', clave: 'Establecer contraseña ajena', propia: 'Cambiar mi contraseña' };
+  const titles = { crear: 'Crear cuenta inactiva', editar: 'Editar perfil', activar: 'Activar cuenta', desactivar: 'Desactivar cuenta', rol: 'Cambiar rol', clave: 'Restablecer acceso ajeno', propia: 'Cambiar mi contraseña' };
   async function submit(event) {
     event.preventDefault();
     if (busy) return;
+    if (mode === 'clave') {
+      await api.writeResult(`${userPath(account.id)}restablecer-clave/`, 'POST', { motivo: form.motivo.trim() }, async (result) => {
+        const credential = typeof result?.credencial_temporal === 'string' && result.credencial_temporal.length === 43 && typeof result?.credencial_vence_en === 'string'
+          ? { value: result.credencial_temporal, expiresAt: result.credencial_vence_en, userId: account.id }
+          : null;
+        if (!credential) { api.setError({ message: 'El servidor no devolvió una credencial temporal válida. No puede recuperarse desde el historial.' }); return; }
+        onSaved(credential);
+      });
+      return;
+    }
     let path = userPath(account?.id), method = 'POST', body;
     const profile = Object.fromEntries(['email', 'username', 'first_name', 'last_name'].map((key) => [key, form[key]]));
-    if (mode === 'crear') body = { ...profile, rol: form.rol, password: form.password };
+    if (mode === 'crear') body = { ...profile, rol: form.rol };
     if (mode === 'editar') { method = 'PATCH'; body = profile; }
     if (mode === 'activar' || mode === 'desactivar') { path += `${mode}/`; body = { motivo: form.motivo }; }
     if (mode === 'rol') { path += 'cambiar-rol/'; body = { rol: form.rol, motivo: form.motivo }; }
-    if (mode === 'clave') { path += 'establecer-clave/'; body = { nueva_clave: form.nueva_clave, motivo: form.motivo }; }
+
     if (mode === 'propia') { path = '/api/auth/cambiar-clave/'; body = { clave_actual: form.clave_actual, nueva_clave: form.nueva_clave }; }
     try {
       await api.write(path, method, body, async (result) => {
@@ -53,13 +74,18 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
           sessionInvalidatedByEmailChange();
           return;
         }
-        await onSaved(saved);
+        const temporaryCredential = mode === 'crear'
+          && typeof result?.credencial_temporal === 'string'
+          && result.credencial_temporal.length === 43
+          && typeof result?.credencial_vence_en === 'string'
+          ? { value: result.credencial_temporal, expiresAt: result.credencial_vence_en }
+          : null;
+        await onSaved(saved, temporaryCredential);
       });
-    } finally { setForm((prev) => ({ ...prev, password: '', nueva_clave: '', clave_actual: '' })); }
+    } finally { setForm((prev) => ({ ...prev, nueva_clave: '', clave_actual: '' })); }
   }
-  return <form aria-label={titles[mode]} onSubmit={submit} className="card-fyag p-3 mb-3">
+  return <form aria-label={titles[mode]} onSubmit={submit} className={`card-fyag p-3 mb-3${mode === 'crear' ? ' usuario-crear-form' : ''}`}>
     <h2>{titles[mode]}</h2>
-    {mode === 'crear' && <p>La cuenta nace inactiva. Active expresamente tras entregar la contraseña por un canal seguro.</p>}
     <div className="fgrid commercial-fields">
       {['crear', 'editar'].includes(mode) && <>
         <Field name="email" label="Correo" type="email" {...{ form, setForm }} disabled={busy} />
@@ -68,9 +94,9 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
         <Field name="last_name" label="Apellidos" required={false} {...{ form, setForm }} disabled={busy} />
       </>}
       {['crear', 'rol'].includes(mode) && <Field name="rol" label="Rol" options={roles} {...{ form, setForm }} disabled={busy} />}
-      {mode === 'crear' && <Field name="password" label="Contraseña inicial" type="password" {...{ form, setForm }} disabled={busy} />}
+
       {mode === 'propia' && <Field name="clave_actual" label="Contraseña actual" type="password" {...{ form, setForm }} disabled={busy} />}
-      {['clave', 'propia'].includes(mode) && <Field name="nueva_clave" label="Nueva contraseña" type="password" {...{ form, setForm }} disabled={busy} />}
+      {mode === 'propia' && <Field name="nueva_clave" label="Nueva contraseña" type="password" {...{ form, setForm }} disabled={busy} />}
       {['activar', 'desactivar', 'rol', 'clave'].includes(mode) && <Field name="motivo" label="Motivo" {...{ form, setForm }} disabled={busy} />}
     </div>
     <div className="d-flex flex-wrap gap-2 mt-3"><button className="btn btn-fyag-primary" disabled={busy} type="submit">Confirmar {titles[mode].toLowerCase()}</button>
@@ -78,55 +104,76 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
   </form>;
 }
 
-function Detail({ id, onBack }) {
+function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) {
   const { user } = useAuth();
   const api = useCommercial();
-  const [account, setAccount] = useState(null), [history, setHistory] = useState(null), [page, setPage] = useState(1), [mode, setMode] = useState(null);
+  const [account, setAccount] = useState(null), [history, setHistory] = useState(null), [page, setPage] = useState(1), [mode, setMode] = useState(null), [issuedCredential, setIssuedCredential] = useState(null);
   const load = () => api.load('cuenta', userPath(id), (data) => setAccount(readUser(data)));
   const loadHistory = () => api.load('historial', historyPath(id, page), (data) => setHistory(readHistory(data, id)));
   useEffect(() => { void load(); }, [id]);
   useEffect(() => { setHistory(null); void loadHistory(); }, [id, page]);
   const refresh = () => api.reconcile(async () => { const ok = await load(); return await loadHistory() && ok; });
-  const onSaved = async () => {
+  const onSaved = async (credential = null) => {
     await api.requiredLoad('cuenta', userPath(id), (data) => setAccount(readUser(data)));
     await api.requiredLoad('historial', historyPath(id, page), (data) => setHistory(readHistory(data, id)));
+    if (credential) setIssuedCredential(credential);
     setMode(null);
   };
   const own = user.id === id, disabled = api.busy || api.loading || api.locked;
-  return <section className="commercial-page usuarios-page">
-    <button className="btn btn-outline-secondary" disabled={api.busy} onClick={onBack}>Volver a usuarios</button>
-    <button className="btn btn-outline-secondary ms-2" disabled={api.busy || api.loading} onClick={refresh}>Actualizar</button>
+  return <section className="commercial-page usuarios-page usuarios-detalle">
+    <div className="usuarios-toolbar">
+      <button className="btn btn-outline-secondary" disabled={api.busy} onClick={onBack}>Volver a usuarios</button>
+      <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={refresh}>Actualizar</button>
+    </div>
     <Feedback api={api} />
     {account && <>
-      <h2 className="commercial-long-text">{account.username} · #{account.id}</h2><p className="commercial-long-text">{account.email} · {ROLES[account.rol].short} · {account.is_active ? 'Activa' : 'Inactiva'}</p>
-      <p className="commercial-long-text">{account.first_name} {account.last_name}</p>
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        {['editar', account.is_active ? 'desactivar' : 'activar', 'rol', own ? 'propia' : 'clave'].map((action) => <button key={action} className="btn btn-outline-secondary" disabled={disabled || (own && ['desactivar', 'rol'].includes(action))} onClick={() => setMode(action)}>
-          {{ editar: 'Editar perfil', activar: 'Activar', desactivar: 'Desactivar', rol: 'Cambiar rol', clave: 'Establecer contraseña', propia: 'Mi contraseña' }[action]}</button>)}
-      </div>
-      {own && <p>Auto-baja y cambio de rol propio protegidos. Cambiar correo o contraseña exige nuevo inicio de sesión.</p>}
+      <section className="card-fyag detalle-perfil">
+        <div className="detalle-cabecera">
+          <span className="usuarios-avatar" aria-hidden="true">{account.username.charAt(0).toUpperCase()}</span>
+          <div className="detalle-titulo">
+            <h2 className="commercial-long-text">{account.username}</h2>
+            <div className="detalle-datos">
+              <span className="commercial-long-text">{account.email}</span>
+              <span className="usuarios-pill" data-tone={roleTone[account.rol]}>{ROLES[account.rol].short}</span>
+              <span className="usuarios-state" data-active={account.is_active ? 'true' : 'false'}>{account.is_active ? 'Activa' : 'Inactiva'}</span>
+            </div>
+            {(account.first_name || account.last_name) && <p className="commercial-long-text detalle-nombre">{account.first_name} {account.last_name}</p>}
+          </div>
+        </div>
+        <div className="detalle-pie">
+          <div className="detalle-acciones">
+            {['editar', account.is_active ? 'desactivar' : 'activar', 'rol', own ? 'propia' : 'clave'].map((action) => <button key={action} className="btn btn-outline-secondary" disabled={disabled || (own && ['desactivar', 'rol'].includes(action))} onClick={() => setMode(action)}>
+              {{ editar: 'Editar perfil', activar: 'Activar', desactivar: 'Desactivar', rol: 'Cambiar rol', clave: 'Restablecer acceso', propia: 'Mi contraseña' }[action]}</button>)}
+          </div>
+          {own && <p className="detalle-aviso">Por seguridad, no puedes desactivar tu propia cuenta ni cambiar tu propio rol. Si cambias tu correo o tu contraseña, tendrás que iniciar sesión de nuevo.</p>}
+          {(issuedCredential || temporaryCredential)?.userId === id && <div className="alert alert-warning mt-3" role="alert" aria-label="Credencial temporal de una sola exhibición"><h3>Credencial temporal generada</h3><p>El servidor la entrega una sola vez. Compártela con el titular por un canal privado; no la envíes por correo ni la guardes en el navegador.</p><p><strong>Vence:</strong> {new Date((issuedCredential || temporaryCredential).expiresAt).toLocaleString('es-CL')}</p><p><strong>Credencial temporal:</strong> <code className="user-select-all">{(issuedCredential || temporaryCredential).value}</code></p><button type="button" className="btn btn-outline-secondary" onClick={() => { setIssuedCredential(null); onHideTemporaryCredential?.(); }}>Ocultar credencial</button></div>}
+        </div>
+      </section>
       {mode && <AccountForm key={`${account.id}:${mode}`} {...{ mode, account, api, onSaved }} onCancel={() => setMode(null)} />}
     </>}
-    <section className="card-fyag p-3"><h2>Auditoría administrativa</h2>
-      {history && !history.count && <p>No hay eventos registrados.</p>}
-      <ol>{history?.results.map((event) => <li key={event.id} className="mb-3"><strong>{event.tipo.replaceAll('_', ' ')}</strong><p>Actor #{event.actor} · {new Date(event.creado_en).toLocaleString('es-CL')}</p><p className="commercial-long-text">{event.motivo}</p>
-        <dl>{Object.entries(event.datos_nuevos).map(([key, value]) => <div key={key}><dt>{key}</dt><dd className="commercial-long-text">{String(event.datos_anteriores[key] ?? '—')} → {String(value)}</dd></div>)}</dl>
+    <section className="card-fyag detalle-historial"><h2>Historial de cambios</h2>
+      <p className="detalle-sub">Lo que se ha hecho en esta cuenta.</p>
+      {history && !history.count && <p>Todavía no hay cambios registrados.</p>}
+      <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{eventLabel[event.tipo] || event.tipo}</strong>
+        <p className="detalle-evento-meta">{new Date(event.creado_en).toLocaleDateString('es-CL', { dateStyle: 'long' })}, {new Date(event.creado_en).toLocaleTimeString('es-CL', { timeStyle: 'short' })} · Hecho por la cuenta #{event.actor}</p>
+        {event.motivo && event.motivo !== HIDDEN_ACCOUNT_CREATION_REASON && <p className="commercial-long-text">{event.motivo}</p>}
+        <dl className="detalle-cambios">{changeRows(event).map(([key, value]) => <div key={key}><dt>{fieldLabel[key]}</dt><dd className="commercial-long-text">{value}</dd></div>)}</dl>
       </li>)}</ol>
-      {history && <Pager data={history} {...{ page, setPage }} disabled={api.busy || api.loading} label="Páginas de auditoría" />}
+      {history && <Pager data={history} {...{ page, setPage }} disabled={api.busy || api.loading} label="Páginas del historial" />}
     </section>
   </section>;
 }
 
 function UsuariosTI() {
   const api = useCommercial();
-  const [data, setData] = useState(null), [page, setPage] = useState(1), [filters, setFilters] = useState({ rol: '', activo: '' }), [selected, setSelected] = useState(null), [creating, setCreating] = useState(false);
+  const [data, setData] = useState(null), [page, setPage] = useState(1), [filters, setFilters] = useState({ rol: '', activo: '' }), [selected, setSelected] = useState(null), [creating, setCreating] = useState(false), [temporaryCredential, setTemporaryCredential] = useState(null);
   const load = () => api.load('usuarios', usersPath(page, filters), (result) => setData(readUsers(result)));
   useEffect(() => { if (!selected) { setData(null); void load(); } }, [page, filters.rol, filters.activo, selected]);
   const disabled = api.busy || api.loading || api.locked;
-  if (selected) return <Detail key={selected} id={selected} onBack={() => setSelected(null)} />;
-  return <section className="commercial-page usuarios-page">
+  if (selected) return <Detail key={selected} id={selected} onBack={() => setSelected(null)} temporaryCredential={temporaryCredential} onHideTemporaryCredential={() => setTemporaryCredential(null)} />;
+  return <section className="commercial-page usuarios-page usuarios-lista">
     <PageHead title="Usuarios y roles" sub="Administración exclusiva de TI. Los cambios se confirman en PostgreSQL con auditoría." />
-    <div className="d-flex flex-wrap gap-2 mb-3">
+    <div className="usuarios-toolbar">
       <button className="btn btn-fyag-primary" disabled={disabled} onClick={() => setCreating(true)}>Nueva cuenta</button>
       <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={() => api.reconcile(load)}>Actualizar</button>
       <label>Rol <select aria-label="Filtrar rol" className="form-select" value={filters.rol} disabled={api.busy} onChange={(e) => { setPage(1); setFilters({ ...filters, rol: e.target.value }); }}><option value="">Todos</option>{roles.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>
@@ -134,14 +181,15 @@ function UsuariosTI() {
     </div>
     <Feedback api={api} />
     {api.error?.status === 404 && page > 1 && <button className="btn btn-outline-secondary" onClick={() => setPage(1)}>Primera página</button>}
-    {creating && <AccountForm mode="crear" api={api} onCancel={() => setCreating(false)} onSaved={async (account) => { await api.requiredLoad('usuarios', usersPath(page, filters), (result) => setData(readUsers(result))); setCreating(false); setSelected(account.id); }} />}
-    <div className="card-fyag flush mb-3"><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="780px" columns="minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.3fr) 100px 110px" head={['Alias', 'Correo', 'Rol', 'Estado', 'Detalle']}>
-      {data?.results.map((account) => <div key={account.id} className="trow" role="row"><div role="cell">{account.username}</div><div role="cell">{account.email}</div><div role="cell">{ROLES[account.rol].short}</div><div role="cell">{account.is_active ? 'Activa' : 'Inactiva'}</div><div role="cell"><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={() => setSelected(account.id)}>Ver cuenta #{account.id}</button></div></div>)}
+    {creating && <AccountForm mode="crear" api={api} onCancel={() => setCreating(false)} onSaved={async (account, credential) => { if (credential) setTemporaryCredential({ ...credential, userId: account.id }); await api.requiredLoad('usuarios', usersPath(page, filters), (result) => setData(readUsers(result))); setCreating(false); }} />}
+
+    <div className="card-fyag flush mb-3"><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="720px" columns="minmax(0, 1.2fr) minmax(0, 1.5fr) minmax(0, 1.3fr) 120px 140px" head={['Alias', 'Correo', 'Rol', 'Estado', 'Detalle']}>
+      {data?.results.map((account) => <div key={account.id} className="trow" role="row"><div role="cell" className="usuarios-alias">{account.username}</div><div role="cell">{account.email}</div><div role="cell"><span className="usuarios-pill" data-tone={roleTone[account.rol]}>{ROLES[account.rol].short}</span></div><div role="cell"><span className="usuarios-state" data-active={account.is_active ? 'true' : 'false'}>{account.is_active ? 'Activa' : 'Inactiva'}</span></div><div role="cell" className="usuarios-detail"><button className="btn btn-link btn-sm" disabled={api.busy} onClick={() => setSelected(account.id)}>Ver cuenta #{account.id}</button></div></div>)}
     </Table></div></div>
     {data && !data.count && <p>No hay cuentas para estos filtros.</p>}
     {data && <Pager {...{ data, page, setPage }} disabled={api.busy || api.loading} label="Páginas de usuarios" />}
-    <section className="card-fyag p-3"><h2>Matriz de permisos</h2><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de matriz de permisos" tabIndex={0}><Table label="Matriz de cinco roles" min="900px" columns="minmax(0, 1.4fr) repeat(5, minmax(0, 1fr))" head={['Módulo', 'Gerencia', 'Finanzas', 'Supervisor', 'Técnico', 'TI']}>
-      {MATRIX.map((row) => <div className="trow" role="row" key={row[0]}>{row.map((value, index) => <div role="cell" key={index}>{value}</div>)}</div>)}
+    <section className="card-fyag flush usuarios-matriz"><h2>Matriz de permisos</h2><div className="usuarios-table-region" role="region" aria-label="Desplazamiento de matriz de permisos" tabIndex={0}><Table label="Matriz de cinco roles" min="820px" columns="minmax(0, 1.7fr) repeat(5, minmax(0, 1fr))" head={['Módulo', 'Gerencia', 'Finanzas', 'Supervisor', 'Técnico', 'TI']}>
+      {MATRIX.map((row) => <div className="trow" role="row" key={row[0]}>{row.map((value, index) => <div role="cell" key={index}>{index === 0 ? value : <span className="usuarios-level" data-tone={cellTone(value)}>{value}</span>}</div>)}</div>)}
     </Table></div></section>
   </section>;
 }

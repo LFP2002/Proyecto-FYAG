@@ -1,10 +1,16 @@
 # SPEC-008 — Auditoría global federada, exclusivamente de lectura
 
-**Estado: especificada para implementación por OpenCode; NO implementada ni integrada.** Este documento forma parte del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26) (solo documentación). **No existe** `/api/auditoria/eventos/` en `main`. El contrato público se congela antes de programar el frontend. La programación, migraciones, pruebas ejecutables y commits de código corresponden a OpenCode, sujeto a revisión.
+**Estado de integración por reconciliar:** esta SPEC se originó como contrato documental del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26). El checkout local actual contiene una ruta `/api/auditoria/eventos/`, pero esta revisión no verifica su integración/publicación efectiva en `main`, su despliegue ni la conformidad integral con este contrato. No modificar el contrato API por las notas frontend siguientes.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- Se añadió localmente una presentación visual de Auditoría en `frontend/src/pages/Auditoria.jsx` y `frontend/src/styles/pages/auditoria.css`, reutilizando el consumo y los permisos de la pantalla existente sin cambiar el contrato de esta SPEC.
+- Se limitaron los cambios a importación de estilos, clases/agrupación JSX y placeholders visuales; filtros, cursor, consultas y controles de acceso no se redefinieron.
+- Este seguimiento no acredita la aprobación del contrato API, E2E con backend ni publicación. La autoridad de esquema y permisos permanece en esta SPEC y el código backend vigente.
 
 ## 1. Estado, contexto comprobado y precedencia
 
-Proyecto FYAG (Django 5, DRF, PostgreSQL, autenticación JWT versionada). `main` ya contiene eventos por dominio, sus permisos y endpoints de historial independientes, pero `apps.auditoria` no tiene API registrada en `backend/config/urls.py`. Esta SPEC añade únicamente una **lectura federada**; su implementación no depende de MongoDB ni sustituye la auditoría por origen.
+Proyecto FYAG (Django 5, DRF, PostgreSQL, autenticación JWT versionada). Los eventos por dominio tienen permisos e historiales independientes. El registro de la ruta global de esta SPEC debe verificarse contra la rama/commit efectivamente integrado y OpenAPI; la presencia en el checkout local por sí sola no acredita publicación. El contrato define únicamente una **lectura federada**; su implementación no depende de MongoDB ni sustituye la auditoría por origen.
 
 **Precedencia:** prevalecen las restricciones de identidad y acceso de SPEC-002A/002B y SPEC-006B/006C, y las reglas de proyección de SPEC-003, SPEC-004/004B y SPEC-007. Una divergencia se documenta y revisa antes de codificar, nunca se resuelve entregando más información.
 
