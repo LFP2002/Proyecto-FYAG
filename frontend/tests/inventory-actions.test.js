@@ -43,6 +43,8 @@ test('Chat usa ticket REST y WS sin transportar ticket por URL; avisos recuperan
  assert.match(source,/JSON\.stringify\(\{tipo:'autenticar',ticket:issued\.ticket\}\)/);
  assert.match(source,/siguiente_antes_id/);
  assert.match(source,/conversaciones\/\$\{active\.id\}\/leido/);
+ assert.match(source,/ultimo_mensaje_id:newest\.id/);
+ assert.doesNotMatch(source,/body:\s*\{\s*ultimo_leido_mensaje_id:/);
  assert.match(source,/retryCount\.current>=5/);
 });
 
