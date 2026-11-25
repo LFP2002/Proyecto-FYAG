@@ -172,7 +172,8 @@ test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin
       await click(root,'Consultar respaldos documentales');
       assert.ok(calls.some((c)=>c.path==='/api/adjuntos/documentos-cobro/11/?page=1'));
       assert.match(text(ui.renderer.toJSON()),/factura-historica\.pdf/);
-      assert.equal(root.findAllByType('button').some((b)=>text(b)==='Subir archivo privado'),false);
+      assert.equal(root.findAllByType('button').some((b)=>text(b)==='Subir archivo'),false);
+      assert.equal(root.findAllByProps({type:'file'}).length,0);
       await click(root,'Anotaciones');
       assert.match(text(ui.renderer.toJSON()),/Consulta de solo lectura/);
       assert.equal(root.findAllByType('button').some((b)=>text(b)==='Guardar anotaciones'),false);
@@ -195,7 +196,8 @@ test('Factura vigente: Finanzas puede subir respaldos y Gerencia solo consultarl
     try{
       await click(ui.renderer.root,'Consultar respaldos documentales');
       assert.equal(calls.length,1);
-      assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Subir archivo privado'),role==='ADMINISTRATIVO_FINANZAS');
+      assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Subir archivo'),role==='ADMINISTRATIVO_FINANZAS');
+      assert.equal(ui.renderer.root.findAllByProps({type:'file'}).length,role==='ADMINISTRATIVO_FINANZAS'?1:0);
     }finally{await ui.close();}
   }
 });

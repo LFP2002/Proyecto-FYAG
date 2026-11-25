@@ -251,4 +251,10 @@ class Presupuestos024API(PresupuestoAPIBase):
         servicios.enviar_cliente(p, self.usuarios[AF])
         servicios.registrar_aprobacion_cliente(p, self.usuarios[AF])
         self.assertEqual(antes, {m._meta.label: m.objects.count() for m in modelos})
-        self.assertNotIn('articulo', {f.name for f in PresupuestoItem._meta.fields})
+        # SPEC-025B admite un vínculo opcional, sin asignarlo a líneas libres.
+        # El flujo comercial no debe crear vínculos ni modificar sus instantáneas.
+        item = p.items.get()
+        self.assertIsNone(item.articulo_id)
+        self.assertEqual(item.codigo_articulo, '')
+        self.assertEqual(item.cantidad, Decimal('2.500'))
+        self.assertEqual(item.precio_unitario, Decimal('100.25'))
