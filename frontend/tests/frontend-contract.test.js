@@ -55,7 +55,10 @@ test('excepción de almacenamiento visual es estricta y no permite tokens', asyn
   assert.match(fontPreferenceOnly(layout + "\nindexedDB.open('tokens');"), forbidden);
   assert.match(fontPreferenceOnly(layout + "\ndocument.cookie = token;"), forbidden);
   assert.throws(() => fontPreferenceOnly(layout.replace("'fyag.font-level'", "'accessToken'")));
-  assert.throws(() => fontPreferenceOnly(layout.replace('String(fontLevel)', 'accessToken')));
+  const allowedWrite = 'globalThis.localStorage?.setItem(FONT_KEY,String(fontLevel))';
+  const unsafeWrite = layout.replace(allowedWrite, 'globalThis.localStorage?.setItem(FONT_KEY,accessToken)');
+  assert.notEqual(unsafeWrite, layout, 'La mutación debe afectar la escritura en localStorage');
+  assert.throws(() => fontPreferenceOnly(unsafeWrite));
 });
 
 test('imports respetan exactamente las mayúsculas de app y login en Linux', async () => {
