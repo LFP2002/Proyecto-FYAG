@@ -51,8 +51,36 @@ export default function SeguimientoComercial(){
     </form>
     <div className="portfolio-kpis">{METRICS.map(([key,title,tone])=><button type="button" key={key} className={'portfolio-kpi portfolio-'+tone} aria-label={title} aria-pressed={query.estado===key} disabled={!s} onClick={()=>filter({estado:query.estado===key?'':key,sin_actualizar:''})}><span>{title}</span><strong>{s?.estados[key].cantidad??'—'}</strong><small>{s?formatCompactCLP(s.estados[key].monto_neto)+' CLP':'—'}</small></button>)}</div>
     <div className="commercial-insights">
-      <section className="card-fyag commercial-acceptance"><h2>Resultados comerciales</h2><div className="commercial-donut-layout"><div className="commercial-donut"><svg viewBox="0 0 160 160" aria-hidden="true"><circle cx="80" cy="80" r="62" stroke={s?.respuestas_cliente?'#E34D59':'#E7EDF3'} strokeWidth="24" fill="none"/>{rate!=null&&Number(rate)>0&&<circle cx="80" cy="80" r="62" stroke="#20AC73" strokeWidth="24" fill="none" pathLength="100" strokeDasharray={rate+' '+(100-Number(rate))} transform="rotate(-90 80 80)"/>}</svg><div><strong>{rate==null?'—':rate.replace('.',',')+'%'}</strong><span>Aceptación</span></div></div><div className="commercial-acceptance-legend"><div><span><i style={{background:'#20AC73'}}/>Aceptados</span><strong>{s?.estados.APROBADO_CLIENTE.cantidad??'—'}</strong></div><div><span><i style={{background:'#E34D59'}}/>Rechazados</span><strong>{s?.estados.RECHAZADO_CLIENTE.cantidad??'—'}</strong></div><small>{s?s.respuestas_cliente+' presupuestos con respuesta actual del cliente.':'Sin datos'}</small></div></div></section>
-      <section className="card-fyag commercial-followup"><h2>Seguimiento pendiente</h2><strong>{s?.sin_actualizar??'—'}</strong><p>En revisión interna, aprobados internamente o enviados al cliente, sin actualización durante {s?.dias_sin_actualizar??7} días o más.</p><button type="button" className="btn btn-outline-secondary btn-sm" disabled={!s} aria-pressed={query.sin_actualizar==='true'} onClick={()=>filter({sin_actualizar:query.sin_actualizar==='true'?'':'true',estado:''})}>{query.sin_actualizar?'Ver todos':'Ver pendientes sin actualizar'}</button></section>
+      <section className="card-fyag commercial-acceptance">
+        <h2>Resultados comerciales</h2>
+        <div className="commercial-donut-layout">
+          <div className="commercial-donut">
+            <svg viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+              <circle cx="90" cy="90" r="74" stroke={s?.respuestas_cliente?'#E34D59':'#E7EDF3'} strokeWidth="20" fill="none"/>
+              {rate!=null&&Number(rate)>0&&<circle cx="90" cy="90" r="74" stroke="#20AC73" strokeWidth="20" fill="none" pathLength="100" strokeDasharray={rate+' '+(100-Number(rate))} transform="rotate(-90 90 90)"/>}
+            </svg>
+            <div><strong>{rate==null?'—':Number(rate).toLocaleString('es-CL',{maximumFractionDigits:1})+'%'}</strong><span>Aceptación</span></div>
+          </div>
+          <div className="commercial-acceptance-legend">
+            <div><span><i style={{background:'#20AC73'}}/>Aceptados</span><strong>{s?.estados.APROBADO_CLIENTE.cantidad??'—'}</strong></div>
+            <div><span><i style={{background:'#E34D59'}}/>Rechazados</span><strong>{s?.estados.RECHAZADO_CLIENTE.cantidad??'—'}</strong></div>
+            <small>{s?(s.respuestas_cliente===1?'1 presupuesto respondido':s.respuestas_cliente+' presupuestos respondidos'):'Sin datos disponibles'}</small>
+          </div>
+        </div>
+      </section>
+      <section className="card-fyag commercial-followup">
+        <h2>Seguimiento pendiente</h2>
+        <div className={'commercial-followup-body '+(!s?'followup-unknown':s.sin_actualizar?'followup-pending':'followup-clear')}>
+          {s&&<svg width="34" height="34" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+            {s.sin_actualizar===0?<path d="M10.97 4.97a.75.75 0 0 1 1.08 1.04l-4 5a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.47-4.425z"/>:<path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 4.995a.9.9 0 1 1 1.8 0l-.35 3.507a.55.55 0 0 1-1.1 0z"/>}
+          </svg>}
+          <strong className="commercial-followup-count">{s?.sin_actualizar??'—'}</strong>
+          <div className="commercial-followup-label">{!s?'Sin datos disponibles':s.sin_actualizar===0?'Sin pendientes de seguimiento':s.sin_actualizar===1?'Presupuesto pendiente de seguimiento':'Presupuestos pendientes de seguimiento'}</div>
+          <p title="Incluye presupuestos en revisión interna, aprobados internamente o enviados al cliente.">Sin actualización por {s?.dias_sin_actualizar??7} días o más.</p>
+          {s&&(s.sin_actualizar>0||query.sin_actualizar==='true')&&<button type="button" className="btn btn-outline-secondary btn-sm" aria-pressed={query.sin_actualizar==='true'} onClick={()=>filter({sin_actualizar:query.sin_actualizar==='true'?'':'true',estado:''})}>{query.sin_actualizar?'Ver todos':'Ver pendientes sin actualizar'}</button>}
+        </div>
+      </section>
     </div>
     <section className="card-fyag portfolio-list"><div className="portfolio-list-head"><div><h2>Presupuestos</h2><span>{s?s.total+' registros del período · '+data.count+' coincidencias':'—'}</span></div><div><label htmlFor="budget-filter" className="form-label">Estado</label><select className="form-select" id="budget-filter" value={query.estado} onChange={e=>filter({estado:e.target.value,sin_actualizar:''})}><option value="">Todos</option>{OPTIONS.map(k=><option key={k} value={k}>{label(k)}</option>)}</select></div></div>
     <div className="portfolio-results">{data?.results.map(row=><article className={'portfolio-work '+(row.sin_actualizar?'portfolio-atencion':'portfolio-normal')} key={row.id}><div className="portfolio-row-head"><div><h3>{row.codigo} <BudgetStatus state={row.estado_original}/></h3><p>{row.cliente_nombre} · {when(row.creado_en)}</p></div><strong className="commercial-row-net">{formatCompactCLP(row.monto_neto)}</strong></div><div className="portfolio-context"><span>{row.sin_actualizar?'Sin actualización reciente':row.descripcion}</span><button className="btn btn-outline-secondary btn-sm" type="button" data-manager-budget={row.id} onClick={()=>{scroll.current=globalThis.window?.scrollY??0;trigger.current=row.id;setSelected(row);}}>Ver presupuesto</button></div></article>)}</div>

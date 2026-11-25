@@ -21,12 +21,13 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
     if(path.startsWith('/api/presupuestos/seguimiento-comercial/')){
       const url=new URL(path,'http://localhost'),all=[...firstPage,budget],group={PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS',APROBADO_GERENCIA:'APROBADO_FINANZAS',RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS'};
       const states=['BORRADOR','PENDIENTE_FINANZAS','APROBADO_FINANZAS','RECHAZADO_FINANZAS','ENVIADO_CLIENTE','APROBADO_CLIENTE','RECHAZADO_CLIENTE','ANULADO'];
-      const rows=all.map(b=>({...b,cliente_nombre:'Cliente de prueba',estado_original:b.estado,estado:group[b.estado]||b.estado,sin_actualizar:false}));
+      const rows=all.map(b=>({...b,cliente_nombre:'Cliente de prueba',estado_original:b.estado,estado:group[b.estado]||b.estado,sin_actualizar:b.sin_actualizar===true}));
       const estados=Object.fromEntries(states.map(k=>[k,{cantidad:rows.filter(r=>r.estado===k).length,monto_neto:(rows.filter(r=>r.estado===k).length*45300).toFixed(2)}]));
-      const filtered=rows.filter(r=>!url.searchParams.has('estado')||r.estado===url.searchParams.get('estado'));
+      const filtered=rows.filter(r=>(!url.searchParams.has('estado')||r.estado===url.searchParams.get('estado'))&&(!url.searchParams.has('sin_actualizar')||r.sin_actualizar));
+      const accepted=estados.APROBADO_CLIENTE.cantidad,answered=accepted+estados.RECHAZADO_CLIENTE.cantidad;
       const page=Number(url.searchParams.get('page')),size=firstPage.length>1?25:1;
       const link=n=>'/api/presupuestos/seguimiento-comercial/?page='+n+(url.searchParams.has('estado')?'&estado='+url.searchParams.get('estado'):'');
-      return {count:filtered.length,results:filtered.slice((page-1)*size,page*size),next:page*size<filtered.length?link(page+1):null,previous:page>1?link(page-1):null,resumen:{total:rows.length,estados,sin_actualizar:0,dias_sin_actualizar:7,respuestas_cliente:0,tasa_aceptacion:null}};
+      return {count:filtered.length,results:filtered.slice((page-1)*size,page*size),next:page*size<filtered.length?link(page+1):null,previous:page>1?link(page-1):null,resumen:{total:rows.length,estados,sin_actualizar:rows.filter(r=>r.sin_actualizar).length,dias_sin_actualizar:7,respuestas_cliente:answered,tasa_aceptacion:answered?(accepted/answered*100).toFixed(1):null}};
     }
     if(path==='/api/clientes/')return [{id:1,nombre_legal:'Cliente de prueba',activo:true}];
     if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:firstPage};
@@ -108,5 +109,31 @@ test('Gerencia carga cartera sin consultar clientes ni detalles y filtra por per
     await act(async()=>{renderer.root.findByType('form').props.onSubmit({preventDefault(){}});await flush();});
     assert.match(calls.at(-1),/desde=2026-11-01/);
     assert.ok(calls.every(p=>p.startsWith('/api/presupuestos/seguimiento-comercial/')));
+  }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Gerencia: aceptación entera sin decimal y seguimiento vacío sin acción innecesaria',async()=>{
+  const {renderer}=await mount('GERENCIA',[{...budget,id:65,estado:'APROBADO_CLIENTE'}]);
+  try{
+    const root=renderer.root;
+    assert.equal(text(root.findByProps({className:'commercial-donut'}).findByType('strong')),'100%');
+    const followup=root.findByProps({className:'commercial-followup-body followup-clear'});
+    assert.match(text(followup),/Sin pendientes de seguimiento/);
+    assert.equal(followup.findAllByType('button').length,0);
+  }finally{await act(async()=>renderer.unmount());}
+});
+test('Gerencia: aceptación conserva decimal significativo y seguimiento pendiente permite filtrar',async()=>{
+  const rows=['APROBADO_CLIENTE','APROBADO_CLIENTE','RECHAZADO_CLIENTE','ENVIADO_CLIENTE'].map((estado,i)=>({...budget,id:100+i,estado,sin_actualizar:i===3}));
+  const {renderer,calls}=await mount('GERENCIA',rows);
+  try{
+    const root=renderer.root;
+    assert.equal(text(root.findByProps({className:'commercial-donut'}).findByType('strong')),'66,7%');
+    assert.equal(text(root.findByProps({className:'commercial-followup-count'})),'1');
+    assert.ok(root.findByProps({className:'commercial-followup-body followup-pending'}));
+    await click(root,'Ver pendientes sin actualizar');
+    assert.match(calls.at(-1),/sin_actualizar=true/);
+    assert.deepEqual(root.findAllByType('button').filter(b=>b.props['data-manager-budget']).map(b=>b.props['data-manager-budget']),[103]);
+    await click(root,'Ver todos');
+    assert.doesNotMatch(calls.at(-1),/sin_actualizar=/);
   }finally{await act(async()=>renderer.unmount());}
 });
