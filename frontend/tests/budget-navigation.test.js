@@ -55,6 +55,10 @@ test('Presupuestos: detalle sustituye listado y conserva página y filtro al vol
     await click(root,'Siguiente');
     await click(root,'Ver presupuesto');
     assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,0);
+    const back=root.findByProps({className:'manager-budget-back'});
+    assert.equal(text(back),'Volver al listado');
+    assert.equal(back.findByType('svg').props['aria-hidden'],'true');
+    assert.ok(root.findByProps({className:'commercial-page budgets-page'}));
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,false);
     assert.equal(root.findByProps({id:'budget-history'}).props.hidden,true);
     assert.equal(root.findAllByType('button').some(b=>text(b)==='Editar cabecera'),false);

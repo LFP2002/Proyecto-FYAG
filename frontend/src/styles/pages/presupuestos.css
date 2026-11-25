@@ -73,3 +73,9 @@
 .commercial-row-net { color:var(--fyag-primary); font-size:1.1rem; overflow-wrap:anywhere; }
 .commercial-manager .portfolio-context span { min-width:0; overflow-wrap:anywhere; }
 @media(max-width:760px) { .commercial-insights { grid-template-columns:1fr; } }
+
+/* Regreso al listado de presupuestos de Gerencia. */
+.budgets-page .manager-budget-back { display:inline-flex; align-items:center; gap:7px; background:transparent; border:0; color:var(--fyag-primary-light); padding:6px 0; min-height:36px; font:inherit; font-weight:600; cursor:pointer; margin-bottom:10px; }
+.budgets-page .manager-budget-back svg { flex:none; }
+.budgets-page .manager-budget-back:hover span { text-decoration:underline; }
+.budgets-page .manager-budget-back:focus-visible { outline:2px solid var(--fyag-primary-light); outline-offset:4px; border-radius:4px; }
