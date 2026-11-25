@@ -1,6 +1,6 @@
 export const AF = 'ADMINISTRATIVO_FINANZAS';
 export const G = 'GERENCIA';
-export const canRead = (role, module) => [AF, G].includes(role) || (role === 'SUPERVISOR_OBRAS' && module === 'presupuestos');
+export const canRead = (role, module) => (role === AF || (role === G && module !== 'clientes')) || (role === 'SUPERVISOR_OBRAS' && module === 'presupuestos');
 export const actionsFor = (role, state) => {
   if (role === G) return [];
   if (role === 'SUPERVISOR_OBRAS') return state === 'BORRADOR' ? ['enviar-finanzas'] : state === 'RECHAZADO_FINANZAS' ? ['crear-revision'] : [];

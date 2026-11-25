@@ -76,6 +76,8 @@ test('roles y flujo actual de presupuestos para Finanzas y Supervisor', () => {
   assert.equal(canRead('SUPERVISOR_OBRAS', 'presupuestos'), true);
   assert.equal(canRead('SUPERVISOR_OBRAS', 'clientes'), false);
   assert.ok(canRead(AF)); assert.ok(canRead(G));
+  assert.equal(canRead(G, 'clientes'), false);
+  assert.equal(canRead(AF, 'clientes'), true);
   assert.deepEqual(actionsFor(AF, 'BORRADOR'), ['enviar-finanzas', 'anular']);
   assert.deepEqual(actionsFor('SUPERVISOR_OBRAS', 'BORRADOR'), ['enviar-finanzas']);
   assert.deepEqual(actionsFor(AF, 'PENDIENTE_FINANZAS'), ['aprobar-finanzas', 'rechazar-finanzas', 'anular']);

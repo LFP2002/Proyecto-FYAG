@@ -21,7 +21,7 @@ export const ROLE_NOTE = {
 };
 
 export const NAV = {
-  GERENCIA: ['dashboard', 'clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
+  GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
   ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'reportes', 'auditoria', 'mermas', 'egresos', 'chat'],
   SUPERVISOR_OBRAS: ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
   TECNICO: ['obras', 'solicitudes', 'mermas', 'chat'],
@@ -67,7 +67,7 @@ export const PAGO_CHIP = { Facturado: 'amber', Pagado: 'green', Anulado: 'gray' 
 
 export const MATRIX = [
   ['Dashboard e indicadores', 'Total', '—', '—', '—'],
-  ['Clientes', 'Total', 'Total', '—', '—'],
+  ['Clientes', '—', 'Total', '—', '—'],
   ['Presupuestos', '—', 'Crea y gestiona', 'Elabora y envía sus presupuestos', '—'],
   ['Obras', 'Lectura', '—', 'Crea y edita', 'Solo asignadas'],
   ['Costos y horas', 'Lectura', '—', 'Registra', '—'],

@@ -1,10 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
+import { AF } from '../comercial/domain.js';
 import { Chip, PageHead } from '../components/ui';
 import { clientPath } from '../comercial/api.js';
 import { clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Errors, Fields, useCommercial } from '../comercial/ui.jsx';
 
 export default function Clientes() {
+  const { user } = useAuth();
+  if (user?.role !== AF) return <section><PageHead title="Clientes" /><p role="alert">Este módulo está reservado a Finanzas.</p></section>;
+  return <ClientesScreen key={user.id} />;
+}
+
+function ClientesScreen() {
   const api = useCommercial();
   const [clients, setClients] = useState([]);
   const [selected, setSelected] = useState(null);

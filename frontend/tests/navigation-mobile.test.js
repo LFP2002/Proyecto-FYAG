@@ -44,11 +44,12 @@ test('menú móvil plegable: abre, cambia módulo, cierra y marca el enlace sele
     assert.match(nav.props.className, /is-open/);
     assert.equal(btn(view, 'Cerrar menú').props['aria-expanded'], true);
     assert.equal(btn(view, 'Dashboard').props['aria-current'], 'page');
-    await act(async () => { btn(view, 'Clientes').props.onClick(); });
+    assert.equal(btn(view, 'Clientes'), undefined);
+    await act(async () => { btn(view, 'Presupuestos').props.onClick(); });
     nav = view.root.findByProps({ id: 'fyag-modules-nav' });
     assert.doesNotMatch(nav.props.className, /is-open/);
     assert.equal(btn(view, 'Menú').props['aria-expanded'], false);
-    assert.equal(btn(view, 'Clientes').props['aria-current'], 'page');
+    assert.equal(btn(view, 'Presupuestos').props['aria-current'], 'page');
   } finally { await act(async () => view.unmount()); }
 });
 

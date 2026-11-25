@@ -82,7 +82,7 @@ test('menús usan cinco roles; solo TI ofrece Usuarios y Técnico no ofrece mód
   assert.equal(NAV.GERENCIA.includes('inventario'), true);
   assert.equal(NAV.TECNICO.includes('inventario'), false);
   assert.equal(NAV.TECNICO.includes('egresos'), false);
-  assert.ok(NAV.GERENCIA.includes('clientes'));
+  assert.equal(NAV.GERENCIA.includes('clientes'), false);
   for (const role of Object.keys(NAV)) assert.ok(NAV[role].includes(DEFMOD[role]));
 });
 

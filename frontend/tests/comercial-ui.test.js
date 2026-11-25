@@ -546,3 +546,13 @@ test('recarga de barra: spinner accesible, pulsaciones repetidas deduplicadas y 
     assert.equal(renderer.root.findByProps({ 'aria-label': 'Actualizar datos' }).props.disabled, false);
   } finally { release(); await act(async () => renderer.unmount()); }
 });
+
+
+test('Clientes no monta el módulo ni consulta la API para Gerencia', async () => {
+  const backend = fakeBackend(), renderer = await mount(Clientes, backend.request, 'GERENCIA');
+  try {
+    assert.equal(backend.calls.length, 0);
+    assert.doesNotMatch(text(renderer.root), /Nuevo cliente/);
+    assert.match(text(renderer.root), /reservado a Finanzas/);
+  } finally { await act(async () => renderer.unmount()); }
+});
