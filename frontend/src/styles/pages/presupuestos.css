@@ -73,3 +73,35 @@
 .commercial-row-net { color:var(--fyag-primary); font-size:1.1rem; overflow-wrap:anywhere; }
 .commercial-manager .portfolio-context span { min-width:0; overflow-wrap:anywhere; }
 @media(max-width:760px) { .commercial-insights { grid-template-columns:1fr; } }
+
+/* Detalle compacto de presupuestos: exclusivo de Gerencia. */
+.commercial-page.budgets-page.manager-budget-detail { width:100%; max-width:1100px; margin-inline:auto; display:flex; flex-direction:column; gap:12px; min-width:0; }
+.manager-budget-back { align-self:flex-start; display:inline-flex; align-items:center; gap:7px; background:transparent; border:0; color:var(--fyag-primary-light); padding:6px 0; min-height:36px; font:inherit; font-weight:600; cursor:pointer; }
+.manager-budget-back svg { flex:none; }
+.manager-budget-back:hover span { text-decoration:underline; }
+.manager-budget-back:focus-visible { outline:2px solid var(--fyag-primary-light); outline-offset:4px; border-radius:4px; }
+.manager-budget-card { padding:20px 24px; min-width:0; }
+.manager-budget-header { display:flex; align-items:center; justify-content:space-between; gap:12px 24px; flex-wrap:wrap; border-bottom:1px solid var(--fyag-line); padding-bottom:14px; }
+.manager-budget-identity { display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0; }
+.manager-budget-identity h1 { margin:0; font-size:1.45rem; font-weight:700; color:var(--fyag-primary); overflow-wrap:anywhere; }
+.manager-budget-total { display:flex; flex-direction:column; align-items:flex-end; gap:3px; margin-inline-start:auto; min-width:0; }
+.manager-budget-total span,.manager-budget-facts dt,.manager-budget-footer span { color:var(--fyag-muted); font-size:.8125rem; }
+.manager-budget-total strong { color:var(--fyag-primary); font-size:1.45rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.manager-budget-facts { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px 24px; margin:14px 0 4px; }
+.manager-budget-facts dt { font-weight:500; margin-bottom:3px; }
+.manager-budget-facts dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.manager-budget-facts .manager-budget-description { grid-column:1/-1; }
+.manager-budget-description dd { font-weight:400; white-space:pre-wrap; }
+.manager-budget-card .budget-tabs { margin:12px 0; }
+.manager-budget-table { border:1px solid var(--fyag-line); border-radius:7px; }
+.manager-budget-table .commercial-table { margin:0; min-width:520px; }
+.manager-budget-table .commercial-table th,.manager-budget-table .commercial-table td { padding:10px 12px; vertical-align:middle; }
+.manager-budget-table .commercial-table th:first-child { width:43%; }
+.manager-budget-table td:first-child { overflow-wrap:anywhere; }
+.manager-budget-quantity,.manager-budget-amount { font-variant-numeric:tabular-nums; }
+.manager-budget-amount { white-space:nowrap; }
+.manager-budget-subtotal { font-weight:600; }
+.manager-budget-footer { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding-top:12px; }
+.manager-budget-footer strong { color:var(--fyag-primary); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.manager-budget-empty { margin:12px 0 0; }
+@media(max-width:600px) { .manager-budget-card { padding:14px; } .manager-budget-facts { grid-template-columns:minmax(0,1fr); gap:10px; } .manager-budget-total { align-items:flex-start; margin-inline-start:0; } .manager-budget-table .commercial-table th,.manager-budget-table .commercial-table td { padding:9px; } }

@@ -14,7 +14,7 @@ test.before(async()=>{
 });
 test.after(async()=>{await server.close();});
 const budget={id:66,codigo:'PRE-000066',cliente:1,descripcion:'Servicio',estado:'BORRADOR',monto_neto:'45300.00',creado_por:3,creado_en:'2026-11-22T12:00:00Z',items:[]};
-async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
+async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}],detailBudget=budget){
   const calls=[];
   const request=async path=>{
     calls.push(path);
@@ -32,7 +32,7 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
     if(path==='/api/clientes/')return [{id:1,nombre_legal:'Cliente de prueba',activo:true}];
     if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:firstPage};
     if(path==='/api/presupuestos/?page=2')return {count:2,previous:'/api/presupuestos/',next:null,results:[budget]};
-    if(path==='/api/presupuestos/66/')return budget;
+    if(path==='/api/presupuestos/66/')return detailBudget;
     if(path==='/api/presupuestos/66/historial/?page=1')return {count:0,previous:null,next:null,results:[]};
     throw Error('Ruta inesperada '+path);
   };
@@ -135,5 +135,24 @@ test('Gerencia: aceptación conserva decimal significativo y seguimiento pendien
     assert.deepEqual(root.findAllByType('button').filter(b=>b.props['data-manager-budget']).map(b=>b.props['data-manager-budget']),[103]);
     await click(root,'Ver todos');
     assert.doesNotMatch(calls.at(-1),/sin_actualizar=/);
+  }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Gerencia: detalle compacto conserva importes y cantidades exactas',async()=>{
+  const items=[{id:1,descripcion:'Servicio 1',cantidad:'1.000',unidad:'hora',precio_unitario:'15036.00',subtotal:'15036.00'},{id:2,descripcion:'Servicio 2',cantidad:'2.125',unidad:'unidad',precio_unitario:'120.50',subtotal:'256.06'}];
+  const {renderer}=await mount('GERENCIA',undefined,{...budget,items,monto_neto:'15292.06'});
+  try{
+    const root=renderer.root;
+    await click(root,'Siguiente');await click(root,'Ver presupuesto');
+    assert.ok(root.findByProps({className:'commercial-page budgets-page manager-budget-detail'}));
+    const back=root.findByProps({className:'manager-budget-back'});
+    assert.equal(text(back),'Volver al listado');
+    assert.equal(back.findByType('svg').props['aria-hidden'],'true');
+    assert.equal(text(root.findByProps({className:'manager-budget-total'}).findByType('strong')),'$15.292,06');
+    assert.deepEqual(root.findAllByProps({className:'text-end manager-budget-quantity'}).map(text),['1 hora','2,125 unidad']);
+    assert.deepEqual(root.findAllByType('th').map(text),['Descripción','Cantidad','Precio unit. CLP','Subtotal CLP']);
+    assert.match(text(root.findByProps({className:'manager-budget-footer'})),/2 ítems/);
+    await click(root,'Historial comercial');assert.equal(root.findByProps({id:'budget-history'}).props.hidden,false);
+    await click(root,'Volver al listado');assert.ok(root.findByProps({id:'budget-filter'}));
   }finally{await act(async()=>renderer.unmount());}
 });
