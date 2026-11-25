@@ -356,6 +356,11 @@ class PresupuestoItem(_ModeloPresupuestoValidado):
     presupuesto = models.ForeignKey(
         Presupuesto, on_delete=models.PROTECT, related_name="items"
     )
+    articulo = models.ForeignKey(
+        "inventario.ArticuloInventario", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="items_presupuestados",
+    )
+    codigo_articulo = models.CharField(max_length=50, blank=True, default="", editable=False)
     descripcion = models.CharField(max_length=2000)
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     unidad = models.CharField(max_length=30)
@@ -365,6 +370,13 @@ class PresupuestoItem(_ModeloPresupuestoValidado):
     class Meta:
         ordering = ["orden", "id"]
         constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(articulo__isnull=True, codigo_articulo="")
+                    | (models.Q(articulo__isnull=False) & ~models.Q(codigo_articulo=""))
+                ),
+                name="presupuesto_item_articulo_coherente",
+            ),
             models.CheckConstraint(
                 condition=models.Q(
                     cantidad__gt=0, cantidad__lte=CANTIDAD_MAXIMA

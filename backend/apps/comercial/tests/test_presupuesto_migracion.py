@@ -28,6 +28,8 @@ class AprobacionObligatoriaMigracionTests(TransactionTestCase):
         cabecera['requiere_aprobacion_gerencia'] = True
         self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), cabecera)
         self.assertEqual(list(Item.objects.values()), items)
+        from apps.comercial.models import PresupuestoItem
+        self.assertTrue(all(x.articulo_id is None and x.codigo_articulo == '' for x in PresupuestoItem.objects.all()))
         self.assertEqual(list(Evento.objects.values()), eventos)
         with self.assertRaises(IntegrityError) as error:
             with transaction.atomic():

@@ -10,6 +10,8 @@ from inspect import signature
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
+from apps.inventario.models import ArticuloInventario
+
 from .calculos import sumar_monto_neto
 from .exceptions import (
     ClienteInactivo,
@@ -31,6 +33,53 @@ CAMPOS_CABECERA = frozenset({
 CAMPOS_ITEM = frozenset({
     "descripcion", "cantidad", "unidad", "precio_unitario", "orden",
 })
+CAMPOS_ITEM_EDITABLES = CAMPOS_ITEM | {"articulo"}
+
+
+def _datos_item(datos, *, completos=False):
+    _datos_permitidos(datos, CAMPOS_ITEM_EDITABLES)
+    if completos:
+        _datos_permitidos(
+            {campo: valor for campo, valor in datos.items() if campo in CAMPOS_ITEM},
+            CAMPOS_ITEM, completos=True,
+        )
+
+
+def _aplicar_item(item, cambios):
+    """Conservar la instantánea salvo selección explícita de otro material."""
+    cambios = dict(cambios)
+    articulo_id = cambios.pop("articulo", item.articulo_id)
+    if articulo_id is not None and (
+        type(articulo_id) is not int or not 0 < articulo_id <= 9223372036854775807
+    ):
+        raise DatosInvalidos({"articulo": ["Indique un identificador válido."]})
+    if articulo_id != item.articulo_id and articulo_id is not None:
+        articulo = ArticuloInventario.objects.select_for_update(no_key=True).filter(
+            pk=articulo_id, activo=True
+        ).first()
+        if articulo is None:
+            raise DatosInvalidos({"articulo": ["Material no disponible."]})
+        # El precio de venta no proviene del catálogo. Solo identidad y unidad.
+        for campo, esperado in (("descripcion", articulo.nombre.strip()), ("unidad", articulo.unidad)):
+            if campo in cambios and (
+                not isinstance(cambios[campo], str) or cambios[campo].strip() != esperado
+            ):
+                raise DatosInvalidos({campo: ["El material cambió; seleccione nuevamente el catálogo."]})
+            cambios[campo] = esperado
+        item.articulo_id = articulo.pk
+        item.codigo_articulo = articulo.codigo
+    elif articulo_id is None:
+        item.articulo_id = None
+        item.codigo_articulo = ""
+    else:
+        for campo in ("descripcion", "unidad"):
+            if campo in cambios and (
+                not isinstance(cambios[campo], str) or cambios[campo].strip() != getattr(item, campo)
+            ):
+                raise DatosInvalidos({campo: ["Seleccione otro material o desvincule la línea."]})
+    for campo, valor in cambios.items():
+        setattr(item, campo, valor)
+
 
 
 def _operacion(funcion):
@@ -189,8 +238,9 @@ def crear_item(presupuesto, datos, usuario=None):
     actual = _presupuesto_bloqueado(presupuesto, usuario)
     _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
-    _datos_permitidos(datos, CAMPOS_ITEM, completos=True)
-    item = PresupuestoItem(presupuesto=actual, **datos)
+    _datos_item(datos, completos=True)
+    item = PresupuestoItem(presupuesto=actual)
+    _aplicar_item(item, datos)
     _guardar_item(item)
     _actualizar_fecha(actual)
     return item
@@ -202,10 +252,9 @@ def modificar_item(presupuesto, item, cambios, usuario=None):
     actual = _presupuesto_bloqueado(presupuesto, usuario)
     _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
-    _datos_permitidos(cambios, CAMPOS_ITEM)
+    _datos_item(cambios)
     item = _item_del_presupuesto(actual, item)
-    for campo, valor in cambios.items():
-        setattr(item, campo, valor)
+    _aplicar_item(item, cambios)
     _guardar_item(item)
     _actualizar_fecha(actual)
     return item
@@ -367,6 +416,7 @@ def crear_revision(presupuesto, usuario):
     for linea in PresupuestoItem.objects.filter(presupuesto=origen):
         copia = PresupuestoItem(
             presupuesto=revision,
+            articulo_id=linea.articulo_id, codigo_articulo=linea.codigo_articulo,
             **{campo: getattr(linea, campo) for campo in CAMPOS_ITEM},
         )
         _guardar_item(copia)

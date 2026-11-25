@@ -15,7 +15,7 @@ class ContratoPresupuestoSerializer(serializers.Serializer):
         "creado_en", "actualizado_en", "moneda", "monto_neto", "subtotal",
         "presupuesto", "presupuesto_id", "registrado_por",
         "requiere_aprobacion_gerencia",
-        "politica_aprobacion",
+        "politica_aprobacion", "codigo_articulo",
     })
 
     def to_internal_value(self, data):
@@ -68,6 +68,7 @@ class PresupuestoEscrituraSerializer(ContratoPresupuestoSerializer):
 
 
 class PresupuestoItemEscrituraSerializer(ContratoPresupuestoSerializer):
+    articulo = EnteroEstrictoField(min_value=1, max_value=9223372036854775807, required=False, allow_null=True)
     descripcion = StringEstrictoField(max_length=2000)
     cantidad = DecimalTextoField(
         max_digits=12, decimal_places=3, min_value=Decimal("0.001")
@@ -109,6 +110,8 @@ class MaterialElegibleSerializer(serializers.Serializer):
 
 class PresupuestoItemSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
+    articulo = serializers.IntegerField(source="articulo_id", read_only=True, allow_null=True)
+    codigo_articulo = serializers.CharField(read_only=True)
     presupuesto = serializers.IntegerField(
         source="presupuesto_id", read_only=True
     )
