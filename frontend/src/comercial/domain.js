@@ -53,7 +53,18 @@ export function validDecimal(value, integers, scale, positive = false) {
 }
 export function itemPayload(form, original) {
   const data = { descripcion: form.descripcion.trim(), cantidad: form.cantidad.trim(), unidad: form.unidad.trim(), precio_unitario: form.precio_unitario.trim(), orden: Number(form.orden) };
+  if (Object.hasOwn(form, 'articulo') && (form.articulo !== null || original?.articulo != null)) {
+    data.articulo = form.articulo;
+  }
   return original ? Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== original[k])) : data;
+}
+export function nextItemOrder(items) {
+  const used = new Set(items.map(item => item.orden));
+  const max = Math.max(0, ...used);
+  if (max < 2147483647) return String(max + 1);
+  let next = 1;
+  while (used.has(next)) next += 1;
+  return String(next);
 }
 export function validateItem(form) {
   const errors = {};

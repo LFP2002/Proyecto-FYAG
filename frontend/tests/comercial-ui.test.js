@@ -51,6 +51,7 @@ function fakeBackend() {
   async function request(path, options = {}) {
     const method = options.method || 'GET'; calls.push({ path, method, body: options.body });
     if (method !== 'GET' && fail) throw fail;
+    if (path.startsWith('/api/presupuestos/materiales-elegibles/')) return page([{id:17,codigo:'cobre-01',nombre:'Tubería de cobre',unidad:'m'}]);
     if (path.startsWith('/api/presupuestos/clientes-elegibles/')) return page(clients.filter((client) => client.activo).map(({ id, nombre_legal, tipo_cliente }) => ({ id, nombre_legal, tipo_cliente })));
     if (path === '/api/clientes/') {
       if (method === 'GET') return structuredClone(clients);
@@ -75,7 +76,7 @@ function fakeBackend() {
     if (!suffix) { Object.assign(budget, options.body); return structuredClone(budget); }
     if (suffix.startsWith('items/')) {
       const itemId = Number(suffix.split('/')[1]);
-      if (method === 'POST') budget.items.push({ ...options.body, id: Math.max(0, ...budget.items.map((i) => i.id)) + 1, subtotal: '1234.56' });
+      if (method === 'POST') budget.items.push({ ...options.body, codigo_articulo:options.body.articulo===17?'cobre-01':'', id: Math.max(0, ...budget.items.map((i) => i.id)) + 1, subtotal: '1234.56' });
       if (method === 'PATCH') Object.assign(budget.items.find((i) => i.id === itemId), options.body);
       if (method === 'DELETE') budget.items = budget.items.filter((i) => i.id !== itemId);
       budget.monto_neto = budget.items.length ? '1234.56' : '0.00';
@@ -346,12 +347,12 @@ async function rowKey(renderer, key, extra = {}) {
   });
   return prevented;
 }
-test('fila fantasma: alta limpia, orden vacío en cada creación, guardado explícito y validación al guardar', async () => {
+test('fila fantasma: alta limpia, orden sugerido en cada creación, guardado explícito y validación al guardar', async () => {
   const b = fakeBackend(), renderer = await mount(Presupuestos, b.request);
   try {
     await createBudget(renderer); await click(renderer, '+ Agregar nuevo ítem');
     assert.equal(renderer.root.findAllByType('form').length, 0);
-    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '');
+    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '1');
     assert.equal(itemSaveButton(renderer).props.disabled, false);
     assert.equal(renderer.root.findAllByProps({ 'aria-invalid': true }).length, 0);
     assert.equal(renderer.root.findAllByProps({ id: 'item-row-feedback' }).length, 0);
@@ -366,7 +367,7 @@ test('fila fantasma: alta limpia, orden vacío en cada creación, guardado expl�
     assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 4);
     assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Edición de ítem' }).length, 0);
     assert.match(text(renderer.root), /1\.234,56 CLP/);
-    await click(renderer, '+ Agregar nuevo ítem'); assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '');
+    await click(renderer, '+ Agregar nuevo ítem'); assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '5');
     await fillItem(renderer); await input(renderer, 'orden', '4');
     await click(renderer, 'Guardar ítem'); assert.match(text(renderer.root), /Orden ya utilizado/);
     assert.equal(b.budgets[0].items.length, 1);
@@ -377,7 +378,7 @@ test('fila fantasma: alta limpia, orden vacío en cada creación, guardado expl�
     assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, 4);
     assert.equal(renderer.root.findAllByProps({ 'aria-invalid': true }).length, 0);
     await click(renderer, 'Cancelar edición de ítem'); await click(renderer, '+ Agregar nuevo ítem');
-    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '');
+    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '6');
   } finally { await act(async () => renderer.unmount()); }
 });
 test('teclado inline: Tab nativo, Enter guarda, Escape cancela; composición y select no guardan', async () => {
@@ -555,4 +556,28 @@ test('Clientes no monta el módulo ni consulta la API para Gerencia', async () =
     assert.doesNotMatch(text(renderer.root), /Nuevo cliente/);
     assert.match(text(renderer.root), /reservado a Finanzas/);
   } finally { await act(async () => renderer.unmount()); }
+});
+
+
+test('catálogo comercial: selección rellena identidad, conserva precio manual y envía vínculo', async () => {
+  const b=fakeBackend(), renderer=await mount(Presupuestos,b.request);
+  try {
+    await createBudget(renderer);
+    await click(renderer,'+ Agregar nuevo ítem');
+    assert.equal(renderer.root.findByProps({id:'com-orden'}).props.value,'1');
+    await click(renderer,'Buscar en Bodega');
+    await click(renderer,'Seleccionar Tubería de cobre');
+    assert.equal(renderer.root.findByProps({id:'com-descripcion'}).props.value,'Tubería de cobre');
+    assert.equal(renderer.root.findByProps({id:'com-descripcion'}).props.readOnly,true);
+    assert.equal(renderer.root.findByProps({id:'com-precio_unitario'}).props.value,'');
+    await input(renderer,'cantidad','2');
+    await input(renderer,'precio_unitario','8500');
+    await click(renderer,'Guardar ítem');
+    const post=b.calls.find(c=>c.method==='POST'&&c.path.endsWith('/items/'));
+    assert.equal(post.body.articulo,17);
+    assert.equal(post.body.unidad,'m');
+    assert.equal(post.body.precio_unitario,'8500');
+    assert.equal(Object.hasOwn(post.body,'codigo_articulo'),false);
+    assert.match(text(renderer.root),/Material de catálogo/);
+  } finally {await act(async()=>renderer.unmount());}
 });

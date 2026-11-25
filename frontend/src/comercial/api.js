@@ -6,6 +6,7 @@ const id = (value) => {
 };
 export const clientPath = (pk) => `/api/clientes/${pk === undefined ? '' : `${id(pk)}/`}`;
 export const eligibleClientPath = (page = 1, search = '') => `/api/presupuestos/clientes-elegibles/?page=${id(page)}${search ? `&buscar=${encodeURIComponent(search)}` : ''}`;
+export const eligibleMaterialPath = (page = 1, search = '') => `/api/presupuestos/materiales-elegibles/?page=${id(page)}${search ? `&buscar=${encodeURIComponent(search)}` : ''}`;
 export const budgetPath = (pk) => `/api/presupuestos/${pk === undefined ? '' : `${id(pk)}/`}`;
 export function pagePath(path, page = 1) { return `${path}?page=${id(page)}`; }
 export function validatePage(data, path) {

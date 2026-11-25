@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import UnitField from './UnitField.jsx';
+import MaterialPicker from './MaterialPicker.jsx';
 import { money, validateItem } from './domain.js';
 import { Errors } from './ui.jsx';
 
@@ -13,11 +14,18 @@ export function itemRowErrors(form, items, original) {
 
 export default function ItemEditRow({ line, items, onChange, onSave, onCancel, disabled, busy, editable, error }) {
   const [attempted, setAttempted] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const linked = line.form.articulo != null;
+  const selectMaterial = (material) => {
+    const changed = line.form.articulo !== material.id;
+    onChange({ ...line.form, articulo: material.id, codigo_articulo: material.codigo, descripcion: material.nombre, unidad: material.unidad, ...(changed ? {cantidad:'', precio_unitario:''} : {}) });
+    setPicker(false);
+  };
   const row = useRef(null);
   const errors = attempted ? itemRowErrors(line.form, items, line.original) : {};
   const blocked = disabled || !editable;
   const save = (event) => {
-    if (blocked) return;
+    if (blocked || picker) return;
     setAttempted(true);
     const validation = itemRowErrors(line.form, items, line.original);
     const first = ['descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden'].find((name) => validation[name]);
@@ -46,17 +54,18 @@ export default function ItemEditRow({ line, items, onChange, onSave, onCancel, d
         event.preventDefault(); if (!event.repeat) void save(event);
       }
     }}>
-      <td>{field('descripcion', 'Descripción', { autoFocus: true, maxLength: 2000 })}</td>
+      <td>{field('descripcion', 'Descripción', { autoFocus: !linked, maxLength: 2000, readOnly: linked })}{linked && <span className="commercial-help d-block">Material de catálogo · {line.form.codigo_articulo}</span>}<div className="d-flex flex-wrap gap-1 mt-2"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked} aria-expanded={picker} onClick={()=>setPicker(!picker)}>{linked?'Cambiar material':'Buscar en Bodega'}</button>{linked&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>{setPicker(false);onChange({...line.form,articulo:null,codigo_articulo:''});}}>Convertir en ítem libre</button>}</div></td>
       <td>{field('cantidad', 'Cantidad', { inputMode: 'decimal' })}</td>
-      <td><UnitField value={line.form.unidad} onChange={(value) => change('unidad', value)} disabled={busy || !editable} error={errors.unidad?.[0]} /></td>
-      <td>{field('precio_unitario', 'Precio unitario (CLP)', { inputMode: 'decimal' })}</td>
+      <td>{linked?<span className="commercial-help">{line.form.unidad}</span>:<UnitField value={line.form.unidad} onChange={(value) => change('unidad', value)} disabled={busy || !editable} error={errors.unidad?.[0]} />}</td>
+      <td>{field('precio_unitario', 'Precio de venta (CLP)', { inputMode: 'decimal' })}</td>
       <td>{field('orden', 'Orden', { inputMode: 'numeric' })}</td>
       <td className="commercial-item-subtotal"><span className="commercial-help">Subtotal</span><span>{line.original ? money(line.original.subtotal) : '—'}</span></td>
       <td><div className="commercial-row-actions">
-        <button className="btn btn-fyag-primary btn-sm" type="button" aria-label="Guardar ítem" title="Guardar ítem (Enter)" disabled={blocked} onClick={save}>✓</button>
+        <button className="btn btn-fyag-primary btn-sm" type="button" aria-label="Guardar ítem" title="Guardar ítem (Enter)" disabled={blocked || picker} onClick={save}>✓</button>
         <button className="btn btn-outline-secondary btn-sm" type="button" aria-label="Cancelar edición de ítem" title="Cancelar (Escape)" disabled={busy} onClick={onCancel}>×</button>
       </div>{busy && <span role="status" className="commercial-help">Guardando…</span>}</td>
     </tr>
+    {picker && editable && <tr><td colSpan={7}><MaterialPicker disabled={blocked} onSelect={selectMaterial} onCancel={()=>setPicker(false)} currentId={line.form.articulo}/></td></tr>}
     {(error || !editable) && <tr className="commercial-item-feedback"><td colSpan={7} id="item-row-feedback">
       <Errors error={error} />
       {!editable && <p className="alert alert-warning">El presupuesto ya no es BORRADOR o el ítem ya no está disponible. Cancela la edición para continuar.</p>}
