@@ -326,3 +326,38 @@ test('Alertas Finanzas: prioridad real, filtros por rol, atención y relecturas'
     assert.match(body(),/Presupuesto pendiente de Finanzas/);
   } finally {await act(async()=>renderer.unmount());}
 });
+
+
+test('Reportes Finanzas: presentación legible, filtro por nombre y exportación del período consultado', async()=>{
+  const calls=[],base=apiFor('ADMINISTRATIVO_FINANZAS',calls);
+  const session={status:'authenticated',user:{id:9,username:'finanzas',role:'ADMINISTRATIVO_FINANZAS'}};
+  const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts)=>{
+    const value=await base(path,opts);
+    if(!path.startsWith('/api/reportes/cobranzas/')||path.includes('/exportar/'))return value;
+    return {...value,count:1,results:[{documento:4,obra:4,codigo_obra:'OB-000004',cliente:15,cliente_nombre:'Packing Valle de Coihue SpA',tipo_documento:'FACTURA_AFECTA',folio_externo:'5304',fecha_emision:'2026-11-11',fecha_vencimiento:'2026-11-12',moneda:'CLP',monto_documentado_bruto:'3927000.00',abonado:'0.00',saldo:'3927000.00',estado_cobranza:'VENCIDA'}],totales:{documentos:1,monto_documentado_bruto:'3927000.00',abonado:'0.00',saldo:'3927000.00',saldo_vencido:'3927000.00'}};
+  }};
+  let renderer;const oldCreate=URL.createObjectURL,oldRevoke=URL.revokeObjectURL;URL.createObjectURL=()=> 'blob:reporte';URL.revokeObjectURL=()=>{};
+  try{
+    await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(Reportes)));await flush();});
+    const body=()=>text(renderer.toJSON());
+    assert.match(body(),/Reportes de cobranzas/);assert.match(body(),/Factura 5304/);assert.match(body(),/\$3\.927\.000/);assert.match(body(),/12\/11\/2026/);
+    assert.doesNotMatch(body(),/monto_documentado_bruto|FACTURA_AFECTA|estado_cobranza|ID de cliente|Tipo de reporte/);
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Tipos de reporte'}).length,0);
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Paginación del reporte cobranzas'}).length,0);
+    assert.equal(renderer.root.findByProps({id:'report-filters'}).props.hidden,true);
+    await click(renderer,'Filtros');
+    assert.match(body(),/Packing Valle de Coihue SpA/);
+    const before=calls.length;
+    await act(async()=>{renderer.root.findByProps({id:'report-cliente'}).props.onChange({target:{value:'15'}});renderer.root.findByProps({id:'report-estado'}).props.onChange({target:{value:'VENCIDA'}});await flush();});
+    assert.equal(calls.length,before);
+    await act(async()=>{renderer.root.findByProps({id:'report-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+    assert.ok(calls.some(c=>c.path==='/api/reportes/cobranzas/?cliente=15&estado=VENCIDA'));
+    for(const format of ['XLSX','PDF','CSV']){
+      await click(renderer,'Exportar reporte');
+      await act(async()=>{renderer.root.findByProps({'aria-label':'Descargar '+format}).props.onClick();await flush();});
+      const url=new URL(calls.filter(c=>c.path.includes('/exportar/')).at(-1).path,'http://localhost');
+      assert.equal(url.pathname,'/api/reportes/cobranzas/exportar/');assert.equal(url.searchParams.get('formato'),format.toLowerCase());assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('estado'),'VENCIDA');assert.equal(url.searchParams.get('desde'),'2026-11-01');assert.equal(url.searchParams.get('hasta'),'2026-11-14');assert.equal(url.searchParams.has('page'),false);
+    }
+    assert.equal(calls.some(c=>/\/api\/reportes\/(obras|rentabilidad)\//.test(c.path)),false);
+  }finally{if(renderer)await act(async()=>renderer.unmount());URL.createObjectURL=oldCreate;URL.revokeObjectURL=oldRevoke;}
+});
