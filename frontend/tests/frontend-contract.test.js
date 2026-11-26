@@ -14,9 +14,15 @@ const source = (name) => readFile(join(root, name), 'utf8');
 function fontPreferenceOnly(text) {
   assert.equal((text.match(/\bFONT_KEY\b/g) || []).length, 3);
   assert.match(text, /const FONT_KEY='fyag\.font-level';/);
-  const read = "globalThis.localStorage?.getItem(FONT_KEY)";
-  const write = "globalThis.localStorage?.setItem(FONT_KEY,String(fontLevel))";
-  for (const access of [read, write]) {
+  assert.equal((text.match(/\bTHEME_KEY\b/g) || []).length, 3);
+  assert.match(text, /const THEME_KEY='fyag\.theme';/);
+  const accesses = [
+    "globalThis.localStorage?.getItem(FONT_KEY)",
+    "globalThis.localStorage?.setItem(FONT_KEY,String(fontLevel))",
+    "globalThis.localStorage?.getItem(THEME_KEY)",
+    "globalThis.localStorage?.setItem(THEME_KEY,theme)",
+  ];
+  for (const access of accesses) {
     assert.equal(text.split(access).length, 2, 'Acceso autorizado a preferencia visual');
     text = text.replace(access, '');
   }

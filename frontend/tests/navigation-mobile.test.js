@@ -133,6 +133,61 @@ test('tamaño global: cuatro tamaños, restablecimiento y persistencia local', a
   }
 });
 
+test('modo oscuro persistente y acento visual asociado al rol autenticado',async()=>{
+  const oldStorage=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+  const oldDocument=Object.getOwnPropertyDescriptor(globalThis,'document');
+  const values=new Map(),attrs=new Map();
+  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)}});
+  Object.defineProperty(globalThis,'document',{configurable:true,value:{documentElement:{setAttribute:(k,v)=>attrs.set(k,v),removeAttribute:k=>attrs.delete(k)}}});
+  let view;
+  try{
+    view=await mount('SUPERVISOR_OBRAS');
+    const toggle=()=>view.root.findByProps({'aria-label':'Activar modo oscuro'});
+    assert.ok(toggle());
+    await act(async()=>toggle().props.onClick());
+    assert.equal(attrs.get('data-fyag-theme'),'dark');
+    assert.equal(attrs.get('data-fyag-role'),'SUPERVISOR_OBRAS');
+    assert.equal(values.get('fyag.theme'),'dark');
+    assert.equal(view.root.findByProps({'aria-label':'Activar modo claro'}).props['aria-pressed'],true);
+    await act(async()=>view.root.findByProps({'aria-label':'Activar modo claro'}).props.onClick());
+    assert.equal(attrs.get('data-fyag-theme'),'light');
+    assert.equal(values.get('fyag.theme'),'light');
+  }finally{
+    if(view)await act(async()=>view.unmount());
+    if(oldStorage)Object.defineProperty(globalThis,'localStorage',oldStorage);else delete globalThis.localStorage;
+    if(oldDocument)Object.defineProperty(globalThis,'document',oldDocument);else delete globalThis.document;
+  }
+});
+
+test('tema oscuro global sobrescribe superficies blancas de todas las páginas y conserva texto legible',async()=>{
+  const css=await readFile(new URL('../src/styles/dark-mode.css',import.meta.url),'utf8');
+  const entry=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
+  assert.match(entry,/styles\/pages\/solicitudes\.css';\s*import '\.\/styles\/dark-mode\.css';/);
+  assert.match(css,/\.dash-filterbar \.form-label[^}]*color:#e2ecf7 !important/s);
+  assert.match(css,/\.dash-filterbar input\[type='date'\][^{]*\{[^}]*background-color:#111c28 !important/s);
+  assert.match(css,/\.table > tbody > tr > td[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.table > thead > tr > th[^}]*background-color:#29394a !important/s);
+  assert.match(css,/\.app-root :where\(\.portfolio-kpi\)[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.portfolio-kpi\.portfolio-amber[^}]*background-color:#342b1e !important/s);
+  assert.match(css,/\.portfolio-kpi\.portfolio-blue[^}]*background-color:#202f43 !important/s);
+  assert.match(css,/\.portfolio-kpi\.portfolio-green[^}]*background-color:#1e342d !important/s);
+  assert.match(css,/\.portfolio-kpi\.portfolio-red[^}]*background-color:#3b272b !important/s);
+  assert.match(css,/\.app-root :where\(\.commercial-empty,.finance-empty,.fyag-empty[^}]*background-color:#202b38 !important/s);
+  assert.match(css,/\.app-root :where\(\.manager-eg-chart \.commercial-empty\)[^}]*display:grid/s);
+  assert.match(css,/\.dash-filterbar,.card-fyag,.dash-kpi,.kpi,[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.app-root :where\(\.alert-info,.bg-info-subtle\)[^}]*color:#c8e0ff !important/s);
+  assert.match(css,/\.inventory-attention button:not\(:disabled\):hover[^}]*background-color:#263748 !important/s);
+  assert.match(css,/\.inventory-losses > div[^}]*background-color:#243243 !important/s);
+  assert.match(css,/\.inventory-losses > div span,.inventory-losses > div small[^}]*color:#d0dbe8 !important/s);
+  assert.match(css,/\.trow\.thead,.thead[^}]*background-color:#29394a !important/s);
+  assert.match(css,/\.usuarios-matriz \.trow:not\(\.thead\):nth-child\(odd\)[^}]*background-color:#243243 !important/s);
+  assert.match(css,/\.usuarios-pill\[data-tone='ti'\][^}]*color:#c8e0ff !important/s);
+  assert.match(css,/\.auditoria-empty[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.commercial-toolbar,.commercial-period,.mermas-filters[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.mermas-filters label[^}]*color:#e2ecf7 !important/s);
+  assert.match(css,/\.mermas-filters \.form-control,.mermas-filters \.form-select[^}]*background-color:#111c28 !important/s);
+});
+
 test('selector de letra compacto con puntero y tres controles', async()=>{
   const css=await readFile(new URL('../src/styles/layout.css',import.meta.url),'utf8');
   assert.match(css,/\.fyag-font-options::before\s*\{[^}]*rotate\(45deg\)/);

@@ -4,7 +4,7 @@ import { ROLES, MODS } from '../../data/constants';
 import { useApp } from '../../context/AppContext';
 import { Icon } from '../ui';
 
-export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=4, onSelectFont, onNavigate }) {
+export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=4, onSelectFont, theme='light', onToggleTheme, onNavigate }) {
   const { user, logout } = useAuth();
   const app=useApp();
   const [accountOpen,setAccountOpen]=useState(false);
@@ -66,6 +66,11 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, 
         {menuOpen ? 'Cerrar menú' : 'Menú'}
       </button>
       <div className="top-right">
+        <button type="button" className="fyag-theme-toggle" aria-label={theme==='dark'?'Activar modo claro':'Activar modo oscuro'} title={theme==='dark'?'Activar modo claro':'Activar modo oscuro'} aria-pressed={theme==='dark'} onClick={onToggleTheme}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            {theme==='dark' ? <path d="M8 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7M8 0a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 0m0 14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 14m8-6a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 16 8M2 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 2 8m11.657-5.657a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0m-9.9 9.9a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0m9.9 1.414a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 1 1 .707-.707l.707.707a.5.5 0 0 1 0 .707m-9.9-9.9a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 1 1 .707-.707l.707.707a.5.5 0 0 1 0 .707"/> : <path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.88 3.43c0 4.01 3.25 7.26 7.26 7.26 1.26 0 2.44-.32 3.47-.88a.77.77 0 0 1 .86.08A.76.76 0 0 1 17 11.7 8.5 8.5 0 0 1 8.5 16 8.5 8.5 0 0 1 0 7.5 8.5 8.5 0 0 1 5.3.02.76.76 0 0 1 6 .278" transform="scale(.9) translate(.7 .5)"/>}
+          </svg>
+        </button>
         <div className="fyag-font-picker" ref={fontRef}
           onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setFontOpen(false);}}
           onKeyDown={event=>{if(event.key==='Escape'&&fontOpen){event.preventDefault();closeFont();}}}>
