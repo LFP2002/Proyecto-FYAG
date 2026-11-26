@@ -103,6 +103,10 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
     await click(renderer, 'Actualizar');
     await click(renderer, 'Nuevo cliente');
     assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Listado de clientes' }).length, 0);
+    assert.ok(renderer.root.findByProps({ className: 'commercial-page clientes-page clientes-compact' }));
+    assert.equal(renderer.root.findByProps({ id: 'com-numero_identificacion' }).props.placeholder, '12.345.678-5');
+    assert.equal(renderer.root.findByProps({ id: 'com-nombre_legal' }).props['aria-required'], true);
+    assert.equal(renderer.root.findByProps({ id: 'com-telefono' }).props.type, 'tel');
     await input(renderer, 'tipo_identificacion', 'SIN_IDENTIFICACION');
     assert.equal(renderer.root.findAllByProps({ id: 'com-numero_identificacion' }).length, 0);
     await input(renderer, 'nombre_legal', 'Cliente nuevo'); await input(renderer, 'telefono', '456');
@@ -111,11 +115,15 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
     backend.setFailure(null); await submit(renderer);
     assert.equal(backend.clients.length, 2);
     const post = backend.calls.find((c) => c.method === 'POST'); assert.equal(post.body.numero_identificacion, null);
+    assert.ok(renderer.root.findByProps({ className: 'card-fyag clientes-panel clientes-profile' }));
+    assert.match(text(renderer.root), /No registrado/);
     await click(renderer, 'Desactivar'); assert.equal(backend.clients[1].activo, false);
     await click(renderer, 'Editar cliente'); await input(renderer, 'nombre_legal', 'Inactivo editado'); await submit(renderer);
     assert.deepEqual(backend.calls.find((c) => c.method === 'PATCH').body, { nombre_legal: 'Inactivo editado' });
     await click(renderer, 'Activar'); assert.equal(backend.clients[1].activo, true);
-    await click(renderer, 'Volver a clientes'); await click(renderer, 'Ver detalle', 1); assert.match(text(renderer.root), /Inactivo editado/);
+    await click(renderer, 'Volver a clientes');
+    assert.equal(renderer.root.findAllByProps({ className: 'commercial-page clientes-page clientes-compact' }).length, 0);
+    await click(renderer, 'Ver detalle', 1); assert.match(text(renderer.root), /Inactivo editado/);
   } finally { await act(async () => renderer.unmount()); }
 });
 test('Clientes: filtros combinados globales, RUT sin separadores y navegación independiente', async () => {
