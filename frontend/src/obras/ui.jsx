@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { Chip } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { collectionPath, readPage } from './api.js';
