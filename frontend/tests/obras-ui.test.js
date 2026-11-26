@@ -256,7 +256,7 @@ test('T abre Mis turnos desde la Obra asignada y consulta su listado paginado', 
   const renderer = await mount(b, T);
   try {
     await click(renderer, 'Ver mis turnos');
-    assert.match(text(renderer.root), /Turnos y evidencia/);
+    assert.match(text(renderer.root), /Mis turnos de esta obra/);
     assert.ok(b.calls.some((call) => call.path === '/api/obras/1/turnos/?page=1'));
     assert.equal(buttons(renderer, 'Iniciar turno').length, 1);
     assert.doesNotMatch(text(renderer.root), /pendiente de integración frontend en 005C-2/i);
