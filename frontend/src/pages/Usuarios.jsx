@@ -150,7 +150,7 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
       <p className="detalle-sub">Cambios administrativos registrados en esta cuenta.</p>
       {history && !history.count && <p>Todavía no hay cambios registrados.</p>}
       <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{eventLabel[event.tipo] || event.tipo}</strong>
-        <p className="detalle-evento-meta">{timestamp(event.creado_en) · Hecho por la cuenta #{event.actor}</p>
+        <p className="detalle-evento-meta">{timestamp(event.creado_en)} · Hecho por la cuenta #{event.actor}</p>
         {event.motivo && event.motivo !== HIDDEN_ACCOUNT_CREATION_REASON && <p className="commercial-long-text">{event.motivo}</p>}
         <dl className="detalle-cambios">{changeRows(event).map(([key, value]) => <div key={key}><dt>{fieldLabel[key]}</dt><dd className="commercial-long-text">{value}</dd></div>)}</dl>
       </li>)}</ol>
