@@ -1,15 +1,16 @@
 from django.test import TestCase
+from django.urls import reverse
 from .test_mermas import MermasBase
 
 
 class TecnicoMaterialesTests(MermasBase, TestCase):
-    url = '/api/inventario/tecnico-materiales/'
-
     def setUp(self):
         self.preparar_mermas()
+        self.materiales_url = reverse('tecnico-materiales')
+        self.assertEqual(self.materiales_url, '/api/inventario/tecnico-materiales/')
 
     def get(self, section, **params):
-        return self.client.get(self.url, {'seccion': section, **params})
+        return self.client.get(self.materiales_url, {'seccion': section, **params})
 
     def test_entregas_remanente_y_aislamiento(self):
         e = self.preparar_entrega()
@@ -36,13 +37,15 @@ class TecnicoMaterialesTests(MermasBase, TestCase):
     def test_solicitudes_propias_y_permisos(self):
         s = self.solicitar()
         self.autenticar(self.solicitante)
-        self.assertEqual(self.get('obras').data['results'][0]['id'], self.obra.pk)
+        response = self.get('obras')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['results'][0]['id'], self.obra.pk)
         self.assertEqual(self.get('catalogo', buscar='Manguera').data['results'][0]['id'], self.article.pk)
         self.assertEqual(self.get('solicitudes', buscar=self.obra.codigo).data['results'][0]['id'], s.pk)
         self.assertEqual(self.get('solicitud_detalle', id=s.pk).status_code, 200)
         self.assertEqual(self.get('confirmacion', tipo='SOLICITUD', clave=str(s.clave_idempotencia)).data, {'id': s.pk})
         self.assertEqual(self.get('solicitudes', estado='INCORRECTO').status_code, 400)
-        self.assertEqual(self.client.get(self.url+'?seccion=solicitudes&seccion=mermas').status_code, 400)
+        self.assertEqual(self.client.get(self.materiales_url+'?seccion=solicitudes&seccion=mermas').status_code, 400)
         self.autenticar(self.tecnico)
         self.assertEqual(self.get('solicitudes').data['count'], 0)
         self.assertEqual(self.get('solicitud_detalle', id=s.pk).status_code, 404)
