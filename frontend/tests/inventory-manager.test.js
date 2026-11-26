@@ -14,13 +14,14 @@ test.before(async()=>{
 });
 test.after(async()=>{await server.close();});
 test('Inventario gerencial: indicadores globales, filtros y mermas sin duplicar pérdidas',async()=>{
- const calls=[],summary={valor_stock_valorado:'1250.50',sin_stock:1,pendientes_valoracion:1,mermas_bodega_neto:'100.00',mermas_obra_informativo:'75.00',mermas_bodega:1,mermas_obra:1,mermas_sin_valor:0,mermas_pendientes:2,desde:'2026-11-01',hasta:'2026-11-25'};
+ const calls=[],summary={valor_stock_valorado:'1250.50',sin_stock:1,pendientes_valoracion:1,mermas_bodega_neto:'100.00',mermas_obra_informativo:'75.00',mermas_bodega:1,mermas_obra:1,mermas_sin_valor:0,mermas_pendientes:2,composicion:[{id:2,codigo:'m-02',nombre:'Motor',valor_neto:'1000.00',materiales:1},{id:null,codigo:null,nombre:'Otros materiales',valor_neto:'250.50',materiales:2}],desde:'2026-11-01',hasta:'2026-11-25'};
  const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts)=>{
   calls.push({path,opts});
   const url=new URL(path,'http://localhost');
   assert.equal(url.pathname,'/api/inventario/supervision-gerencial/');
-  const results=url.searchParams.get('seccion')==='mermas'?[{id:1,nombre:'Manguera',codigo:'m-01',ambito:'BODEGA',obra:null,cantidad:'1.000',unidad:'m',tipo:'DANO',fecha:'2026-11-25T12:00:00Z',valor_neto:'100.00'}]:[{id:1,nombre:'Manguera',codigo:'m-01',unidad:'m',activo:true,saldo:'0.000',valor_neto:'0.00',pendiente_valoracion:false}];
-  return {count:results.length,results,next:null,previous:null,resumen:summary};
+  const pending=url.searchParams.get('estado')==='PENDIENTE',mermas=url.searchParams.get('seccion')==='mermas';
+  const results=mermas?[{id:1,nombre:'Manguera',codigo:'m-01',ambito:'BODEGA',obra:null,cantidad:'1.000',unidad:'m',tipo:'DANO',estado:pending?'PENDIENTE':'APROBADA',motivo:'Daño de material',motivo_decision:pending?'':'Revisado',fecha:'2026-11-25T12:00:00Z',valor_neto:pending?null:'100.00'}]:[{id:1,nombre:'Manguera',codigo:'m-01',unidad:'m',activo:true,saldo:'0.000',valor_neto:'0.00',pendiente_valoracion:false}];
+  return {count:results.length,results,next:null,previous:null,resumen:summary,periodo_mermas:mermas&&!pending?{desde:url.searchParams.get('desde')||summary.desde,hasta:url.searchParams.get('hasta')||summary.hasta}:null};
  }};
  const session={status:'authenticated',user:{id:1,username:'G',role:'GERENCIA'}};
  let renderer;
@@ -33,9 +34,19 @@ test('Inventario gerencial: indicadores globales, filtros y mermas sin duplicar 
   assert.match(text(renderer.toJSON()),/\$75/);
   assert.doesNotMatch(text(renderer.toJSON()),/Autorizaciones de entrega|Nuevo artículo|Registrar ingreso/);
   const click=async(label)=>{const button=root.findAllByType('button').find(b=>text(b).startsWith(label));assert.ok(button,label);await act(async()=>{button.props.onClick();await flush();});};
+  assert.equal(root.findByProps({id:'inv-filters'}).props.hidden,true);
+  assert.ok(root.findByProps({'aria-label':'Composición del valor de inventario'}));
+  await click('Motor');assert.match(calls.at(-1).path,/articulo=2/);
   await click('Materiales sin stock');assert.match(calls.at(-1).path,/filtro=sin_stock/);
   await click('Mermas de bodega del mes');assert.match(calls.at(-1).path,/seccion=mermas&filtro=bodega/);
   assert.ok(root.findByProps({'aria-label':'Mermas aprobadas'}));
+  await click('Filtros');
+  await act(async()=>{root.findByProps({id:'inv-desde'}).props.onChange({target:{value:'2026-10-01'}});});
+  await act(async()=>{root.findByProps({id:'inv-hasta'}).props.onChange({target:{value:'2026-10-31'}});});
+  await act(async()=>{root.findByProps({id:'inv-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+  assert.match(calls.at(-1).path,/desde=2026-10-01/);
+  await click('Mermas pendientes');assert.match(calls.at(-1).path,/estado=PENDIENTE/);assert.doesNotMatch(calls.at(-1).path,/desde=/);
+  assert.ok(root.findByProps({'aria-label':'Mermas pendientes'}));
   assert.equal(root.findAllByProps({'aria-label':'Paginación de inventario'}).length,0);
   assert.ok(calls.every(c=>!c.opts.method||c.opts.method==='GET'));
  }finally{if(renderer)await act(async()=>renderer.unmount());}

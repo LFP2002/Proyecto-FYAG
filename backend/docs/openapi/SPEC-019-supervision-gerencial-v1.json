@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FYAG — Supervisión gerencial de inventario",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "paths": {
     "/api/inventario/supervision-gerencial/": {
       "get": {
         "summary": "Consultar inventario (solo GERENCIA)",
-        "description": "Stock actual, importes valorizados y mermas aprobadas del mes calendario. Mermas de obra no aditivas.",
+        "description": "Stock actual, composición valorizada y mermas mensuales; consulta histórica de decisiones y pendientes de todos los períodos. Mermas de obra no aditivas.",
         "security": [
           {
             "bearerAuth": []
@@ -54,6 +54,42 @@
               "type": "string",
               "maxLength": 100
             }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "APROBADA",
+                "PENDIENTE",
+                "RECHAZADA"
+              ]
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "articulo",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         ],
         "responses": {
@@ -68,7 +104,8 @@
                     "next",
                     "previous",
                     "resumen",
-                    "results"
+                    "results",
+                    "periodo_mermas"
                   ],
                   "properties": {
                     "count": {
@@ -100,7 +137,8 @@
                         "mermas_sin_valor",
                         "mermas_pendientes",
                         "desde",
-                        "hasta"
+                        "hasta",
+                        "composicion"
                       ],
                       "properties": {
                         "valor_stock_valorado": {
@@ -146,6 +184,46 @@
                         "hasta": {
                           "type": "string",
                           "format": "date"
+                        },
+                        "composicion": {
+                          "type": "array",
+                          "maxItems": 7,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "codigo",
+                              "nombre",
+                              "valor_neto",
+                              "materiales"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "minimum": 1
+                              },
+                              "codigo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "valor_neto": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{2}$"
+                              },
+                              "materiales": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            }
+                          }
                         }
                       }
                     },
@@ -214,7 +292,10 @@
                               "unidad",
                               "tipo",
                               "fecha",
-                              "valor_neto"
+                              "valor_neto",
+                              "estado",
+                              "motivo",
+                              "motivo_decision"
                             ],
                             "properties": {
                               "id": {
@@ -260,10 +341,44 @@
                                   "null"
                                 ],
                                 "pattern": "^[0-9]+\\.[0-9]{2}$"
+                              },
+                              "estado": {
+                                "type": "string",
+                                "enum": [
+                                  "APROBADA",
+                                  "PENDIENTE",
+                                  "RECHAZADA"
+                                ]
+                              },
+                              "motivo": {
+                                "type": "string"
+                              },
+                              "motivo_decision": {
+                                "type": "string"
                               }
                             }
                           }
                         ]
+                      }
+                    },
+                    "periodo_mermas": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "required": [
+                        "desde",
+                        "hasta"
+                      ],
+                      "properties": {
+                        "desde": {
+                          "type": "string",
+                          "format": "date"
+                        },
+                        "hasta": {
+                          "type": "string",
+                          "format": "date"
+                        }
                       }
                     }
                   }

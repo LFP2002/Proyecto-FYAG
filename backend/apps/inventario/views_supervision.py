@@ -1,5 +1,7 @@
 """Indicadores de inventario para Gerencia, sin mutaciones del libro."""
 from decimal import Decimal, localcontext
+from datetime import date
+import re
 
 from django.db.models import F
 from django.utils import timezone
@@ -10,7 +12,7 @@ from rest_framework.views import APIView
 from .models import ArticuloInventario, Merma
 from .permissions import PuedeOperarInventario
 from .services_mermas import importe
-from .views import InventarioPaginacion, query
+from .views import InventarioPaginacion, query, articulo_filtro
 from .views_materiales import CabecerasMateriales
 
 
@@ -22,7 +24,7 @@ class SupervisionInventarioView(CabecerasMateriales, APIView):
         if request.user.rol != "GERENCIA":
             raise PermissionDenied("Sin permiso para consultar la supervisión de inventario.")
         params = request.query_params
-        query(params, {"seccion", "filtro", "buscar"})
+        query(params, {"seccion", "filtro", "buscar", "estado", "desde", "hasta", "articulo"})
         seccion = params.get("seccion", "existencias")
         filtro = params.get("filtro", "")
         buscar = params.get("buscar", "").strip().casefold()
@@ -32,6 +34,26 @@ class SupervisionInventarioView(CabecerasMateriales, APIView):
             raise ValidationError({"filtro": ["Filtro inválido."]})
         hoy = timezone.localdate()
         desde = hoy.replace(day=1)
+        estado = params.get("estado", "APROBADA")
+        if estado not in {"APROBADA", "PENDIENTE", "RECHAZADA"}:
+            raise ValidationError({"estado": ["Estado inválido."]})
+        if (seccion == "existencias" and any(k in params for k in ("estado", "desde", "hasta"))) or (seccion == "mermas" and "articulo" in params):
+            raise ValidationError({"query": ["Filtros incompatibles con la sección."]})
+        articulo = articulo_filtro(params) if "articulo" in params else None
+        inicio, fin = desde, hoy
+        if ("desde" in params) != ("hasta" in params) or (estado == "PENDIENTE" and "desde" in params):
+            raise ValidationError({"desde": ["Indique ambas fechas únicamente para mermas decididas."]})
+        if "desde" in params:
+            try:
+                if not all(re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", params[k]) for k in ("desde", "hasta")):
+                    raise ValueError()
+                inicio, fin = date.fromisoformat(params["desde"]), date.fromisoformat(params["hasta"])
+                if inicio > fin or fin > hoy or (fin-inicio).days >= 366:
+                    raise ValueError()
+            except ValueError:
+                raise ValidationError({"desde": ["Período inválido, máximo 366 días hasta hoy."]}) from None
+        principales = []
+        positivos = 0
         total_valorado = Decimal("0.00")
         sin_stock = pendientes = 0
         filas_stock = []
@@ -54,11 +76,18 @@ class SupervisionInventarioView(CabecerasMateriales, APIView):
                 valor = importe(valorado, promedio, estricto=False) if valorado is not None and promedio is not None else (Decimal("0.00") if valorado == 0 or saldo == 0 else None)
                 if valor is not None:
                     total_valorado += valor
+                    if valor > 0:
+                        positivos += 1
+                        principales.append((valor, a["id"], a["codigo"], a["nombre"]))
+                        principales.sort(key=lambda x: (-x[0], x[1]))
+                        del principales[6:]
                 sin_stock += agotado
                 pendientes += pendiente
                 if seccion != "existencias":
                     continue
                 if filtro == "sin_stock" and not agotado or filtro == "pendiente" and not pendiente:
+                    continue
+                if articulo is not None and a["id"] != articulo:
                     continue
                 if buscar and buscar not in (a["codigo"]+" "+a["nombre"]).casefold():
                     continue
@@ -84,13 +113,29 @@ class SupervisionInventarioView(CabecerasMateriales, APIView):
                     cantidad_obra += 1
                     if valor is not None:
                         total_obra += valor
-                if seccion != "mermas" or filtro and m.ambito.lower() != filtro:
-                    continue
-                if buscar and buscar not in (m.articulo.codigo+" "+m.articulo.nombre).casefold():
-                    continue
-                filas_mermas.append({"id": m.pk, "nombre": m.articulo.nombre, "codigo": m.articulo.codigo,
-                    "ambito": m.ambito, "obra": m.obra.codigo if m.obra_id else None, "cantidad": format(m.cantidad, ".3f"),
-                    "unidad": m.unidad, "tipo": m.tipo, "fecha": m.decidido_en.isoformat(), "valor_neto": format(valor, ".2f") if valor is not None else None})
+            if seccion == "mermas":
+                listado = Merma.objects.filter(estado=estado)
+                if estado != "PENDIENTE":
+                    listado = listado.filter(decidido_en__date__range=(inicio, fin))
+                if filtro:
+                    listado = listado.filter(ambito=filtro.upper())
+                listado = listado.select_related("articulo", "obra", "operacion", "entrega").order_by("-creado_en" if estado == "PENDIENTE" else "-decidido_en", "-pk")
+                for m in listado.iterator(chunk_size=200):
+                    if buscar and buscar not in (m.articulo.codigo+" "+m.articulo.nombre).casefold():
+                        continue
+                    op = m.operacion if m.ambito == "BODEGA" else m.entrega
+                    costo = op.costo_unitario_neto if op is not None and estado == "APROBADA" else None
+                    valor = importe(m.cantidad, costo, estricto=False) if costo is not None else None
+                    filas_mermas.append({"id": m.pk, "nombre": m.articulo.nombre, "codigo": m.articulo.codigo,
+                        "ambito": m.ambito, "obra": m.obra.codigo if m.obra_id else None, "cantidad": format(m.cantidad, ".3f"),
+                        "unidad": m.unidad, "tipo": m.tipo, "estado": m.estado, "motivo": m.motivo,
+                        "motivo_decision": m.motivo_decision, "fecha": (m.decidido_en or m.creado_en).isoformat(),
+                        "valor_neto": format(valor, ".2f") if valor is not None else None})
+            otros = total_valorado - sum((x[0] for x in principales), Decimal("0.00"))
+            composicion = [{"id": pk, "codigo": codigo, "nombre": nombre, "valor_neto": format(valor, ".2f"), "materiales": 1}
+                           for valor, pk, codigo, nombre in principales]
+            if otros > 0:
+                composicion.append({"id": None, "codigo": None, "nombre": "Otros materiales", "valor_neto": format(otros, ".2f"), "materiales": positivos-len(principales)})
         rows = filas_stock if seccion == "existencias" else filas_mermas
         if seccion == "existencias":
             rows.sort(key=lambda r: (not r["pendiente_valoracion"] and not (r["activo"] and r["saldo"] == "0.000"), r["nombre"].casefold(), r["id"]))
@@ -98,8 +143,9 @@ class SupervisionInventarioView(CabecerasMateriales, APIView):
                    "mermas_bodega_neto": format(total_bodega, ".2f"), "mermas_obra_informativo": format(total_obra, ".2f"),
                    "mermas_bodega": cantidad_bodega, "mermas_obra": cantidad_obra, "mermas_sin_valor": no_valoradas,
                    "mermas_pendientes": Merma.objects.filter(estado="PENDIENTE").count(),
-                   "desde": desde.isoformat(), "hasta": hoy.isoformat()}
+                   "desde": desde.isoformat(), "hasta": hoy.isoformat(), "composicion": composicion}
         paginador = InventarioPaginacion()
         respuesta = paginador.get_paginated_response(paginador.paginate_queryset(rows, request, view=self))
         respuesta.data["resumen"] = resumen
+        respuesta.data["periodo_mermas"] = {"desde": inicio.isoformat(), "hasta": fin.isoformat()} if seccion == "mermas" and estado != "PENDIENTE" else None
         return respuesta

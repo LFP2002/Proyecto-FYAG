@@ -80,6 +80,7 @@ export function safePage(link, path, filters = null) {
             ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
+             : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
@@ -113,6 +114,10 @@ export function safePage(link, path, filters = null) {
     }
     if(path==='/api/finanzas/egresos/supervision-gerencial/'){
       if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/supervision-gerencial/'){
+      const stock=(value('seccion')||'existencias')==='existencias',state=value('estado');
+      if(!['existencias','mermas'].includes(value('seccion')||'existencias')||(value('buscar')||'').length>100||(value('filtro')&&!(stock?['sin_stock','pendiente']:['bodega','obra']).includes(value('filtro')))||(state&&!['APROBADA','PENDIENTE','RECHAZADA'].includes(state))||!datePair('desde','hasta')||(stock&&(state||value('desde')))||(!stock&&value('articulo'))||(value('articulo')&&!validId(value('articulo')))||(state==='PENDIENTE'&&value('desde')))throw new Error('invalid');
     }
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;
