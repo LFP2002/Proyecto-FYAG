@@ -27,13 +27,14 @@ function apiFor(role, calls) {
   if(role==='ADMINISTRATIVO_FINANZAS') Object.assign(alert,{tipo:'PRESUPUESTO_PENDIENTE_FINANZAS',rol_responsable:role,destinatarios:[role],severidad:'MEDIA',recurso_tipo:'PRESUPUESTO',recurso_codigo:'PRE-000004',obra:null,titulo:'Presupuesto pendiente de Finanzas',descripcion:'Requiere revisión de Finanzas.'});
   const send = async (path, options = {}) => {
     calls.push({ path, options });
-    if (path === '/api/alertas/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', por_estado: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 }, activas: 1, por_tipo: { [alert.tipo]: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 } }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } };
+    if (path === '/api/alertas/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', por_estado: { PENDIENTE: Number(alert.estado==='PENDIENTE'), ATENDIDA: Number(alert.estado==='ATENDIDA'), RESUELTA: 0 }, activas: 1, por_tipo: { [alert.tipo]: { PENDIENTE: Number(alert.estado==='PENDIENTE'), ATENDIDA: Number(alert.estado==='ATENDIDA'), RESUELTA: 0 } }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } };
     if (new URL(path,'http://localhost').pathname === '/api/alertas/') {
       const q=new URL(path,'http://localhost').searchParams;
       const visible=(!q.get('estado')||q.get('estado')==='TODAS'||q.get('estado')===alert.estado)&&(!q.get('tipo')||q.get('tipo')===alert.tipo);
       return {count:visible?1:0,next:null,previous:null,results:visible?[alert]:[]};
     }
-    if (path === '/api/alertas/3/') return alert;
+    if (path === '/api/alertas/3/atender/' && role==='ADMINISTRATIVO_FINANZAS' && options.method==='POST') { Object.assign(alert,{estado:'ATENDIDA',atendida_por:9,atendida_en:'2026-11-14T11:00:00-03:00',motivo_atencion:options.body.motivo,acciones_permitidas:[]});return {...alert}; }
+    if (path === '/api/alertas/3/') return {...alert};
     if (path.startsWith('/api/alertas/3/historial/')) { const page = Number(new URL(path, 'http://localhost').searchParams.get('page') || 1); return { count: 26, next: page === 1 ? '/api/alertas/3/historial/?page=2' : null, previous: page === 2 ? '/api/alertas/3/historial/' : null, results: Array.from({length: page === 1 ? 25 : 1},(_,i)=>({id:(page-1)*25+i+1,alerta:3,tipo:'ATENCION',estado_anterior:'PENDIENTE',estado_nuevo:'ATENDIDA',actor:9,motivo:'Revisión',registrado_en:'2026-11-14T10:00:00-03:00'})) }; }
     if (path === '/api/finanzas/cobranzas/' || path === '/api/finanzas/cobranzas/?page=1') return { count: 0, next: null, previous: null, results: [] };
     if (path.startsWith('/api/finanzas/cobranzas/resumen/')) return { moneda: 'CLP', documentos: 0, conteos: { PENDIENTE: 0, PARCIAL: 0, PAGADA: 0, VENCIDA: 0 }, monto_documentado_total: '0.00', abonado_total: '0.00', saldo_total: '0.00', saldo_vencido: '0.00' };
@@ -259,7 +260,7 @@ test('Alertas gerenciales: filtros confirmados, bandeja, retorno y consulta sin 
 test('alertas solicita resumen/lista e impone matriz por rol', { timeout: 15000 }, async () => {
   for (const role of ['GERENCIA', 'SUPERVISOR_OBRAS','ADMINISTRATIVO_FINANZAS']) {
     const { renderer, calls } = await mount(Alertas, role);
-    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), role==='ADMINISTRATIVO_FINANZAS'?/Presupuesto pendiente de Finanzas/:/Obra suspendida/); await click(renderer,role==='ADMINISTRATIVO_FINANZAS'?'Presupuesto pendiente de Finanzas':'Obra suspendida'); assert.equal(renderer.root.findAllByType('button').some(b=>text(b)==='Atender alerta'),role!=='GERENCIA'); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
+    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), role==='ADMINISTRATIVO_FINANZAS'?/Presupuesto pendiente de Finanzas/:/Obra suspendida/); await click(renderer,role==='ADMINISTRATIVO_FINANZAS'?'Presupuesto pendiente de Finanzas':'Obra suspendida'); assert.equal(renderer.root.findAllByType('button').some(b=>text(b)===(role==='ADMINISTRATIVO_FINANZAS'?'Marcar como atendida':'Atender alerta')),role!=='GERENCIA'); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
   }
 });
 test('AuthClient mantiene metadata de descarga y códigos públicos de conflicto de alerta', async () => {
@@ -297,4 +298,31 @@ test('Dashboard dona muestra proporciones reales, total y cinco estados incluso 
     assert.ok(root.findAllByProps({className:'dash-donut-percent'}).every(node=>text(node)==='0,0%'));
     assert.equal(root.findAllByType('circle').filter(node=>node.props.className?.split(' ').includes('dash-donut-segment')).length,0);
   }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Alertas Finanzas: prioridad real, filtros por rol, atención y relecturas',async()=>{
+  const {renderer,calls}=await mount(Alertas,'ADMINISTRATIVO_FINANZAS');
+  try {
+    const root=renderer.root,body=()=>text(renderer.toJSON());
+    assert.match(body(),/Prioridad media/);
+    assert.doesNotMatch(body(),/PRESUPUESTO_PENDIENTE_FINANZAS|ID recurso/);
+    await click(renderer,'Filtros');
+    assert.deepEqual(root.findByProps({id:'alert-type'}).findAllByType('option').map(o=>o.props.value),['','PRESUPUESTO_PENDIENTE_FINANZAS','COBRANZA_VENCIDA']);
+    await click(renderer,'Presupuesto pendiente de Finanzas');
+    const submit=()=>root.findAllByType('button').find(b=>text(b)==='Marcar como atendida');
+    assert.equal(submit().props.disabled,true);
+    await act(async()=>{root.findByProps({id:'alert-reason'}).props.onChange({target:{value:'  Revisión realizada  '}});await flush();});
+    const before=calls.length;
+    await act(async()=>{root.findByProps({className:'finance-alert-attention'}).props.onSubmit({preventDefault(){}});await flush();});
+    const mutations=calls.slice(before).filter(c=>c.options.method==='POST');
+    assert.equal(mutations.length,1);
+    assert.equal(mutations[0].path,'/api/alertas/3/atender/');
+    assert.deepEqual(mutations[0].options.body,{motivo:'Revisión realizada'});
+    for(const path of ['/api/alertas/3/','/api/alertas/3/historial/','/api/alertas/','/api/alertas/resumen/']) assert.ok(calls.slice(before).some(c=>c.path===path),path);
+    assert.equal(submit(),undefined);
+    assert.match(body(),/Revisión realizada/);
+    await click(renderer,'Volver al listado');
+    await click(renderer,'Atendidas');
+    assert.match(body(),/Presupuesto pendiente de Finanzas/);
+  } finally {await act(async()=>renderer.unmount());}
 });
