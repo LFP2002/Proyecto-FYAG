@@ -54,6 +54,11 @@ test('Inventario AF: catálogo unificado, indicadores globales, filtros y estado
   assert.match(body(),/Sin resultados/);assert.match(body(),/12\.345,67/);
   await click(r,'Limpiar filtros');await click(r,'Ver detalle');assert.match(body(),/Descripción/);await click(r,'Volver al listado');
   await click(r,'Movimientos');assert.match(body(),/\+10 m/);
+  await click(r,'Ver detalle');
+  const movementSummary=r.root.findByProps({'aria-label':'Resumen del movimiento'});
+  assert.match(text(movementSummary),/Cantidad del movimiento/);assert.match(text(movementSummary),/\+10 m/);assert.match(text(movementSummary),/Stock anterior/);assert.match(text(movementSummary),/Stock resultante/);
+  assert.match(body(),/Información del registro/);assert.match(body(),/Sin motivo registrado/);
+  await click(r,'Volver al listado');
   await click(r,'Saldo inicial');assert.match(body(),/No hay regularizaciones registradas/);
   await click(r,'Regularizar saldo histórico');assert.match(body(),/No hay saldos históricos por regularizar/);
   assert.ok(ui.calls.every(c=>c.method==='GET'));
@@ -69,6 +74,9 @@ test('Inventario AF: selección de ingreso real y registro neto confirmado',asyn
   assert.equal(writes.length,1);assert.equal(writes[0].body.ingreso,6);assert.equal(writes[0].body.costo_unitario_neto,'8900');assert.ok(writes[0].body.clave_idempotencia);
   assert.match(body(),/Operación confirmada/);assert.match(body(),/8\.900/);
   await click(r,'Ver detalle');assert.match(body(),/Costo promedio anterior/);assert.match(body(),/Referencia del ingreso/);
+  const valuationSummary=r.root.findByProps({'aria-label':'Resumen de la valoración'});
+  assert.match(text(valuationSummary),/Costo unitario neto/);assert.match(text(valuationSummary),/Costo promedio resultante/);assert.match(text(valuationSummary),/Cantidad valorada/);
+  assert.match(body(),/Sin costo promedio previo/);assert.match(body(),/Cantidad valorada resultante/);
  }finally{await ui.close();}
 });
 
