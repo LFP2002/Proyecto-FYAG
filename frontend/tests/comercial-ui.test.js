@@ -183,7 +183,7 @@ test('Presupuestos montado: borrador, CRUD líneas, Finanzas, cliente, historial
     await createBudget(renderer);
     const post = b.calls.find((c) => c.path === '/api/presupuestos/' && c.method === 'POST'); assert.deepEqual(post.body, { cliente: 1, descripcion: 'Servicio' });
     await click(renderer, 'Agregar ítem manual');
-    for (const [k, v] of Object.entries({ descripcion: 'Trabajo', cantidad: '0.001', unidad: 'h', precio_unitario: '9999999999999.99', orden: '1' })) await input(renderer, k, v);
+    for (const [k, v] of Object.entries({ descripcion: 'Trabajo', cantidad: '0.001', unidad: 'h', precio_unitario: '9999999999999.99' })) await input(renderer, k, v);
     await submit(renderer); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');
     const itemPost = b.calls.find((c) => c.path.endsWith('/items/') && c.method === 'POST'); assert.equal(itemPost.body.cantidad, '0.001'); assert.equal(itemPost.body.precio_unitario, '9999999999999.99'); assert.equal(itemPost.body.orden, 1);
     await click(renderer, 'Editar ítem'); await input(renderer, 'unidad', 'u'); await submit(renderer);
@@ -217,7 +217,7 @@ test('Supervisor crea presupuesto propio y lo envía a Finanzas sin consultar AP
     await submit(renderer);
     assert.equal(b.budgets[0].estado, 'BORRADOR');
     await click(renderer, 'Agregar ítem manual');
-    for (const [key, value] of Object.entries({ descripcion: 'Materiales', cantidad: '1', unidad: 'u', precio_unitario: '100', orden: '1' })) await input(renderer, key, value);
+    for (const [key, value] of Object.entries({ descripcion: 'Materiales', cantidad: '1', unidad: 'u', precio_unitario: '100' })) await input(renderer, key, value);
     await submit(renderer);
     await click(renderer, 'Enviar a revisión de Finanzas');
     await submit(renderer);
@@ -246,7 +246,7 @@ test('unidad de medida en alta/edición: catálogo, Otra, límite, valor histór
     assert.equal(select.type, 'select'); assert.equal(select.props.value, ''); assert.ok(select.props.required);
     assert.match(text(renderer.root), /Unidad de medida/);
     assert.equal(renderer.root.findAllByProps({ id: 'com-unidad-otra' }).length, 0);
-    for (const [key, value] of Object.entries({ descripcion: 'Servicio', cantidad: '1', precio_unitario: '100', orden: '1' })) await input(renderer, key, value);
+    for (const [key, value] of Object.entries({ descripcion: 'Servicio', cantidad: '1', precio_unitario: '100' })) await input(renderer, key, value);
     await submit(renderer);
     assert.equal(text(renderer.root.findByProps({ id: 'com-unidad-error' })), 'Campo obligatorio');
     assert.equal(b.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/items/')).length, 0);
@@ -413,7 +413,7 @@ test('presentación Comercial: controles Bootstrap, estados con texto, tablas ac
 });
 const itemSaveButton = (renderer) => renderer.root.findByProps({ 'aria-label': 'Guardar ítem' });
 async function fillItem(renderer) {
-  for (const [key, value] of Object.entries({ descripcion: 'Instalación', cantidad: '1.001', unidad: 'h', precio_unitario: '25.50', orden: '1' })) await input(renderer, key, value);
+  for (const [key, value] of Object.entries({ descripcion: 'Instalación', cantidad: '1.001', unidad: 'h', precio_unitario: '25.50' })) await input(renderer, key, value);
 }
 async function rowKey(renderer, key, extra = {}) {
   let prevented = false;
@@ -423,39 +423,26 @@ async function rowKey(renderer, key, extra = {}) {
   });
   return prevented;
 }
-test('fila fantasma: alta limpia, orden sugerido en cada creación, guardado explícito y validación al guardar', async () => {
+test('ítems: orden automático, sin controles técnicos y subtotal estimado sin escritura', async () => {
   const b = fakeBackend(), renderer = await mount(Presupuestos, b.request);
   try {
     await createBudget(renderer); await click(renderer, 'Agregar ítem manual');
-    assert.equal(renderer.root.findAllByType('form').length, 0);
-    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '1');
-    assert.equal(renderer.root.findByProps({className:'budget-order-field'}).props.hidden,true);
-    assert.equal(itemSaveButton(renderer).props.disabled, false);
-    assert.equal(renderer.root.findAllByProps({ 'aria-invalid': true }).length, 0);
-    assert.equal(renderer.root.findAllByProps({ id: 'item-row-feedback' }).length, 0);
-    assert.doesNotMatch(text(renderer.root), /Revisa el ítem|Tab: siguiente|se consultan a Django|Se calculará al guardar|puede ser rechazada/);
-    await fillItem(renderer); assert.equal(itemSaveButton(renderer).props.disabled, false);
-    await input(renderer, 'cantidad', '0'); await click(renderer, 'Guardar ítem');
-    assert.equal(text(renderer.root.findByProps({ id: 'com-cantidad-error' })), 'Ingresa una cantidad válida');
-    await input(renderer, 'cantidad', '1.001'); await input(renderer, 'orden', '4');
-    // Escribir no crea registros ni cambia el neto localmente.
-    assert.equal(b.budgets[0].items.length, 0); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$0');
-    await click(renderer, 'Guardar ítem');
-    assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 4);
-    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Edición de ítem' }).length, 0);
+    assert.equal(renderer.root.findAllByProps({id:'com-orden'}).length,0);
+    assert.doesNotMatch(text(renderer.root), /Cambiar orden|Posición del ítem/);
+    await fillItem(renderer);
+    assert.equal(text(renderer.root.findByProps({'data-testid':'item-estimated-subtotal'})), '$25,53');
+    assert.equal(b.budgets[0].items.length,0);
+    await input(renderer,'cantidad','0'); await click(renderer,'Guardar ítem');
+    assert.equal(text(renderer.root.findByProps({id:'com-cantidad-error'})), 'Ingresa una cantidad válida');
+    await input(renderer,'cantidad','1.001'); await click(renderer,'Guardar ítem');
+    assert.equal(b.budgets[0].items[0].orden,1);
     assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');
-    await click(renderer, 'Agregar ítem manual'); assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '5');
-    await fillItem(renderer); await input(renderer, 'orden', '4');
-    await click(renderer, 'Guardar ítem'); assert.match(text(renderer.root), /Orden ya utilizado/);
-    assert.equal(b.budgets[0].items.length, 1);
-    await input(renderer, 'orden', '5'); await click(renderer, 'Guardar ítem');
-    assert.equal(b.budgets[0].items.length, 2);
-    assert.equal(b.budgets[0].items[0].orden, 4);
-    await click(renderer, 'Editar ítem');
-    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, 4);
-    assert.equal(renderer.root.findAllByProps({ 'aria-invalid': true }).length, 0);
-    await click(renderer, 'Cancelar edición de ítem'); await click(renderer, 'Agregar ítem manual');
-    assert.equal(renderer.root.findByProps({ id: 'com-orden' }).props.value, '6');
+    await click(renderer,'Agregar ítem manual'); await fillItem(renderer); await click(renderer,'Guardar ítem');
+    assert.deepEqual(b.budgets[0].items.map(i=>i.orden),[1,2]);
+    await click(renderer,'Editar ítem'); await input(renderer,'descripcion','Actualizado'); await click(renderer,'Guardar ítem');
+    assert.deepEqual(b.calls.find(c=>c.method==='PATCH').body,{descripcion:'Actualizado'});
+    assert.deepEqual(b.budgets[0].items.map(i=>i.orden),[1,2]);
+    assert.equal(renderer.root.findAllByType('th').some(n=>text(n)==='Orden'),false);
   } finally { await act(async () => renderer.unmount()); }
 });
 test('teclado inline: Tab nativo, Enter guarda, Escape cancela; composición y select no guardan', async () => {
@@ -556,11 +543,8 @@ test('validación inline bajo demanda: mensajes por campo y foco en el primer da
     assert.ok(renderer.root.findByProps({ id: 'com-unidad-otra' }).props['aria-invalid']);
     assert.equal(renderer.root.findByProps({ id: 'com-unidad' }).props['aria-invalid'], false);
     await input(renderer, 'unidad-otra', 'Visita'); await input(renderer, 'precio_unitario', '0.00');
-    await input(renderer, 'orden', '0'); await rowKey(renderer, 'Enter');
-    assert.equal(focused.at(-1), '#com-orden');
-    assert.equal(text(renderer.root.findByProps({ id: 'com-orden-error' })), 'Ingresa un entero positivo válido');
-    await input(renderer, 'orden', '7'); await rowKey(renderer, 'Enter');
-    assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 7);
+    await rowKey(renderer, 'Enter');
+    assert.equal(b.budgets[0].items.length, 1); assert.equal(b.budgets[0].items[0].orden, 1);
   } finally { await act(async () => renderer.unmount()); }
 });
 test('barra operativa AF: búsqueda y filtro globales, creación conservada',async()=>{
@@ -634,13 +618,17 @@ test('catálogo comercial: selección rellena identidad, conserva precio manual 
   try {
     await createBudget(renderer);
     await click(renderer,'Agregar material de bodega');
-    assert.equal(renderer.root.findByProps({id:'com-orden'}).props.value,'1');
+    assert.equal(renderer.root.findAllByProps({id:'com-orden'}).length,0);
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Guardar ítem'}).length,0);
     await click(renderer,'Seleccionar Tubería de cobre');
-    assert.equal(renderer.root.findByProps({id:'com-descripcion'}).props.value,'Tubería de cobre');
-    assert.equal(renderer.root.findByProps({id:'com-descripcion'}).props.readOnly,true);
+    assert.match(text(renderer.root.findByProps({className:'budget-material-selected'})), /Tubería de cobre/);
+    assert.equal(renderer.root.findByProps({id:'com-unidad'}).props.readOnly,true);
+    assert.equal(renderer.root.findByProps({id:'com-unidad'}).props.value,'m');
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Selector de materiales de Bodega'}).length,0);
     assert.equal(renderer.root.findByProps({id:'com-precio_unitario'}).props.value,'');
     await input(renderer,'cantidad','2');
     await input(renderer,'precio_unitario','8500');
+    assert.equal(text(renderer.root.findByProps({'data-testid':'item-estimated-subtotal'})), '$17.000');
     await click(renderer,'Guardar ítem');
     const post=b.calls.find(c=>c.method==='POST'&&c.path.endsWith('/items/'));
     assert.equal(post.body.articulo,17);
