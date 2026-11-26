@@ -84,6 +84,35 @@
                 "SIN_COBRO"
               ]
             }
+          },
+          {
+            "name": "fecha_programada_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_programada_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "creado_en",
+                "-creado_en",
+                "fecha_programada",
+                "-fecha_programada"
+              ]
+            }
           }
         ],
         "responses": {
