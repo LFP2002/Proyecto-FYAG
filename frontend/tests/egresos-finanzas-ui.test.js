@@ -49,8 +49,10 @@ test('Finanzas: egresos legibles, filtros globales, detalle y anulación context
    await click(r,'Ver detalle');assert.match(text(r.toJSON()),/Egreso registrado/);
    await click(r,'Anular egreso');await change(r,'Motivo','Error de registro');await change(r,'Referencia de corrección','RECT-1');await submit(r,'Anular egreso');
    assert.equal(ui.calls.filter(c=>c.method==='POST').length,1);assert.equal(ui.rows[0].activo,false);assert.match(text(r.toJSON()),/Egreso anulado/);
+   assert.match(r.root.findAllByType('button').find(b=>text(b).trim()==='Volver a egresos').props.className,/eg-back/);
    await click(r,'Volver a egresos');await click(r,'Flujo de dinero');
-   const f=r.root.findAllByType('form')[0];await act(async()=>{f.props.onSubmit({preventDefault(){}});await flush();});assert.match(text(r.toJSON()),/-\$50/);
+   assert.match(text(r.toJSON()),/Selecciona un período/);assert.equal(ui.calls.some(c=>c.path.includes('/flujo-dinero/resumen/')),false);
+   const f=r.root.findAllByType('form')[0];await act(async()=>{f.props.onSubmit({preventDefault(){}});await flush();});assert.match(text(r.toJSON()),/-\$50/);assert.doesNotMatch(text(r.toJSON()),/Selecciona un período/);
  }finally{globalThis.confirm=old;await ui.close();}
 });
 test('Alta con selector de obra conserva UUID y payload ante respuesta incierta',async()=>{
