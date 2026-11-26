@@ -16,6 +16,7 @@ export const ROLE_NOTE = {
   GERENCIA: 'Supervisión empresarial.',
   ADMINISTRATIVO_FINANZAS: 'Gestión comercial, cobranzas, egresos y costos de adquisición.',
   SUPERVISOR_OBRAS: 'Gestión operativa de Obras, presupuestos propios y técnicos participantes.',
+  TECNICO: 'Ejecuta obras asignadas, registra sus turnos y evidencias, solicita materiales y declara mermas de obra.',
   ADMINISTRADOR_TI: 'Administración de cuentas y auditoría de usuarios, sin acceso de negocio.',
   BODEGUERO: 'Operación de inventario, despachos y devoluciones autorizadas.'
 };

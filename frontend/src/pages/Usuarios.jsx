@@ -4,9 +4,37 @@ import { ROLES, ROLE_NOTE } from '../data/constants';
 import { PageHead, Table } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { canManageUsers, userPath, usersPath, historyPath, readUser, readUsers, readHistory } from '../usuarios/api.js';
+import { permissionRoles, permissionRows, permissionLevels } from '../usuarios/permissionMatrix.js';
 
 // Bootstrap Icons v1.13.1 (MIT), twbs/icons; SVG originales incorporados localmente.
 const tiIcons={
+"eye": [
+    {
+      "d": "M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"
+    },
+    {
+      "d": "M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"
+    }
+  ],
+  "none": [
+    {
+      "d": "M2 8a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11A.5.5 0 0 1 2 8",
+      "rule": "evenodd"
+    }
+  ],
+  "people": [
+    {
+      "d": "M15 14s1 0 1-1-1-4-5-4-5 3-5 4 1 1 1 1zm-7.978-1L7 12.996c.001-.264.167-1.03.76-1.72C8.312 10.629 9.282 10 11 10c1.717 0 2.687.63 3.24 1.276.593.69.758 1.457.76 1.72l-.008.002-.014.002zM11 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4m3-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0M6.936 9.28a6 6 0 0 0-1.23-.247A7 7 0 0 0 5 9c-4 0-5 3-5 4q0 1 1 1h4.216A2.24 2.24 0 0 1 5 13c0-1.01.377-2.042 1.09-2.904.243-.294.526-.569.846-.816M4.92 10A5.5 5.5 0 0 0 4 13H1c0-.26.164-1.03.76-1.724.545-.636 1.492-1.256 3.16-1.275ZM1.5 5.5a3 3 0 1 1 6 0 3 3 0 0 1-6 0m3-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4"
+    }
+  ],
+  "manage": [
+    {
+      "d": "M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"
+    },
+    {
+      "d": "m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"
+    }
+  ],
   "back": [
     {
       "d": "M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8",
@@ -264,9 +292,22 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
   </section>;
 }
 
+function PermissionMatrix(){
+  const glyph={manage:'manage',read:'eye',limited:'shield',none:'none'};
+  return <section className="card-fyag ti-panel ti-permissions" aria-label="Permisos por rol">
+    <div className="ti-head"><div><h2>Matriz de permisos</h2><small>Consulta de atribuciones de los seis roles del sistema.</small></div></div>
+    <div className="ti-permissions-legend">{Object.entries(permissionLevels).map(([level,label])=><span key={level} className={'ti-permission '+level}><TiIcon name={glyph[level]}/>{label}</span>)}</div>
+    <div className="ti-permissions-scroll" role="region" aria-label="Desplazamiento de matriz de permisos" tabIndex={0}>
+      <table className="ti-permission-table"><thead><tr><th scope="col">Módulo / función</th>{permissionRoles.map(([role,label])=><th key={role} scope="col" title={ROLES[role].short}>{label}</th>)}</tr></thead>
+      <tbody>{permissionRows.map(({label,access})=><tr key={label}><th scope="row">{label}</th>{permissionRoles.map(([role])=>{const [level,detail]=access[role]||['none',''];return <td key={role}><span className={'ti-permission '+level} title={permissionLevels[level]}><TiIcon name={glyph[level]}/><span className={level==='none'?'visually-hidden':undefined}>{permissionLevels[level]}</span></span>{detail&&<small>{detail}</small>}</td>;})}</tr>)}</tbody></table>
+    </div>
+    <p className="ti-permission-note"><TiIcon name="info"/> Consulta informativa, no editable. Las operaciones dependen también del estado del recurso, la sesión y las reglas de alcance. Los permisos se validan en el servidor.</p>
+  </section>;
+}
+
 function UsuariosTI() {
   const api=useCommercial();
-  const [data,setData]=useState(null),[page,setPage]=useState(1),[filters,setFilters]=useState({rol:'',activo:'',buscar:''}),[draft,setDraft]=useState(filters),[selected,setSelected]=useState(null),[creating,setCreating]=useState(false),[temporaryCredential,setTemporaryCredential]=useState(null),[filterOpen,setFilterOpen]=useState(false),[matrixOpen,setMatrixOpen]=useState(false);
+  const [data,setData]=useState(null),[page,setPage]=useState(1),[filters,setFilters]=useState({rol:'',activo:'',buscar:''}),[draft,setDraft]=useState(filters),[selected,setSelected]=useState(null),[creating,setCreating]=useState(false),[temporaryCredential,setTemporaryCredential]=useState(null),[filterOpen,setFilterOpen]=useState(false),[section,setSection]=useState('usuarios');
   const [summary,setSummary]=useState(null);
   const path=usersPath(page,{...filters,resumen:true});
   const accept=result=>{const next=readUsers(result);setData(next);setSummary(next.resumen||null);};
@@ -278,7 +319,9 @@ function UsuariosTI() {
   if(selected)return <Detail key={selected} id={selected} onBack={()=>{setTemporaryCredential(null);setSelected(null);}} temporaryCredential={temporaryCredential} onHideTemporaryCredential={()=>setTemporaryCredential(null)}/>;
   if(creating)return <section className="commercial-page usuarios-page usuarios-lista"><div className="usuarios-toolbar ti-detail-toolbar"><button className="ti-back" disabled={api.busy||api.locked} onClick={()=>setCreating(false)}><TiIcon name="back"/>Volver a usuarios</button>{api.locked&&<button className="btn btn-outline-secondary ti-button" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><TiIcon name="refresh"/>Actualizar</button>}</div><PageHead title="Nueva cuenta" sub="Registra una cuenta y asigna su rol."/><Feedback api={api}/><AccountForm mode="crear" api={api} onCancel={()=>setCreating(false)} onSaved={async(account,credential)=>{if(credential)setTemporaryCredential({...credential,userId:account.id});setCreating(false);setSelected(account.id);}}/></section>;
   return <section className="commercial-page usuarios-page usuarios-lista">
-    <div className="ti-page-heading"><div><h1>Usuarios y roles</h1><p>Administración de cuentas y accesos</p></div><div className="ti-heading-actions"><button className="btn btn-outline-secondary ti-icon-button" aria-label="Actualizar" title="Actualizar" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><TiIcon name="refresh"/></button><button className="btn btn-fyag-primary ti-button" disabled={disabled} onClick={()=>setCreating(true)}><TiIcon name="plus"/>Nueva cuenta</button></div></div>
+    <div className="ti-page-heading"><div><h1>Usuarios y roles</h1><p>Administración de cuentas y accesos</p></div>{section==='usuarios'&&<div className="ti-heading-actions"><button className="btn btn-outline-secondary ti-icon-button" aria-label="Actualizar" title="Actualizar" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><TiIcon name="refresh"/></button><button className="btn btn-fyag-primary ti-button" disabled={disabled} onClick={()=>setCreating(true)}><TiIcon name="plus"/>Nueva cuenta</button></div>}</div>
+    <div className="ti-tabs ti-module-tabs" role="group" aria-label="Secciones de Usuarios y roles"><button type="button" aria-pressed={section==='usuarios'} disabled={api.busy||api.locked} onClick={()=>setSection('usuarios')}><TiIcon name="people"/>Usuarios</button><button type="button" aria-pressed={section==='permisos'} disabled={api.busy||api.locked} onClick={()=>setSection('permisos')}><TiIcon name="shield"/>Permisos por rol</button></div>
+    {section==='permisos'?<PermissionMatrix/>:<>
     <div className="ti-kpis">{[['total','Total de cuentas','person'],['activas','Cuentas activas','check'],['inactivas','Cuentas inactivas','dash'],['temporales','Cambio de clave pendiente','key']].map(([key,label,icon])=><div key={key} className="card-fyag ti-kpi"><div className="ti-kpi-heading"><span>{label}</span><TiIcon name={icon}/></div><strong>{summary?summary[key].toLocaleString('es-CL'):'—'}</strong>{key==='temporales'&&<small>Incluye credenciales vencidas</small>}</div>)}</div>
     <Feedback api={api}/>
     {api.error?.status===404&&page>1&&<button className="btn btn-outline-secondary" onClick={()=>setPage(1)}>Primera página</button>}
@@ -288,7 +331,8 @@ function UsuariosTI() {
     {(filters.rol||filters.activo||filters.buscar)&&<div className="ti-head"><small>{[filters.buscar,ROLES[filters.rol]?.short,filters.activo==='true'?'Activas':filters.activo==='false'?'Inactivas':''].filter(Boolean).join(' · ')}</small><button className="btn btn-outline-secondary btn-sm" disabled={disabled} onClick={clear}>Limpiar filtros</button></div>}
     {data?.results.length>0?<div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="780px" columns="minmax(0,1.3fr) minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,0.85fr) 64px" head={['Usuario','Correo','Rol','Estado','Detalle']}>{data.results.map(account=><div key={account.id} className="trow" role="row"><div role="cell" className="ti-person"><span className="usuarios-avatar ti-avatar-small" aria-hidden="true">{initials(account)}</span><div><strong>{nameOf(account)}</strong>{nameOf(account)!==account.username&&<small>{account.username}</small>}</div></div><div role="cell">{account.email}</div><div role="cell"><span className="usuarios-pill" data-tone={roleTone[account.rol]}>{ROLES[account.rol].short}</span></div><div role="cell"><span className="usuarios-state" data-active={String(account.is_active)}>{account.is_active?'Activa':'Inactiva'}</span>{account.estado_credencial&&account.estado_credencial!=='PERSONAL'&&<small className="ti-credential">{credentialLabel[account.estado_credencial]}</small>}</div><div role="cell" className="usuarios-detail"><button className="btn btn-link ti-row-open" aria-label={'Ver cuenta #'+account.id} title={'Ver cuenta de '+nameOf(account)} disabled={disabled} onClick={()=>setSelected(account.id)}><TiIcon name="chevron"/></button></div></div>)}</Table></div>:data&&<p className="ti-empty">No hay cuentas para estos filtros.</p>}
     {data&&(data.next||data.previous)&&<Pager {...{data,page,setPage}} disabled={disabled} label="Páginas de usuarios"/>}</section>
-    <section className="card-fyag ti-panel"><div className="ti-head"><h2>Funciones de los roles</h2><button className="btn btn-outline-secondary" aria-expanded={matrixOpen} onClick={()=>setMatrixOpen(x=>!x)}>{matrixOpen?'Ocultar':'Ver roles'}</button></div>{matrixOpen&&<dl className="ti-role-list">{roles.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{ROLE_NOTE[key]}</dd></div>)}</dl>}</section>
+    </>}
+
   </section>;
 }
 

@@ -261,3 +261,25 @@ test('TI búsqueda remota, resumen global y credencial real sin estadísticas de
   assert.equal(renderer.root.findAllByProps({'aria-label':'Páginas del historial'}).length,0);
  }finally{await act(async()=>renderer.unmount());}
 });
+
+test('TI: permisos independientes, seis roles y retorno sin perder búsqueda',async()=>{
+ const api=backend(),{renderer}=await mount(api.request);
+ try{
+  await act(async()=>renderer.root.findByProps({id:'ti-search'}).props.onChange({target:{value:'alias2'}}));
+  await act(async()=>{renderer.root.findByProps({className:'ti-search'}).props.onSubmit({preventDefault(){}});await flush();});
+  const before=api.calls.length;
+  await click(renderer,'Permisos por rol');
+  const matrix=renderer.root.findByProps({className:'ti-permission-table'});
+  assert.equal(matrix.findAllByType('thead')[0].findAllByType('th').length,7);
+  assert.equal(matrix.findAllByType('tbody')[0].findAllByType('tr').length,19);
+  assert.equal(renderer.root.findAllByProps({id:'ti-search'}).length,0);
+  assert.match(text(matrix),/Eventos de usuarios/);
+  assert.match(text(matrix),/Declarar en obra asignada/);
+  assert.match(text(matrix),/Propios: elaborar y enviar a Finanzas/);
+  assert.equal(api.calls.length,before);
+  await click(renderer,'Usuarios');
+  assert.equal(renderer.root.findByProps({id:'ti-search'}).props.value,'alias2');
+  assert.equal(api.calls.length,before);
+  assert.equal(renderer.root.findAllByProps({'aria-label':'Ver cuenta #2'}).length,1);
+ }finally{await act(async()=>renderer.unmount());}
+});

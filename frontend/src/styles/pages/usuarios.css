@@ -189,3 +189,24 @@
 .ti-create-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; }
 @media(max-width:1000px){.ti-create-grid{grid-template-columns:1fr;}}
 @media(max-width:550px){.ti-create-fields{grid-template-columns:1fr;}.ti-search-field{flex-basis:160px;}.ti-kpi-heading{align-items:flex-start;}}
+
+/* Matriz informativa TI: tabla independiente, legible y desplazable en móvil. */
+.ti-module-tabs button{display:inline-flex;align-items:center;gap:7px;}
+.ti-permissions{gap:16px;}
+.ti-permissions-legend{display:flex;flex-wrap:wrap;gap:8px 20px;}
+.ti-permission{display:inline-flex;align-items:center;gap:5px;font-size:.8125rem;font-weight:600;line-height:1.35;}
+.ti-permission .ti-icon{width:16px;height:16px;}
+.ti-permission.manage{color:#198754;}
+.ti-permission.read{color:#3478dc;}
+.ti-permission.limited{color:#a46613;}
+.ti-permission.none{color:var(--fyag-muted);}
+.ti-permissions-scroll{min-width:0;max-width:100%;overflow-x:auto;border:1px solid var(--fyag-line);border-radius:8px;}
+.ti-permission-table{border-collapse:separate;border-spacing:0;width:100%;min-width:930px;table-layout:fixed;font-size:.875rem;}
+.ti-permission-table th,.ti-permission-table td{padding:11px 9px;border-bottom:1px solid var(--fyag-line);text-align:center;vertical-align:middle;overflow-wrap:anywhere;}
+.ti-permission-table thead th{font-weight:700;background:var(--fyag-line);color:var(--fyag-text);}
+.ti-permission-table th:first-child{width:21%;text-align:left;}
+.ti-permission-table tbody th{font-weight:600;}
+.ti-permission-table tr:last-child>*{border-bottom:0;}
+.ti-permission-table td small{display:block;font-size:.75rem;color:var(--fyag-muted);line-height:1.35;margin-top:4px;}
+.ti-permission-note{display:flex;align-items:flex-start;gap:8px;font-size:.8125rem;}
+.ti-permission-note .ti-icon{margin-top:2px;}
