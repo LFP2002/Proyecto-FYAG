@@ -6,7 +6,7 @@ import re
 from django.contrib.auth import get_user_model
 from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
 from django.utils import timezone
-from django.db.models.functions import Lower
+from django.db.models.functions import Concat, Lower
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -214,7 +214,8 @@ class ObraViewSet(
                     raise ValidationError({'buscar': ['Búsqueda no válida.']})
                 criteria = Q(presupuesto__cliente__nombre_legal__icontains=term) | Q(categoria_servicio__nombre__icontains=term)
                 if busqueda_supervisor:
-                    criteria |= Q(tecnico_responsable__username__icontains=term) | Q(tecnico_responsable__first_name__icontains=term) | Q(tecnico_responsable__last_name__icontains=term)
+                    queryset = queryset.alias(responsable_busqueda=Concat('tecnico_responsable__first_name', Value(' '), 'tecnico_responsable__last_name'))
+                    criteria |= Q(tecnico_responsable__username__icontains=term) | Q(responsable_busqueda__icontains=term)
                 match = re.fullmatch(r'OB-([0-9]{1,19})', term.upper())
                 if match and 0 < int(match[1]) <= 9223372036854775807:
                     criteria |= Q(pk=int(match[1]))
