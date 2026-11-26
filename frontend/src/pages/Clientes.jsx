@@ -1,10 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { AF } from '../comercial/domain.js';
+import { useApp } from '../context/AppContext.jsx';
+import { AF, clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Chip, PageHead } from '../components/ui';
 import { clientPath } from '../comercial/api.js';
-import { clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Errors, Fields, useCommercial } from '../comercial/ui.jsx';
+import TecIcon from '../obras/TecIcon.jsx';
+
+const TYPES = [['PERSONA', 'Persona'], ['EMPRESA', 'Empresa']];
+const IDS = [['RUT', 'RUT'], ['DOCUMENTO_EXTRANJERO', 'Documento extranjero'], ['SIN_IDENTIFICACION', 'Sin identificación']];
+const typeLabel = (value) => Object.fromEntries(TYPES)[value] || '—';
+const idLabel = (value) => Object.fromEntries(IDS)[value] || '—';
+const normalize = (value) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const compactId = (value) => normalize(value).replace(/[.\s-]/g, '');
+const initialFilters = { search: '', state: '', type: '' };
+
+function Button({ icon, children, primary, variant, ...props }) {
+  return <button type="button" className={'btn clientes-button ' + (variant || (primary ? 'btn-fyag-primary' : 'btn-outline-secondary'))} {...props}>{icon && <TecIcon name={icon}/>}<span>{children}</span></button>;
+}
+function Heading({ title, sub, children }) {
+  return <header className="clientes-heading"><div><h1>{title}</h1>{sub && <p>{sub}</p>}</div><div className="clientes-actions">{children}</div></header>;
+}
+function Status({ row }) { return <Chip cls={row.activo ? 'green' : 'gray'}>{row.activo ? 'Activo' : 'Inactivo'}</Chip>; }
+function Fact({ label, value }) { return <div><dt>{label}</dt><dd>{value || '—'}</dd></div>; }
 
 export default function Clientes() {
   const { user } = useAuth();
@@ -13,71 +31,127 @@ export default function Clientes() {
 }
 
 function ClientesScreen() {
-  const api = useCommercial();
-  const [clients, setClients] = useState([]);
+  const api = useCommercial(), app = useApp();
+  const [clients, setClients] = useState(null);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(null);
-  const selectedDetailRef = useRef(null);
-  const reload = () => api.load('list', clientPath(), setClients);
+  const [filters, setFilters] = useState(initialFilters);
+  const [message, setMessage] = useState('');
+  const disabled = api.busy || api.locked || api.loading;
+  const locked = api.busy || api.locked;
+  const reload = () => api.load('list', clientPath(), rows => {
+    if (!Array.isArray(rows)) throw new Error('Listado de clientes inesperado.');
+    setClients(rows);
+  });
   useEffect(() => { void reload(); }, []);
-  const detail = (id) => api.load('detail', clientPath(id), (data) => { setSelected(data); setForm(null); });
   useEffect(() => {
-    const detailElement = selectedDetailRef.current;
-    if (selected && typeof detailElement?.scrollIntoView === 'function') {
-      detailElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [selected]);
+    app?.setNavigationBlocked?.(locked);
+    return () => app?.setNavigationBlocked?.(false);
+  }, [locked, app?.setNavigationBlocked]);
+
+  const detail = (id) => {
+    api.setError(null); setMessage('');
+    return api.load('detail', clientPath(id), data => { setSelected(data); setForm(null); });
+  };
   const refresh = async () => {
     const ok = await reload();
-    return selected ? (await api.load('detail', clientPath(selected.id), setSelected)) && ok : ok;
+    if (!ok) return false;
+    return selected ? api.load('detail', clientPath(selected.id), setSelected) : true;
   };
+  function back() {
+    if (locked) return;
+    api.setError(null); setMessage('');
+    if (form) setForm(null);
+    else setSelected(null);
+  }
+  function start() {
+    if (disabled) return;
+    setSelected(null); setForm({ ...emptyClient }); setMessage(''); api.setError(null);
+  }
   async function save(event) {
     event.preventDefault();
+    if (disabled || !form) return;
     const errors = validateClient(form);
     if (Object.keys(errors).length) { api.setError({ message: 'Revisa los datos.', fieldErrors: errors }); return; }
-    await api.write(clientPath(selected?.id), selected ? 'PATCH' : 'POST', clientPayload(form, selected), async (data) => {
-      await api.requiredLoad('list', clientPath(), (rows) => { setClients(rows); setSelected(data); setForm(null); });
+    const editing = !!selected;
+    await api.write(clientPath(selected?.id), editing ? 'PATCH' : 'POST', clientPayload(form, selected), async data => {
+      await api.requiredLoad('list', clientPath(), rows => {
+        if (!Array.isArray(rows)) throw new Error('Listado de clientes inesperado.');
+        setClients(rows); setSelected(data); setForm(null); setMessage(editing ? 'Cliente actualizado.' : 'Cliente registrado.');
+      });
     });
   }
-  const disabled = api.busy || api.locked || api.loading;
-  const fields = [
-    ['tipo_cliente', 'Tipo de cliente', [['PERSONA', 'Persona'], ['EMPRESA', 'Empresa']]],
-    ['tipo_identificacion', 'Identificación', [['RUT', 'RUT'], ['DOCUMENTO_EXTRANJERO', 'Documento extranjero'], ['SIN_IDENTIFICACION', 'Sin identificación']]],
-    ...(form?.tipo_identificacion !== 'SIN_IDENTIFICACION' ? [['numero_identificacion', 'Número de identificación']] : []),
-    ...(form?.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' ? [['pais_identificacion', 'País (ISO, dos letras)'], ['tipo_documento_extranjero', 'Tipo de documento extranjero']] : []),
-    ['nombre_legal', 'Nombre legal'], ['nombre_contacto', 'Contacto'], ['correo', 'Correo'], ['telefono', 'Teléfono'],
-  ];
-  const detailLabels = { tipo_cliente: 'Tipo de cliente', tipo_identificacion: 'Tipo de identificación', numero_identificacion: 'Número de identificación', pais_identificacion: 'País', tipo_documento_extranjero: 'Documento extranjero', nombre_legal: 'Nombre legal', nombre_contacto: 'Contacto', correo: 'Correo', telefono: 'Teléfono' };
+  async function toggle() {
+    if (disabled || !selected) return;
+    const action = selected.activo ? 'desactivar' : 'activar';
+    if (!window.confirm(`¿${action === 'activar' ? 'Activar' : 'Desactivar'} a ${selected.nombre_legal}?`)) return;
+    await api.write(`${clientPath(selected.id)}${action}/`, 'POST', {}, async data => {
+      await api.requiredLoad('list', clientPath(), rows => {
+        if (!Array.isArray(rows)) throw new Error('Listado de clientes inesperado.');
+        setClients(rows); setSelected(data); setMessage(data.activo ? 'Cliente activado.' : 'Cliente desactivado.');
+      });
+    });
+  }
+  const refreshButton = <Button icon="refresh" disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}>Actualizar</Button>;
+  const feedback = <><Errors error={api.error}/>{api.locked && <div className="alert alert-warning" role="status">Resultado incierto o conflicto. Actualiza los datos antes de realizar otra escritura. No se repetirá la operación.</div>}{message && <p className="alert alert-info" role="status">{message}</p>}{api.loading && <p className="commercial-loading" role="status">Cargando clientes…</p>}</>;
+
+  if (form) {
+    const identityFields = [
+      ['tipo_cliente', 'Tipo de cliente', TYPES],
+      ['tipo_identificacion', 'Tipo de identificación', IDS],
+      ...(form.tipo_identificacion !== 'SIN_IDENTIFICACION' ? [['numero_identificacion', form.tipo_identificacion === 'RUT' ? 'RUT' : 'Número de identificación']] : []),
+      ...(form.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' ? [['pais_identificacion', 'País (ISO, dos letras)'], ['tipo_documento_extranjero', 'Tipo de documento extranjero']] : []),
+      ['nombre_legal', 'Nombre legal'],
+    ];
+    return <section className="commercial-page clientes-page">
+      <div className="clientes-back"><Button icon="back" disabled={disabled} onClick={back}>{selected ? 'Volver al detalle' : 'Volver a clientes'}</Button></div>
+      <Heading title={selected ? 'Editar cliente' : 'Nuevo cliente'} sub={selected ? 'Actualiza los datos del cliente.' : 'Completa los datos de identificación y contacto.'}>{api.locked && refreshButton}</Heading>
+      {feedback}
+      <form className="clientes-form" onSubmit={save}>
+        <section className="card-fyag clientes-panel"><h2>Identificación</h2><Fields form={form} setForm={setForm} fields={identityFields} disabled={locked}/></section>
+        <section className="card-fyag clientes-panel"><h2>Información de contacto</h2><p className="commercial-help">Ingresa al menos un correo o teléfono.</p><Fields form={form} setForm={setForm} fields={ [['nombre_contacto', 'Nombre de contacto'], ['correo', 'Correo electrónico'], ['telefono', 'Teléfono']] } disabled={locked}/></section>
+        <div className="clientes-actions clientes-end"><Button disabled={disabled} onClick={back}>Cancelar</Button><button className="btn btn-fyag-primary clientes-button" type="submit" disabled={disabled}><TecIcon name="check"/><span>Guardar cliente</span></button></div>
+      </form>
+    </section>;
+  }
+  if (selected) return <section className="commercial-page clientes-page">
+    <div className="clientes-back"><Button icon="back" disabled={disabled} onClick={back}>Volver a clientes</Button></div>
+    <Heading title={selected.nombre_legal}><Status row={selected}/>{refreshButton}<Button disabled={disabled} onClick={() => { setForm({ ...emptyClient, ...selected }); setMessage(''); api.setError(null); }}>Editar cliente</Button><Button variant={selected.activo ? 'btn-outline-danger' : 'btn-outline-success'} disabled={disabled} onClick={() => void toggle()}>{selected.activo ? 'Desactivar' : 'Activar'}</Button></Heading>
+    {feedback}
+    <div className="clientes-detail-grid">
+      <section className="card-fyag clientes-panel"><h2>Identificación</h2><dl className="commercial-facts">
+        <Fact label="Tipo de cliente" value={typeLabel(selected.tipo_cliente)}/><Fact label="Tipo de identificación" value={idLabel(selected.tipo_identificacion)}/>
+        {selected.tipo_identificacion !== 'SIN_IDENTIFICACION' && <Fact label="Número de identificación" value={selected.numero_identificacion}/>}
+        {selected.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' && <><Fact label="País" value={selected.pais_identificacion}/><Fact label="Documento extranjero" value={selected.tipo_documento_extranjero}/></>}
+        <Fact label="Nombre legal" value={selected.nombre_legal}/>
+      </dl></section>
+      <section className="card-fyag clientes-panel"><h2>Información de contacto</h2><dl className="commercial-facts"><Fact label="Contacto" value={selected.nombre_contacto}/><Fact label="Correo electrónico" value={selected.correo}/><Fact label="Teléfono" value={selected.telefono}/></dl></section>
+    </div>
+  </section>;
+
+  const term = normalize(filters.search.trim()), idTerm = compactId(term);
+  const visible = [...(clients || [])].sort((a, b) => a.id - b.id).filter(c =>
+    (!term || [c.nombre_legal, c.numero_identificacion, c.nombre_contacto, c.correo, c.telefono].some(v => normalize(v).includes(term)) || (idTerm && compactId(c.numero_identificacion).includes(idTerm)))
+    && (!filters.state || String(c.activo) === filters.state)
+    && (!filters.type || c.tipo_cliente === filters.type));
+  const filtered = !!(term || filters.state || filters.type);
+  const filter = (key, value) => setFilters(previous => ({ ...previous, [key]: value }));
   return <section className="commercial-page clientes-page">
-    <PageHead title="Clientes" />
-    <Errors error={api.error} />
-    <div className="commercial-toolbar clientes-acciones">
-      <button className="btn btn-fyag-primary clientes-nuevo" disabled={disabled} onClick={() => { setSelected(null); setForm({ ...emptyClient }); api.setError(null); }}>Nuevo cliente</button>
-      <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={() => void api.reconcile(refresh)}>Reconsultar datos</button>
-    </div>
-    {api.locked && <p className="alert alert-warning" role="status">Resultado incierto o conflicto: reconsulta antes de realizar otra escritura. No se repetirá la operación.</p>}
-    {api.loading && <p className="commercial-loading" role="status">Cargando clientes…</p>}
-    {form && <form className="card-fyag commercial-form" onSubmit={save}><h2>{selected ? 'Editar cliente' : 'Nuevo cliente'}</h2>
-      <Fields form={form} setForm={setForm} fields={fields} disabled={api.busy} />
-      <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}>Guardar cliente</button>
-      <button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div>
-    </form>}
-    <div className="card-fyag commercial-table-card">
-      <div className="table-responsive" role="region" aria-label="Listado de clientes" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">ID</th><th scope="col">Nombre legal</th><th scope="col">Identificación</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead>
-        <tbody>{[...clients].sort((a, b) => a.id - b.id).map((c) => <React.Fragment key={c.id}><tr><td className="commercial-code">#{c.id}</td><td className="commercial-description"><strong>{c.nombre_legal}</strong></td><td className="commercial-description">{c.numero_identificacion || 'Sin identificación'}</td><td><Chip cls={c.activo ? 'green' : 'gray'}>{c.activo ? 'Activo' : 'Inactivo'}</Chip></td><td><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!form} onClick={() => void detail(c.id)}>Ver cliente</button></td></tr>{selected?.id === c.id && <tr className="client-inline-detail"><td colSpan={5}><article ref={selectedDetailRef} className="card-fyag commercial-detail">
-      <div className="commercial-section-head"><div><h2>{selected.nombre_legal} · #{selected.id}</h2><Chip cls={selected.activo ? 'green' : 'gray'}>{selected.activo ? 'Activo' : 'Inactivo'}</Chip></div>
-        <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => { setSelected(null); setForm(null); }}>Volver al listado</button>
+    <Heading title="Clientes" sub="Gestiona la información de tus clientes.">{refreshButton}<Button icon="plus" primary disabled={disabled} onClick={start}>Nuevo cliente</Button></Heading>
+    {feedback}
+    <section className="card-fyag clientes-panel clientes-list">
+      <div className="clientes-filters">
+        <div className="clientes-search"><label className="form-label" htmlFor="clientes-search">Buscar cliente</label><div><TecIcon name="search"/><input id="clientes-search" className="form-control" placeholder="Nombre, RUT o contacto" value={filters.search} onChange={e => filter('search', e.target.value)} /></div></div>
+        <div><label className="form-label" htmlFor="clientes-state">Estado</label><select id="clientes-state" className="form-select" value={filters.state} onChange={e => filter('state', e.target.value)}><option value="">Todos los estados</option><option value="true">Activos</option><option value="false">Inactivos</option></select></div>
+        <div><label className="form-label" htmlFor="clientes-type">Tipo de cliente</label><select id="clientes-type" className="form-select" value={filters.type} onChange={e => filter('type', e.target.value)}><option value="">Todos los tipos</option>{TYPES.map(([k,v]) => <option value={k} key={k}>{v}</option>)}</select></div>
+        {filtered && <Button onClick={() => setFilters(initialFilters)}>Limpiar filtros</Button>}
       </div>
-      <dl className="commercial-facts">{Object.keys(emptyClient).map((key) => <div key={key}><dt>{detailLabels[key]}</dt><dd>{selected[key] || '—'}</dd></div>)}</dl>
-      <div className="commercial-actions">
-      <button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => setForm({ ...emptyClient, ...selected })}>Editar cliente</button>
-      <button className={`btn ${selected.activo ? 'btn-outline-danger' : 'btn-outline-success'}`} disabled={disabled || !!form} onClick={() => {
-        const action = selected.activo ? 'desactivar' : 'activar';
-        if (window.confirm(`¿${action} cliente #${selected.id}?`)) void api.write(`${clientPath(selected.id)}${action}/`, 'POST', {}, async (data) => { await api.requiredLoad('list', clientPath(), (rows) => { setClients(rows); setSelected(data); }); });
-      }}>{selected.activo ? 'Desactivar' : 'Activar'}</button>
-      </div>
-    </article></td></tr>}</React.Fragment>)}</tbody></table></div>
-      {!clients.length && !api.loading && !api.error && <div className="commercial-empty"><h2>No hay clientes.</h2><p>Crea un cliente para comenzar a preparar sus presupuestos.</p></div>}
-    </div>
+      {clients && !api.loading && !api.error && <>
+        <div className="clientes-table-frame"><div className="table-responsive" role="region" aria-label="Listado de clientes" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr><th scope="col">Cliente</th><th scope="col">Identificación</th><th scope="col">Contacto</th><th scope="col">Estado</th><th scope="col">Detalle</th></tr></thead><tbody>
+          {visible.map(c => <tr key={c.id}><td className="commercial-description"><strong>{c.nombre_legal}</strong><small className="clientes-secondary">{typeLabel(c.tipo_cliente)}</small></td><td>{c.numero_identificacion || idLabel(c.tipo_identificacion)}{c.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' && <small className="clientes-secondary">{[c.pais_identificacion, c.tipo_documento_extranjero].filter(Boolean).join(' · ')}</small>}</td><td className="commercial-description">{c.nombre_contacto || '—'}{c.correo && <small className="clientes-secondary">{c.correo}</small>}{!c.correo && c.telefono && <small className="clientes-secondary">{c.telefono}</small>}</td><td><Status row={c}/></td><td><Button icon="chevron" disabled={disabled} onClick={() => void detail(c.id)}>Ver detalle</Button></td></tr>)}
+        </tbody></table></div>{!visible.length && <div className="commercial-empty"><TecIcon name="inbox"/><h2>{filtered ? 'No se encontraron clientes.' : 'No hay clientes.'}</h2><p>{filtered ? 'Prueba otra búsqueda o limpia los filtros.' : 'Crea un cliente para comenzar a preparar sus presupuestos.'}</p></div>}</div>
+        <p className="clientes-count" role="status">{visible.length} de {clients.length} clientes</p>
+      </>}
+    </section>
   </section>;
 }
