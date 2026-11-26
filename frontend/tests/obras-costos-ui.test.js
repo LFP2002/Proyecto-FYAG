@@ -206,3 +206,35 @@ test('Supervisor: declaración idéntica bloqueada, rectificación permitida y s
   window.confirm=()=>true;await submitNamed(renderer,'Registrar servicio sin cobro');assert.equal(backend.courtesy.justificacion,'Garantía');
  }finally{window.confirm=old;await unmount(renderer);}
 });
+
+
+test('Supervisor: importes identificados y actividad económica con comparación comprensible',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ backend.costTotals={materiales_total:'420000.00',otros_total:'0.00',mano_obra_total:'350000.00',costo_total:'770000.00'};
+ backend.costEvents=[
+ {id:1,obra:1,gasto:null,control:1,cortesia:null,tipo:'DECLARACION',registrado_por:2,motivo:'Materiales revisados',datos_anteriores:{materiales_estado:'PENDIENTE',otros_estado:'NO_APLICA',version_actual:1},datos_nuevos:{materiales_estado:'CON_REGISTROS',otros_estado:'NO_APLICA',version_actual:2},creado_en:'2026-11-12T12:00:00Z'},
+ {id:2,obra:1,gasto:4,control:null,cortesia:null,tipo:'CORRECCION',registrado_por:2,motivo:'Corrección de precio',datos_anteriores:{descripcion:'Cable',cantidad:'2.000',costo_unitario_neto:'12.50',subtotal:'25.00'},datos_nuevos:{descripcion:'Cable',cantidad:'2.000',costo_unitario_neto:'15.50',subtotal:'31.00',version_costos:3},creado_en:'2026-11-13T12:00:00Z'}
+ ];
+ const renderer=await mount(backend);
+ try{
+  await openCosts(renderer);
+  const amounts=renderer.root.findAllByProps({className:'so-rubric-value'});
+  assert.equal(amounts.length,3);
+  assert.match(text(amounts[0]),/Costo neto registrado · CLP\$420\.000/);
+  assert.equal(amounts[0].findAllByType('button').length,0);
+  const history=renderer.root.findByProps({'aria-label':'Actividad de costos'});
+  assert.match(text(history),/Declaración de rubros actualizada/);
+  assert.match(text(history),/Gasto corregido/);
+  assert.match(text(history),/Cable/);
+  assert.match(text(history),/Con registros/);
+  assert.match(text(history),/Materiales revisados/);
+  assert.doesNotMatch(text(history),/CON_REGISTROS|costo_unitario_neto|materiales_estado/);
+  const details=history.findAllByType('details');
+  assert.equal(details.length,2);assert.ok(details.every(d=>!d.props.open));
+  assert.match(text(details[0]),/Declaración de materiales/);
+  assert.doesNotMatch(text(details[0]),/Declaración de otros gastos/);
+  assert.match(text(details[1]),/\$12,50 CLP/);
+  assert.match(text(details[1]),/\$15,50 CLP/);
+  assert.ok(backend.calls.every(c=>c.method==='GET'));
+ }finally{await unmount(renderer);}
+});
