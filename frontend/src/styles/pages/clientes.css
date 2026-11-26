@@ -1,5 +1,47 @@
-/* Ajustes visuales exclusivos de Clientes. */
-.clientes-page .page-head { margin-bottom: 14px; }
-.commercial-page.clientes-page .commercial-toolbar.clientes-acciones { justify-content: flex-start; align-items: center; gap: 8px; padding: 0; margin-bottom: 16px; background: transparent; border: 0; border-radius: 0; }
-.commercial-page.clientes-page .clientes-acciones > .btn { width: auto; flex: 0 0 auto; }
-.clientes-page .clientes-nuevo { margin-bottom: 0; }
+/* Clientes de Finanzas: listado, ficha y formularios independientes. */
+.clientes-page { min-width: 0; }
+.clientes-page .clientes-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 20px; }
+.clientes-heading > div:first-child { flex: 1 1 220px; min-width: 0; }
+.clientes-heading h1 { color: var(--fyag-primary); font-size: 1.625rem; font-weight: 700; margin: 0 0 5px; overflow-wrap: anywhere; }
+.clientes-heading p { color: var(--fyag-muted); font-size: .875rem; margin: 0; }
+.clientes-page .clientes-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.clientes-page .clientes-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.clientes-button svg { flex: 0 0 auto; }
+.clientes-page .clientes-back { margin-bottom: 14px; }
+.clientes-page .clientes-back .btn { padding-left: 0; border-color: transparent; background: transparent; color: var(--fyag-primary); }
+.clientes-page .clientes-back .btn:not(:disabled):hover { color: var(--fyag-blue); }
+.clientes-page .clientes-panel { padding: 20px; min-width: 0; }
+.clientes-page .clientes-panel h2 { color: var(--fyag-primary); font-size: 1.0625rem; font-weight: 600; margin: 0 0 16px; }
+.clientes-page .clientes-filters { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) auto; align-items: end; gap: 12px; margin-bottom: 16px; }
+.clientes-filters > div { min-width: 0; }
+.clientes-search > div { position: relative; }
+.clientes-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--fyag-muted); pointer-events: none; }
+.clientes-page .clientes-search .form-control { padding-left: 36px; }
+.clientes-page .clientes-table-frame { border: 1px solid var(--fyag-line); border-radius: 8px; overflow: hidden; }
+.clientes-page .clientes-table-frame .commercial-table td { padding: 12px 14px; vertical-align: middle; overflow-wrap: anywhere; }
+.clientes-page .clientes-table-frame .commercial-table th { padding: 12px 14px; }
+.clientes-page .clientes-table-frame .clientes-button { min-height: 36px; font-size: .8125rem; padding: .375rem .7rem; }
+.clientes-secondary { display: block; color: var(--fyag-muted); font-size: .8125rem; margin-top: 4px; overflow-wrap: anywhere; }
+.clientes-page .clientes-count { margin: 12px 0 0; color: var(--fyag-muted); font-size: .8125rem; }
+.clientes-page .commercial-empty svg { width: 28px; height: 28px; margin-bottom: 10px; }
+.clientes-page .clientes-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.clientes-page .clientes-detail-grid .commercial-facts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); margin: 0; }
+.clientes-page .clientes-form { display: grid; gap: 16px; }
+.clientes-page .clientes-form .commercial-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
+.clientes-page .clientes-end { justify-content: flex-end; }
+@media (max-width: 900px) {
+  .clientes-page .clientes-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clientes-page .clientes-search { grid-column: 1 / -1; }
+  .clientes-page .clientes-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 575.98px) {
+  .clientes-page .clientes-filters, .clientes-page .clientes-form .commercial-fields { grid-template-columns: minmax(0, 1fr); }
+  .clientes-page .clientes-panel { padding: 14px; }
+  .clientes-page .clientes-heading { flex-direction: column; }
+  .clientes-page .clientes-heading > div:first-child { flex: 0 1 auto; }
+  .clientes-page .clientes-heading .clientes-actions { width: 100%; }
+  .clientes-page .clientes-heading .clientes-actions > .btn { flex: 1 1 auto; }
+  .clientes-page .clientes-end > .btn { flex: 1 1 auto; }
+}
+:root[data-fyag-theme='dark'] .clientes-page .clientes-back .btn { color: var(--fyag-primary); }
+:root[data-fyag-theme='dark'] .clientes-page .clientes-back .btn:not(:disabled):hover { color: var(--fyag-blue); }
