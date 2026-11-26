@@ -4,6 +4,7 @@ import { collectionPath, obraPath, readPage } from './api.js';
 import { AF, G, S, T, timestamp, validId } from './domain.js';
 import { Feedback, Field, Pager, useOperational } from './ui.jsx';
 import { civilTime, duration } from './tecnicoDomain.js';
+import {formatCompactCLP} from '../utils/format.js';
 import TecIcon from './TecIcon.jsx';
 import {useApp} from '../context/AppContext.jsx';
 
@@ -111,18 +112,19 @@ export default function Turnos({ obraId, obraState, onOperationalLock }) {
   const canTechnician = user.role === T;
   const canSupervisor = user.role === S;
   const canReview = user.role === S;
-  return <section className={canTechnician?"card-fyag tec-panel tec-turnos":undefined} aria-labelledby="turnos-title">
+  const ordered=canSupervisor?[...(data?.results||[])].sort((a,b)=>['ABIERTO','PENDIENTE_REVISION','OBSERVADO','VALIDADO'].indexOf(a.estado_revision)-['ABIERTO','PENDIENTE_REVISION','OBSERVADO','VALIDADO'].indexOf(b.estado_revision)):data?.results;
+  return <section className={canTechnician?"card-fyag tec-panel tec-turnos":canSupervisor?"card-fyag so-panel so-turns":undefined} aria-labelledby="turnos-title">
     <div className="commercial-section-head"><h3 id="turnos-title">{canTechnician?"Mis turnos de esta obra":"Turnos y evidencia"}</h3><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => void reconcile()}>Actualizar turnos</button></div>
     <Feedback api={api} />
     {downloadError && <p className="alert alert-warning" role="alert">{downloadError}</p>}
-    {!data?.results.length && data && <p className="commercial-empty">No hay turnos registrados.</p>}
-    <ol className={canTechnician?"tec-shifts":"list-group list-group-numbered mb-3"}>{data?.results.map((turno) => <li className={canTechnician?"tec-shift":"list-group-item"} key={turno.turno_id}>
-      <div className="d-flex flex-wrap justify-content-between gap-2"><strong>{canTechnician?estados[turno.estado_revision]:`Turno #${turno.turno_id} · ${estados[turno.estado_revision]||turno.estado_revision}`}</strong><span>{(canTechnician?civilTime:timestamp)(turno.iniciado_en)}{turno.terminado_en ? ` – ${(canTechnician?civilTime:timestamp)(turno.terminado_en)}` : ''}</span></div>
+    {!data?.results.length && data && (canSupervisor?<div className="so-empty" role="status"><TecIcon name="inbox"/><strong>No hay turnos registrados</strong><p>Los turnos iniciados por los técnicos aparecerán aquí para su revisión.</p></div>:<p className="commercial-empty">No hay turnos registrados.</p>)}
+    {canSupervisor&&data?.next&&<p className="commercial-help">Los turnos que requieren atención se destacan dentro de esta página.</p>}<ol className={canTechnician?"tec-shifts":canSupervisor?"list-group mb-3":"list-group list-group-numbered mb-3"}>{ordered?.map((turno) => <li className={canTechnician?"tec-shift":canSupervisor?"list-group-item so-turn":"list-group-item"} key={turno.turno_id}>
+      <div className="d-flex flex-wrap justify-content-between gap-2"><strong className={canSupervisor&&turno.estado_revision!=='VALIDADO'?'so-warning-text':canSupervisor?'so-good':undefined}>{canTechnician?estados[turno.estado_revision]:`Turno #${turno.turno_id} · ${estados[turno.estado_revision]||turno.estado_revision}`}</strong><span>{(canTechnician?civilTime:timestamp)(turno.iniciado_en)}{turno.terminado_en ? ` – ${(canTechnician?civilTime:timestamp)(turno.terminado_en)}` : ''}</span></div>
       <p className="mb-1">{canTechnician?(turno.terminado_en?duration(turno)+" · ":""):`Técnico #${turno.tecnico} · `}{turno.modo_cierre === 'SUPERVISOR' ? 'Cierre administrativo' : turno.modo_cierre === 'TECNICO' ? 'Cierre del técnico' : 'Abierto'}</p>
       {turno.descripcion_trabajo && <p className="commercial-long-text">{turno.descripcion_trabajo}</p>}
       {turno.observacion && <p className="alert alert-warning">Observación: {turno.observacion}</p>}
       {[S, G].includes(user.role) && turno.observacion_revision && <p>Motivo de revisión: {turno.observacion_revision}</p>}
-      {[S, G].includes(user.role) && turno.costo_mano_obra != null && <p>Costo mano de obra neto: {turno.costo_mano_obra}</p>}
+      {[S, G].includes(user.role) && turno.costo_mano_obra != null && <p>Costo mano de obra neto: <strong>{canSupervisor?formatCompactCLP(turno.costo_mano_obra):turno.costo_mano_obra}</strong>{canSupervisor?' CLP':null}</p>}
       {!!turno.fotos?.length && <ul aria-label={`Evidencias del turno ${turno.turno_id}`}>{turno.fotos.map((foto) => <li key={foto.id}>Foto {foto.id} · {foto.tipo_mime} · {Math.ceil(foto.tamano / 1024)} KiB <button type="button" className="btn btn-outline-secondary btn-sm" disabled={downloading === foto.id} onClick={() => void download(turno, foto)}>{downloading === foto.id ? 'Descargando…' : 'Descargar evidencia privada'}</button></li>)}</ul>}
       {editor?.turno_id === turno.turno_id && <TurnoEditor obraId={obraId} item={turno} mode={editor.mode} api={api} onCancel={() => setEditor(null)} onSaved={async () => { await refreshAfterWrite(); }} />}
       {!editor && <div className="commercial-actions">
@@ -133,7 +135,7 @@ export default function Turnos({ obraId, obraState, onOperationalLock }) {
         {canSupervisor && obraState === 'EN_PROCESO' && turno.estado_revision === 'ABIERTO' && <button type="button" className="btn btn-outline-secondary" disabled={blocked} onClick={() => setEditor({ turno_id: turno.turno_id, mode: 'cerrar' })}>Cerrar administrativamente</button>}
       </div>}
     </li>)}</ol>
-    {(!canTechnician||data?.next||data?.previous)&&<Pager label="Paginación de turnos" data={data} page={page} setPage={setPage} disabled={blocked || !!editor} />}
+    {((!canTechnician&&!canSupervisor)||data?.next||data?.previous)&&<Pager label="Paginación de turnos" data={data} page={page} setPage={setPage} disabled={blocked || !!editor} />}
     {canTechnician && obraState === 'EN_PROCESO' && data && !data.results.some(t=>t.estado_revision==='ABIERTO') && <button type="button" className="btn btn-fyag-primary" disabled={blocked || !!editor} onClick={async () => { await api.write(`${base}iniciar/`, 'POST', {}, refreshAfterWrite); }}>Iniciar turno</button>}
     {AF === user.role && <p className="commercial-help">Los turnos no están disponibles para este rol.</p>}
   </section>;
