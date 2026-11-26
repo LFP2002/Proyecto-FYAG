@@ -1,7 +1,7 @@
 """Proyección operativa exclusiva de Finanzas. Los servicios de escritura conservan la autoridad."""
 from decimal import Decimal, localcontext
 
-from django.db.models import Exists, F, OuterRef, Q, Value
+from django.db.models import BigIntegerField, Exists, OuterRef, Q, Value
 from django.db.models.functions import Coalesce
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -56,7 +56,7 @@ def existencias(term, filtro):
 
 def ingresos_elegibles():
     # Se ofrece exclusivamente el primer ingreso aún no valorizado por artículo.
-    historial = Coalesce("articulo__estadovaloracion__ultimo_movimiento_historico", Value(0))
+    historial = Coalesce("articulo__estadovaloracion__ultimo_movimiento_historico", Value(0), output_field=BigIntegerField())
     anteriores = MovimientoInventario.objects.filter(articulo_id=OuterRef("articulo_id"), tipo="INGRESO",
         pk__gt=historial, pk__lt=OuterRef("pk"), valoracion__isnull=True)
     regularizado = OperacionMaterial.objects.filter(articulo_id=OuterRef("articulo_id"), tipo="REGULARIZACION")
