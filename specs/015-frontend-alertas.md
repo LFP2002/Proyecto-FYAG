@@ -56,3 +56,9 @@ Pruebas locales en `frontend/tests/integrations-domain.test.js` y suite de sesi�
 - La vista local continúa leyendo `GET /api/alertas/resumen/`; para GERENCIA muestra el aviso de sincronización únicamente cuando `sincronizacion.desactualizada` viene como `true`. No estima la salud del reconciliador en el navegador ni permite ocultar/editar la condición.
 - En esta sesión, `main-alertas_reconciliador-1` se inició mediante `docker compose up --pull always -d alertas_reconciliador`; sus logs registraron un ciclo correcto (`examinados: 2`, `transiciones: 0`). Esto evidencia el entorno local en ese momento, no el estado continuo ni un despliegue.
 - No se cambiaron rutas, esquema API ni backend. La sincronización se considera fresca solo tras una respuesta actualizada del resumen backend.
+
+## Rediseño operativo Finanzas — 26-11-2026
+
+- Bandeja compartida con Gerencia, adaptada al rol AF: indicadores interactivos, estados y severidad real, filtros plegables por tipo y período, detalle independiente e historial. Se sustituyen los filtros técnicos de recurso e ID por navegación contextual directa a presupuesto o factura autorizados.
+- La atención requiere motivo y permiso ATENDER de la respuesta vigente; se conserva el bloqueo de doble envío, relectura de detalle, historial, bandeja y resumen, y reconciliación ante incertidumbre. Atender no resuelve la causa; el reconciliador backend sigue siendo la autoridad.
+- Sin cambios de API, permisos ni pantallas de Supervisor. Pruebas dirigidas actualizadas; ejecución local y verificación visual pendientes. Sin merge.
