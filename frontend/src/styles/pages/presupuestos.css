@@ -131,3 +131,23 @@
   .budgets-operational .budget-step:not(:last-child)::after { top: 13px; }
   .budgets-operational .budget-item-form { padding: 0; }
 }
+
+/* Editor compacto: elegir material y completar sus datos en el mismo espacio. */
+.budgets-operational .budget-item-form { max-width: 680px; padding: 4px 0; }
+.budgets-operational .budget-item-fields { grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr); align-items: start; gap: 12px; }
+.budgets-operational .budget-item-fields .form-label { display: block; font-size: .8125rem; font-weight: 600; margin-bottom: 6px; }
+.budgets-operational .budget-item-fields .form-control, .budgets-operational .budget-item-fields .form-select { min-width: 0; min-height: 40px; width: 100%; font-size: .875rem; }
+.budgets-operational .budget-item-fields .form-label { min-height: 1.2em; }
+.budgets-operational .budget-material-selected { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--fyag-line); border-radius: 7px; padding: 10px 12px; background: var(--fyag-bg); overflow-wrap: anywhere; }
+.budgets-operational .budget-material-results { max-height: 220px; overflow-y: auto; overscroll-behavior: contain; }
+.budgets-operational .budget-material-results .list-group-item { padding: 8px 10px; }
+.budgets-operational .budget-material-picker .commercial-help { margin-bottom: 8px; }
+.budgets-operational .budget-item-subtotal { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.budgets-operational .budget-item-subtotal > span { margin: 0; }
+.budgets-operational .budget-item-subtotal strong { font-size: 1.0625rem; text-align: right; }
+.budgets-operational .budget-item-footer { padding-top: 10px; margin-top: 12px; }
+@media(max-width:575.98px) {
+  .budgets-operational .budget-item-fields { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .budgets-operational .budget-item-fields > div:last-child { grid-column: 1 / -1; }
+  .budgets-operational .budget-material-results { max-height: 180px; }
+}
