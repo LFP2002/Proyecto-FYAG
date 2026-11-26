@@ -16,7 +16,7 @@ export default function FinanceAdmin(props) {
   if (!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role)) return null;
   return <FinanceAdminScreen key={`${user.id}:${user.role}`} {...props} />;
 }
-function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = () => {}, openRequest, onBlockedChange, initialObra = null }) {
+function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = () => {}, openRequest, onBlockedChange, initialObra = null, initialDocument = null }) {
   const { user } = useAuth(), api = useApi();
   const [page,setPage] = useState(1), [data,setData] = useState(null), [create,setCreate] = useState(false);
   const [form,setForm] = useState(INITIAL), [selected,setSelected] = useState(null), [message,setMessage] = useState('');
@@ -40,6 +40,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
   useEffect(()=>{ void reload(); },[path]);
   useEffect(()=>{ if (canWrite && create) void loadEligible(); },[create,eligiblePage,eligibleSearch]);
   useEffect(()=>{if(initialObra){void loadState(String(initialObra));}},[initialObra]);
+  useEffect(()=>{if(!canWrite||!Number.isSafeInteger(initialDocument)||initialDocument<=0)return;void api.load('alert-document',DOCUMENTS+initialDocument+'/',v=>{const doc=financialDocument(v);if(doc.id!==initialDocument)throw new ApiError(502,'Factura inesperada.');setSelected(doc);setPaymentFirst(false);setCreate(false);});return ()=>api.cancelRead('alert-document');},[initialDocument,canWrite]);
   useEffect(()=>{if(openRequest&&!blocked){setSelected(openRequest.doc);setPaymentFirst(openRequest.payment);setDetailVersion(v=>v+1);setCreate(false);}},[openRequest]);
   useEffect(()=>{onBlockedChange?.(blocked);return ()=>onBlockedChange?.(false);},[blocked,onBlockedChange]);
   function invalidate() {
