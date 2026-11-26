@@ -1,5 +1,5 @@
 from django.db.models import Count, OuterRef, Q, Subquery, Value, IntegerField, F
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Substr
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -45,7 +45,17 @@ def con_contadores(qs, actor, ahora=None):
     # Subquery correlacionada al participante del usuario, sin consultas por mensaje.
     pendientes = MensajeChat.objects.filter(conversacion_id=OuterRef('pk'), vence_en__gt=ahora).exclude(autor_id=actor.pk).annotate(
         _leido=Coalesce(Subquery(cursor), Value(0))).filter(id__gt=F('_leido')).order_by().values('conversacion_id').annotate(n=Count('pk')).values('n')
-    return qs.annotate(no_leidos=Coalesce(Subquery(pendientes, output_field=IntegerField()), Value(0)))
+    # Misma ventana de vigencia que historial y contador. No exponer archivo,
+    # clave de idempotencia ni información de conversaciones de terceros.
+    ultimo = MensajeChat.objects.filter(conversacion_id=OuterRef('pk'), vence_en__gt=ahora).order_by('-id')
+    return qs.annotate(
+        no_leidos=Coalesce(Subquery(pendientes, output_field=IntegerField()), Value(0)),
+        preview_id=Subquery(ultimo.values('pk')[:1]),
+        preview_autor=Subquery(ultimo.values('autor_id')[:1]),
+        preview_texto=Subquery(ultimo.annotate(fragmento=Substr('texto', 1, 120)).values('fragmento')[:1]),
+        preview_creado=Subquery(ultimo.values('creado_en')[:1]),
+        preview_vence=Subquery(ultimo.values('vence_en')[:1]),
+    )
 
 
 def obtener(actor, pk, *, bloquear=False):

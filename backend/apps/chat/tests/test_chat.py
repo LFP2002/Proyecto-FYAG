@@ -200,3 +200,22 @@ class ChatTests(ChatBase, TestCase):
             cursor.execute('UPDATE chat_participantechat SET ultimo_leido_mensaje_id=NULL WHERE id=%s', [p.pk])
         with self.assertRaises(IntegrityError), transaction.atomic():
             Participante.objects.filter(pk=p.pk).delete()
+
+    def test_vista_previa_vigente_acotada_y_privada(self):
+        c = self.directa()
+        self.assertIsNone(self.client.get(URL+'conversaciones/').data['results'][0]['ultimo_mensaje'])
+        m = self.enviar(c, actor=self.otro, texto='á'*150)
+        with patch('apps.chat.services.timezone.now', return_value=timezone.now()-timedelta(days=31)):
+            self.enviar(c, actor=self.otro, texto='Mensaje expirado')
+        with CaptureQueriesContext(connection) as queries:
+            r = self.client.get(URL+'conversaciones/')
+        self.assertEqual(r.status_code, 200, r.data)
+        preview = r.data['results'][0]['ultimo_mensaje']
+        self.assertEqual(set(preview), {'id','autor','texto','creado_en','vence_en'})
+        self.assertEqual((preview['id'], preview['autor'], preview['texto']), (m.pk, self.otro.pk, 'á'*120))
+        self.assertEqual(r.data['results'][0]['no_leidos'], 1)
+        self.assertEqual(self.client.get(f'{URL}conversaciones/{c.pk}/').data['ultimo_mensaje'], preview)
+        self.assertFalse(any(q['sql'].lstrip().upper().startswith(('INSERT','UPDATE','DELETE')) for q in queries))
+        self.autenticar(self.ajeno)
+        self.assertEqual(self.client.get(URL+'conversaciones/').data['results'], [])
+        self.assertEqual(self.client.get(f'{URL}conversaciones/{c.pk}/').status_code, 404)

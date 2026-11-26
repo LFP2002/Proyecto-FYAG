@@ -26,8 +26,12 @@ const convName = (conversation, details, userId) => conversation.tipo === 'GRUPA
   : details?.participantes?.find(person => person.id !== userId)?.nombre || 'Conversación directa';
 const initialsOf = name => name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join('').toUpperCase();
 const roleName = role => ROLES[role]?.short || 'Equipo FYAG';
-const timeOf = date => new Date(date).toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
-const dayOf = date => new Date(date).toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'});
+const timeOf = date => new Date(date).toLocaleTimeString('es-CL',{timeZone:'America/Santiago',hour:'2-digit',minute:'2-digit',hour12:false});
+const dayOf = date => new Date(date).toLocaleDateString('es-CL',{timeZone:'America/Santiago',day:'numeric',month:'long',year:'numeric'});
+const shortDay = date => new Date(date).toLocaleDateString('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric'});
+const previewTime = date => dayOf(date)===dayOf(Date.now())?timeOf(date):shortDay(date);
+const validPreview = p => p&&validId(p.id)&&validId(p.autor)&&typeof p.texto==='string'&&Array.from(p.texto).length<=120&&Number.isFinite(Date.parse(p.creado_en))&&Date.parse(p.vence_en)>Date.now();
+const authorColor = id => 'tone-'+(Number(id)%6);
 const validId = id => Number.isSafeInteger(id) && id > 0;
 const pageData = value => {
   if (!value || !Number.isSafeInteger(value.count) || value.count<0 || !Array.isArray(value.results) || value.results.length>25 || value.results.some(row=>!validId(row.id))) throw Error('Respuesta de chat inesperada.');
@@ -38,15 +42,15 @@ const messagePage = (value, id) => {
   return value;
 };
 const merged = (...lists) => [...new Map(lists.flat().map(row=>[row.id,row])).values()].sort((a,b)=>a.id-b.id);
-const glyphs={plus:'M12 5v14M5 12h14',back:'M15 18l-6-6 6-6',search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM15 15l6 6',paperclip:'M8 13l7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7l9-9',send:'M3 3l18 9-18 9 4-9-4-9zM7 12h14',close:'M6 6l12 12M18 6L6 18',refresh:'M20 11a8 8 0 1 0-2 6M20 4v7h-7',chat:'M3 4h18v13H8l-5 4zM7 9h10M7 13h7',file:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5'};
+const glyphs={plus:'M12 5v14M5 12h14',back:'M15 18l-6-6 6-6',search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM15 15l6 6',paperclip:'M8 13l7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7l9-9',send:'M3 3l18 9-18 9 4-9-4-9zM7 12h14',close:'M6 6l12 12M18 6L6 18',refresh:'M20 11a8 8 0 1 0-2 6M20 4v7h-7',chat:'M3 4h18v13H8l-5 4zM7 9h10M7 13h7',file:'M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5',info:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7h.01',group:'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 20v-2a7 7 0 0 1 14 0v2M16 4a4 4 0 0 1 0 7M18 14a6 6 0 0 1 4 6'};
 function Icon({name}) {return <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={glyphs[name]}/></svg>;}
 function IconButton({icon,label,...props}) {return <button type="button" className="chat-icon-btn" title={label} aria-label={label} {...props}><Icon name={icon}/></button>;}
-function Avatar({name}) {return <span className="chat-avatar" aria-hidden="true">{initialsOf(name)||'?'}</span>;}
+function Avatar({name,group=false,personId,small=false}) {return <span className={'chat-avatar'+(small?' chat-avatar-small':'')+(personId?' '+authorColor(personId):'')} aria-hidden="true">{group?<Icon name="group"/>:initialsOf(name)||'?'}</span>;}
 
 export default function Chat() {
   const { user, request } = useAuth();
   const [convs,setConvs]=useState([]),[convPage,setConvPage]=useState(1),[convInfo,setConvInfo]=useState(null);
-  const [details,setDetails]=useState({}),[listSearch,setListSearch]=useState('');
+  const [details,setDetails]=useState({}),[listSearch,setListSearch]=useState(''),[infoOpen,setInfoOpen]=useState(false),[attachOpen,setAttachOpen]=useState(false);
   const [directory,setDirectory]=useState([]),[directoryInfo,setDirectoryInfo]=useState(null),[directoryPage,setDirectoryPage]=useState(1),[directorySearch,setDirectorySearch]=useState('');
   const [selected,setSelected]=useState(null),[messages,setMessages]=useState([]),[older,setOlder]=useState(null),[loadingMessages,setLoadingMessages]=useState(false);
   const [text,setText]=useState(''),[file,setFile]=useState(null),[create,setCreate]=useState(false),[group,setGroup]=useState(false),[title,setTitle]=useState(''),[members,setMembers]=useState([]);
@@ -55,6 +59,11 @@ export default function Chat() {
   const createKey=useRef(uuid()),messageKey=useRef(uuid()),fileKey=useRef(uuid()),socketRef=useRef(null),generation=useRef(0),retryTimer=useRef(null),retryCount=useRef(0);
   const recoverRef=useRef(async()=>{}),loadConvsRef=useRef(async()=>{}),selectedRef=useRef(null),detailsRef=useRef({}),detailPending=useRef(new Map()),listVersion=useRef(0),dirVersion=useRef(0),messageVersion=useRef(0),alive=useRef(true),writeLock=useRef(false);
   const thread=useRef(null),fileInput=useRef(null),composeInput=useRef(null),dialogSearch=useRef(null),newButton=useRef(null),scrollIntent=useRef(null),messagesRef=useRef([]),olderRef=useRef(null),readCursor=useRef(new Map());
+  const infoButton=useRef(null),infoClose=useRef(null),attachButton=useRef(null),attachChoose=useRef(null);
+  useEffect(()=>{if(infoOpen)infoClose.current?.focus();},[infoOpen]);
+  useEffect(()=>{if(attachOpen)attachChoose.current?.focus();},[attachOpen]);
+  function closeInfo(){setInfoOpen(false);infoButton.current?.focus();}
+  function closeAttach(){setAttachOpen(false);attachButton.current?.focus();}
 
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;listVersion.current++;dirVersion.current++;messageVersion.current++;};},[]);
   const showError = e => {if(alive.current){const fields=e?.fieldErrors||{};const validation=['archivo','texto','body','detail','clave_idempotencia'].flatMap(key=>Array.isArray(fields[key])?fields[key]:[]);setError(validation.join(' ')||(e?.status===413?'El archivo excede el tamaño permitido.':e?.message)||'No fue posible completar la operación.');}};
@@ -217,17 +226,17 @@ export default function Chat() {
   async function open(conversation){
     if(writeLock.current||uncertain)return;
     if(selectedRef.current?.id===conversation.id)return;
-    selectedRef.current=conversation;setSelected(conversation);setError('');clearDraft();applyMessages([],null,null);
+    setInfoOpen(false);setAttachOpen(false);selectedRef.current=conversation;setSelected(conversation);setError('');clearDraft();applyMessages([],null,null);
     void detailFor(conversation.id).catch(e=>{if(selectedRef.current?.id===conversation.id)showError(e);});
     await loadMessages(conversation.id);
   }
   function back(){
     if(writeLock.current||uncertain)return;
-    messageVersion.current++;selectedRef.current=null;setSelected(null);applyMessages([],null,null);setLoadingMessages(false);clearDraft();setError('');
+    setInfoOpen(false);setAttachOpen(false);messageVersion.current++;selectedRef.current=null;setSelected(null);applyMessages([],null,null);setLoadingMessages(false);clearDraft();setError('');
   }
   function startCreate(){
     if(writeLock.current||uncertain)return;
-    setError('');setGroup(false);setTitle('');setMembers([]);setDirectorySearch('');setDirectoryPage(1);createKey.current=uuid();setCreate(true);
+    setInfoOpen(false);setAttachOpen(false);setError('');setGroup(false);setTitle('');setMembers([]);setDirectorySearch('');setDirectoryPage(1);createKey.current=uuid();setCreate(true);
   }
   function closeCreate(){if(writeLock.current||uncertain)return;setCreate(false);newButton.current?.focus();}
   async function createConv(person=null){
@@ -271,6 +280,7 @@ export default function Chat() {
   const selectedDetail=selected?details[selected.id]:null;
   const visibleConvs=convs.filter(c=>!listSearch.trim()||convName(c,details[c.id],user.id).toLowerCase().includes(listSearch.trim().toLowerCase()));
   const authorName=id=>id===user.id?'Tú':nameOf(selectedDetail?.participantes?.find(person=>person.id===id));
+  const previewName=(c,p)=>p.autor===user.id?'Tú':c.tipo==='GRUPAL'?nameOf(details[c.id]?.participantes?.find(person=>person.id===p.autor)):'';
   const blocked=busy||uncertain;
   return <section className="commercial-page chat-page">
     <PageHead title="Chat interno"/>
@@ -280,24 +290,25 @@ export default function Chat() {
       <aside className="chat-sidebar" aria-label="Conversaciones">
         <header className="chat-sidebar-head"><h2>Conversaciones</h2><div className="chat-head-actions"><IconButton icon="refresh" label="Actualizar conversaciones" onClick={()=>void loadConvs()} disabled={listLoading}/><button ref={newButton} type="button" className="chat-new" onClick={startCreate} disabled={blocked}><Icon name="plus"/> Nuevo chat</button></div></header>
         <label className="chat-search"><Icon name="search"/><input aria-label="Buscar conversaciones de esta página" placeholder="Buscar conversación" value={listSearch} onChange={e=>setListSearch(e.target.value)}/></label>
-        <ul className="chat-conv-list">{visibleConvs.map(c=>{const name=convName(c,details[c.id],user.id);return <li key={c.id}><button type="button" className={`chat-conv${selected?.id===c.id?' on':''}`} aria-current={selected?.id===c.id?'true':undefined} disabled={blocked} onClick={()=>void open(c)}><Avatar name={name}/><span className="chat-conv-text"><span className="chat-conv-name">{name}</span><span className="chat-conv-meta">{c.tipo==='GRUPAL'?'Grupo':roleName(details[c.id]?.participantes?.find(p=>p.id!==user.id)?.rol)}</span></span>{c.no_leidos>0&&<span className="chat-unread" aria-label={c.no_leidos+' mensajes sin leer'}>{c.no_leidos}</span>}</button></li>;})}</ul>
+        <ul className="chat-conv-list">{visibleConvs.map(c=>{const name=convName(c,details[c.id],user.id),p=validPreview(c.ultimo_mensaje)?c.ultimo_mensaje:null,author=p?previewName(c,p):'';return <li key={c.id}><button type="button" className={`chat-conv${selected?.id===c.id?' on':''}`} aria-current={selected?.id===c.id?'true':undefined} disabled={blocked} onClick={()=>void open(c)}><Avatar name={name} group={c.tipo==='GRUPAL'}/><span className="chat-conv-text"><span className="chat-conv-name">{name}</span><span className="chat-conv-meta">{p?(author?author+': ':'')+(p.texto||'Archivo adjunto'):(c.tipo==='GRUPAL'?'Grupo':roleName(details[c.id]?.participantes?.find(person=>person.id!==user.id)?.rol))}</span></span><span className="chat-conv-side">{p&&<time dateTime={p.creado_en}>{previewTime(p.creado_en)}</time>}{c.no_leidos>0&&<span className="chat-unread" aria-label={c.no_leidos+' mensajes sin leer'}>{c.no_leidos>99?'99+':c.no_leidos}</span>}</span></button></li>;})}</ul>
         {!visibleConvs.length&&<p className="chat-list-empty">{listLoading?'Cargando conversaciones…':listSearch?'No hay coincidencias en esta página.':'Todavía no tienes conversaciones. Inicia un nuevo chat.'}</p>}
         {convInfo&&(convInfo.next||convInfo.previous)&&<nav className="chat-pagination" aria-label="Páginas de conversaciones"><button type="button" disabled={!convInfo.previous||listLoading} onClick={()=>setConvPage(p=>p-1)}>Anterior</button><span>{convPage}</span><button type="button" disabled={!convInfo.next||listLoading} onClick={()=>setConvPage(p=>p+1)}>Siguiente</button></nav>}
       </aside>
       <section className="chat-main" aria-label="Mensajes de chat">{selected?<>
-        <header className="chat-head"><IconButton icon="back" label="Volver a conversaciones" onClick={back} disabled={blocked}/><Avatar name={convName(selected,selectedDetail,user.id)}/><div className="chat-title"><h2>{convName(selected,selectedDetail,user.id)}</h2><span className="sub">{selected.tipo==='GRUPAL'?(selectedDetail?selectedDetail.participantes.length+' participantes':'Grupo'):roleName(selectedDetail?.participantes?.find(p=>p.id!==user.id)?.rol)}</span></div><IconButton icon="refresh" label="Actualizar mensajes" disabled={loadingMessages} onClick={()=>void loadMessages(selected.id)}/></header>
+        <header className="chat-head"><span className="chat-mobile-back"><IconButton icon="back" label="Volver a conversaciones" onClick={back} disabled={blocked}/></span><button type="button" ref={infoButton} className="chat-head-info" aria-label="Información de la conversación" aria-expanded={infoOpen} aria-controls="chat-info-panel" disabled={!selectedDetail} onClick={()=>infoOpen?closeInfo():setInfoOpen(true)}><Avatar name={convName(selected,selectedDetail,user.id)} group={selected.tipo==='GRUPAL'}/><span className="chat-title"><span className="chat-title-name">{convName(selected,selectedDetail,user.id)}</span><span className="sub">{selected.tipo==='GRUPAL'?(selectedDetail?selectedDetail.participantes.length+' participantes':'Grupo'):roleName(selectedDetail?.participantes?.find(p=>p.id!==user.id)?.rol)}</span></span><Icon name="info"/></button><IconButton icon="refresh" label="Actualizar mensajes" disabled={loadingMessages} onClick={()=>void loadMessages(selected.id)}/></header>
+        <div className="chat-content"><div className="chat-dialogue">
         <div className="chat-thread" ref={thread} role="log" aria-label="Historial de mensajes" aria-live="polite">
           {older&&<button type="button" className="chat-load-older" disabled={loadingMessages} onClick={()=>void loadMessages(selected.id,older)}>Ver mensajes anteriores</button>}
           {loadingMessages&&!messages.length&&<p className="chat-thread-empty">Cargando mensajes…</p>}
           {!loadingMessages&&!messages.length&&<p className="chat-thread-empty">Aún no hay mensajes. ¡Inicia la conversación!</p>}
-          {messages.map((message,index)=>{const mine=message.autor===user.id,day=dayOf(message.creado_en),previous=messages[index-1];return <React.Fragment key={message.id}>{(!previous||dayOf(previous.creado_en)!==day)&&<div className="chat-day">{day}</div>}<article className={`chat-msg${mine?' mine':''}`}>{!mine&&selected.tipo==='GRUPAL'&&<strong className="chat-author">{authorName(message.autor)}</strong>}{message.texto&&<p>{message.texto}</p>}{message.archivo&&<button type="button" className="chat-file" onClick={()=>void download(message)}><Icon name="file"/><span><strong>{message.archivo.nombre}</strong><small>{message.archivo.mime==='application/pdf'?'PDF':'Imagen'} · {Math.ceil(message.archivo.tamano_bytes/1024)} KB · Descargar</small></span></button>}<time dateTime={message.creado_en}>{timeOf(message.creado_en)}</time></article></React.Fragment>;})}
+          {messages.map((message,index)=>{const mine=message.autor===user.id,day=dayOf(message.creado_en),previous=messages[index-1];return <React.Fragment key={message.id}>{(!previous||dayOf(previous.creado_en)!==day)&&<div className="chat-day">{day}</div>}<div className={`chat-message-row${mine?' mine':''}`}>{!mine&&selected.tipo==='GRUPAL'&&<Avatar name={authorName(message.autor)} personId={message.autor} small/>}<article className={`chat-msg${mine?' mine':''}`}>{!mine&&selected.tipo==='GRUPAL'&&<strong className={'chat-author '+authorColor(message.autor)}>{authorName(message.autor)}</strong>}{message.texto&&<p>{message.texto}</p>}{message.archivo&&<button type="button" className="chat-file" onClick={()=>void download(message)}><Icon name="file"/><span><strong>{message.archivo.nombre}</strong><small>{message.archivo.mime==='application/pdf'?'PDF':'Imagen'} · {Math.ceil(message.archivo.tamano_bytes/1024)} KB · Descargar</small></span></button>}<time dateTime={message.creado_en}>{timeOf(message.creado_en)}</time></article></div></React.Fragment>;})}
         </div>
         <form className="chat-composer" onSubmit={send}>
           {file&&<div className="chat-attachment"><Icon name="file"/><span>{file.name}</span><IconButton icon="close" label="Quitar archivo" disabled={blocked} onClick={()=>{setFile(null);if(fileInput.current)fileInput.current.value='';}}/></div>}
           {uncertain&&<p className="chat-uncertain" role="alert">No se confirmó el envío. Puedes reintentar exactamente el mismo mensaje sin duplicarlo.</p>}
-          <div className="chat-composer-row"><input ref={fileInput} type="file" className="visually-hidden" accept="image/jpeg,image/png,application/pdf" aria-label="Archivo adjunto" disabled={blocked} onChange={e=>setFile(e.target.files?.[0]||null)}/><IconButton icon="paperclip" label="Adjuntar archivo" aria-describedby="chat-attachment-limits" disabled={blocked} onClick={()=>fileInput.current?.click()}/><textarea ref={composeInput} aria-label="Mensaje" placeholder="Escribe un mensaje…" rows={1} maxLength={2000} value={text} disabled={blocked} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent?.isComposing){e.preventDefault();void send();}}}/><button type="submit" className="chat-send" aria-label={uncertain?'Reintentar envío':'Enviar mensaje'} title="Enviar" disabled={busy||(!text.trim()&&!file)}><Icon name="send"/></button></div>
-          <p id="chat-attachment-limits" className="chat-attachment-limits">{ATTACHMENT_LIMITS}</p>
-        </form>
+          <div className="chat-composer-row"><input ref={fileInput} type="file" className="visually-hidden" accept="image/jpeg,image/png,application/pdf" aria-label="Archivo adjunto" disabled={blocked} onChange={e=>setFile(e.target.files?.[0]||null)}/><div className="chat-attach-menu" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget))setAttachOpen(false);}} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();closeAttach();}}}><button ref={attachButton} type="button" className="chat-icon-btn" aria-label="Adjuntar archivo" aria-expanded={attachOpen} aria-controls="chat-attachment-options" disabled={blocked} onClick={()=>setAttachOpen(p=>!p)}><Icon name="paperclip"/></button>{attachOpen&&<div id="chat-attachment-options" className="chat-attachment-options"><strong>Adjuntar archivo</strong><p id="chat-attachment-limits">{ATTACHMENT_LIMITS}</p><button ref={attachChoose} type="button" className="btn btn-fyag-primary btn-sm" disabled={blocked} onClick={()=>{closeAttach();fileInput.current?.click();}}>Seleccionar archivo</button></div>}</div><textarea ref={composeInput} aria-label="Mensaje" placeholder="Escribe un mensaje…" rows={1} maxLength={2000} value={text} disabled={blocked} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent?.isComposing){e.preventDefault();void send();}}}/><button type="submit" className="chat-send" aria-label={uncertain?'Reintentar envío':'Enviar mensaje'} title="Enviar" disabled={busy||(!text.trim()&&!file)}><Icon name="send"/></button></div>
+        </form></div>
+        {infoOpen&&selectedDetail&&<aside id="chat-info-panel" className="chat-info-panel" aria-label={selected.tipo==='GRUPAL'?'Información del grupo':'Información de la conversación'} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();closeInfo();}}}><header><h3>{selected.tipo==='GRUPAL'?'Información del grupo':'Información de la conversación'}</h3><button ref={infoClose} type="button" className="chat-icon-btn" aria-label="Cerrar información" onClick={closeInfo}><Icon name="close"/></button></header><div className="chat-info-summary"><Avatar name={convName(selected,selectedDetail,user.id)} group={selected.tipo==='GRUPAL'}/><strong>{convName(selected,selectedDetail,user.id)}</strong><span>{selectedDetail.participantes.length} participantes</span></div><h4>Participantes</h4><ul>{selectedDetail.participantes.map(p=><li key={p.id}><Avatar name={nameOf(p)} personId={p.id}/><span><strong>{nameOf(p)}{p.id===user.id?' (Tú)':''}</strong><small>{roleName(p.rol)}</small></span></li>)}</ul></aside>}</div>
       </>:<div className="chat-welcome"><Icon name="chat"/><h2>Chat interno FYAG</h2><p>Selecciona una conversación o inicia un nuevo chat con tu equipo.</p><button type="button" className="chat-new" onClick={startCreate}><Icon name="plus"/> Nuevo chat</button></div>}</section>
     </div>
     {create&&<div className="chat-modal-backdrop" role="presentation"><section className="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chat-create-title" onKeyDown={e=>{if(e.key==='Escape')closeCreate();if(e.key==='Tab'){const nodes=[...e.currentTarget.querySelectorAll('button:not(:disabled),input:not(:disabled)')];if(nodes.length){const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}}}>

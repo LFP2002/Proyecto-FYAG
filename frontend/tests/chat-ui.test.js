@@ -24,7 +24,7 @@ const now=new Date().toISOString(), expires=new Date(Date.now()+86400000).toISOS
 const self={id:9,nombre:'Finanzas',rol:'ADMINISTRATIVO_FINANZAS'};
 const ana={id:10,nombre:'Ana Pérez',rol:'SUPERVISOR_OBRAS'};
 const jose={id:11,nombre:'José Soto',rol:'BODEGUERO'};
-const conv=id=>({id,tipo:'DIRECTA',titulo:'',creador:9,creado_en:now,no_leidos:1});
+const conv=id=>({id,tipo:'DIRECTA',titulo:'',creador:9,creado_en:now,no_leidos:1,ultimo_mensaje:{id:20+id,autor:id===1?10:11,texto:id===1?'Vista previa Ana':'Vista previa José',creado_en:now,vence_en:expires}});
 const msg=(id,conversation,author,body)=>({id,conversacion:conversation,autor:author,texto:body,creado_en:now,vence_en:expires,archivo:null,clave_idempotencia:'qa'});
 const page=results=>({count:results.length,next:null,previous:null,results});
 async function mount(overrides={}){
@@ -83,4 +83,32 @@ test('Chat anticipa límites de tamaño y dimensiones sin modificar el archivo',
   assert.equal(await validateChatAttachment({name:'qa.png',size:200},async()=>({width:320,height:200,close(){}})),'');
   assert.match(await validateChatAttachment({name:'qa.pdf',size:9*1024*1024}),/8 MB/);
   assert.match(await validateChatAttachment({name:'qa.exe',size:100}),/JPEG, PNG o PDF/);
+});
+
+test('Chat muestra vista previa real y participantes; límites solo al abrir el clip',async()=>{
+  const {renderer,calls}=await mount();
+  try{
+    const root=renderer.root;
+    assert.match(text(renderer.toJSON()),/Vista previa Ana/);
+    assert.equal(root.findAllByProps({'aria-label':'1 mensajes sin leer'}).length,2);
+    await select(renderer,'Ana Pérez');
+    assert.equal(root.findAllByProps({id:'chat-attachment-limits'}).length,0);
+    const click=async(label)=>{await act(async()=>{root.findByProps({'aria-label':label}).props.onClick();await flush();});};
+    await click('Información de la conversación');
+    assert.match(text(root.findByProps({id:'chat-info-panel'})),/Ana Pérez/);
+    assert.match(text(root.findByProps({id:'chat-info-panel'})),/Finanzas \(Tú\)/);
+    await click('Cerrar información');
+    assert.equal(root.findAllByProps({id:'chat-info-panel'}).length,0);
+    await click('Adjuntar archivo');
+    assert.match(text(root.findByProps({id:'chat-attachment-limits'})),/PDF: hasta 8 MB/);
+    await select(renderer,'José Soto');
+    assert.equal(root.findAllByProps({id:'chat-attachment-limits'}).length,0);
+    assert.equal(root.findAllByProps({id:'chat-info-panel'}).length,0);
+    assert.equal(calls.filter(c=>c.path.endsWith('/mensajes/')).length,2);
+  }finally{await act(async()=>renderer.unmount());}
+});
+test('Chat no presenta una vista previa expirada',async()=>{
+  const expired={...conv(1),ultimo_mensaje:{...conv(1).ultimo_mensaje,texto:'Texto vencido',vence_en:'2000-01-01T00:00:00Z'}};
+  const {renderer}=await mount({'/api/chat/conversaciones/?page=1':()=>page([expired])});
+  try{assert.doesNotMatch(text(renderer.toJSON()),/Texto vencido/);}finally{await act(async()=>renderer.unmount());}
 });
