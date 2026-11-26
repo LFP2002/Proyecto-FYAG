@@ -9,7 +9,7 @@ import GerenciaAlertas from '../integrations/GerenciaAlertas.jsx';
 
 export default function Alertas() {
   const {user}=useAuth();
-  return user.role==='GERENCIA'?<GerenciaAlertas key={user.id}/>:<AlertasOperativas key={user.id+':'+user.role}/>;
+  return user.role==='GERENCIA'?<GerenciaAlertas key={user.id}/>:user.role==='ADMINISTRATIVO_FINANZAS'?<GerenciaAlertas role={user.role} key={user.id+':'+user.role}/>:<AlertasOperativas key={user.id+':'+user.role}/>;
 }
 function AlertasOperativas() {
   const { user } = useAuth(); const api = useApi();
