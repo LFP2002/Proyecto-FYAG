@@ -21,7 +21,7 @@ function readLossPage(v){const result=readPage(v);result.results.forEach(r=>vali
 function LossDetail({row,onBack,onRefresh,busy}){
  return <div className="bodega-stack bodega-loss-detail">
   <div className="bodega-actions"><Button icon="back" onClick={onBack}>Volver a mermas</Button></div>
-  <Header title={'Merma #'+row.id} sub={row.nombre+' · '+row.codigo}><span className={'bodega-'+status(row)}>{states[row.estado]}</span><Button icon="refresh" disabled={busy} onClick={onRefresh}>Actualizar</Button></Header>
+  <Header detail title={'Merma #'+row.id} sub={row.nombre+' · '+row.codigo}><span className={'bodega-'+status(row)}>{states[row.estado]}</span><Button icon="refresh" disabled={busy} onClick={onRefresh}>Actualizar</Button></Header>
   <section className="card-fyag bodega-panel"><div className="bodega-facts"><Fact label="Cantidad afectada">{movementAmount(row.cantidad,row.unidad)}</Fact><Fact label="Tipo de merma">{types[row.tipo]}</Fact><Fact label="Fecha de registro">{timestamp(row.creado_en)}</Fact></div></section>
   <div className="bodega-form-grid">
    <section className="card-fyag bodega-panel"><h2>Información de la merma</h2><div><small className="bodega-muted">Motivo informado</small><p className="commercial-long-text">{row.motivo}</p></div><div><small className="bodega-muted">Referencia de respaldo</small><p className="commercial-long-text">{row.referencia||'—'}</p></div><Fact label="Informado por">{row.actor}</Fact></section>
