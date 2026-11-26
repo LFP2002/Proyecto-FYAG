@@ -33,3 +33,7 @@ Implementado el 26-11-2026. Cuatro pestañas: Inventario, Movimientos, Valoraci�
 ## Siguiente módulo AF
 
 Continuar con Mermas cuando el usuario confirme o solicite avanzar. Revisar capturas y contratos, reutilizar patrones de otros roles sin ampliar permisos y presentar propuesta antes de implementar un rediseño significativo.
+
+## Mermas AF — implementado
+
+Vista exclusiva Finanzas para Bodega, cuatro indicadores globales, búsqueda por material, filtros, detalle con jerarquía de cantidad y pérdida confirmada, historial y aprobación/rechazo contextual. GET original con vista=finanzas opcional, POST de decisión intacto, UUID y reconsulta. SPEC-019C-2 y OpenAPI actualizados. Pruebas dirigidas backend apps.inventario.tests.test_mermas_finanzas apps.inventario.tests.test_mermas; frontend tests/mermas-finanzas-ui.test.js. Pendiente ejecución local y visual; sin merge. Siguiente módulo AF: Auditoría cuando el usuario lo solicite.
