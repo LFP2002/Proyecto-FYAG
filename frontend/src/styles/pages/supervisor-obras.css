@@ -148,7 +148,7 @@
 .supervisor-obras .so-suspend-form .so-actions {border-top:1px solid var(--fyag-line);padding-top:14px}
 
 /* Revisión de costos: columnas independientes, sin cambiar su posición al abrir un editor. */
-.supervisor-obras .so-rubric-row {display:grid;grid-template-columns:24px minmax(0,1.5fr) minmax(0,1fr) minmax(160px,auto);align-items:center;gap:16px}
+.supervisor-obras .so-rubric-row {display:grid;grid-template-columns:24px minmax(0,1.5fr) minmax(0,1fr) minmax(0,200px);align-items:center;gap:16px}
 .supervisor-obras .so-rubric-row .so-grow {min-width:0}
 .supervisor-obras .so-rubric-row .so-grow>strong {font-size:1.0625rem}
 .supervisor-obras .so-rubric-value {display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;padding-left:18px;border-left:1px solid var(--fyag-line)}
