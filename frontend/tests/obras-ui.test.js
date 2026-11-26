@@ -268,7 +268,7 @@ test('T pierde acceso al revocarse membresía: 404 no conserva ficha anterior', 
     await click(renderer, 'Ver obra'); assert.match(text(renderer.root), /Descripción operativa privada/);
     b.allowed.clear(); await click(renderer, 'Actualizar datos');
     assert.doesNotMatch(text(renderer.root), /Descripción operativa privada/); assert.match(text(renderer.root), /Recurso no disponible/);
-    await click(renderer, 'Volver al listado'); assert.match(text(renderer.root), /No tienes obras asignadas/);
+    await click(renderer, 'Volver a mis obras'); assert.match(text(renderer.root), /No tienes obras asignadas/);
   } finally { await unmount(renderer); }
 });
 test('historial tardío de otra Obra queda abortado y no se mezcla al navegar', async () => {
@@ -461,4 +461,33 @@ test('Diferencias económicas gerenciales exactas, sin porcentajes ficticios ni 
   assert.equal(economicDifference('0.00','100.00').deviation,null);
   assert.equal(economicDifference(null,'100.00'),null);
   assert.equal(economicDifference('12345678901234567890.01','0.01').value,'$12.345.678.901.234.567.890');
+});
+
+test('T: navegación propia, consulta global y cierre desde turno actual',async()=>{
+ const b=obrasBackend(T);
+ b.obras[0].estado='EN_PROCESO';
+ const session={status:'authenticated',user:{id:8,username:'tecnico',email:'tecnico@example.test',role:T}};
+ const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:b.request};
+ b.turnos=[{turno_id:1,obra:1,tecnico:8,iniciado_en:'2026-11-08T12:00:00Z',terminado_en:null,descripcion_trabajo:'',estado_revision:'ABIERTO',modo_cierre:null,duracion_segundos:null,duracion_ajustada_segundos:null,observacion:'',fotos:[]}];
+ let renderer;
+ try{
+  await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+  assert.deepEqual(renderer.root.findByProps({id:'fyag-modules-nav'}).findAllByType('button').map(text),['Mis obras','Mis turnos','Solicitudes de materiales','Mermas','Chat interno']);
+  assert.equal(renderer.root.findAllByProps({className:'tec-work'}).length,1);
+  assert.equal(renderer.root.findAllByType('table').length,0);
+  await act(async()=>renderer.root.findByProps({'aria-label':'Buscar obra o cliente'}).props.onChange({target:{value:'Cliente operativo'}}));
+  await submit(renderer);
+  assert.equal(new URL(b.calls.at(-1).path,'http://localhost').searchParams.get('buscar'),'Cliente operativo');
+  await click(renderer,'Mis turnos');
+  assert.ok(b.calls.some(c=>c.path==='/api/obras/mis-turnos/?page=1'));
+  assert.match(text(renderer.root),/Turno actual.*OB-000001/);
+  assert.equal(buttons(renderer,'Finalizar turno').length,1);
+  await click(renderer,'Finalizar turno');
+  await input(renderer,'descripcion_trabajo','Reparación terminada');
+  await submit(renderer);
+  assert.equal(b.calls.filter(c=>c.method==='POST'&&c.path==='/api/obras/1/turnos/1/finalizar/').length,1);
+  assert.equal(b.turnos[0].estado_revision,'PENDIENTE_REVISION');
+  assert.match(text(renderer.root),/No tienes un turno en curso/);
+  assert.doesNotMatch(text(renderer.root),/Costo mano de obra/);
+ }finally{if(renderer)await unmount(renderer);}
 });

@@ -3,6 +3,9 @@ import { useAuth } from '../auth/AuthContext';
 import { collectionPath, obraPath, readPage } from './api.js';
 import { AF, G, S, T, timestamp, validId } from './domain.js';
 import { Feedback, Field, Pager, useOperational } from './ui.jsx';
+import { civilTime, duration } from './tecnicoDomain.js';
+import TecIcon from './TecIcon.jsx';
+import {useApp} from '../context/AppContext.jsx';
 
 const estados = { ABIERTO: 'Abierto', PENDIENTE_REVISION: 'Pendiente de revisión', OBSERVADO: 'Observado', VALIDADO: 'Validado' };
 const title = { iniciar: 'Iniciar turno', finalizar: 'Cerrar turno', subsanar: 'Subsanar turno', revisar: 'Revisar turno', corregir: 'Corregir turno', cerrar: 'Cierre administrativo' };
@@ -16,13 +19,14 @@ function validPhotos(files, existing = 0) {
   return '';
 }
 
-function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
+export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
   const [form, setForm] = useState({ descripcion_trabajo: '', decision: 'VALIDAR', motivo: '', costo_hora_neto: item?.costo_hora_neto || '', duracion_ajustada_segundos: item?.duracion_ajustada_segundos ?? '', fotos: [] });
   const [validation, setValidation] = useState('');
   const disabled = api.busy || api.locked;
+  const submitting=useRef(false);
   async function submit(event) {
     event.preventDefault();
-    if (disabled) return;
+    if (disabled||submitting.current) return;
     const errors = {};
     if (['finalizar', 'cerrar'].includes(mode) && !form.descripcion_trabajo.trim()) errors.descripcion_trabajo = 'Campo obligatorio';
     if (['revisar', 'corregir', 'cerrar'].includes(mode) && !form.motivo.trim()) errors.motivo = 'Campo obligatorio';
@@ -50,7 +54,8 @@ function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
       body = { motivo: form.motivo.trim(), descripcion_trabajo: form.descripcion_trabajo.trim(), ...(form.duracion_ajustada_segundos !== '' ? { duracion_ajustada_segundos: Number(form.duracion_ajustada_segundos) } : {}) };
     }
     if (mode === 'iniciar') { action = 'iniciar/'; body = {}; }
-    await api.write(`${obraPath(obraId)}turnos/${action}`, 'POST', body, async () => onSaved());
+    submitting.current=true;
+    try{await api.write(`${obraPath(obraId)}turnos/${action}`, 'POST', body, async () => onSaved());}finally{submitting.current=false;}
   }
   const set = (key, value) => setForm((previous) => ({ ...previous, [key]: value }));
   return <form className="card-fyag commercial-form" noValidate onSubmit={submit}>
@@ -62,12 +67,15 @@ function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
     {['cerrar', 'corregir'].includes(mode) && <Field name="duracion_ajustada_segundos" label="Duración ajustada (segundos, opcional)" value={form.duracion_ajustada_segundos} onChange={(v) => set('duracion_ajustada_segundos', v)} disabled={disabled} />}
     {['revisar', 'corregir', 'cerrar'].includes(mode) && <Field name="motivo" label="Motivo" type="textarea" value={form.motivo} onChange={(v) => set('motivo', v)} disabled={disabled} maxLength={2000} required />}
     {validation && <p className="invalid-feedback d-block" role="alert">{validation}</p>}
-    <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}>{api.busy ? 'Guardando…' : 'Confirmar'}</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={onCancel}>Cancelar</button></div>
+    <div className="commercial-form-actions"><button className="btn btn-fyag-primary" type="submit" disabled={disabled}>{api.busy ? 'Guardando…' : 'Confirmar'}</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy||api.locked} onClick={onCancel}>Cancelar</button></div>
   </form>;
 }
 
-export default function Turnos({ obraId, obraState }) {
+export default function Turnos({ obraId, obraState, onOperationalLock }) {
   const { user, request } = useAuth(), api = useOperational();
+  const app=useApp();
+  useEffect(()=>{onOperationalLock?.(api.busy||api.locked);return()=>onOperationalLock?.(false);},[api.busy,api.locked,onOperationalLock]);
+  useEffect(()=>{if(user.role!==T||!app?.setNavigationBlocked)return;app.setNavigationBlocked(api.busy||api.locked);return()=>app.setNavigationBlocked(false);},[api.busy,api.locked,user.role,app?.setNavigationBlocked]);
   const [page, setPage] = useState(1), [data, setData] = useState(null), [editor, setEditor] = useState(null), [downloadError, setDownloadError] = useState(''), [downloading, setDownloading] = useState(null);
   const blobUrls = useRef(new Set());
   const base = `${obraPath(obraId)}turnos/`;
@@ -103,14 +111,14 @@ export default function Turnos({ obraId, obraState }) {
   const canTechnician = user.role === T;
   const canSupervisor = user.role === S;
   const canReview = user.role === S;
-  return <section aria-labelledby="turnos-title">
-    <div className="commercial-section-head"><h3 id="turnos-title">Turnos y evidencia</h3><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => void reconcile()}>Actualizar turnos</button></div>
+  return <section className={canTechnician?"card-fyag tec-panel tec-turnos":undefined} aria-labelledby="turnos-title">
+    <div className="commercial-section-head"><h3 id="turnos-title">{canTechnician?"Mis turnos de esta obra":"Turnos y evidencia"}</h3><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.loading} onClick={() => void reconcile()}>Actualizar turnos</button></div>
     <Feedback api={api} />
     {downloadError && <p className="alert alert-warning" role="alert">{downloadError}</p>}
     {!data?.results.length && data && <p className="commercial-empty">No hay turnos registrados.</p>}
-    <ol className="list-group list-group-numbered mb-3">{data?.results.map((turno) => <li className="list-group-item" key={turno.turno_id}>
-      <div className="d-flex flex-wrap justify-content-between gap-2"><strong>Turno #{turno.turno_id} · {estados[turno.estado_revision] || turno.estado_revision}</strong><span>{timestamp(turno.iniciado_en)}{turno.terminado_en ? ` – ${timestamp(turno.terminado_en)}` : ''}</span></div>
-      <p className="mb-1">Técnico #{turno.tecnico} · {turno.modo_cierre === 'SUPERVISOR' ? 'Cierre administrativo' : turno.modo_cierre === 'TECNICO' ? 'Cierre del técnico' : 'Abierto'}</p>
+    <ol className={canTechnician?"tec-shifts":"list-group list-group-numbered mb-3"}>{data?.results.map((turno) => <li className={canTechnician?"tec-shift":"list-group-item"} key={turno.turno_id}>
+      <div className="d-flex flex-wrap justify-content-between gap-2"><strong>{canTechnician?estados[turno.estado_revision]:`Turno #${turno.turno_id} · ${estados[turno.estado_revision]||turno.estado_revision}`}</strong><span>{(canTechnician?civilTime:timestamp)(turno.iniciado_en)}{turno.terminado_en ? ` – ${(canTechnician?civilTime:timestamp)(turno.terminado_en)}` : ''}</span></div>
+      <p className="mb-1">{canTechnician?(turno.terminado_en?duration(turno)+" · ":""):`Técnico #${turno.tecnico} · `}{turno.modo_cierre === 'SUPERVISOR' ? 'Cierre administrativo' : turno.modo_cierre === 'TECNICO' ? 'Cierre del técnico' : 'Abierto'}</p>
       {turno.descripcion_trabajo && <p className="commercial-long-text">{turno.descripcion_trabajo}</p>}
       {turno.observacion && <p className="alert alert-warning">Observación: {turno.observacion}</p>}
       {[S, G].includes(user.role) && turno.observacion_revision && <p>Motivo de revisión: {turno.observacion_revision}</p>}
@@ -125,8 +133,8 @@ export default function Turnos({ obraId, obraState }) {
         {canSupervisor && obraState === 'EN_PROCESO' && turno.estado_revision === 'ABIERTO' && <button type="button" className="btn btn-outline-secondary" disabled={blocked} onClick={() => setEditor({ turno_id: turno.turno_id, mode: 'cerrar' })}>Cerrar administrativamente</button>}
       </div>}
     </li>)}</ol>
-    <Pager label="Paginación de turnos" data={data} page={page} setPage={setPage} disabled={blocked || !!editor} />
-    {canTechnician && obraState === 'EN_PROCESO' && <button type="button" className="btn btn-fyag-primary" disabled={blocked || !!editor} onClick={async () => { await api.write(`${base}iniciar/`, 'POST', {}, refreshAfterWrite); }}>Iniciar turno</button>}
+    {(!canTechnician||data?.next||data?.previous)&&<Pager label="Paginación de turnos" data={data} page={page} setPage={setPage} disabled={blocked || !!editor} />}
+    {canTechnician && obraState === 'EN_PROCESO' && data && !data.results.some(t=>t.estado_revision==='ABIERTO') && <button type="button" className="btn btn-fyag-primary" disabled={blocked || !!editor} onClick={async () => { await api.write(`${base}iniciar/`, 'POST', {}, refreshAfterWrite); }}>Iniciar turno</button>}
     {AF === user.role && <p className="commercial-help">Los turnos no están disponibles para este rol.</p>}
   </section>;
 }

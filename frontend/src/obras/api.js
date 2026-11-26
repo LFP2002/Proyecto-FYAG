@@ -15,7 +15,7 @@ export function collectionPath(path, page = 1, filters = {}) {
   if (!validId(page)) throw new ApiError(400, 'Página inválida.');
   const query = new URLSearchParams({ page: String(page) });
   for (const [key, value] of Object.entries(filters)) {
-    if (!allowed.includes(key)) throw new ApiError(400, 'Filtro no permitido.');
+    if (!allowed.includes(key) && !(path === '/api/obras/mis-obras/' && key === 'buscar')) throw new ApiError(400, 'Filtro no permitido.');
     if (value !== '' && value !== null && value !== undefined) query.set(key, String(value));
   }
   if (allowed.includes('estado') && Object.keys(filterErrors(filters)).length) throw new ApiError(400, 'Revisa los filtros.');

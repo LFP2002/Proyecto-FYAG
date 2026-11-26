@@ -9,6 +9,7 @@ import Clientes from './pages/Clientes';
 import Presupuestos from './pages/Presupuestos';
 import { canRead } from './comercial/domain.js';
 import Obras from './pages/Obras';
+import MisTurnos from './pages/MisTurnos.jsx';
 import Usuarios from './pages/Usuarios';
 import { canReadObras } from './obras/domain.js';
 import Alertas from './pages/Alertas.jsx';
@@ -34,7 +35,7 @@ export default function App() {
   if (status !== 'authenticated' || !user) return <Login />;
 
   const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
-  const Page = warehouse ? Bodega : mod === 'inventario' ? Inventario
+  const Page = warehouse ? Bodega : mod==='mis_turnos'&&user.role==='TECNICO'?MisTurnos: mod === 'inventario' ? Inventario
     : mod === 'solicitudes' ? Solicitudes
       : mod === 'mermas' ? (user.role==='BODEGUERO'?BodegaMermas:Mermas)
         : mod === 'egresos' ? Egresos

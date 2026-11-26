@@ -44,6 +44,12 @@ export function obrasBackend(role = S) {
       const filtered=rows.filter(o=>(!url.searchParams.has('estado')||o.estado===url.searchParams.get('estado'))&&(url.searchParams.get('atencion')!=='requiere'||o.alertas.length)&&(url.searchParams.get('atencion')!=='sin_alertas'||!o.alertas.length)&&(!url.searchParams.has('buscar')||o.codigo.includes(url.searchParams.get('buscar')))&&(!url.searchParams.has('prioridad')||o.alertas.includes(({sin_programar:'SIN_PROGRAMAR',presupuesto_superado:'PRESUPUESTO_SUPERADO',suspendidas:'SUSPENDIDA'})[url.searchParams.get('prioridad')])));
       return {...paginate(filtered,url),resumen};
     }
+    if (route === '/api/obras/mis-turnos/') {
+      assertRole([T]);
+      const rows=backend.turnos.filter(t=>t.tecnico===8&&backend.allowed.has(t.obra)).map(t=>({...t,obra_codigo:backend.obras.find(o=>o.id===t.obra).codigo,categoria_nombre:backend.obras.find(o=>o.id===t.obra).categoria_nombre,obra_estado:backend.obras.find(o=>o.id===t.obra).estado}));
+      const history=rows.filter(t=>t.terminado_en&&(!url.searchParams.has('estado')||t.estado_revision===url.searchParams.get('estado')));
+      return {...paginate(history,url),activo:clone(rows.find(t=>t.estado_revision==='ABIERTO')||null),hora_servidor:'2026-11-08T13:00:00Z'};
+    }
     if (route === '/api/obras/presupuestos-disponibles/') { assertRole([S]); return paginate(backend.budgets, url); }
     if (route === '/api/obras/tecnicos-disponibles/') { assertRole([S]); return paginate(backend.technicians, url); }
     if (route === '/api/obras/' || route === '/api/obras/mis-obras/') {
@@ -56,6 +62,7 @@ export function obrasBackend(role = S) {
       }
       if (route.endsWith('/mis-obras/')) assertRole([T]);
       let rows = backend.obras.filter((o) => backend.role !== T || backend.allowed.has(o.id));
+      if(route.endsWith('/mis-obras/')&&url.searchParams.has('buscar')){const term=url.searchParams.get('buscar').toLowerCase();rows=rows.filter(o=>[o.codigo,o.cliente_nombre,o.categoria_nombre].some(v=>v.toLowerCase().includes(term)));}
       for (const key of ['estado', 'cliente', 'tecnico_responsable', 'categoria_servicio']) if (url.searchParams.has(key)) rows = rows.filter((o) => String(o[key]) === url.searchParams.get(key));
       for (const [key, comparison] of [['fecha_programada_desde', (a, b) => a >= b], ['fecha_programada_hasta', (a, b) => a <= b]]) if (url.searchParams.has(key)) rows = rows.filter((o) => o.fecha_programada && comparison(o.fecha_programada, url.searchParams.get(key)));
       return paginate(rows.map(project), url);

@@ -29,7 +29,7 @@ class PuedeOperarObras(BasePermission):
             accion = view.action_map.get("get") or view.action_map.get("post")
         if accion == "supervision_gerencial":
             return usuario.rol == G
-        if accion == "mis_obras":
+        if accion in {"mis_obras", "mis_turnos"}:
             return usuario.rol == T
         if accion in {"iniciar_turno", "finalizar_turno", "subsanar_turno"}:
             return usuario.rol == T

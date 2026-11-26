@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import TecIcon from '../obras/TecIcon.jsx';
+import { civilDate } from '../obras/tecnicoDomain.js';
+import '../styles/pages/tecnico.css';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/ui';
 import { collectionPath, obraPath, readPage } from '../obras/api.js';
@@ -17,6 +20,8 @@ function ObrasOperativas() {
   const { user } = useAuth(), api = useOperational();
   const [query, setQuery] = useState({ filters: { ...emptyFilters }, page: 1 });
   const [draft, setDraft] = useState({ ...emptyFilters }), [errors, setErrors] = useState({});
+  const [search,setSearch]=useState('');
+  const technician=user.role===T;
   const [data, setData] = useState(null), [selected, setSelected] = useState(null), [selectedSection, setSelectedSection] = useState('resumen'), [creating, setCreating] = useState(false), [categories, setCategories] = useState(false), [expanded, setExpanded] = useState(false);
   const refreshFlight = useRef(false);
   function openObra(id){setSelectedSection('resumen');setSelected(id);}
@@ -33,12 +38,24 @@ function ObrasOperativas() {
   function apply(event) {
     event.preventDefault();
     const invalid = filterErrors(draft); setErrors(invalid); focusError(event, invalid);
-    if (!Object.keys(invalid).length) { api.setError(null); setQuery({ filters: { ...draft }, page: 1 }); }
+    if (!Object.keys(invalid).length) { api.setError(null); setQuery({ filters: { ...draft, ...(technician?{buscar:search.trim()}: {}) }, page: 1 }); if(technician)setExpanded(false); }
   }
   const blocked = api.busy || api.loading || api.locked;
   if (!canReadObras(user.role)) return <p role="alert">No tienes acceso a Obras.</p>;
   if (categories && user.role === S) return <section className="commercial-page obras-page"><Categories onBack={() => setCategories(false)} /></section>;
-  if (selected) return <section className="commercial-page obras-page"><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} initialTab={selectedSection} onBack={() => { setSelected(null); setSelectedSection('resumen'); void read(); }} /></section>;
+  if (selected) return <section className={'commercial-page obras-page'+(technician?' tecnico-page':'')}><ObraDetail key={`${user.id}:${user.role}:${selected}`} id={selected} initialTab={selectedSection} onBack={() => { setSelected(null); setSelectedSection('resumen'); void read(); }} /></section>;
+  if(technician) return <section className="commercial-page obras-page tecnico-page">
+    <header className="tec-heading"><div><h1>Mis obras</h1><p>Consulta tus trabajos asignados.</p></div><RefreshButton busy={api.busy||api.loading} onClick={refresh}/></header>
+    <div className="tec-tabs" role="group" aria-label="Estado de mis obras">{[['','Todas'],['EN_PROCESO','En ejecución'],['PLANIFICADA','Programadas'],['SUSPENDIDA','Suspendidas'],['FINALIZADA','Finalizadas'],['CANCELADA','Canceladas']].map(([key,label])=><button key={key} type="button" aria-pressed={query.filters.estado===key} disabled={blocked} onClick={()=>{setDraft(old=>({...old,estado:key}));setQuery({filters:{...query.filters,estado:key},page:1});}}>{label}</button>)}</div>
+    <section className="card-fyag tec-panel"><form className="tec-search" onSubmit={apply}><input className="form-control" aria-label="Buscar obra o cliente" placeholder="Código de obra, cliente o categoría" value={search} maxLength={150} disabled={blocked} onChange={e=>setSearch(e.target.value)}/><button className="btn btn-outline-secondary tec-button" disabled={blocked}><TecIcon name="search"/>Buscar</button><button type="button" className="btn btn-outline-secondary tec-button" aria-expanded={expanded} disabled={blocked} onClick={()=>setExpanded(v=>!v)}><TecIcon name="filter"/>Filtros</button></form>
+    {expanded&&<form className="tec-filters" onSubmit={apply}><Field name="fecha_programada_desde" label="Programada desde" type="date" value={draft.fecha_programada_desde} onChange={value=>setDraft({...draft,fecha_programada_desde:value})} error={errors.fecha_programada_desde}/><Field name="fecha_programada_hasta" label="Programada hasta" type="date" value={draft.fecha_programada_hasta} onChange={value=>setDraft({...draft,fecha_programada_hasta:value})} error={errors.fecha_programada_hasta}/><Field name="ordering" label="Ordenar por" value={draft.ordering} options={orderingOptions.map(([k,v])=>[k,k?v:'Prioridad operativa'])} onChange={ordering=>setDraft({...draft,ordering})}/><button className="btn btn-fyag-primary" disabled={blocked}>Aplicar filtros</button></form>}
+    {Object.values(query.filters).some(Boolean)&&<div className="tec-row"><small>Filtros aplicados</small><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>{setSearch('');setDraft({...emptyFilters});setErrors({});setQuery({filters:{...emptyFilters},page:1});}}>Limpiar filtros</button></div>}
+    <Feedback api={api}/>
+    {data?.results.length>0&&<div className="tec-work-grid">{data.results.map(obra=><article key={obra.id} className="tec-work"><div className="tec-row"><strong className="tec-code">{obra.codigo}</strong><ObraStatus state={obra.estado}/></div><div><h2>{obra.cliente_nombre}</h2><small>{obra.categoria_nombre}</small></div><p className="tec-description">{obra.descripcion}</p><div className="tec-facts"><div><small><TecIcon name="calendar"/> Programación</small><strong>{civilDate(obra.fecha_programada)}</strong></div><div><small><TecIcon name="person"/> Responsable</small><strong>{obra.tecnico_nombre||'Sin asignar'}</strong></div></div><div className="tec-card-actions"><button type="button" className="btn btn-outline-secondary tec-button" disabled={blocked} onClick={()=>{setSelectedSection('turnos');setSelected(obra.id);}}>Ver mis turnos</button><button type="button" className="btn btn-fyag-primary tec-button" disabled={blocked} onClick={()=>openObra(obra.id)}>Ver obra<TecIcon name="chevron"/></button></div></article>)}</div>}
+    {data&&!data.count&&!api.error&&!api.loading&&<div className="tec-empty" role="status"><TecIcon name="inbox"/><strong>{Object.values(query.filters).some(Boolean)?'No hay resultados':'No tienes obras asignadas.'}</strong><p>{Object.values(query.filters).some(Boolean)?'Prueba con otros filtros.':'Las obras asignadas aparecerán aquí.'}</p></div>}
+    {data&&(data.next||data.previous)&&<Pager label="Paginación de obras" data={data} page={query.page} setPage={page=>setQuery({...query,page})} disabled={blocked}/>}
+    {api.error?.status===404&&query.page!==1&&<button className="btn btn-outline-secondary" onClick={()=>setQuery({...query,page:1})}>Volver a la primera página</button>}
+    </section></section>;
   return <section className="commercial-page obras-page">
     <PageHead title={user.role === T ? 'Mis obras' : 'Obras'} sub={user.role === T ? 'Consulta tus obras asignadas.' : undefined} />
     <div className="budget-toolbar">

@@ -25,7 +25,7 @@ export const NAV = {
   GERENCIA: ['dashboard', 'presupuestos', 'obras', 'cobranzas', 'egresos', 'inventario', 'alertas', 'reportes', 'chat', 'auditoria'],
   ADMINISTRATIVO_FINANZAS: ['clientes', 'presupuestos', 'obras', 'cobranzas', 'alertas', 'reportes', 'egresos', 'inventario', 'mermas', 'auditoria', 'chat'],
   SUPERVISOR_OBRAS: ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
-  TECNICO: ['obras', 'solicitudes', 'mermas', 'chat'],
+  TECNICO: ['obras', 'mis_turnos', 'solicitudes', 'mermas', 'chat'],
   ADMINISTRADOR_TI: ['usuarios', 'auditoria', 'chat'],
   BODEGUERO: ['bodega_resumen', 'inventario', 'bodega_movimientos', 'bodega_entregas', 'bodega_devoluciones', 'mermas', 'chat']
 };
@@ -33,6 +33,7 @@ export const NAV = {
 export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras', ADMINISTRADOR_TI: 'usuarios', BODEGUERO: 'bodega_resumen' }
 
 export const MODS = {
+  mis_turnos: {label:'Mis turnos'},
   bodega_resumen: { label: 'Resumen de bodega' },
   bodega_movimientos: { label: 'Movimientos' },
   bodega_entregas: { label: 'Entregas' },

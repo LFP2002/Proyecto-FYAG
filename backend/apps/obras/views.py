@@ -4,7 +4,8 @@ from datetime import date
 import re
 
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, F, OuterRef
+from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, When
+from django.utils import timezone
 from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
@@ -24,7 +25,7 @@ from .exceptions import (
     DatosInvalidos, ErrorObras, EstadoIncompatible, PermisoDenegado,
     PresupuestoUtilizado, RecursoNoEncontrado, SinCambios,
 )
-from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteEvento
+from .models import CategoriaServicio, Obra, ObraParticipante, ObraParticipanteEvento, TurnoObra
 from .permissions import PuedeOperarCategorias, PuedeOperarObras
 from .views_turnos import TurnosMixin
 from .views_gastos import GastosMixin
@@ -34,7 +35,7 @@ from .serializers_costos import (
     ResumenCostosSerializer, ResumenFinanzasSerializer,
 )
 from .serializers_turnos import (
-    InicioTurnoSerializer, EvidenciaEntradaSerializer, SubsanarTurnoSerializer,
+    InicioTurnoSerializer, EvidenciaEntradaSerializer, SubsanarTurnoSerializer, TurnoLecturaSerializer,
     RevisarTurnoSerializer, CorregirTurnoSerializer, CierreAdministrativoSerializer,
 )
 from .serializers_gastos import (
@@ -201,8 +202,21 @@ class ObraViewSet(
     def list(self, request, *args, **kwargs):
         filtros = {"estado", "tecnico_responsable", "cliente", "categoria_servicio",
                    "fecha_programada_desde", "fecha_programada_hasta", "ordering"}
+        if self.action == 'mis_obras':
+            filtros.add('buscar')
         _validar_query_params(request.query_params, filtros)
         queryset = self.get_queryset()
+        if self.action == 'mis_obras':
+            if 'buscar' in request.query_params:
+                term = request.query_params['buscar'].strip()
+                if not term or len(term) > 150 or any(ord(c) < 32 for c in term):
+                    raise ValidationError({'buscar': ['Búsqueda no válida.']})
+                criteria = Q(presupuesto__cliente__nombre_legal__icontains=term) | Q(categoria_servicio__nombre__icontains=term)
+                match = re.fullmatch(r'OB-([0-9]{1,19})', term.upper())
+                if match and 0 < int(match[1]) <= 9223372036854775807:
+                    criteria |= Q(pk=int(match[1]))
+                queryset = queryset.filter(criteria)
+            queryset = queryset.order_by(Case(When(estado='EN_PROCESO', then=Value(0)), When(estado='PLANIFICADA', then=Value(1)), When(estado='SUSPENDIDA', then=Value(2)), default=Value(3), output_field=IntegerField()), '-creado_en', '-id')
         for nombre in ("tecnico_responsable", "cliente", "categoria_servicio"):
             if nombre in request.query_params:
                 filtro = {
@@ -303,6 +317,28 @@ class ObraViewSet(
     @action(detail=False, methods=["get"], url_path="mis-obras")
     def mis_obras(self, request):
         return self.list(request)
+
+    @action(detail=False, methods=['get'], url_path='mis-turnos')
+    def mis_turnos(self, request):
+        _validar_query_params(request.query_params, {'estado'})
+        scoped = TurnoObra.objects.filter(tecnico=request.user, obra_id__in=self.get_queryset().values('pk')).select_related('obra', 'obra__categoria_servicio').prefetch_related('fotos')
+        def project(turno):
+            return {**TurnoLecturaSerializer(turno).data, 'obra_codigo': turno.obra.codigo,
+                    'categoria_nombre': turno.obra.categoria_servicio.nombre, 'obra_estado': turno.obra.estado}
+        active = scoped.filter(terminado_en__isnull=True).first()
+        history = scoped.filter(terminado_en__isnull=False)
+        estado = request.query_params.get('estado')
+        if estado is not None:
+            if estado not in ('PENDIENTE_REVISION', 'OBSERVADO', 'VALIDADO'):
+                raise ValidationError({'estado': ['Estado de revisión no permitido.']})
+            history = history.filter(estado_revision=estado)
+        history = history.order_by(Case(When(estado_revision='OBSERVADO', then=Value(0)), default=Value(1), output_field=IntegerField()), '-iniciado_en', '-id')
+        page = self.paginate_queryset(history)
+        response = self.get_paginated_response([project(t) for t in page])
+        response.data['activo'] = project(active) if active else None
+        response.data['hora_servidor'] = timezone.now().isoformat()
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
     @action(detail=True, methods=["get", "post"])
     def participantes(self, request, pk=None):

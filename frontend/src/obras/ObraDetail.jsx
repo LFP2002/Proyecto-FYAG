@@ -9,10 +9,13 @@ import Turnos from './Turnos.jsx';
 import Costos from './Costos.jsx';
 import EvidenceMetadata from '../integrations/EvidenceMetadata.jsx';
 import Adjuntos from '../integrations/Adjuntos.jsx';
+import TecIcon from './TecIcon.jsx';
+import { civilDate, civilTime } from './tecnicoDomain.js';
 
 export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
   const [obra, setObra] = useState(null), [tab, setTab] = useState(initialTab), [form, setForm] = useState(null), [errors, setErrors] = useState({});
+  const [childLocked,setChildLocked]=useState(false);
   const [members, setMembers] = useState(null), [memberPage, setMemberPage] = useState(1), [active, setActive] = useState('');
   const [history, setHistory] = useState(null), [historyPage, setHistoryPage] = useState(1);
   const [memberHistory, setMemberHistory] = useState(null), [memberHistoryPage, setMemberHistoryPage] = useState(1);
@@ -76,6 +79,17 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     await api.write(path, method, payload, afterWrite);
   }
   const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...([G, S, T].includes(user.role) ? [['documentos', 'Documentos y evidencias']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
+  if(user.role===T)return <article className="tec-detail">
+    <div className="tec-row"><button type="button" className="btn btn-outline-secondary tec-button" disabled={api.busy||childLocked} onClick={onBack}><TecIcon name="back"/>Volver a mis obras</button><RefreshButton busy={api.busy||api.loading||childLocked} onClick={()=>void api.reconcile(reconcile)}/></div>
+    <Feedback api={api}/>
+    {obra&&<><header className="tec-heading"><div><h1>{obra.codigo}</h1><p>{obra.cliente_nombre} · {obra.categoria_nombre}</p></div><ObraStatus state={obra.estado}/></header>
+    <div className="tec-detail-kpis"><div className="card-fyag tec-panel"><small><TecIcon name="calendar"/> Programación</small><strong>{civilDate(obra.fecha_programada)}</strong></div><div className="card-fyag tec-panel"><small><TecIcon name={obra.finalizado_en?'check':'clock'}/> {obra.finalizado_en?'Finalización':'Inicio efectivo'}</small><strong>{civilTime(obra.finalizado_en||obra.iniciado_en)}</strong></div></div>
+    <nav className="tec-tabs" aria-label="Secciones de la obra">{[['resumen','Resumen'],['turnos','Turnos'],['documentos','Documentación']].map(([key,label])=><button key={key} type="button" aria-current={tab===key?'page':undefined} aria-pressed={tab===key} disabled={api.busy||childLocked} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+    {tab==='resumen'&&<section className="card-fyag tec-panel"><h2>Trabajo asignado</h2><p className="commercial-long-text">{obra.descripcion}</p><div className="tec-facts tec-detail-facts"><div><small>Responsable</small><strong>{obra.tecnico_nombre||'Sin asignar'}</strong></div><div><small>Categoría</small><strong>{obra.categoria_nombre}</strong></div><div><small>Inicio efectivo</small><strong>{civilTime(obra.iniciado_en)}</strong></div>{obra.finalizado_en&&<div><small>Finalización</small><strong>{civilTime(obra.finalizado_en)}</strong></div>}{obra.cancelado_en&&<div><small>Cancelación</small><strong>{civilTime(obra.cancelado_en)}</strong></div>}<div><small>Presupuesto de origen</small><strong>{obra.presupuesto_codigo}</strong></div></div></section>}
+    {tab==='turnos'&&<Turnos obraId={id} obraState={obra.estado} onOperationalLock={setChildLocked}/>}
+    {tab==='documentos'&&<Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={obra.estado==='EN_PROCESO'} compactActions obraCode={obra.codigo} onOperationalLock={setChildLocked}/>}
+    </>}
+  </article>;
   return <article className="card-fyag commercial-detail">
     <div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>
     <Feedback api={api} />
