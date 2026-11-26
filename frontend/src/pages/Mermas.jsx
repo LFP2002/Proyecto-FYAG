@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui/index.js';
 import { useCommercial, Pager, Errors } from '../comercial/ui.jsx';
 import { fm } from '../utils/format.js';
+import FinanzasMermas from '../integrations/FinanzasMermas.jsx';
 
 const ROOT = '/api/inventario/';
 const uuid = () => crypto.randomUUID();
@@ -37,6 +38,11 @@ const valid = (value) => {
 };
 
 export default function Mermas() {
+  const { user } = useAuth();
+  return user.role === 'ADMINISTRATIVO_FINANZAS' ? <FinanzasMermas key={user.id}/> : <MermasOperativas key={user.id+':'+user.role}/>;
+}
+
+function MermasOperativas() {
   const { user } = useAuth();
   const api = useCommercial();
   const [scope, setScope] = useState(['TECNICO', 'SUPERVISOR_OBRAS', 'GERENCIA'].includes(user.role) ? 'OBRA' : 'BODEGA');
