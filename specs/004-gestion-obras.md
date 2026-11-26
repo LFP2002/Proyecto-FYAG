@@ -792,3 +792,6 @@ en Pull Requests hacia `main`; concluyó en verde en PR #8 (004A) y PR #9 (004B-
 Esta actualización es **solo documental**: no cambia modelos, migraciones,
 servicios, endpoints ni tests. Los siguientes bloques 004B necesitan su propia
 validación y Pull Requests independientes.
+
+## Vista operativa de Supervisor — 26-11-2026
+GET /api/obras/ admite buscar opcional exclusivamente para SUPERVISOR_OBRAS (1–150 caracteres después de recortar, sin controles, sin duplicados); coincide con código OB-numérico exacto, nombre de cliente, categoría y nombre completo/usuario del responsable, antes de paginar. El orden predeterminado del Supervisor prioriza EN_PROCESO, PLANIFICADA, SUSPENDIDA y estados terminales; dentro de cada grupo, creación e ID descendentes. ordering explícito conserva su semántica. Los filtros por ID existentes y contratos de otros roles se mantienen. Sin ampliación de permisos. Addendum OpenAPI: backend/docs/openapi/SPEC-004-SUPERVISOR-v1.json.
