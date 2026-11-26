@@ -1,0 +1,46 @@
+/* Egresos AF: superficies a ancho completo, sin gráficos ni tarjetas anidadas. */
+.finance-egresos {width:100%;min-width:0;}
+.finance-egresos .eg-panel {padding:20px;width:100%;min-width:0;}
+.finance-egresos .eg-panel h2,.finance-egresos .eg-panel h3 {font-size:1rem;font-weight:700;color:var(--fyag-primary);margin:0 0 12px;}
+.finance-egresos .eg-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}
+.finance-egresos .eg-detail-kpis {grid-template-columns:repeat(4,minmax(0,1fr));}
+.finance-egresos .eg-flow-kpis {grid-template-columns:repeat(3,minmax(0,1fr));margin:12px 0 0;}
+.finance-egresos .eg-toolbar {display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;}
+.finance-egresos .eg-toolbar .form-label {flex:1 1 155px;margin:0;min-width:0;}
+.finance-egresos .eg-toolbar .eg-search {flex:3 1 280px;}
+.finance-egresos .eg-toolbar .btn {display:inline-flex;gap:6px;align-items:center;}
+.finance-egresos .eg-filters {padding:14px 16px;border-top:1px solid var(--fyag-line);}
+.finance-egresos .eg-filters .eg-fields {margin-top:14px;}
+.finance-egresos .eg-fields {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 18px;align-items:start;}
+.finance-egresos .eg-fields > * {min-width:0;}
+.finance-egresos .eg-half {grid-column:span 2;}
+.finance-egresos .eg-full {grid-column:1/-1;}
+.finance-egresos .form-label {font-size:.875rem;font-weight:600;margin:0;}
+.finance-egresos .form-label :is(input,select,textarea) {margin-top:5px;}
+.finance-egresos .eg-section-title {border-top:1px solid var(--fyag-line);padding-top:18px;margin-top:20px!important;}
+.finance-egresos .eg-footer {display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:1px solid var(--fyag-line);padding-top:14px;margin-top:20px;}
+.finance-egresos .eg-footer p {margin:0;flex:1 1 240px;}
+.finance-egresos .eg-table {margin:0;}
+.finance-egresos .eg-table td {padding:12px;vertical-align:middle;}
+.finance-egresos .eg-table td:first-child {min-width:220px;overflow-wrap:anywhere;}
+.finance-egresos .eg-table :is(th,td):nth-child(5) {text-align:right!important;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.finance-egresos .eg-table td:nth-child(5) {font-weight:700;}
+.finance-egresos .eg-table :is(th,td):nth-child(6) {text-align:center!important;}
+.finance-egresos .eg-table :is(th,td):nth-child(7) {text-align:left!important;width:1%;white-space:nowrap;}
+.finance-egresos .eg-client {display:block;color:var(--fyag-muted);margin-top:3px;font-size:.8125rem;}
+.finance-egresos .eg-detail-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.finance-egresos .eg-detail-heading h2 {font-size:1.4rem;font-weight:700;margin:0;overflow-wrap:anywhere;}
+.finance-egresos .eg-detail-heading p {color:var(--fyag-muted);margin:5px 0 0;}
+.finance-egresos .eg-facts {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:0;}
+.finance-egresos .eg-facts dt {font-size:.8125rem;color:var(--fyag-muted);font-weight:600;margin-bottom:5px;}
+.finance-egresos .eg-facts dd {margin:0;overflow-wrap:anywhere;}
+.finance-egresos .eg-annul {border-top:1px solid var(--fyag-line);padding-top:18px;margin-top:18px;}
+.finance-egresos .eg-work > .eg-toolbar {align-items:center;margin-top:5px;gap:8px;}
+.finance-egresos .eg-work > .eg-toolbar > span {flex:1;min-width:0;overflow-wrap:anywhere;}
+.finance-egresos .eg-work-picker {margin-top:10px;border:1px solid var(--fyag-line);padding:12px;border-radius:7px;}
+.finance-egresos .eg-work-picker input {flex:1;min-width:0;}
+.finance-egresos .eg-work-results {max-height:220px;overflow:auto;}
+.finance-egresos .eg-work-results > div {display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--fyag-line);}
+.finance-egresos .eg-work-results > div:last-child {border-bottom:0;}
+@media(max-width:900px){.finance-egresos .eg-fields,.finance-egresos .eg-detail-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}.finance-egresos .eg-half {grid-column:span 1;}.finance-egresos .eg-facts {grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:540px){.finance-egresos .eg-fields,.finance-egresos .eg-facts,.finance-egresos .eg-kpis,.finance-egresos .eg-detail-kpis,.finance-egresos .eg-flow-kpis {grid-template-columns:minmax(0,1fr);}.finance-egresos .eg-panel {padding:12px;}.finance-egresos .eg-toolbar .form-label {flex-basis:100%;}.finance-egresos .eg-footer .btn {flex:1;}}
