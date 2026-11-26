@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { useApp } from '../context/AppContext.jsx';
 import { PageHead } from '../components/ui';
 import { Pager } from '../comercial/ui.jsx';
 import { decimalString, positiveInteger, readPage, safePage, strictObject, useApi } from '../integrations/useApi.js';
@@ -53,8 +54,10 @@ export default function Cobranzas() {
 function CobranzasOperativas() {
   const { user } = useAuth(); const api = useApi();
   const canRead = ['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role);
-  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState(EMPTY_FILTERS), [page,setPage]=useState(1), [selectedDocument,setSelectedDocument]=useState(null);
-  const [activeView,setActiveView]=useState('cartera'), [filtersOpen,setFiltersOpen]=useState(false), [draft,setDraft]=useState(EMPTY_FILTERS);
+  const target=useApp()?.navigationTarget;
+  const initialFilters=target?.module==='cobranzas'&&positiveInteger(target.obra)?{...EMPTY_FILTERS,obra:String(target.obra)}:EMPTY_FILTERS;
+  const [data, setData] = useState(null), [summary, setSummary] = useState(null), [snapshotKey,setSnapshotKey]=useState(null), [filters, setFilters] = useState(initialFilters), [page,setPage]=useState(1), [selectedDocument,setSelectedDocument]=useState(null);
+  const [activeView,setActiveView]=useState(target?.documentos?'documentos':'cartera'), [filtersOpen,setFiltersOpen]=useState(false), [draft,setDraft]=useState(initialFilters);
   const generation=React.useRef(0);
   const url=useMemo(()=>COLLECTION_URL+queryString(filters,page,true),[filters,page]);
   const summaryUrl=useMemo(()=>SUMMARY+queryString(filters,1,false),[filters]);
