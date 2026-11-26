@@ -202,20 +202,24 @@ class ObraViewSet(
     def list(self, request, *args, **kwargs):
         filtros = {"estado", "tecnico_responsable", "cliente", "categoria_servicio",
                    "fecha_programada_desde", "fecha_programada_hasta", "ordering"}
-        if self.action == 'mis_obras':
+        busqueda_supervisor = self.action == 'list' and request.user.rol == Usuario.Rol.SUPERVISOR_OBRAS
+        if self.action == 'mis_obras' or busqueda_supervisor:
             filtros.add('buscar')
         _validar_query_params(request.query_params, filtros)
         queryset = self.get_queryset()
-        if self.action == 'mis_obras':
+        if self.action == 'mis_obras' or busqueda_supervisor:
             if 'buscar' in request.query_params:
                 term = request.query_params['buscar'].strip()
                 if not term or len(term) > 150 or any(ord(c) < 32 for c in term):
                     raise ValidationError({'buscar': ['Búsqueda no válida.']})
                 criteria = Q(presupuesto__cliente__nombre_legal__icontains=term) | Q(categoria_servicio__nombre__icontains=term)
+                if busqueda_supervisor:
+                    criteria |= Q(tecnico_responsable__username__icontains=term) | Q(tecnico_responsable__first_name__icontains=term) | Q(tecnico_responsable__last_name__icontains=term)
                 match = re.fullmatch(r'OB-([0-9]{1,19})', term.upper())
                 if match and 0 < int(match[1]) <= 9223372036854775807:
                     criteria |= Q(pk=int(match[1]))
                 queryset = queryset.filter(criteria)
+        if self.action == 'mis_obras' or busqueda_supervisor:
             queryset = queryset.order_by(Case(When(estado='EN_PROCESO', then=Value(0)), When(estado='PLANIFICADA', then=Value(1)), When(estado='SUSPENDIDA', then=Value(2)), default=Value(3), output_field=IntegerField()), '-creado_en', '-id')
         for nombre in ("tecnico_responsable", "cliente", "categoria_servicio"):
             if nombre in request.query_params:
