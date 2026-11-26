@@ -1,0 +1,908 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — SPEC-019E Materiales del Técnico",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/inventario/tecnico-materiales/": {
+      "get": {
+        "description": "Consulta exclusiva del técnico. Parámetros y formas de respuesta según sección, definidos en SPEC-019E.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seccion",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "obras",
+                "catalogo",
+                "entregas",
+                "mermas",
+                "solicitudes",
+                "merma_detalle",
+                "solicitud_detalle",
+                "confirmacion"
+              ]
+            },
+            "description": "Obligatoria."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Solo paginadas."
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "description": "Solo paginadas."
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Requerido en entregas."
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDIENTE",
+                "APROBADA",
+                "RECHAZADA"
+              ]
+            },
+            "description": "Solo solicitudes y mermas."
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CORTE_NO_REUTILIZABLE",
+                "DANO_EN_OBRA",
+                "EXTRAVIO_EN_OBRA",
+                "OTRA",
+                "SOLICITUD",
+                "MERMA"
+              ]
+            },
+            "description": "Tipo de merma o confirmación."
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Requerido en detalles."
+          },
+          {
+            "name": "clave",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Requerido en confirmación."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyección de la sección consultada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PaginaObra"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PaginaMaterial"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PaginaEntrega"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PaginaMerma"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PaginaSolicitud"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MermaDetalle"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SolicitudDetalle"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Confirmacion"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "Sesión no operativa"
+          },
+          "403": {
+            "description": "Rol no permitido"
+          },
+          "404": {
+            "description": "Recurso o página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Obra": {
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "cliente",
+          "categoria",
+          "estado"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "cliente": {
+            "type": "string"
+          },
+          "categoria": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PLANIFICADA",
+              "EN_PROCESO",
+              "SUSPENDIDA",
+              "FINALIZADA",
+              "CANCELADA"
+            ]
+          }
+        }
+      },
+      "Material": {
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "nombre",
+          "unidad"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          }
+        }
+      },
+      "Entrega": {
+        "type": "object",
+        "required": [
+          "id",
+          "obra",
+          "material",
+          "unidad",
+          "cantidad",
+          "devuelta",
+          "mermas_aprobadas",
+          "remanente",
+          "creado_en"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "$ref": "#/components/schemas/Obra"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "devuelta": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "mermas_aprobadas": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "remanente": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Merma": {
+        "type": "object",
+        "required": [
+          "id",
+          "obra",
+          "material",
+          "unidad",
+          "estado",
+          "creado_en",
+          "motivo_decision",
+          "decidido_por",
+          "decidido_en",
+          "cantidad",
+          "tipo",
+          "entrega",
+          "motivo",
+          "actividad",
+          "referencia"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "$ref": "#/components/schemas/Obra"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "CORTE_NO_REUTILIZABLE",
+              "DANO_EN_OBRA",
+              "EXTRAVIO_EN_OBRA",
+              "OTRA"
+            ]
+          },
+          "entrega": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "actividad": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          }
+        }
+      },
+      "Solicitud": {
+        "type": "object",
+        "required": [
+          "id",
+          "obra",
+          "material",
+          "unidad",
+          "estado",
+          "creado_en",
+          "motivo_decision",
+          "decidido_por",
+          "decidido_en",
+          "cantidad",
+          "cantidad_aprobada",
+          "justificacion",
+          "autorizacion"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "$ref": "#/components/schemas/Obra"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "cantidad_aprobada": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "justificacion": {
+            "type": "string"
+          },
+          "autorizacion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      },
+      "MermaDetalle": {
+        "type": "object",
+        "required": [
+          "id",
+          "obra",
+          "material",
+          "unidad",
+          "estado",
+          "creado_en",
+          "motivo_decision",
+          "decidido_por",
+          "decidido_en",
+          "cantidad",
+          "tipo",
+          "entrega",
+          "motivo",
+          "actividad",
+          "referencia",
+          "historial"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "$ref": "#/components/schemas/Obra"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "CORTE_NO_REUTILIZABLE",
+              "DANO_EN_OBRA",
+              "EXTRAVIO_EN_OBRA",
+              "OTRA"
+            ]
+          },
+          "entrega": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "actividad": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "historial": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tipo",
+                "actor",
+                "motivo",
+                "creado_en"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tipo": {
+                  "type": "string",
+                  "enum": [
+                    "CREACION",
+                    "APROBACION",
+                    "RECHAZO"
+                  ]
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "motivo": {
+                  "type": "string"
+                },
+                "creado_en": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "SolicitudDetalle": {
+        "type": "object",
+        "required": [
+          "id",
+          "obra",
+          "material",
+          "unidad",
+          "estado",
+          "creado_en",
+          "motivo_decision",
+          "decidido_por",
+          "decidido_en",
+          "cantidad",
+          "cantidad_aprobada",
+          "justificacion",
+          "autorizacion",
+          "historial"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "$ref": "#/components/schemas/Obra"
+          },
+          "material": {
+            "$ref": "#/components/schemas/Material"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "cantidad_aprobada": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "justificacion": {
+            "type": "string"
+          },
+          "autorizacion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "historial": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tipo",
+                "actor",
+                "motivo",
+                "creado_en"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tipo": {
+                  "type": "string",
+                  "enum": [
+                    "CREACION",
+                    "APROBACION",
+                    "RECHAZO"
+                  ]
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "motivo": {
+                  "type": "string"
+                },
+                "creado_en": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Confirmacion": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      },
+      "PaginaObra": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Obra"
+            }
+          }
+        }
+      },
+      "PaginaMaterial": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Material"
+            }
+          }
+        }
+      },
+      "PaginaEntrega": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Entrega"
+            }
+          }
+        }
+      },
+      "PaginaMerma": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Merma"
+            }
+          }
+        }
+      },
+      "PaginaSolicitud": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Solicitud"
+            }
+          }
+        }
+      }
+    }
+  }
+}

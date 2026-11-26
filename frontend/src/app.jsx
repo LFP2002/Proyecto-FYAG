@@ -21,10 +21,13 @@ import Inventario from './pages/Inventario.jsx';
 import Solicitudes from './pages/Solicitudes.jsx';
 import Mermas from './pages/Mermas.jsx';
 import BodegaMermas from './pages/BodegaMermas.jsx';
+import TecnicoMateriales from './pages/TecnicoMateriales.jsx';
 import Egresos from './pages/Egresos.jsx';
 import Chat from './pages/Chat.jsx';
 import Bodega from './pages/Bodega.jsx';
 import { modules as warehouseModules } from './bodega/domain.js';
+
+const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 
 export default function App() {
   const { status, user } = useAuth();
@@ -36,8 +39,8 @@ export default function App() {
 
   const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
   const Page = warehouse ? Bodega : mod==='mis_turnos'&&user.role==='TECNICO'?MisTurnos: mod === 'inventario' ? Inventario
-    : mod === 'solicitudes' ? Solicitudes
-      : mod === 'mermas' ? (user.role==='BODEGUERO'?BodegaMermas:Mermas)
+    : mod === 'solicitudes' ? (user.role==='TECNICO'?TecnicoMateriales:Solicitudes)
+      : mod === 'mermas' ? (user.role==='BODEGUERO'?BodegaMermas:user.role==='TECNICO'?TecnicoMermas:Mermas)
         : mod === 'egresos' ? Egresos
           : mod === 'chat' ? Chat
             : mod === 'auditoria' ? Auditoria

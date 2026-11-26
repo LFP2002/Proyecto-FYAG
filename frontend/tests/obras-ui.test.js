@@ -472,7 +472,7 @@ test('T: navegación propia, consulta global y cierre desde turno actual',async(
  let renderer;
  try{
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
-  assert.deepEqual(renderer.root.findByProps({id:'fyag-modules-nav'}).findAllByType('button').map(text),['Mis obras','Mis turnos','Solicitudes de materiales','Mermas','Chat interno']);
+  assert.deepEqual(renderer.root.findByProps({id:'fyag-modules-nav'}).findAllByType('button').map(text),['Mis obras','Mis turnos','Solicitudes','Mermas','Chat interno']);
   assert.equal(renderer.root.findAllByProps({className:'tec-work'}).length,1);
   assert.equal(renderer.root.findAllByType('table').length,0);
   await act(async()=>renderer.root.findByProps({'aria-label':'Buscar obra o cliente'}).props.onChange({target:{value:'Cliente operativo'}}));

@@ -5,4 +5,4 @@ export function civilTime(v){
  return p.day+'/'+p.month+'/'+p.year+' · '+p.hour+':'+p.minute;
 }
 export function elapsed(seconds){const n=Math.max(0,Math.floor(seconds));if(!Number.isFinite(n))return '—';return [Math.floor(n/3600),Math.floor(n%3600/60),n%60].map(v=>String(v).padStart(2,'0')).join(':');}
-export function duration(row){const raw=row.duracion_ajustada_segundos??row.duracion_segundos;if(raw==null||raw==='')return '—';const n=Number(raw);if(!Number.isFinite(n)||n<0)return '—';const m=Math.floor(n/60);return Math.floor(m/60)+' h '+m%60+' min';}
+export function duration(row){const raw=row.duracion_ajustada_segundos??row.duracion_segundos;if(raw==null||raw==='')return '—';const n=Number(raw);if(!Number.isFinite(n)||n<0)return '—';const m=Math.floor(n/60);return m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+m%60+' min':'');}
