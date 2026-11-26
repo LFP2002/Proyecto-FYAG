@@ -87,9 +87,10 @@ test('Cobranzas, Reportes y 012A navegan URL absoluta autorizada reconstruyendo 
     try {
       const root = renderer.root;
       if (module !== 'metadata') {
-        const label = module === 'cobranzas' ? 'Cliente ID' : 'ID de cliente';
+        const label = module === 'cobranzas' ? 'Buscar factura' : 'ID de cliente';
         const field = root.findAllByType('label').find((node) => node.children[0] === label).findByType('input');
-        await act(async () => { field.props.onChange({ target: { value: module === 'cobranzas' ? '3' : '15' } }); await flush(); });
+        await act(async () => { field.props.onChange({ target: { value: module === 'cobranzas' ? 'Cliente sintético' : '15' } }); await flush(); });
+        if(module==='cobranzas')await act(async()=>{root.findByProps({'aria-label':'Filtros de cobranzas'}).props.onSubmit({preventDefault(){}});await flush();});
       }
       const label = module === 'cobranzas' ? 'Paginación de cobranzas' : module === 'reportes' ? 'Paginación del reporte cobranzas' : 'Paginación de metadatos';
       const next = root.findByProps({ 'aria-label': label }).findAllByType('button').find((button) => text(button) === 'Siguiente');
@@ -98,14 +99,14 @@ test('Cobranzas, Reportes y 012A navegan URL absoluta autorizada reconstruyendo 
       const route = module === 'cobranzas' ? '/api/finanzas/cobranzas/' : module === 'reportes' ? '/api/reportes/cobranzas/' : '/api/documentos-metadata/';
       const last = calls.filter((path) => new URL(path, API).pathname === route).at(-1), query = new URL(last, API).searchParams;
       assert.ok(last.startsWith('/api/')); assert.equal(query.get('page'), '2');
-      assert.equal(query.get(module === 'metadata' ? 'obra' : 'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? '3' : '7');
+      assert.equal(query.get(module === 'metadata' ? 'obra' : module==='cobranzas'?'buscar':'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? 'Cliente sintético' : '7');
       assert.ok(calls.every((path) => path.startsWith('/api/')), 'No se sigue ninguna URL absoluta del servidor');
       const previous = root.findByProps({ 'aria-label': label }).findAllByType('button').find((button) => text(button) === 'Anterior');
       assert.equal(previous.props.disabled, false);
       await act(async () => { previous.props.onClick(); await flush(); });
       const back = new URL(calls.filter((path) => new URL(path, API).pathname === route).at(-1), API).searchParams;
       assert.equal(back.get('page') || '1', '1');
-      assert.equal(back.get(module === 'metadata' ? 'obra' : 'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? '3' : '7');
+      assert.equal(back.get(module === 'metadata' ? 'obra' : module==='cobranzas'?'buscar':'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? 'Cliente sintético' : '7');
     } finally { await act(async () => renderer.unmount()); }
   }
 });
