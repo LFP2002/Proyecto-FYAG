@@ -34,3 +34,6 @@ button.inventory-tile:focus-visible { outline:3px solid #fff; outline-offset:-5p
 .inventory-manager-table .chip { width:max-content; max-width:100%; margin-top:4px; white-space:normal; }
 .inventory-manager-table td { overflow-wrap:anywhere; }
 @media(max-width:600px) { .inventory-treemap-legend > div { grid-template-columns:10px minmax(0,1fr) minmax(0,auto); } .inventory-treemap-legend small { grid-column:3; } .inventory-losses { grid-template-columns:1fr; } }
+
+.inventory-manager-table .inventory-merma-date,.inventory-manager-table .inventory-merma-state { white-space:nowrap; vertical-align:middle; }
+.inventory-manager-table .inventory-merma-state .chip { display:inline-flex; margin:0; white-space:nowrap; }

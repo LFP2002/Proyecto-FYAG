@@ -40,6 +40,9 @@ test('Inventario gerencial: indicadores globales, filtros y mermas sin duplicar 
   await click('Materiales sin stock');assert.match(calls.at(-1).path,/filtro=sin_stock/);
   await click('Mermas de bodega del mes');assert.match(calls.at(-1).path,/seccion=mermas&filtro=bodega/);
   assert.ok(root.findByProps({'aria-label':'Mermas aprobadas'}));
+  assert.deepEqual(root.findAllByType('th').map(text),['Material','Ámbito','Cantidad','Motivo','Fecha','Estado','Importe CLP']);
+  assert.equal(text(root.findAllByType('td').find(x=>x.props.className==='inventory-merma-date')),'25/11/2026');
+  assert.equal(text(root.findAllByType('td').find(x=>x.props.className==='inventory-merma-state')),'Aprobada');
   await click('Filtros');
   await act(async()=>{root.findByProps({id:'inv-desde'}).props.onChange({target:{value:'2026-10-01'}});});
   await act(async()=>{root.findByProps({id:'inv-hasta'}).props.onChange({target:{value:'2026-10-31'}});});
