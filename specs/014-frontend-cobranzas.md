@@ -221,3 +221,10 @@ del QA funcional ya realizado; SPKI/autofirmado no son confianza TLS validada.
 Draft. Esta autorización no permite merge, push a main, force push, eliminar ramas,
 crear otro PR ni convertirlo a Ready for Review. Los dictámenes históricos
 NO APTO de despliegue/merge no impiden esta publicación limitada para revisión.
+
+## Rediseño operativo de Finanzas — 26-11-2026
+
+- Cartera con importes y estados claros (sin barras de progreso), búsqueda global por folio, código de obra completo o cliente; indicadores calculados sobre los filtros aplicados. Paginación conserva filtros y valida enlaces. Los filtros de fechas se mantienen en sección avanzada. Las referencias internas no se solicitan al usuario.
+- Detalle unificado por factura con nombre del cliente y código de obra; registro de pago solo bajo demanda y con saldo pendiente. Facturas revertidas en consulta histórica; respaldos dentro de ficha. Las anulaciones y reversiones se abren explícitamente con motivo, referencia y confirmación. Se mantienen idempotencia, bloqueo por incertidumbre, relecturas y validaciones de Django.
+- Registro de factura externa con selector elegible paginado y buscador; consulta financiera por código de obra y acceso contextual desde Obras. El módulo no emite DTE ni mueve dinero. Gerencia conserva su pantalla propia.
+- No se altera el formato de las respuestas ni las reglas financieras. Extensión de filtros en SPEC-007. Pruebas dirigidas adaptadas; ejecución local y visual pendiente. Sin merge.
