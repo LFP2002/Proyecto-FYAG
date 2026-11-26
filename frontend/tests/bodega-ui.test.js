@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer,{act} from 'react-test-renderer';
 import {createServer} from 'vite';
-import {amount,preview} from '../src/bodega/domain.js';
-let server,AuthProvider,AppProvider,App;
+import {amount,movementAmount,preview} from '../src/bodega/domain.js';
+let server,AuthProvider,AppProvider,App,MovementTable;
 before(async()=>{
  server=await createServer({configFile:false,esbuild:{jsx:'automatic'},server:{middlewareMode:true,ws:false,hmr:false},appType:'custom',optimizeDeps:{noDiscovery:true,include:[]}});
  ({AuthProvider}=await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
  ({AppProvider}=await server.ssrLoadModule('/src/context/AppContext.jsx'));
  ({default:App}=await server.ssrLoadModule('/src/app.jsx'));
+ ({MovementTable}=await server.ssrLoadModule('/src/pages/Bodega.jsx'));
 });
 after(async()=>{await server?.close();});
 const flush=()=>new Promise(r=>setImmediate(r));
@@ -51,5 +52,30 @@ test('Bodega: menú propio, despacho desde autorización y una sola escritura',a
   assert.equal(writes.length,1);assert.equal(writes[0].body.autorizacion,15);assert.equal(writes[0].body.cantidad,'2.000');
   assert.match(text(renderer.root),/No hay autorizaciones pendientes/);
   await click('Inventario');assert.match(text(renderer.root),/Tubería/);
+ }finally{if(renderer)await act(async()=>renderer.unmount());}
+});
+
+test('Movimientos: unidades compactas, precisión y celdas numéricas uniformes',async()=>{
+ assert.equal(movementAmount('20.000','litro'),'20 L');
+ assert.equal(movementAmount('0.125','unidad'),'0,125 un.');
+ assert.equal(movementAmount('1234.567','kg'),'1.234,567 kg');
+ assert.equal(movementAmount('2.000','caja'),'2 caja');
+ assert.equal(movementAmount(null,'litro'),'—');
+ const common={...material,unidad:'litro',creado_en:'2026-11-25T23:33:54Z',referencia:'Recepción',motivo:'Motivo de prueba',actor:'bodega_qa'};
+ const rows=[{...common,id:1,tipo:'INGRESO',cantidad:'20.000',saldo_anterior:'0.000',saldo_posterior:'20.000'},{...common,id:2,tipo:'SALIDA',cantidad:'0.125',saldo_anterior:'20.000',saldo_posterior:'19.875'},{...common,id:3,tipo:'DEVOLUCION',cantidad:'0.125',saldo_anterior:'19.875',saldo_posterior:'20.000'},{...common,id:4,tipo:'MERMA',cantidad:'1.000',saldo_anterior:'20.000',saldo_posterior:'19.000'}];
+ let renderer;
+ try{
+  await act(async()=>{renderer=Renderer.create(React.createElement(MovementTable,{rows}));});
+  const root=renderer.root,headers=root.findAllByType('th');
+  assert.deepEqual(headers.filter(h=>h.props.className==='bodega-number-cell').map(text),['Cantidad','Stock anterior','Stock final']);
+  const bodyRows=root.findByType('tbody').findAllByType('tr');
+  assert.deepEqual(bodyRows.map(row=>row.findAllByType('td').filter(td=>td.props.className==='bodega-number-cell').map(text)),[['+20 L','0 L','20 L'],['−0,125 L','20 L','19,875 L'],['+0,125 L','19,875 L','20 L'],['−1 L','20 L','19 L']]);
+  for(const [i,row] of bodyRows.entries()){
+   const cells=row.findAllByType('td');
+   assert.equal(cells[2].props.className,'bodega-number-cell');
+   assert.equal(cells[2].findByType('span').props.className,i===0||i===2?'bodega-movement-in':'bodega-movement-out');
+   assert.equal(cells[4].findByType('strong').type,'strong');
+   assert.match(text(cells[6]),/RecepciónMotivo de pruebabodega_qa/);
+  }
  }finally{if(renderer)await act(async()=>renderer.unmount());}
 });

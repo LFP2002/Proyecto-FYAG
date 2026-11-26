@@ -4,7 +4,7 @@ import {useAuth} from '../auth/AuthContext.jsx';
 import {useApi} from '../integrations/useApi.js';
 import {Errors,Pager} from '../comercial/ui.jsx';
 import BodegaIcon from '../bodega/icons.jsx';
-import {ROOT,modules,amount,timestamp,pathFor,readPage,readSummary,preview,milli} from '../bodega/domain.js';
+import {ROOT,modules,amount,movementAmount,timestamp,pathFor,readPage,readSummary,preview,milli} from '../bodega/domain.js';
 import '../styles/pages/bodega.css';
 
 const titles={resumen:'Resumen de bodega',inventario:'Inventario',movimientos:'Movimientos de inventario',entregas:'Entregas de materiales',devoluciones:'Devoluciones de materiales'};
@@ -20,7 +20,7 @@ function Fact({label,children}){return <div className="bodega-fact"><small>{labe
 function Header({title,sub,children}){return <header className="bodega-heading"><div><h1>{title}</h1>{sub&&<p>{sub}</p>}</div><div className="bodega-actions">{children}</div></header>;}
 function Tabs({items,value,onChange,disabled=false,label}){return <div className="bodega-tabs" role="group" aria-label={label}>{items.map(([key,title])=><button key={key} type="button" aria-pressed={value===key} disabled={disabled} onClick={()=>onChange(key)}>{title}</button>)}</div>;}
 function Pending({row,receive,onAction,disabled}){return <article className="bodega-pending"><div className="bodega-row"><small>Autorización #{row.id} · {row.obra||'Obra no disponible'}</small><span className="bodega-warn">{row.bloqueo?'Bloqueada':'Pendiente'}</span></div><Material row={row}/><div className="bodega-facts"><Fact label="Autorizado">{amount(row.cantidad,row.unidad)}</Fact><Fact label={receive?'Recibido':'Entregado'}>{amount(row.ejecutada,row.unidad)}</Fact><Fact label={receive?'Por recibir':'Por entregar'}>{amount(row.pendiente,row.unidad)}</Fact></div><div className="bodega-row bodega-pending-footer"><div><small>Existencias actuales</small><strong>{amount(row.saldo,row.unidad)}</strong>{row.bloqueo&&<small className="bodega-warn">{row.bloqueo}</small>}</div><Button primary icon={receive?'returns':'delivery'} disabled={disabled||!!row.bloqueo||!(milli(row.maximo)>0n)} onClick={()=>onAction(row)}>{receive?'Recibir':'Despachar'}</Button></div></article>;}
-function Table({headers,children,empty}){return <div className="table-responsive bodega-table-region" tabIndex={0} role="region" aria-label="Listado de bodega"><table className="table bodega-table"><thead><tr>{headers.map(h=><th scope="col" key={h}>{h}</th>)}</tr></thead><tbody>{children}{empty&&<tr><td colSpan={headers.length}><Empty>No hay registros para estos filtros.</Empty></td></tr>}</tbody></table></div>;}
+function Table({headers,children,empty,numericColumns=[]}){return <div className="table-responsive bodega-table-region" tabIndex={0} role="region" aria-label="Listado de bodega"><table className="table bodega-table"><thead><tr>{headers.map((h,i)=><th scope="col" key={h} className={numericColumns.includes(i)?'bodega-number-cell':undefined}>{h}</th>)}</tr></thead><tbody>{children}{empty&&<tr><td colSpan={headers.length}><Empty>No hay registros para estos filtros.</Empty></td></tr>}</tbody></table></div>;}
 function MaterialPicker({value,onChange,disabled}){
  const api=useApi(),[page,setPage]=useState(1),[text,setText]=useState(''),[search,setSearch]=useState(''),[data,setData]=useState(null);
  const path=pathFor('inventario',{estado:'activo',buscar:search},page);
@@ -28,7 +28,22 @@ function MaterialPicker({value,onChange,disabled}){
  const rows=data?.results||[],name=r=>r.nombre+' · '+r.codigo;
  return <div className="bodega-picker"><label className="bodega-field" htmlFor="bodega-material-search">Buscar material</label><div className="bodega-search"><input id="bodega-material-search" className="form-control" value={text} maxLength={150} disabled={disabled} placeholder="Nombre o código" onChange={e=>setText(e.target.value)}/><Button icon="search" disabled={disabled||api.loading} onClick={()=>{setSearch(text.trim());setPage(1);}}>Buscar</Button></div><label className="bodega-field">Material recibido<select className="form-select" required value={value?.id||''} disabled={disabled||api.loading} onChange={e=>onChange(rows.find(r=>String(r.id)===e.target.value)||null)}><option value="">Selecciona un material</option>{rows.map(r=><option key={r.id} value={r.id}>{name(r)}</option>)}{value&&!rows.some(r=>r.id===value.id)&&<option value={value.id}>{name(value)}</option>}</select></label><Errors error={api.error}/>{data&&(data.next||data.previous)&&<Pager data={data} page={page} setPage={setPage} disabled={disabled||api.loading}/>}</div>;
 }
-function MovementTable({rows}){return <Table headers={['Material','Operación','Cantidad','Stock anterior','Stock final','Fecha','Referencia / motivo']} empty={!rows.length}>{rows.map(r=>{const inbound=r.tipo==='INGRESO'||r.tipo==='DEVOLUCION';return <tr key={r.id}><td><Material row={r}/></td><td><span className={inbound?'bodega-good':'bodega-negative'}><BodegaIcon name={inbound?'in':'out'}/>{kinds[r.tipo]||r.tipo}</span></td><td className={inbound?'bodega-good':'bodega-negative'}>{inbound?'+':'−'}{amount(r.cantidad,r.unidad)}</td><td>{amount(r.saldo_anterior,r.unidad)}</td><td><strong>{amount(r.saldo_posterior,r.unidad)}</strong></td><td>{timestamp(r.creado_en)}</td><td>{r.referencia||'—'}{r.motivo&&<small className="bodega-muted">{r.motivo}</small>}<small className="bodega-muted">{r.actor}</small></td></tr>;})}</Table>;}
+export function MovementTable({rows}){
+ return <Table headers={['Material','Operación','Cantidad','Stock anterior','Stock final','Fecha','Referencia / motivo']} numericColumns={[2,3,4]} empty={!rows.length}>
+  {rows.map(r=>{
+   const inbound=r.tipo==='INGRESO'||r.tipo==='DEVOLUCION';
+   return <tr key={r.id}>
+    <td><Material row={r}/></td>
+    <td><span className="bodega-movement-kind"><span className={inbound?'bodega-movement-in':'bodega-movement-out'}><BodegaIcon name={inbound?'in':'out'}/></span>{kinds[r.tipo]||r.tipo}</span></td>
+    <td className="bodega-number-cell"><span className={inbound?'bodega-movement-in':'bodega-movement-out'}>{milli(r.cantidad)===null?'—':(inbound?'+':'−')+movementAmount(r.cantidad,r.unidad)}</span></td>
+    <td className="bodega-number-cell">{movementAmount(r.saldo_anterior,r.unidad)}</td>
+    <td className="bodega-number-cell"><strong>{movementAmount(r.saldo_posterior,r.unidad)}</strong></td>
+    <td>{timestamp(r.creado_en)}</td>
+    <td>{r.referencia||'—'}{r.motivo&&<small className="bodega-muted">{r.motivo}</small>}<small className="bodega-muted">{r.actor}</small></td>
+   </tr>;
+  })}
+ </Table>;
+}
 function OperationTable({rows}){return <Table headers={['Material','Obra','Registro','Cantidad','Referencia / motivo','Fecha']} empty={!rows.length}>{rows.map(r=><tr key={r.id}><td><Material row={r}/></td><td>{r.obra||'—'}</td><td>#{r.id}{r.autorizacion&&<small className="bodega-muted">Autorización #{r.autorizacion}</small>}{r.entrega&&<small className="bodega-muted">Entrega #{r.entrega}</small>}</td><td>{amount(r.cantidad,r.unidad)}{r.pendiente!==undefined&&<small className="bodega-muted">Pendiente: {amount(r.pendiente,r.unidad)}</small>}{r.bloqueo&&<small className="bodega-warn">{r.bloqueo}</small>}</td><td>{r.referencia||'—'}{r.motivo&&<small className="bodega-muted">{r.motivo}</small>}<small className="bodega-muted">{r.actor}</small></td><td>{timestamp(r.creado_en)}</td></tr>)}</Table>;}
 function ArticleDetail({row,onBack,onEdit,onIngress,disabled}){
  const api=useApi(),[page,setPage]=useState(1),[data,setData]=useState(null);

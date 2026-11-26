@@ -4,6 +4,9 @@ export const milli=v=>typeof v==='string'&&/^\d{1,9}(?:[.,]\d{1,3})?$/.test(v)?B
 export const decimal=n=>String(n/1000n)+'.'+String(n%1000n).padStart(3,'0');
 export const quantity=v=>{const n=milli(v);return n===null?'—':(n/1000n).toLocaleString('es-CL')+(n%1000n?','+String(n%1000n).padStart(3,'0').replace(/0+$/,''):'');};
 export const amount=(v,unit)=>quantity(v)+(milli(v)===null||!unit?'':' '+unit);
+// Display-only abbreviations; preserve original unit in the API and forms.
+const movementUnits=new Map([['litro','L'],['litros','L'],['l','L'],['unidad','un.'],['unidades','un.'],['un','un.'],['un.','un.'],['metro','m'],['metros','m'],['kilogramo','kg'],['kilogramos','kg']]);
+export const movementAmount=(v,unit)=>amount(v,movementUnits.get(unit?.trim().toLowerCase())??unit);
 export const timestamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short',hour12:false}).format(new Date(v)):'—';
 export function pathFor(section,filters={},page=1){
  const p=new URLSearchParams({seccion:section});

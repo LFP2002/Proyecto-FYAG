@@ -58,3 +58,9 @@
 .fyag-side .bodega-icon{width:18px;height:18px}
 @media(max-width:1050px){.bodega-summary-grid,.bodega-form-grid,.bodega-pending-grid{grid-template-columns:1fr}.bodega-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.bodega-fields,.bodega-quick{grid-template-columns:1fr}.bodega-panel{padding:12px}.bodega-kpi{padding:10px}.bodega-facts{gap:6px}.bodega-stock-preview{flex-wrap:wrap}.bodega-tabs{gap:10px}}
+
+/* Movements: keep native table-cell layout, including the signed quantity. */
+.bodega-table th.bodega-number-cell,.bodega-table td.bodega-number-cell{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;overflow-wrap:normal}
+.bodega-table .bodega-movement-kind{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.bodega-table .bodega-movement-in{color:var(--fyag-green-dark)}
+.bodega-table .bodega-movement-out{color:var(--fyag-red)}
