@@ -2,6 +2,7 @@
 import re
 
 from django.db.models import Case, CharField, Exists, OuterRef, Q, Value, When
+from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -77,7 +78,7 @@ class ObrasResumenFinanzasView(APIView):
         for campo, lookup in (
             ("cliente_nombre", "presupuesto__cliente__nombre_legal__icontains"),
             ("categoria_nombre", "categoria_servicio__nombre__icontains"),
-            ("responsable_nombre", "tecnico_responsable__username__icontains"),
+            ("responsable_nombre", None),
             ("buscar", None),
         ):
             if campo not in params:
@@ -87,6 +88,8 @@ class ObrasResumenFinanzasView(APIView):
                 raise ValidationError({campo: "Búsqueda no válida."})
             if lookup:
                 qs = qs.filter(**{lookup: term})
+            elif campo == 'responsable_nombre':
+                qs = qs.annotate(nombre_responsable=Concat('tecnico_responsable__first_name', Value(' '), 'tecnico_responsable__last_name')).filter(Q(nombre_responsable__icontains=term) | Q(tecnico_responsable__username__icontains=term))
             else:
                 criteria = Q(presupuesto__cliente__nombre_legal__icontains=term) | Q(categoria_servicio__nombre__icontains=term)
                 match = re.fullmatch(r"OB-([0-9]{1,19})", term.upper())
