@@ -21,7 +21,7 @@ const invalid=()=>{throw Error('No se pudieron confirmar los datos de egresos.')
 const timestamp=v=>new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short'}).format(new Date(v));
 const code=id=>id===null?'Sin obra asociada':'OB-'+String(id).padStart(6,'0');
 const stamp=v=>string(v)&&Number.isFinite(Date.parse(v));
-function expense(d){
+export function expense(d){
  strictObject(d,['id','naturaleza','moneda','monto','fecha_pago','categoria','concepto','beneficiario','medio','referencia_respaldo','observacion','obra','registrado_por','registrado_en','activo','anulado_por','anulado_en','motivo_anulacion','referencia_correccion']);
  if(!positiveInteger(d.id)||d.moneda!=='CLP'||d.naturaleza!=='REGISTRO_ADMINISTRATIVO_DINERO_PAGADO'||!decimalString(d.monto)||units(d.monto)<=0n||!isoDate(d.fecha_pago)||!Object.hasOwn(CATS,d.categoria)||!Object.hasOwn(MEANS,d.medio)||!['concepto','beneficiario','referencia_respaldo','observacion'].every(k=>string(d[k]))||(d.obra!==null&&!positiveInteger(d.obra))||!positiveInteger(d.registrado_por)||!stamp(d.registrado_en)||typeof d.activo!=='boolean'||(!d.activo&&(!positiveInteger(d.anulado_por)||!stamp(d.anulado_en)||!string(d.motivo_anulacion)||!string(d.referencia_correccion))))invalid();
  return d;
@@ -32,7 +32,7 @@ function summary(s,filters){
  if(!s.ranking.every(x=>string(x.beneficiario)&&decimalString(x.monto)&&positiveInteger(x.pagos))||new Set(s.ranking.map(x=>x.beneficiario)).size!==s.ranking.length||s.ranking.reduce((a,x)=>a+units(x.monto),0n)>units(s.total)||s.ranking.reduce((a,x)=>a+x.pagos,0)>s.pagos)invalid();
  return s;
 }
-function flow(v,p){
+export function flow(v,p){
  if(!v||v.moneda!=='CLP'||v.periodo?.desde!==p.desde||v.periodo?.hasta!==p.hasta||v.naturaleza!=='REGISTROS_ADMINISTRATIVOS_NO_CONCILIADOS'||!decimalString(v.ingresos_recibidos)||!decimalString(v.egresos_pagados)||!decimalString(v.flujo_neto_registrado,true)||units(v.ingresos_recibidos)-units(v.egresos_pagados)!==units(v.flujo_neto_registrado))invalid();
  return v;
 }
