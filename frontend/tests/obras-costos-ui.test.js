@@ -271,9 +271,15 @@ test('Supervisor: autorizar material desde obra conserva UUID y no registra gast
   const form=()=>renderer.root.findByProps({'aria-label':'Autorizar material de Bodega'});
   const select=form().findByType('select');
   assert.ok(select.findAllByType('option').some(o=>text(o).includes('Tubería de cobre')));
+  assert.equal(form().findAllByProps({'aria-label':'Páginas de material a entregar'}).length,0);
+  assert.equal(buttons(renderer,'Autorizar entrega')[0].props.disabled,true);
   await act(async()=>select.props.onChange({target:{value:'9'}}));
+  assert.match(text(form().findByProps({className:'so-warehouse-unit'})),/metro/);
+  assert.match(text(form().findByType('details')),/Número o código de documento de respaldo/);
+  assert.equal(buttons(renderer,'Autorizar entrega')[0].props.disabled,true);
   const quantity=form().findAllByType('input').find(n=>n.props.inputMode==='decimal');
   await act(async()=>quantity.props.onChange({target:{value:'2,5'}}));
+  assert.equal(buttons(renderer,'Autorizar entrega')[0].props.disabled,false);
   assert.doesNotMatch(text(form()),/Costo unitario neto \(CLP\)/);
   await act(async()=>{await form().props.onSubmit({preventDefault(){}});await flush();});
   assert.equal(buttons(renderer,'Reintentar misma autorización').length,1);

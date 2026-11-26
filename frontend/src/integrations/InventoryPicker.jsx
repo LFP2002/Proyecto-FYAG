@@ -13,7 +13,7 @@ const sources={
   autorizacionDevolucion:{path:ROOT+'autorizaciones-devolucion/',text:r=>'Devolución #'+r.id+' · Obra #'+r.obra+' · '+r.cantidad+' '+r.unidad+(r.referencia?' · '+r.referencia:'')},
 };
 
-export default function InventoryPicker({ kind='articulo', label, value, onChange, disabled=false, required=false, activeOnly=false }) {
+export default function InventoryPicker({ kind='articulo', label, value, onChange, disabled=false, required=false, activeOnly=false, compact=false, onSelect }) {
   const api=useApi(), source=sources[kind];
   const [page,setPage]=useState(1),[data,setData]=useState(null),[search,setSearch]=useState(''),[chosen,setChosen]=useState(null),[reload,setReload]=useState(0);
   useEffect(()=>{
@@ -32,10 +32,10 @@ export default function InventoryPicker({ kind='articulo', label, value, onChang
   },[kind,page,search,activeOnly,reload]);
   const rows=data?.results||[];
   const selected=String(value||'');
-  return <div className="obras-selector">
+  return <div className={compact?"obras-selector so-material-picker":"obras-selector"}>
     {kind==='articulo'&&<label className="form-label">Buscar material<input className="form-control" type="search" maxLength={150} value={search} disabled={disabled} onChange={e=>{setPage(1);setSearch(e.target.value);}} placeholder="Nombre o código"/></label>}
     <label className="form-label">{label}<select className="form-select" required={required} disabled={disabled||api.loading} value={selected} onChange={e=>{
-      const next=e.target.value;setChosen(rows.find(r=>String(r.id)===next)||null);onChange(next);
+      const next=e.target.value;const row=rows.find(r=>String(r.id)===next)||null;setChosen(row);onChange(next);onSelect?.(row);
     }}><option value="">{required?'Selecciona una opción':'Todos'}</option>
       {rows.map(r=><option key={r.id} value={String(r.id)}>{source.text(r)}</option>)}
       {selected&&!rows.some(r=>String(r.id)===selected)&&<option value={selected}>{chosen&&String(chosen.id)===selected?source.text(chosen):'Seleccionado #'+selected}</option>}
@@ -43,7 +43,7 @@ export default function InventoryPicker({ kind='articulo', label, value, onChang
     <Errors error={api.error}/>
     {api.error&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={disabled||api.loading} onClick={()=>setReload(n=>n+1)}>Reintentar consulta</button>}
     {api.loading&&<p role="status" className="commercial-help">Cargando opciones…</p>}
-    {data&&<Pager data={data} page={page} setPage={setPage} disabled={disabled||api.loading} label={'Páginas de '+label.toLowerCase()}/>}
+    {data&&(!compact||data.previous||data.next)&&<Pager data={data} page={page} setPage={setPage} disabled={disabled||api.loading} label={'Páginas de '+label.toLowerCase()}/>}
     {data&&data.count===0&&<p className="commercial-help">No hay opciones disponibles.</p>}
   </div>;
 }

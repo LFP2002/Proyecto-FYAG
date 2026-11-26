@@ -62,3 +62,5 @@ Documentación Supervisor: un único Actualizar en la ficha consulta obra, evide
 
 ### Supervisor: materiales de Bodega y gastos externos
 Integración desde ficha de obra con selector de artículo activo, autorización de entrega y devolución por entrega original. Una autorización no genera gasto. Imputación y valoración existentes 019B; origen de lectura explícito, sin acciones manuales sobre gastos vinculados. Registro manual excepcional de compras externas con confirmación, sin deduplicación por descripción. SPEC-019B y OpenAPI complementario actualizados; pruebas y revisión visual pendientes.
+
+Formularios de materiales y gastos: acciones superiores con altura y tipografía iguales; selector compacto y unidad de medida explícita; detalles de respaldo y motivo opcionales plegados, sin paginador cuando solo hay una página. Presupuesto conserva artículo y cantidad previstos y precio comercial, pero creación de Obra no crea autorizaciones. Se propone una futura lista de materiales presupuestados con conciliación de autorizaciones, despachos y devoluciones, sin automatizar ni modificar el flujo actual hasta ratificar SPEC.

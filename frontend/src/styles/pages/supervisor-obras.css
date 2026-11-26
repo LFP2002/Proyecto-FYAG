@@ -203,5 +203,23 @@
 
 /* Mantener las acciones principales de gastos en una única barra. */
 .supervisor-obras .so-expense-toolbar {flex:0 1 auto;max-width:100%;align-items:center;gap:9px}
-.supervisor-obras .so-expense-toolbar .btn {min-height:36px;white-space:nowrap}
+.supervisor-obras .so-expense-toolbar .btn {min-height:42px;font-size:1rem;font-weight:600;line-height:1.25;padding:9px 14px;white-space:nowrap}
+.supervisor-obras .so-expense-toolbar .btn svg {width:16px;height:16px;flex-shrink:0}
+.supervisor-obras .so-warehouse-form {display:flex;flex-direction:column;gap:14px}
+.supervisor-obras .so-warehouse-form h3 {margin:0}
+.supervisor-obras .so-warehouse-form>p {margin:0}
+.supervisor-obras .so-material-picker {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:12px;align-items:end}
+.supervisor-obras .so-material-picker>.form-label {margin:0;min-width:0}
+.supervisor-obras .so-material-picker>:not(.form-label) {grid-column:1/-1}
+.supervisor-obras .so-warehouse-quantity {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:12px;align-items:end}
+.supervisor-obras .so-warehouse-quantity .form-label {margin:0}
+.supervisor-obras .so-warehouse-unit {display:flex;flex-direction:column;gap:5px;min-width:0;padding:6px 12px;border-left:1px solid var(--fyag-line)}
+.supervisor-obras .so-warehouse-unit strong {font-size:1rem;overflow-wrap:anywhere}
+.supervisor-obras .so-warehouse-extra {border-top:1px solid var(--fyag-line);padding-top:12px}
+.supervisor-obras .so-warehouse-extra summary {font-size:.9375rem;font-weight:600;cursor:pointer;color:var(--fyag-primary)}
+.supervisor-obras .so-warehouse-extra-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;align-items:start}
+.supervisor-obras .so-warehouse-extra-fields .commercial-help {margin-top:5px}
+.supervisor-obras .so-warehouse-form>.so-actions {border-top:1px solid var(--fyag-line);padding-top:14px}
+@media(max-width:640px){.supervisor-obras :is(.so-material-picker,.so-warehouse-quantity,.so-warehouse-extra-fields){grid-template-columns:minmax(0,1fr)}.supervisor-obras .so-warehouse-unit{border-left:0;padding-left:0}}
+
 @media(max-width:520px){.supervisor-obras .so-expense-toolbar {flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}}
