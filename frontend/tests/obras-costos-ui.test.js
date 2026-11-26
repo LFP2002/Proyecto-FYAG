@@ -24,13 +24,13 @@ async function mount(backend) {
   await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, React.createElement(Obras))); await flush(); });
   return renderer;
 }
-const buttons = (renderer, label) => renderer.root.findAllByType('button').filter((button) => text(button) === label || button.props['aria-label'] === label);
+const buttons = (renderer, label) => renderer.root.findAllByType('button').filter((button) => text(button).trim() === label || button.props['aria-label'] === label);
 async function click(renderer, label) {
   const button = buttons(renderer, label)[0]; assert.ok(button, `Falta el botón ${label}`); assert.ok(!button.props.disabled, `${label} deshabilitado`);
   await act(async () => { await button.props.onClick({ preventDefault() {} }); await flush(); });
 }
 async function input(renderer, id, value) { await act(async () => renderer.root.findByProps({ id }).props.onChange({ target: { value } })); }
-async function openCosts(renderer) { await click(renderer, 'Ver obra'); await click(renderer, 'Costos'); }
+async function openCosts(renderer) { await click(renderer, 'Ver obra'); await click(renderer, 'Costos y cierre'); }
 async function openExpenses(renderer) { await click(renderer, 'Ver obra'); await click(renderer, 'Materiales y gastos'); }
 async function unmount(renderer) { await act(async () => renderer.unmount()); }
 
@@ -41,7 +41,7 @@ for (const failedRead of ['resumen', 'control']) test(`Costos: POST confirmado y
   backend.readFailure = (path) => backend.expenses.length > 0 && path === `/api/obras/1/costos/${failedRead}/`;
   const renderer = await mount(backend);
   try {
-    await openExpenses(renderer);
+    await openExpenses(renderer); await click(renderer,'Registrar gasto');
     for (const [field, value] of Object.entries({ descripcion: 'Cable', unidad: 'metro', cantidad: '2.000', costo_unitario_neto: '12.50', fecha_gasto: '2026-11-12' })) await input(renderer, `obras-gasto-${field}`, value);
     const form = renderer.root.findAllByType('form').find((node) => text(node).includes('Registrar material'));
     await act(async () => { await form.props.onSubmit({ preventDefault() {} }); await flush(); });
@@ -58,7 +58,7 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
   const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
   const renderer = await mount(backend);
   try {
-    await openExpenses(renderer);
+    await openExpenses(renderer); await click(renderer,'Registrar gasto');
     await input(renderer, 'obras-gasto-descripcion', 'Cable'); await input(renderer, 'obras-gasto-unidad', 'metro');
     await input(renderer, 'obras-gasto-cantidad', '2.000'); await input(renderer, 'obras-gasto-costo_unitario_neto', '12.50'); await input(renderer, 'obras-gasto-fecha_gasto', '2026-11-12');
     await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar material'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
@@ -107,8 +107,9 @@ test('Supervisor finaliza solo con validación remota, confirmación y motivo; r
   const renderer = await mount(backend);
   try {
     await openCosts(renderer);
+    await click(renderer,'Finalizar obra');
     await input(renderer, 'obras-finalizar-motivo', 'Trabajo terminado y revisado');
-    await click(renderer, 'Finalizar obra');
+    await act(async()=>{await renderer.root.findByProps({'aria-label':'Confirmar finalización'}).props.onSubmit({preventDefault(){}});await flush();});
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/finalizar/' && entry.method === 'POST');
     assert.deepEqual(call.body, { motivo: 'Trabajo terminado y revisado' });
     assert.equal(backend.obras[0].estado, 'FINALIZADA');
