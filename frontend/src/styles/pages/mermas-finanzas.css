@@ -1,0 +1,14 @@
+/* Mermas AF comparte la jerarquía de las fichas de inventario. */
+.finance-mermas .mf-table td {vertical-align:middle;}
+.finance-mermas .mf-table :is(th,td):nth-child(6) {text-align:center;}
+.finance-mermas .mf-qty {font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.finance-mermas .mf-wide {grid-column:span 2;}
+.finance-mermas .mf-resolution {border-top:1px solid var(--fyag-line);padding-top:20px;}
+.finance-mermas .mf-actions {justify-content:flex-end;}
+.finance-mermas .mf-warning {display:flex;align-items:flex-start;gap:8px;font-size:.875rem;line-height:1.5;color:var(--fyag-muted);margin:12px 0 18px;}
+.finance-mermas .mf-warning svg {flex:none;color:#d99b28;}
+.finance-mermas .mf-history {margin:16px 0 0;}
+.finance-mermas .mf-history li p {margin:6px 0;overflow-wrap:anywhere;}
+.finance-mermas .if-detail-summary strong.if-negative {color:var(--fyag-text,#bd5151);}
+.finance-mermas .if-panel {min-width:0;}
+@media(max-width:760px){.finance-mermas .mf-wide {grid-column:1/-1;}.finance-mermas .mf-actions .btn {flex:1 1 140px;}}
