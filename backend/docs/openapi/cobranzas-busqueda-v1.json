@@ -1,0 +1,796 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Búsqueda global de facturas y cobranzas",
+    "version": "1.0.0",
+    "description": "Complemento a SPEC-007: extensión de filtros GET, sin modificar escrituras, permisos ni proyecciones de respuesta."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/finanzas/cobranzas/": {
+      "get": {
+        "description": "Cartera vigente, Finanzas y Gerencia.",
+        "parameters": [
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "description": "Nombre legal del cliente (coincidencia parcial insensible a mayúsculas), folio externo parcial o código OB completo. En obras elegibles no se busca por folio. Se aplica antes de paginar y agregar.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "cliente",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "fecha_emision_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_emision_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PENDIENTE",
+                "PARCIAL",
+                "PAGADA",
+                "VENCIDA"
+              ]
+            }
+          },
+          {
+            "name": "fecha_vencimiento_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_vencimiento_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lectura financiera",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "$ref": "#/components/schemas/Documento"
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido o repetido"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    },
+    "/api/finanzas/cobranzas/resumen/": {
+      "get": {
+        "description": "Totales globales sobre los mismos filtros de la cartera.",
+        "parameters": [
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "description": "Nombre legal del cliente (coincidencia parcial insensible a mayúsculas), folio externo parcial o código OB completo. En obras elegibles no se busca por folio. Se aplica antes de paginar y agregar.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "cliente",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "fecha_emision_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_emision_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PENDIENTE",
+                "PARCIAL",
+                "PAGADA",
+                "VENCIDA"
+              ]
+            }
+          },
+          {
+            "name": "fecha_vencimiento_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_vencimiento_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lectura financiera",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "moneda": {
+                      "const": "CLP"
+                    },
+                    "documentos": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "conteos": {
+                      "type": "object",
+                      "properties": {
+                        "PENDIENTE": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "PARCIAL": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "PAGADA": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "VENCIDA": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "PENDIENTE",
+                        "PARCIAL",
+                        "PAGADA",
+                        "VENCIDA"
+                      ]
+                    },
+                    "monto_documentado_total": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{2}$"
+                    },
+                    "abonado_total": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{2}$"
+                    },
+                    "saldo_total": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{2}$"
+                    },
+                    "saldo_vencido": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{2}$"
+                    }
+                  },
+                  "required": [
+                    "moneda",
+                    "documentos",
+                    "conteos",
+                    "monto_documentado_total",
+                    "abonado_total",
+                    "saldo_total",
+                    "saldo_vencido"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido o repetido"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    },
+    "/api/finanzas/documentos/": {
+      "get": {
+        "description": "Documentos vigentes e históricos.",
+        "parameters": [
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "description": "Nombre legal del cliente (coincidencia parcial insensible a mayúsculas), folio externo parcial o código OB completo. En obras elegibles no se busca por folio. Se aplica antes de paginar y agregar.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "cliente",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "fecha_emision_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_emision_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "VIGENTE",
+                "REVERTIDO"
+              ]
+            }
+          },
+          {
+            "name": "tipo_documento",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "FACTURA_AFECTA",
+                "FACTURA_EXENTA"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lectura financiera",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "$ref": "#/components/schemas/Documento"
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido o repetido"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    },
+    "/api/finanzas/obras-elegibles/": {
+      "get": {
+        "description": "Solo Finanzas; conserva las condiciones de elegibilidad.",
+        "parameters": [
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "description": "Nombre legal del cliente (coincidencia parcial insensible a mayúsculas), folio externo parcial o código OB completo. En obras elegibles no se busca por folio. Se aplica antes de paginar y agregar.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lectura financiera",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "$ref": "#/components/schemas/Origen"
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtro inválido o repetido"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Origen": {
+        "type": "object",
+        "properties": {
+          "obra": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo_obra": {
+            "type": "string"
+          },
+          "presupuesto": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo_presupuesto": {
+            "type": "string"
+          },
+          "cliente": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "nombre_legal": {
+                "type": "string"
+              },
+              "tipo_identificacion": {
+                "type": "string"
+              },
+              "numero_identificacion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "pais_identificacion": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tipo_documento_extranjero": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "nombre_legal",
+              "tipo_identificacion",
+              "numero_identificacion",
+              "pais_identificacion",
+              "tipo_documento_extranjero"
+            ]
+          },
+          "moneda": {
+            "const": "CLP"
+          },
+          "monto_neto_aprobado": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$"
+          },
+          "finalizado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cortesia": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "tipo": {
+                    "const": "SIN_COBRO"
+                  }
+                },
+                "required": [
+                  "id",
+                  "tipo"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "obra",
+          "codigo_obra",
+          "presupuesto",
+          "codigo_presupuesto",
+          "cliente",
+          "moneda",
+          "monto_neto_aprobado",
+          "finalizado_en",
+          "cortesia"
+        ]
+      },
+      "Documento": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "naturaleza": {
+            "const": "REGISTRO_ADMINISTRATIVO_DOCUMENTO_EXTERNO"
+          },
+          "origen": {
+            "$ref": "#/components/schemas/Origen"
+          },
+          "tipo_documento": {
+            "enum": [
+              "FACTURA_AFECTA",
+              "FACTURA_EXENTA"
+            ]
+          },
+          "folio_externo": {
+            "type": "string"
+          },
+          "fecha_emision": {
+            "type": "string",
+            "format": "date"
+          },
+          "fecha_vencimiento": {
+            "type": "string",
+            "format": "date"
+          },
+          "monto_neto": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$"
+          },
+          "monto_impuesto": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$"
+          },
+          "monto_total": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$"
+          },
+          "referencia_respaldo": {
+            "type": "string"
+          },
+          "estado": {
+            "enum": [
+              "VIGENTE",
+              "REVERTIDO"
+            ]
+          },
+          "registrado_por": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "registrado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revertido_por": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "revertido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_reversion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referencia_rectificacion_externa": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cobranza": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "moneda": {
+                    "const": "CLP"
+                  },
+                  "abonado": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]{2}$"
+                  },
+                  "saldo": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]{2}$"
+                  },
+                  "estado": {
+                    "enum": [
+                      "PENDIENTE",
+                      "PARCIAL",
+                      "PAGADA",
+                      "VENCIDA"
+                    ]
+                  }
+                },
+                "required": [
+                  "moneda",
+                  "abonado",
+                  "saldo",
+                  "estado"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "naturaleza",
+          "origen",
+          "tipo_documento",
+          "folio_externo",
+          "fecha_emision",
+          "fecha_vencimiento",
+          "monto_neto",
+          "monto_impuesto",
+          "monto_total",
+          "referencia_respaldo",
+          "estado",
+          "registrado_por",
+          "registrado_en",
+          "revertido_por",
+          "revertido_en",
+          "motivo_reversion",
+          "referencia_rectificacion_externa",
+          "cobranza"
+        ]
+      }
+    }
+  }
+}
