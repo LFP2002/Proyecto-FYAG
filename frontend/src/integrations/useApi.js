@@ -83,6 +83,7 @@ export function safePage(link, path, filters = null) {
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
              : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
+             : path === '/api/inventario/finanzas/' ? ['seccion','buscar','filtro','tipo','desde','hasta']
              : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
@@ -120,6 +121,10 @@ export function safePage(link, path, filters = null) {
     }
     if(path==='/api/finanzas/egresos/supervision-gerencial/'){
       if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/finanzas/'){
+      const section=value('seccion')||'inventario';
+      if(!['inventario','movimientos','valoraciones','regularizaciones','ingresos','historicos'].includes(section)||(value('buscar')||'').length>150||!datePair('desde','hasta')||(value('filtro')&&(section!=='inventario'||!['sin_stock','pendiente'].includes(value('filtro'))))||((value('tipo')||value('desde'))&&section!=='movimientos')||(value('tipo')&&!['INGRESO','SALIDA','DEVOLUCION','MERMA'].includes(value('tipo'))))throw new Error('invalid');
     }
     if(path==='/api/inventario/supervision-gerencial/'){
       const stock=(value('seccion')||'existencias')==='existencias',state=value('estado');
