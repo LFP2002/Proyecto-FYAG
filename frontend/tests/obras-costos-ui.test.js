@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { createServer } from 'vite';
+import {ApiError} from '../src/auth/client.js';
 import { AF, G, S } from '../src/obras/domain.js';
 import { obrasBackend } from './helpers/obras-backend.js';
 
@@ -30,7 +31,7 @@ async function click(renderer, label) {
   await act(async () => { await button.props.onClick({ preventDefault() {} }); await flush(); });
 }
 async function input(renderer, id, value) { await act(async () => renderer.root.findByProps({ id }).props.onChange({ target: { value } })); }
-async function openCosts(renderer) { await click(renderer, 'Ver obra'); await click(renderer, 'Costos y cierre'); }
+async function openCosts(renderer) { await click(renderer, 'Ver obra'); await click(renderer, buttons(renderer,'Costos y cierre').length?'Costos y cierre':'Costos'); }
 async function openExpenses(renderer) { await click(renderer, 'Ver obra'); await click(renderer, 'Materiales y gastos'); }
 async function unmount(renderer) { await act(async () => renderer.unmount()); }
 
@@ -116,4 +117,69 @@ test('Supervisor finaliza solo con validación remota, confirmación y motivo; r
     assert.ok(backend.calls.filter((entry) => entry.path === '/api/obras/1/').length >= 2);
     assert.equal(buttons(renderer, 'Finalizar obra').length, 0);
   } finally { await unmount(renderer); }
+});
+
+const submitNamed=async(renderer,label)=>act(async()=>{await renderer.root.findByProps({'aria-label':label}).props.onSubmit({preventDefault(){}});await flush();});
+test('Supervisor: obra planificada muestra costos de solo lectura y estados vacíos',async()=>{
+ const backend=obrasBackend(S),renderer=await mount(backend);
+ try{
+  await openCosts(renderer);
+  assert.match(text(renderer.root),/Inicia la obra/);
+  assert.match(text(renderer.root),/Pendiente de declaración/);
+  assert.equal(buttons(renderer,'Revisar materiales').length,0);
+  assert.equal(buttons(renderer,'Validar costos').length,0);
+  assert.equal(buttons(renderer,'Finalizar obra').length,0);
+  assert.equal(buttons(renderer,'Registrar sin cobro').length,0);
+  assert.ok(backend.calls.every(c=>c.method==='GET'));
+ }finally{await unmount(renderer);}
+});
+test('Supervisor: declaraciones explícitas, cortesía separada y validación vigente',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ backend.costTotals={materiales_total:'420000.00',otros_total:'0.00',mano_obra_total:'350000.00',costo_total:'770000.00'};
+ const renderer=await mount(backend);
+ try{
+  await openCosts(renderer);
+  assert.match(text(renderer.root),/\$770\.000/);
+  assert.equal(buttons(renderer,'Validar costos')[0].props.disabled,true);
+  await click(renderer,'Revisar materiales');
+  assert.equal(renderer.root.findByProps({id:'obras-rubric-materiales'}).props.value,'');
+  await input(renderer,'obras-rubric-materiales','CON_REGISTROS');
+  await input(renderer,'obras-rubric-materiales-motivo','Materiales revisados');
+  await submitNamed(renderer,'Declarar materiales');
+  assert.equal(backend.control.materiales_estado,'CON_REGISTROS');
+  await click(renderer,'Revisar otros gastos');
+  await input(renderer,'obras-rubric-otros','NO_APLICA');
+  await input(renderer,'obras-rubric-otros-reason','No hubo otros gastos');
+  await input(renderer,'obras-rubric-otros-motivo','Rubro revisado');
+  await submitNamed(renderer,'Declarar otros gastos');
+  assert.equal(backend.control.otros_estado,'NO_APLICA');
+  assert.equal(backend.calls.filter(c=>c.method==='PATCH').length,2);
+  await click(renderer,'Registrar sin cobro');
+  await input(renderer,'obras-cortesia-justificacion','Garantía excepcional');
+  await submitNamed(renderer,'Registrar servicio sin cobro');
+  assert.equal(backend.courtesy.justificacion,'Garantía excepcional');
+  assert.match(text(renderer.root),/\$770\.000/);
+  await click(renderer,'Validar costos');
+  await input(renderer,'obras-costos-motivo','Revisión completa');
+  await submitNamed(renderer,'Confirmar validación');
+  assert.equal(backend.control.costos_validados,true);
+  assert.equal(buttons(renderer,'Finalizar obra').length,1);
+ }finally{await unmount(renderer);}
+});
+test('Supervisor: rechazo de validación presenta pendientes y no reenvía automáticamente',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ backend.costTotals={materiales_total:'1.00',otros_total:'0.00',mano_obra_total:'0.00',costo_total:'1.00'};
+ backend.control.materiales_estado='CON_REGISTROS';backend.control.otros_estado='NO_APLICA';
+ const request=backend.request;let attempted=0;
+ backend.request=async(path,opts)=>{if(path==='/api/obras/1/costos/validar/'&&opts?.method==='POST'){attempted++;throw new ApiError(409,'Costos incompletos',null,{code:'costos_incompletos',fieldErrors:{pendientes:['turnos_abiertos']}});}return request(path,opts);};
+ const renderer=await mount(backend);
+ try{
+  await openCosts(renderer);await click(renderer,'Validar costos');await input(renderer,'obras-costos-motivo','Revisión');
+  await submitNamed(renderer,'Confirmar validación');
+  assert.match(text(renderer.root),/Hay turnos abiertos/);
+  assert.equal(buttons(renderer,'Confirmar validación')[0].props.disabled,true);
+  await submitNamed(renderer,'Confirmar validación');assert.equal(attempted,1);
+  await click(renderer,'Reconsultar resultado');assert.equal(attempted,1);
+  assert.equal(buttons(renderer,'Finalizar obra').length,0);
+ }finally{await unmount(renderer);}
 });
