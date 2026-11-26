@@ -81,6 +81,7 @@ export function safePage(link, path, filters = null) {
              : ['/api/finanzas/documentos/','/api/finanzas/obras-elegibles/'].includes(path) ? ['buscar']
              : path==='/api/finanzas/obras-resumen/' ? ['buscar','estado','situacion_financiera','cliente_nombre','categoria_nombre','responsable_nombre','fecha_programada_desde','fecha_programada_hasta','ordering']
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
+             : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
              : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
@@ -113,6 +114,9 @@ export function safePage(link, path, filters = null) {
     }
     if(path==='/api/finanzas/cobranzas/supervision-gerencial/'){
       if(!datePair('desde','hasta')||(value('vista')&&!['atencion','vigentes','documentos'].includes(value('vista')))||(value('buscar')||'').length>100)throw new Error('invalid');
+    }
+    if(path==='/api/finanzas/egresos/'){
+      if(!datePair('desde','hasta')||(value('buscar')||'').length>100||(value('obra')&&!validId(value('obra')))||(value('activo')&&!['true','false'].includes(value('activo')))||(value('resumen')&&value('resumen')!=='true')||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
     }
     if(path==='/api/finanzas/egresos/supervision-gerencial/'){
       if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
