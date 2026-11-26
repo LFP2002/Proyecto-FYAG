@@ -5,64 +5,293 @@
     "version": "1.0.0",
     "description": "Registro administrativo de pagos externos ya realizados. No ejecuta transferencias ni representa utilidad o saldo bancario. AF escribe; AF y Gerencia leen. Otros roles denegados incluso con flags staff/superuser. Sesión, rol, actividad y bloqueo persistidos. GET sin escrituras. Queries desconocidas/repetidas/vacías rechazadas."
   },
-  "servers": [{"url": "/api/finanzas"}],
-  "security": [{"bearerAuth": []}],
+  "servers": [
+    {
+      "url": "/api/finanzas"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "paths": {
     "/egresos/": {
       "get": {
         "operationId": "listarEgresos",
         "description": "AF/Gerencia. Páginas de 25, orden fecha_pago DESC, id DESC. Sin activo incluye ambos estados. desde/hasta conjuntamente; máximo 366 días inclusivos.",
         "parameters": [
-          {"$ref": "#/components/parameters/Page"},
-          {"name": "categoria", "in": "query", "schema": {"$ref": "#/components/schemas/Categoria"}},
-          {"name": "medio", "in": "query", "schema": {"$ref": "#/components/schemas/Medio"}},
-          {"name": "obra", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}},
-          {"name": "activo", "in": "query", "schema": {"type": "string", "enum": ["true", "false"]}},
-          {"$ref": "#/components/parameters/DesdeOpcional"}, {"$ref": "#/components/parameters/HastaOpcional"}
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "name": "categoria",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Categoria"
+            }
+          },
+          {
+            "name": "medio",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Medio"
+            }
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "activo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/DesdeOpcional"
+          },
+          {
+            "$ref": "#/components/parameters/HastaOpcional"
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "description": "Concepto o beneficiario por coincidencia parcial; código OB completo."
+          },
+          {
+            "name": "resumen",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "description": "Incluye total y cantidad de egresos activos del conjunto filtrado antes de paginar. Sin el parámetro la respuesta original se conserva."
+          }
         ],
         "responses": {
-          "200": {"description": "Listado", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaEgresos"}}}},
-          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}
+          "200": {
+            "description": "Listado",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaEgresos"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
         }
       },
       "post": {
         "operationId": "registrarEgreso",
         "description": "Solo AF. UUID global en Egreso. Payload normalizado igual retorna alta original incluso tras anular; diferente: 409. Observacion omitida = vacío; obra omitida = null. Sin query params.",
-        "parameters": [{"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "format": "uuid"}}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CrearEgreso"}}}},
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearEgreso"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {"$ref": "#/components/responses/Alta"}, "200": {"$ref": "#/components/responses/Replay"},
-          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}
+          "200": {
+            "$ref": "#/components/responses/Replay"
+          },
+          "201": {
+            "$ref": "#/components/responses/Alta"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
         }
       }
     },
     "/egresos/{id}/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
       "get": {
-        "operationId": "obtenerEgreso", "description": "AF/Gerencia. Estado actual, no la imagen original de replay. Sin query params.",
+        "operationId": "obtenerEgreso",
+        "description": "AF/Gerencia. Estado actual, no la imagen original de replay. Sin query params.",
         "responses": {
-          "200": {"$ref": "#/components/responses/Egreso"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}
+          "200": {
+            "$ref": "#/components/responses/Egreso"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
         }
       }
     },
     "/egresos/{id}/anular/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
       "post": {
-        "operationId": "anularEgreso", "description": "Solo AF. Corrección administrativa, no devolución bancaria. Segunda anulación: 409. Sin query params.",
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AnularEgreso"}}}},
+        "operationId": "anularEgreso",
+        "description": "Solo AF. Corrección administrativa, no devolución bancaria. Segunda anulación: 409. Sin query params.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnularEgreso"
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {"$ref": "#/components/responses/Egreso"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}
+          "200": {
+            "$ref": "#/components/responses/Egreso"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
         }
       }
     },
     "/egresos/{id}/historial/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
       "get": {
-        "operationId": "historialEgreso", "description": "AF/Gerencia. Append-only, orden creado_en ASC, id ASC; páginas de 25.",
-        "parameters": [{"$ref": "#/components/parameters/Page"}],
+        "operationId": "historialEgreso",
+        "description": "AF/Gerencia. Append-only, orden creado_en ASC, id ASC; páginas de 25.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
         "responses": {
-          "200": {"description": "Eventos", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaEventos"}}}},
-          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}
+          "200": {
+            "description": "Eventos",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaEventos"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
         }
       }
     },
@@ -71,87 +300,703 @@
         "operationId": "resumenFlujoDinero",
         "description": "AF/Gerencia. Un único SELECT/snapshot PostgreSQL. SUM pagos activos y egresos activos por fecha real de pago. No suma documentos, costos ni inventario. 409 si pagos activos del período contradicen su documento. No admite page. Fechas civiles Santiago inclusivas, máximo 366 días; no obliga a terminar en hoy.",
         "parameters": [
-          {"name": "desde", "in": "query", "required": true, "schema": {"type": "string", "format": "date"}},
-          {"name": "hasta", "in": "query", "required": true, "schema": {"type": "string", "format": "date"}}
+          {
+            "name": "desde",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Foto administrativa no conciliada; neto puede ser negativo", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Resumen"}}}},
-          "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}
+          "200": {
+            "description": "Foto administrativa no conciliada; neto puede ser negativo",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Resumen"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
         }
       }
     }
   },
   "components": {
-    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "headers": {
-      "Cache": {"schema": {"type": "string", "enum": ["private, no-store"]}},
-      "Vary": {"description": "Incluye Authorization", "schema": {"type": "string"}}
+      "Cache": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "private, no-store"
+          ]
+        }
+      },
+      "Vary": {
+        "description": "Incluye Authorization",
+        "schema": {
+          "type": "string"
+        }
+      }
     },
     "parameters": {
-      "Id": {"name": "id", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/Id"}},
-      "Page": {"name": "page", "in": "query", "description": "Entero positivo canónico sin ceros iniciales, máximo BIGINT", "schema": {"$ref": "#/components/schemas/Id"}},
-      "DesdeOpcional": {"name": "desde", "in": "query", "schema": {"type": "string", "format": "date"}},
-      "HastaOpcional": {"name": "hasta", "in": "query", "schema": {"type": "string", "format": "date"}}
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "description": "Entero positivo canónico sin ceros iniciales, máximo BIGINT",
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "DesdeOpcional": {
+        "name": "desde",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "HastaOpcional": {
+        "name": "hasta",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      }
     },
     "schemas": {
-      "Id": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807},
-      "Categoria": {"type": "string", "enum": ["MATERIALES", "TRANSPORTE", "SERVICIOS", "ARRIENDO", "OTROS"]},
-      "Medio": {"type": "string", "enum": ["TRANSFERENCIA", "EFECTIVO", "TARJETA", "OTRO"]},
-      "Monto": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,2})?$", "description": "Positivo, máximo 36 dígitos enteros y 2 decimales. Nunca float/exponente. Salida con dos posiciones.", "example": "100.25"},
-      "Agregado": {"type": "string", "pattern": "^-?[0-9]+\\.[0-9]{2}$", "description": "NUMERIC agregado sin límite de movimiento individual", "example": "-50.12"},
+      "Id": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 9223372036854776000
+      },
+      "Categoria": {
+        "type": "string",
+        "enum": [
+          "MATERIALES",
+          "TRANSPORTE",
+          "SERVICIOS",
+          "ARRIENDO",
+          "OTROS"
+        ]
+      },
+      "Medio": {
+        "type": "string",
+        "enum": [
+          "TRANSFERENCIA",
+          "EFECTIVO",
+          "TARJETA",
+          "OTRO"
+        ]
+      },
+      "Monto": {
+        "type": "string",
+        "pattern": "^[0-9]+(\\.[0-9]{1,2})?$",
+        "description": "Positivo, máximo 36 dígitos enteros y 2 decimales. Nunca float/exponente. Salida con dos posiciones.",
+        "example": "100.25"
+      },
+      "Agregado": {
+        "type": "string",
+        "pattern": "^-?[0-9]+\\.[0-9]{2}$",
+        "description": "NUMERIC agregado sin límite de movimiento individual",
+        "example": "-50.12"
+      },
       "CrearEgreso": {
-        "type": "object", "additionalProperties": false,
-        "required": ["monto", "fecha_pago", "categoria", "concepto", "beneficiario", "medio", "referencia_respaldo"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "monto",
+          "fecha_pago",
+          "categoria",
+          "concepto",
+          "beneficiario",
+          "medio",
+          "referencia_respaldo"
+        ],
         "properties": {
-          "monto": {"$ref": "#/components/schemas/Monto"},
-          "fecha_pago": {"type": "string", "format": "date", "description": "YYYY-MM-DD no futura en America/Santiago"},
-          "categoria": {"$ref": "#/components/schemas/Categoria"}, "medio": {"$ref": "#/components/schemas/Medio"},
-          "concepto": {"type": "string", "minLength": 1, "maxLength": 200}, "beneficiario": {"type": "string", "minLength": 1, "maxLength": 200},
-          "referencia_respaldo": {"type": "string", "minLength": 1, "maxLength": 500},
-          "observacion": {"type": "string", "maxLength": 2000, "default": ""},
-          "obra": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807, "nullable": true, "default": null, "description": "Informativa; debe existir; no requiere cierre"}
+          "monto": {
+            "$ref": "#/components/schemas/Monto"
+          },
+          "fecha_pago": {
+            "type": "string",
+            "format": "date",
+            "description": "YYYY-MM-DD no futura en America/Santiago"
+          },
+          "categoria": {
+            "$ref": "#/components/schemas/Categoria"
+          },
+          "medio": {
+            "$ref": "#/components/schemas/Medio"
+          },
+          "concepto": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "beneficiario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "referencia_respaldo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "observacion": {
+            "type": "string",
+            "maxLength": 2000,
+            "default": ""
+          },
+          "obra": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854776000,
+            "nullable": true,
+            "default": null,
+            "description": "Informativa; debe existir; no requiere cierre"
+          }
         }
       },
-      "AnularEgreso": {"type": "object", "additionalProperties": false, "required": ["motivo", "referencia_correccion"], "properties": {"motivo": {"type": "string", "minLength": 1, "maxLength": 2000}, "referencia_correccion": {"type": "string", "minLength": 1, "maxLength": 500}}},
+      "AnularEgreso": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "motivo",
+          "referencia_correccion"
+        ],
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "referencia_correccion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
       "Egreso": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "naturaleza", "moneda", "monto", "fecha_pago", "categoria", "concepto", "beneficiario", "medio", "referencia_respaldo", "observacion", "obra", "registrado_por", "registrado_en", "activo", "anulado_por", "anulado_en", "motivo_anulacion", "referencia_correccion"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "naturaleza",
+          "moneda",
+          "monto",
+          "fecha_pago",
+          "categoria",
+          "concepto",
+          "beneficiario",
+          "medio",
+          "referencia_respaldo",
+          "observacion",
+          "obra",
+          "registrado_por",
+          "registrado_en",
+          "activo",
+          "anulado_por",
+          "anulado_en",
+          "motivo_anulacion",
+          "referencia_correccion"
+        ],
         "properties": {
-          "id": {"$ref": "#/components/schemas/Id"},
-          "naturaleza": {"type": "string", "enum": ["REGISTRO_ADMINISTRATIVO_DINERO_PAGADO"]}, "moneda": {"type": "string", "enum": ["CLP"]},
-          "monto": {"type": "string", "pattern": "^[0-9]+\\.[0-9]{2}$"}, "fecha_pago": {"type": "string", "format": "date"},
-          "categoria": {"$ref": "#/components/schemas/Categoria"}, "medio": {"$ref": "#/components/schemas/Medio"},
-          "concepto": {"type": "string", "maxLength": 200}, "beneficiario": {"type": "string", "maxLength": 200},
-          "referencia_respaldo": {"type": "string", "maxLength": 500}, "observacion": {"type": "string", "maxLength": 2000},
-          "obra": {"type": "integer", "format": "int64", "nullable": true}, "registrado_por": {"$ref": "#/components/schemas/Id"},
-          "registrado_en": {"type": "string", "format": "date-time"}, "activo": {"type": "boolean"},
-          "anulado_por": {"type": "integer", "format": "int64", "nullable": true}, "anulado_en": {"type": "string", "format": "date-time", "nullable": true},
-          "motivo_anulacion": {"type": "string", "maxLength": 2000, "nullable": true}, "referencia_correccion": {"type": "string", "maxLength": 500, "nullable": true}
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "naturaleza": {
+            "type": "string",
+            "enum": [
+              "REGISTRO_ADMINISTRATIVO_DINERO_PAGADO"
+            ]
+          },
+          "moneda": {
+            "type": "string",
+            "enum": [
+              "CLP"
+            ]
+          },
+          "monto": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]{2}$"
+          },
+          "fecha_pago": {
+            "type": "string",
+            "format": "date"
+          },
+          "categoria": {
+            "$ref": "#/components/schemas/Categoria"
+          },
+          "medio": {
+            "$ref": "#/components/schemas/Medio"
+          },
+          "concepto": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "beneficiario": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "referencia_respaldo": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "observacion": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "obra": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "registrado_por": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "registrado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activo": {
+            "type": "boolean"
+          },
+          "anulado_por": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "anulado_en": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "motivo_anulacion": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          },
+          "referencia_correccion": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          }
         }
       },
-      "Evento": {"type": "object", "additionalProperties": false, "required": ["id", "egreso", "tipo", "actor", "motivo", "creado_en"], "properties": {
-        "id": {"$ref": "#/components/schemas/Id"}, "egreso": {"$ref": "#/components/schemas/Id"}, "tipo": {"type": "string", "enum": ["CREACION", "ANULACION"]}, "actor": {"$ref": "#/components/schemas/Id"}, "motivo": {"type": "string", "maxLength": 2000}, "creado_en": {"type": "string", "format": "date-time"}
-      }},
-      "PaginaEgresos": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": "string", "nullable": true}, "previous": {"type": "string", "nullable": true}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Egreso"}}}},
-      "PaginaEventos": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": "string", "nullable": true}, "previous": {"type": "string", "nullable": true}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Evento"}}}},
-      "Resumen": {"type": "object", "additionalProperties": false, "required": ["periodo", "moneda", "ingresos_recibidos", "egresos_pagados", "flujo_neto_registrado", "naturaleza"], "properties": {
-        "periodo": {"type": "object", "additionalProperties": false, "required": ["desde", "hasta"], "properties": {"desde": {"type": "string", "format": "date"}, "hasta": {"type": "string", "format": "date"}}},
-        "moneda": {"type": "string", "enum": ["CLP"]}, "ingresos_recibidos": {"$ref": "#/components/schemas/Agregado"}, "egresos_pagados": {"$ref": "#/components/schemas/Agregado"}, "flujo_neto_registrado": {"$ref": "#/components/schemas/Agregado"}, "naturaleza": {"type": "string", "enum": ["REGISTROS_ADMINISTRATIVOS_NO_CONCILIADOS"]}
-      }},
-      "ErrorValidacion": {"type": "object", "additionalProperties": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}, "example": {"monto": ["Debe ser estrictamente positivo."]}},
-      "ErrorDetalle": {"type": "object", "required": ["detail"], "properties": {"detail": {"type": "string"}}},
-      "ErrorConflicto": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"type": "string", "enum": ["idempotencia_conflictiva", "egreso_ya_anulado", "origen_inconsistente", "importe_fuera_rango"]}, "detail": {"type": "string"}}}
+      "Evento": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "egreso",
+          "tipo",
+          "actor",
+          "motivo",
+          "creado_en"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "egreso": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "CREACION",
+              "ANULACION"
+            ]
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "motivo": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PaginaEgresos": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": "string",
+            "nullable": true
+          },
+          "previous": {
+            "type": "string",
+            "nullable": true
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Egreso"
+            }
+          },
+          "resumen": {
+            "type": "object",
+            "required": [
+              "moneda",
+              "total",
+              "pagos"
+            ],
+            "properties": {
+              "moneda": {
+                "type": "string",
+                "enum": [
+                  "CLP"
+                ]
+              },
+              "total": {
+                "$ref": "#/components/schemas/Agregado"
+              },
+              "pagos": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "PaginaEventos": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": "string",
+            "nullable": true
+          },
+          "previous": {
+            "type": "string",
+            "nullable": true
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Evento"
+            }
+          }
+        }
+      },
+      "Resumen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "periodo",
+          "moneda",
+          "ingresos_recibidos",
+          "egresos_pagados",
+          "flujo_neto_registrado",
+          "naturaleza"
+        ],
+        "properties": {
+          "periodo": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "desde",
+              "hasta"
+            ],
+            "properties": {
+              "desde": {
+                "type": "string",
+                "format": "date"
+              },
+              "hasta": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          },
+          "moneda": {
+            "type": "string",
+            "enum": [
+              "CLP"
+            ]
+          },
+          "ingresos_recibidos": {
+            "$ref": "#/components/schemas/Agregado"
+          },
+          "egresos_pagados": {
+            "$ref": "#/components/schemas/Agregado"
+          },
+          "flujo_neto_registrado": {
+            "$ref": "#/components/schemas/Agregado"
+          },
+          "naturaleza": {
+            "type": "string",
+            "enum": [
+              "REGISTROS_ADMINISTRATIVOS_NO_CONCILIADOS"
+            ]
+          }
+        }
+      },
+      "ErrorValidacion": {
+        "type": "object",
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "example": {
+          "monto": [
+            "Debe ser estrictamente positivo."
+          ]
+        }
+      },
+      "ErrorDetalle": {
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorConflicto": {
+        "type": "object",
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "idempotencia_conflictiva",
+              "egreso_ya_anulado",
+              "origen_inconsistente",
+              "importe_fuera_rango"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
     },
     "responses": {
-      "Egreso": {"description": "Registro actual", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Egreso"}}}},
-      "Alta": {"description": "Alta original, activo true, campos de anulación null", "headers": {"Idempotency-Replayed": {"schema": {"type": "string", "enum": ["false"]}}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Egreso"}}}},
-      "Replay": {"description": "Alta original reconstruida, no estado actual", "headers": {"Idempotency-Replayed": {"schema": {"type": "string", "enum": ["true"]}}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Egreso"}}}},
-      "Validacion": {"description": "Contrato inválido", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorValidacion"}}}},
-      "Sesion": {"description": "Sesión ausente/no disponible/revocada/bloqueada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
-      "Permiso": {"description": "Rol persistido no autorizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
-      "NoEncontrado": {"description": "Egreso o página no encontrado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
-      "Metodo": {"description": "Método no permitido", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDetalle"}}}},
-      "Conflicto": {"description": "Conflicto de UUID, anulación o integridad de origen", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorConflicto"}}}}
+      "Egreso": {
+        "description": "Registro actual",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Egreso"
+            }
+          }
+        }
+      },
+      "Alta": {
+        "description": "Alta original, activo true, campos de anulación null",
+        "headers": {
+          "Idempotency-Replayed": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            }
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Egreso"
+            }
+          }
+        }
+      },
+      "Replay": {
+        "description": "Alta original reconstruida, no estado actual",
+        "headers": {
+          "Idempotency-Replayed": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          },
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Egreso"
+            }
+          }
+        }
+      },
+      "Validacion": {
+        "description": "Contrato inválido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorValidacion"
+            }
+          }
+        }
+      },
+      "Sesion": {
+        "description": "Sesión ausente/no disponible/revocada/bloqueada",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetalle"
+            }
+          }
+        }
+      },
+      "Permiso": {
+        "description": "Rol persistido no autorizado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetalle"
+            }
+          }
+        }
+      },
+      "NoEncontrado": {
+        "description": "Egreso o página no encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetalle"
+            }
+          }
+        }
+      },
+      "Metodo": {
+        "description": "Método no permitido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDetalle"
+            }
+          }
+        }
+      },
+      "Conflicto": {
+        "description": "Conflicto de UUID, anulación o integridad de origen",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorConflicto"
+            }
+          }
+        }
+      }
     }
   }
 }
