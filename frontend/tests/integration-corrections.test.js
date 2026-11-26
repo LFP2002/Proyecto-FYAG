@@ -375,15 +375,15 @@ test('Gerencia consulta evidencias sin acciones de edición',async()=>{
 });
 
 test('Auditoría: detalle independiente, valores comparados y retorno sin nueva consulta',async()=>{
- const calls=[],event={id:'FINANZAS_EVENTO:12',evento_id:12,fuente:'FINANZAS_EVENTO',modulo:'FINANZAS',recurso_tipo:'DOCUMENTO',recurso_id:5,tipo:'DOCUMENTO_REVERTIDO',actor:2,actor_etiqueta:null,motivo:'Rectificación',creado_en:'2026-11-25T20:33:59-03:00',datos_anteriores:{estado:'VIGENTE',monto_total:'1000.25'},datos_nuevos:{estado:'REVERTIDO',motivo_reversion:'Rectificación',monto_total:'1000.25',referencia_rectificacion_externa:null}};
+ const calls=[],event={id:'FINANZAS_EVENTO:12',evento_id:12,fuente:'FINANZAS_EVENTO',modulo:'FINANZAS',recurso_tipo:'DOCUMENTO',recurso_id:5,tipo:'DOCUMENTO_REVERTIDO',actor:2,actor_etiqueta:'Camila Hernández',actor_username:'finanzas',actor_identidad_origen:'ACTUAL',motivo:'Rectificación',creado_en:'2026-11-25T20:33:59-03:00',datos_anteriores:{estado:'VIGENTE',monto_total:'1000.25'},datos_nuevos:{estado:'REVERTIDO',motivo_reversion:'Rectificación',monto_total:'1000.25',referencia_rectificacion_externa:null}};
  const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[event],next_cursor:null,has_more:false,fecha_corte:'2026-11-25T21:00:00-03:00',zona_horaria:'America/Santiago'};},'GERENCIA');
  try{
   const root=ui.renderer.root,body=()=>text(ui.renderer.toJSON());
-  assert.match(body(),/Documento revertido/);assert.match(body(),/Usuario #2/);assert.doesNotMatch(body(),/DOCUMENTO_REVERTIDO|Rectificación/);
+  assert.match(body(),/Documento revertido/);assert.match(body(),/Camila Hernández/);assert.match(body(),/finanzas/);assert.match(body(),/Identidad actual/);assert.doesNotMatch(body(),/Usuario #2/);assert.doesNotMatch(body(),/DOCUMENTO_REVERTIDO|Rectificación/);
   assert.equal(root.findAllByProps({'aria-label':'Paginación de auditoría'}).length,0);
   await click(root,'Ver detalle');
   assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,0);
-  assert.match(body(),/Vigente/);assert.match(body(),/Revertido/);assert.match(body(),/\$1\.000,25/);assert.match(body(),/No registrado/);assert.match(body(),/Sin valor/);
+  assert.match(body(),/Usuario #2/);assert.match(body(),/Camila Hernández/);assert.match(body(),/Vigente/);assert.match(body(),/Revertido/);assert.match(body(),/\$1\.000,25/);assert.match(body(),/No registrado/);assert.match(body(),/Sin valor/);
   assert.equal(root.findAllByProps({className:'audit-changed'}).length,1);
   await click(root,'Volver al historial');
   assert.equal(calls.length,1);assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,1);

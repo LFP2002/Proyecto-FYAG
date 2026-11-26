@@ -40,3 +40,6 @@
 .audit-not-recorded{color:var(--fyag-muted);font-style:italic;font-weight:400;}
 @media(max-width:800px){.auditoria-grid,.audit-facts{grid-template-columns:repeat(2,minmax(0,1fr));}.audit-results table{min-width:650px;}}
 @media(max-width:480px){.auditoria-grid,.audit-facts{grid-template-columns:1fr;}}
+
+.audit-actor{display:flex;flex-direction:column;align-items:flex-start;gap:3px;overflow-wrap:anywhere;min-width:0;}
+.audit-actor .audit-secondary{margin:0;font-weight:400;}

@@ -149,12 +149,17 @@ def snapshots(fuente, row, rol, recurso):
 def normalizar_evento(fuente, row, rol):
     recurso, pk = fuente.recurso(row)
     antes, despues = snapshots(fuente, row, rol, recurso)
-    etiqueta = None
-    if rol == "ADMINISTRADOR_TI" and fuente.nombre == "USUARIO_EVENTO":
-        etiqueta = " ".join(filter(None, (row["actor__first_name"].strip(), row["actor__last_name"].strip()))) or row["actor__username"]
+    historico = row["actor_username_historico"] is not None
+    relacion = fuente.actor.removesuffix("_id")
+    username = row["actor_username_historico"] if historico else row[f"{relacion}__username"]
+    nombre = row["actor_nombre_historico"] if historico else " ".join(
+        filter(None, ((row[f"{relacion}__first_name"] or "").strip(), (row[f"{relacion}__last_name"] or "").strip()))
+    )
+    etiqueta = nombre or username or None
     return {"id": f"{fuente.nombre}:{row['id']}", "evento_id": row["id"], "fuente": fuente.nombre,
             "modulo": fuente.modulo, "recurso_tipo": recurso, "recurso_id": pk, "tipo": fuente.tipo(row),
-            "actor": row[fuente.actor], "actor_etiqueta": etiqueta, "motivo": row["motivo"] or "",
+            "actor": row[fuente.actor], "actor_etiqueta": etiqueta, "actor_username": username or None,
+            "actor_identidad_origen": "HISTORICA" if historico else "ACTUAL", "motivo": row["motivo"] or "",
             "creado_en": row["creado_en"], "datos_anteriores": antes, "datos_nuevos": despues}
 
 
@@ -173,6 +178,8 @@ class EventoPublicoSerializer(serializers.Serializer):
     tipo = serializers.CharField()
     actor = serializers.IntegerField()
     actor_etiqueta = serializers.CharField(allow_null=True)
+    actor_username = serializers.CharField(allow_null=True)
+    actor_identidad_origen = serializers.ChoiceField(choices=['HISTORICA', 'ACTUAL'])
     motivo = serializers.CharField(allow_blank=True)
     creado_en = FechaSantiago()
     datos_anteriores = serializers.JSONField()
