@@ -1,7 +1,8 @@
 """Proyección económica de obras para AF, sin ampliar serializers operativos."""
 import re
+from datetime import date
 
-from django.db.models import Case, CharField, Exists, OuterRef, Q, Value, When
+from django.db.models import Case, CharField, Exists, F, OuterRef, Q, Value, When
 from django.db.models.functions import Concat
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -68,7 +69,7 @@ class ObrasResumenFinanzasView(APIView):
             return Response(data, headers={"Cache-Control": "private, no-store"})
 
         params = request.query_params
-        query_estricta(params, {"buscar", "estado", "situacion_financiera", "cliente_nombre", "categoria_nombre", "responsable_nombre"})
+        query_estricta(params, {"buscar", "estado", "situacion_financiera", "cliente_nombre", "categoria_nombre", "responsable_nombre", "fecha_programada_desde", "fecha_programada_hasta", "ordering"})
         qs = consulta()
         for campo, estados in (("estado", Obra.Estado.values), ("situacion_financiera", ESTADOS)):
             if campo in params:
@@ -96,6 +97,27 @@ class ObrasResumenFinanzasView(APIView):
                 if match and 0 < int(match[1]) <= 9223372036854775807:
                     criteria |= Q(pk=int(match[1]))
                 qs = qs.filter(criteria)
+        fechas = {}
+        for campo, lookup in (("fecha_programada_desde", "fecha_programada__gte"), ("fecha_programada_hasta", "fecha_programada__lte")):
+            if campo in params:
+                try:
+                    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", params[campo]):
+                        raise ValueError()
+                    fechas[campo] = date.fromisoformat(params[campo])
+                except ValueError:
+                    raise ValidationError({campo: "Fecha inválida. Use YYYY-MM-DD."}) from None
+                qs = qs.filter(**{lookup: fechas[campo]})
+        if len(fechas) == 2 and fechas["fecha_programada_desde"] > fechas["fecha_programada_hasta"]:
+            raise ValidationError({"fecha_programada_hasta": "Rango de fechas invertido."})
+        if "ordering" in params:
+            orden = params["ordering"]
+            if orden not in {"creado_en", "-creado_en", "fecha_programada", "-fecha_programada"}:
+                raise ValidationError({"ordering": "Orden no permitido."})
+            if orden.endswith("fecha_programada"):
+                campo = F("fecha_programada").desc(nulls_last=True) if orden.startswith("-") else F("fecha_programada").asc(nulls_last=True)
+                qs = qs.order_by(campo, "-id" if orden.startswith("-") else "id")
+            else:
+                qs = qs.order_by(orden, "-id" if orden.startswith("-") else "id")
         paginator = FinanzasPaginacion()
         page = paginator.paginate_queryset(qs, request, view=self)
         response = paginator.get_paginated_response([proyeccion(obra) for obra in page])
