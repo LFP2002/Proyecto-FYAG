@@ -89,7 +89,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
       const reads=costsView?[loadSummary(),loadControl(),loadHistory()]:[loadExpenses(),loadSummary(),loadControl()];
       const ok=(await Promise.all(reads)).every(Boolean);
       if(!ok)return false;
-      if(api.locked&&onFinalized){try{await onFinalized();}catch{return false;}}
+      if(onFinalized){try{await onFinalized();}catch{api.setError(new Error('No se pudo actualizar el estado de la obra. Reconsulta antes de continuar.'));return false;}}
       setForm(null);setExpenseOpen(false);setIssue('');setMotive('');setRefreshEpoch(v=>v+1);
       return true;
     });
