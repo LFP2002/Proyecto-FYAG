@@ -42,13 +42,13 @@ for (const failedRead of ['resumen', 'control']) test(`Costos: POST confirmado y
   backend.readFailure = (path) => backend.expenses.length > 0 && path === `/api/obras/1/costos/${failedRead}/`;
   const renderer = await mount(backend);
   try {
-    await openExpenses(renderer); await click(renderer,'Registrar gasto');
+    await openExpenses(renderer); await click(renderer,'Registrar gasto externo');
     for (const [field, value] of Object.entries({ descripcion: 'Cable', unidad: 'metro', cantidad: '2.000', costo_unitario_neto: '12.50', fecha_gasto: '2026-11-12' })) await input(renderer, `obras-gasto-${field}`, value);
-    const form = renderer.root.findAllByType('form').find((node) => text(node).includes('Registrar material'));
+    const form = renderer.root.findAllByType('form').find((node) => text(node).includes('Registrar gasto externo'));
     await act(async () => { await form.props.onSubmit({ preventDefault() {} }); await flush(); });
     assert.equal(backend.expenses.length, 1);
     assert.equal(renderer.root.findByProps({ id: 'obras-gasto-descripcion' }).props.value, 'Cable');
-    assert.equal(buttons(renderer, 'Registrar gasto')[0].props.disabled, true);
+    assert.equal(buttons(renderer, 'Registrar gasto externo')[0].props.disabled, true);
     await act(async () => { await form.props.onSubmit({ preventDefault() {} }); await flush(); });
     assert.equal(backend.calls.filter((call) => call.method === 'POST').length, 1);
     assert.doesNotMatch(text(renderer.root), /Resumen económico|Control de rubros|Historial de costos/);
@@ -62,10 +62,10 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
     await openExpenses(renderer);
     const toolbar=renderer.root.findByProps({className:'so-actions so-expense-toolbar'});
     const actions=toolbar.findAllByType('button').map(button=>text(button).trim());
-    assert.deepEqual(actions,['Actualizar','Registrar gasto']); await click(renderer,'Registrar gasto');
+    assert.deepEqual(actions,['Actualizar','Autorizar material','Registrar gasto externo']); await click(renderer,'Registrar gasto externo');
     await input(renderer, 'obras-gasto-descripcion', 'Cable'); await input(renderer, 'obras-gasto-unidad', 'metro');
     await input(renderer, 'obras-gasto-cantidad', '2,000'); await input(renderer, 'obras-gasto-costo_unitario_neto', '12,50'); await input(renderer, 'obras-gasto-fecha_gasto', '2026-11-12');
-    await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar material'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
+    await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar gasto externo'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/gastos/' && entry.method === 'POST');
     assert.ok(call); assert.equal(call.body.cantidad, '2.000'); assert.equal(call.body.costo_unitario_neto, '12.50');
     assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/resumen/'));
@@ -90,7 +90,7 @@ test('Gerencia consulta resumen económico y actividad reciente sin acciones de 
     await click(renderer,'Actividad reciente');
     assert.ok(backend.calls.some(entry=>entry.path.startsWith('/api/obras/1/historial/')));
     assert.match(text(renderer.root.findByProps({'aria-label':'Actividad reciente'})),/Obra creada/);
-    for(const label of ['Registrar gasto','Validar costos','Finalizar obra'])assert.equal(buttons(renderer,label).length,0);
+    for(const label of ['Registrar gasto externo','Validar costos','Finalizar obra'])assert.equal(buttons(renderer,label).length,0);
     assert.ok(backend.calls.every(entry=>entry.method==='GET'&&!/gastos|costos\/control|costos\/historial/.test(entry.path)));
   } finally { await unmount(renderer); }
 });
