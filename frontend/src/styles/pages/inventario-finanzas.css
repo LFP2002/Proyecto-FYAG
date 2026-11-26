@@ -36,3 +36,36 @@
 .finance-inventory .if-retry {padding:16px;}
 @media(max-width:950px){.finance-inventory .if-kpis,.finance-inventory .if-facts {grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:540px){.finance-inventory .if-kpis,.finance-inventory .if-facts,.finance-inventory .if-fields {grid-template-columns:minmax(0,1fr);}.finance-inventory .if-panel {padding:14px;}.finance-inventory .if-footer .btn {flex:1;}}
+
+/* Jerarquía semántica: color reservado para situaciones que requieren atención. */
+.finance-inventory .if-kpis .if-metric {border-left:4px solid var(--fyag-line);}
+.finance-inventory .if-kpis .if-metric[data-tone="danger"] {border-left-color:#d04f4f;}
+.finance-inventory .if-kpis .if-metric[data-tone="warning"] {border-left-color:#d99b28;}
+.finance-inventory .if-kpis .if-metric[data-tone="finance"] {border-left-color:#3980d5;}
+.finance-inventory .if-metric > span {display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.finance-inventory .if-metric[data-tone="danger"] :is(strong,svg) {color:#c34d4d;}
+.finance-inventory .if-metric[data-tone="warning"] :is(strong,svg) {color:#a66b0d;}
+.finance-inventory .if-stock-quantity {font-weight:600;display:block;font-variant-numeric:tabular-nums;}
+.finance-inventory .if-stock-state,.finance-inventory .if-inactive {display:block;font-size:.8125rem;margin-top:4px;color:var(--fyag-muted);}
+.finance-inventory .if-stock-state.empty {color:#c34d4d;font-weight:600;}
+.finance-inventory .if-stock-state.unknown {font-weight:600;}
+.finance-inventory .if-table .chip {display:inline-block;white-space:normal;}
+.finance-inventory .if-stock-detail {padding:26px;}
+.finance-inventory .if-stock-detail .if-heading {align-items:center;}
+.finance-inventory .if-stock-detail .if-heading h2 {font-size:1.6rem;line-height:1.3;margin:6px 0;}
+.finance-inventory .if-detail-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin:24px 0 0;padding:22px 0;border-block:1px solid var(--fyag-line);}
+.finance-inventory .if-detail-summary > div {min-width:0;}
+.finance-inventory .if-detail-summary > div + div {border-left:1px solid var(--fyag-line);padding-left:22px;}
+.finance-inventory .if-detail-summary > div > span:first-child {display:block;color:var(--fyag-muted);font-weight:600;font-size:.875rem;}
+.finance-inventory .if-detail-summary > div > strong {display:block;font-size:1.85rem;line-height:1.25;margin:9px 0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.finance-inventory .if-detail-summary small {display:block;color:var(--fyag-muted);font-size:.8125rem;}
+.finance-inventory .if-detail-valuation {margin:12px 0;}
+.finance-inventory .if-detail-info {padding:22px 0;}
+.finance-inventory .if-stock-detail h3 {font-size:1rem;font-weight:700;margin:0 0 8px;}
+.finance-inventory .if-stock-detail .if-facts dd {font-size:1rem;}
+.finance-inventory .if-detail-links {display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--fyag-line);padding-top:20px;}
+@media (prefers-color-scheme:dark) {
+ .finance-inventory .if-metric[data-tone="danger"] :is(strong,svg),.finance-inventory .if-stock-state.empty {color:#f18b8b;}
+ .finance-inventory .if-metric[data-tone="warning"] :is(strong,svg) {color:#eab65e;}
+}
+@media(max-width:760px){.finance-inventory .if-detail-summary {grid-template-columns:minmax(0,1fr);gap:16px;}.finance-inventory .if-detail-summary > div + div {border-left:0;padding-left:0;border-top:1px solid var(--fyag-line);padding-top:16px;}.finance-inventory .if-stock-detail {padding:16px;}.finance-inventory .if-detail-links .if-toolbar {width:100%;}}
