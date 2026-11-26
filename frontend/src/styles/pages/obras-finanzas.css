@@ -1,0 +1,38 @@
+/* Vista económica exclusiva de Administrativo/Finanzas. */
+.obras-finanzas { min-width:0; }
+.obras-finanzas .of-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+.obras-finanzas .of-heading h1 { font-size:1.625rem; font-weight:700; color:var(--fyag-primary); margin:0 0 5px; }
+.obras-finanzas .of-heading h2 { font-size:1.125rem; margin:0 0 4px; overflow-wrap:anywhere; }
+.obras-finanzas .of-heading p { margin:0; }
+.obras-finanzas .of-button { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+.obras-finanzas .of-button svg { flex-shrink:0; }
+.obras-finanzas .of-panel { padding:18px; min-width:0; }
+.obras-finanzas .of-panel h2 { font-size:1.0625rem; font-weight:650; color:var(--fyag-primary); margin:0 0 12px; }
+.obras-finanzas .of-toolbar { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.obras-finanzas .of-toolbar label,.obras-finanzas .of-extra-filters label { display:grid; gap:6px; font-size:.8125rem; font-weight:600; min-width:0; }
+.obras-finanzas .of-search { flex: 2 1 260px; }
+.obras-finanzas .of-toolbar label:not(.of-search) { flex:1 1 170px; }
+.obras-finanzas .of-toolbar .btn { min-height:40px; }
+.obras-finanzas .of-extra-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:12px 0; }
+.obras-finanzas .of-actions { display:flex; justify-content:flex-end; gap:8px; margin:12px 0; flex-wrap:wrap; }
+.obras-finanzas .of-list .commercial-table-frame { margin-top:14px; }
+.obras-finanzas .of-list td { padding:12px; vertical-align:middle; overflow-wrap:anywhere; }
+.obras-finanzas .of-client { display:block; margin:3px 0; }
+.obras-finanzas .of-count { color:var(--fyag-muted); font-size:.8125rem; margin:12px 0 0; }
+.obras-finanzas .of-detail { max-width:1080px; width:100%; margin-inline:auto; }
+.obras-finanzas .of-detail > .of-panel { margin-bottom:14px; }
+.obras-finanzas .of-metrics,.obras-finanzas .of-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.obras-finanzas .of-metrics > div { background:var(--fyag-bg); border:1px solid var(--fyag-line); border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:5px; min-width:0; }
+.obras-finanzas .of-metrics small { color:var(--fyag-muted); }
+.obras-finanzas .of-metrics strong { font-size:1.5rem; color:var(--fyag-primary); overflow-wrap:anywhere; }
+.obras-finanzas .of-detail-grid { margin-bottom:14px; }
+.obras-finanzas dl { margin:0; }
+.obras-finanzas .of-fact { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; padding:10px 0; border-bottom:1px solid var(--fyag-line); }
+.obras-finanzas .of-fact:last-child { border-bottom:0; }
+.obras-finanzas .of-fact dt { color:var(--fyag-muted); font-size:.8125rem; font-weight:500; }
+.obras-finanzas .of-fact dd { margin:0; text-align:right; overflow-wrap:anywhere; }
+.obras-finanzas .of-operational { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.obras-finanzas .of-operational .of-fact { display:block; border-bottom:0; }
+.obras-finanzas .of-operational .of-fact dd { text-align:left; margin-top:5px; }
+@media(max-width:767.98px){.obras-finanzas .of-detail-grid,.obras-finanzas .of-extra-filters {grid-template-columns:1fr;}.obras-finanzas .of-operational{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:575.98px){.obras-finanzas .of-panel{padding:12px;}.obras-finanzas .of-metrics,.obras-finanzas .of-operational{grid-template-columns:1fr;}.obras-finanzas .of-toolbar label{flex-basis:100%!important;}.obras-finanzas .of-toolbar>.btn{flex:1;}.obras-finanzas .of-fact{grid-template-columns:1fr;gap:4px;}.obras-finanzas .of-fact dd{text-align:left;}}
