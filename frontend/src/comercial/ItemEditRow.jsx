@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import UnitField from './UnitField.jsx';
 import MaterialPicker from './MaterialPicker.jsx';
-import { money, validateItem, validDecimal } from './domain.js';
+import { money, validateItem, validDecimal, nextItemOrder } from './domain.js';
 import { Errors } from './ui.jsx';
 
 // Estimación exacta en centavos; el servidor confirma los importes definitivos.
@@ -16,10 +16,11 @@ export function estimateSubtotal(quantity, price) {
 }
 
 export function itemRowErrors(form, items, original) {
-  const errors = validateItem(form);
+  const order = original ? original.orden : nextItemOrder(items);
+  const errors = validateItem({ ...form, orden: order });
   const messages = { descripcion: 'Máximo 2000 caracteres', cantidad: 'Ingresa una cantidad válida', unidad: 'Máximo 30 caracteres', precio_unitario: 'Ingresa un precio válido', orden: 'Ingresa un entero positivo válido' };
   for (const name of Object.keys(errors)) errors[name] = [String(form[name]).trim() ? messages[name] : 'Campo obligatorio'];
-  if (items.some((item) => item.id !== original?.id && item.orden === Number(form.orden))) errors.orden = ['Orden ya utilizado'];
+  if (items.some((item) => item.id !== original?.id && item.orden === Number(order))) errors.orden = ['Orden ya utilizado'];
   return errors;
 }
 
