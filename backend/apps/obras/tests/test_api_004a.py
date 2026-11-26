@@ -315,7 +315,8 @@ class ObrasAPIContratoTests(ObrasAPIBase):
     def test_busqueda_supervisor_antes_de_paginar_y_orden_operativo(self):
         primero = self.crear_obra(tecnico=self.usuarios[T])
         segundo = self.crear_obra(presupuesto=self.crear_presupuesto())
-        Obra.objects.filter(pk=primero.pk).update(estado="EN_PROCESO")
+        inicio = self.client.post(f"/api/obras/{primero.pk}/iniciar/", {"motivo": "Inicio QA"}, format="json")
+        self.assertEqual(inicio.status_code, 200, inicio.data)
         url = "/api/obras/"
         respuesta = self.client.get(url, {"buscar": "cliente para api"})
         self.assertEqual(respuesta.status_code, 200, respuesta.data)
