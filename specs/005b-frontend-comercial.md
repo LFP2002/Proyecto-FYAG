@@ -286,3 +286,10 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - Diseño adaptable, Bootstrap Icons reutilizados y modo oscuro vigente. Escrituras mantienen reconsulta obligatoria, bloqueo por incertidumbre y ausencia de reenvíos automáticos; actualización accesible también desde el formulario bloqueado.
 - Resumen comercial consolidado (presupuestos, obras y cobranzas por cliente) diferido: no existe contrato consolidado y no se muestran cifras simuladas.
 - Pruebas dirigidas: comercial-ui.test.js y comercial-domain.test.js, más compilación Vite y comprobación visual manual. Ejecución local pendiente; no implica aprobación de CI ni merge.
+
+### Refinamiento visual de ficha y formularios
+
+- Listado principal aprobado: permanece a ancho completo, sin cambios de filtros ni tabla.
+- Alta, edición y detalle centrados con ancho máximo de 900 px; campos principales a ancho completo, restantes en dos columnas adaptables, iconos reutilizados, ayudas de entrada y marca de campos obligatorios según la validación vigente. Correo o teléfono sigue siendo requisito alternativo.
+- Ficha con encabezado de identidad, estado, ID informativo y acciones separadas; datos agrupados por filas, valores ausentes identificados como «No registrado». Sin cambios de API, permisos o escritura. Se conserva Actualizar para reconsulta y resolución de incertidumbre.
+- Pruebas dirigidas actualizadas; ejecución local y verificación visual pendientes.
