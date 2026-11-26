@@ -133,6 +133,7 @@ class PresupuestoListadoSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     codigo = serializers.CharField(read_only=True)
     cliente = serializers.IntegerField(source="cliente_id", read_only=True)
+    cliente_nombre = serializers.CharField(source="cliente.nombre_legal", read_only=True)
     descripcion = serializers.CharField(read_only=True)
     estado = serializers.CharField(read_only=True)
     requiere_aprobacion_gerencia = serializers.BooleanField(read_only=True)
