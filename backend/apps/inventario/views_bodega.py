@@ -6,13 +6,13 @@ from uuid import UUID
 
 from django.db.models import Q, OuterRef, Subquery, Sum, Value, F, DecimalField
 from django.db.models.functions import Coalesce, Greatest
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import consultas_materiales
-from .models import ArticuloInventario, ExistenciaInventario, MovimientoInventario, OperacionMaterial, MAXIMO
+from . import consultas_materiales, consultas_mermas
+from .models import ArticuloInventario, ExistenciaInventario, MovimientoInventario, OperacionMaterial, Merma, TIPOS_MB, MAXIMO
 from .permissions import revalidar
 from .views import InventarioPaginacion, query, articulo_filtro
 from .views_materiales import CabecerasMateriales
@@ -99,6 +99,21 @@ def operacion(o):
     return row
 
 
+def merma_row(m, detalle=False):
+    row = {**material(m.articulo), 'id': m.pk, 'unidad': m.unidad,
+           'cantidad': cantidad(m.cantidad), 'tipo': m.tipo, 'estado': m.estado,
+           'creado_en': m.creado_en.isoformat(), 'motivo': m.motivo,
+           'referencia': m.referencia, 'actor': actor_label(m.informado_por),
+           'decidido_por': actor_label(m.decidido_por) if m.decidido_por else None,
+           'decidido_en': m.decidido_en.isoformat() if m.decidido_en else None,
+           'motivo_decision': m.motivo_decision}
+    if detalle:
+        row['historial'] = [{'id': e.pk, 'tipo': e.tipo, 'actor': actor_label(e.actor),
+                             'motivo': e.motivo, 'creado_en': e.creado_en.isoformat()}
+                            for e in m.eventos.select_related('actor').order_by('id')]
+    return row
+
+
 class BodegaOperativaView(CabecerasMateriales, APIView):
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'head', 'options']
@@ -122,6 +137,8 @@ class BodegaOperativaView(CabecerasMateriales, APIView):
                 qs = MovimientoInventario.objects.filter(tipo=kind, clave_idempotencia=key, actor=actor)
             elif kind in ('ENTREGA', 'DEVOLUCION'):
                 qs = OperacionMaterial.objects.filter(tipo=kind, clave_idempotencia=key, actor=actor)
+            elif kind == 'MERMA':
+                qs = consultas_mermas.scope(actor, 'BODEGA').filter(clave_idempotencia=key, informado_por=actor)
             else:
                 raise ValidationError({'tipo': ['Operación no permitida.']})
             return Response({'id': qs.values_list('pk', flat=True).first()})
@@ -136,10 +153,25 @@ class BodegaOperativaView(CabecerasMateriales, APIView):
                              'faltantes': [articulo(a) for a in zero[:5]],
                              'pendientes': [operacion(o) for o in deliveries[:5]],
                              'retornos': [operacion(o) for o in returns[:5]]})
+        if section == 'merma_detalle':
+            query(p, {'seccion', 'merma'})
+            if 'merma' not in p or 'page' in p:
+                raise ValidationError({'merma': ['Identificador requerido; sin página.']})
+            pk = articulo_filtro({'articulo': p['merma']})
+            m = consultas_mermas.scope(actor, 'BODEGA').select_related(
+                'articulo', 'informado_por', 'decidido_por').filter(pk=pk).first()
+            if m is None:
+                raise NotFound('Merma no disponible.')
+            return Response(merma_row(m, detalle=True))
         allowed = {'seccion', 'buscar'}
         if section == 'inventario':
             allowed |= {'estado', 'stock'}
             qs, render = catalog, articulo
+        elif section == 'mermas':
+            allowed |= {'estado', 'tipo'}
+            qs = consultas_mermas.scope(actor, 'BODEGA').select_related(
+                'articulo', 'informado_por', 'decidido_por').order_by('-creado_en', '-id')
+            render = merma_row
         elif section == 'movimientos':
             allowed |= {'articulo', 'tipo', 'desde', 'hasta'}
             qs = MovimientoInventario.objects.select_related('articulo', 'actor').order_by('-creado_en', '-id')
@@ -179,6 +211,12 @@ class BodegaOperativaView(CabecerasMateriales, APIView):
                 if p['stock'] not in ('con_stock', 'sin_stock'):
                     raise ValidationError({'stock': ['Filtro no permitido.']})
                 qs = qs.filter(existencia__saldo__gt=0) if p['stock'] == 'con_stock' else qs.filter(existencia__saldo=0)
+        if section == 'mermas':
+            for key, choices in (('estado', ('PENDIENTE', 'APROBADA', 'RECHAZADA')), ('tipo', TIPOS_MB)):
+                if key in p:
+                    if p[key] not in choices:
+                        raise ValidationError({key: ['Valor no permitido.']})
+                    qs = qs.filter(**{key: p[key]})
         if section == 'movimientos':
             if 'articulo' in p:
                 qs = qs.filter(articulo_id=articulo_filtro(p))

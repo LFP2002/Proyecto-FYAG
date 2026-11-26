@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FYAG — SPEC-019D Consulta operativa Bodega",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "paths": {
     "/api/inventario/bodega/": {
@@ -25,7 +25,9 @@
                 "movimientos",
                 "entregas",
                 "devoluciones",
-                "confirmacion"
+                "confirmacion",
+                "mermas",
+                "merma_detalle"
               ],
               "default": "resumen"
             }
@@ -54,7 +56,10 @@
               "type": "string",
               "enum": [
                 "activo",
-                "inactivo"
+                "inactivo",
+                "PENDIENTE",
+                "APROBADA",
+                "RECHAZADA"
               ]
             }
           },
@@ -87,7 +92,12 @@
                 "SALIDA",
                 "DEVOLUCION",
                 "MERMA",
-                "ENTREGA"
+                "ENTREGA",
+                "DANO",
+                "VENCIMIENTO",
+                "EXTRAVIO",
+                "DIFERENCIA_CONTEO",
+                "OTRA"
               ]
             }
           },
@@ -126,6 +136,15 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "merma",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Requerido para merma_detalle."
           }
         ],
         "responses": {
@@ -143,6 +162,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/Confirmacion"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MermaDetalle"
                     }
                   ]
                 }
@@ -581,6 +603,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/Autorizacion"
+                },
+                {
+                  "$ref": "#/components/schemas/Merma"
                 }
               ]
             },
@@ -601,6 +626,227 @@
               "null"
             ],
             "minimum": 1
+          }
+        }
+      },
+      "Merma": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "cantidad",
+          "tipo",
+          "estado",
+          "creado_en",
+          "motivo",
+          "referencia",
+          "actor",
+          "decidido_por",
+          "decidido_en",
+          "motivo_decision"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "DANO",
+              "VENCIMIENTO",
+              "EXTRAVIO",
+              "DIFERENCIA_CONTEO",
+              "OTRA"
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          }
+        }
+      },
+      "MermaDetalle": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "cantidad",
+          "tipo",
+          "estado",
+          "creado_en",
+          "motivo",
+          "referencia",
+          "actor",
+          "decidido_por",
+          "decidido_en",
+          "motivo_decision",
+          "historial"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "DANO",
+              "VENCIMIENTO",
+              "EXTRAVIO",
+              "DIFERENCIA_CONTEO",
+              "OTRA"
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "historial": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "tipo",
+                "actor",
+                "motivo",
+                "creado_en"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tipo": {
+                  "type": "string",
+                  "enum": [
+                    "CREACION",
+                    "APROBACION",
+                    "RECHAZO"
+                  ]
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "motivo": {
+                  "type": "string"
+                },
+                "creado_en": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
           }
         }
       }

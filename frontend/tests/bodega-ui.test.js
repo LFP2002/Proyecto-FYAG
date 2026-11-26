@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer,{act} from 'react-test-renderer';
 import {createServer} from 'vite';
-import {amount,movementAmount,preview} from '../src/bodega/domain.js';
+import {amount,movementAmount,preview,authorizationStatus,timestamp,recordCount} from '../src/bodega/domain.js';
 let server,AuthProvider,AppProvider,App,MovementTable;
 before(async()=>{
  server=await createServer({configFile:false,esbuild:{jsx:'automatic'},server:{middlewareMode:true,ws:false,hmr:false},appType:'custom',optimizeDeps:{noDiscovery:true,include:[]}});
@@ -116,5 +116,45 @@ test('Bodega: estados vacíos contextuales, fuera de cuadrículas y tablas, y fi
   await click('Movimientos');
   assert.match(text(empty()),/No hay movimientos registrados/);
   assert.ok(calls.every(c=>c.method==='GET'));
+ }finally{if(renderer)await act(async()=>renderer.unmount());}
+});
+
+test('Autorizaciones: completada, parcial, bloqueada y saldo de devolución agotado por otras causas',()=>{
+ assert.deepEqual(authorizationStatus({...auth,ejecutada:'2.000',pendiente:'0.000',bloqueo:'Sin cantidad pendiente'}),['Completada','good']);
+ assert.deepEqual(authorizationStatus({...auth,ejecutada:'1.000',pendiente:'1.000'}),['Parcial','warn']);
+ assert.deepEqual(authorizationStatus({...auth,bloqueo:'Sin existencias'}),['Bloqueada','warn']);
+ assert.deepEqual(authorizationStatus({...auth,ejecutada:'1.000',pendiente:'0.000',bloqueo:'Sin cantidad pendiente'}),['Sin saldo pendiente','neutral']);
+ assert.equal(timestamp('2026-11-25T23:33:54Z'),'25/11/2026 · 20:33');
+ assert.equal(recordCount(1),'1 registro');
+});
+test('Mermas Bodega: consulta por nombre, detalle independiente y declaración sin aprobar',async()=>{
+ const calls=[];let created=false;
+ const session={status:'authenticated',user:{id:9,username:'bodega',email:'bodega@example.test',role:'BODEGUERO'}};
+ const row={...material,id:3,articulo:1,cantidad:'1.000',tipo:'DANO',estado:'PENDIENTE',creado_en:'2026-11-25T23:33:54Z',motivo:'Daño observado',referencia:'Acta',actor:'Bodeguero',decidido_por:null,decidido_en:null,motivo_decision:''};
+ const detail={...row,historial:[{id:1,tipo:'CREACION',actor:'Bodeguero',motivo:row.motivo,creado_en:row.creado_en}]};
+ const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts={})=>{
+  calls.push({path,method:opts.method||'GET',body:opts.body});
+  if(opts.method==='POST'){assert.equal(path,'/api/inventario/mermas-bodega/');created=true;return {id:3};}
+  const q=new URL(path,'http://localhost').searchParams,section=q.get('seccion');
+  if(section==='resumen')return {materiales:1,sin_stock:0,entregas:0,devoluciones:0,faltantes:[],pendientes:[],retornos:[]};
+  if(section==='mermas')return page([row]);
+  if(section==='merma_detalle')return detail;
+  if(section==='inventario')return page([material]);
+  throw Error(path);
+ }};
+ let renderer;
+ const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});};
+ const input=async(label,value)=>{const el=renderer.root.findAllByType('label').find(l=>text(l).startsWith(label));assert.ok(el,label);const control=el.findAllByType('input')[0]||el.findAllByType('textarea')[0];await act(async()=>control.props.onChange({target:{value}}));};
+ try{
+  await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+  await click('Mermas');assert.match(text(renderer.root),/Tubería/);assert.doesNotMatch(text(renderer.root),/Importe informativo/);
+  await click('Ver merma #3');assert.match(text(renderer.root),/En espera de revisión por Finanzas/);assert.equal(renderer.root.findAllByType('table').length,0);
+  assert.doesNotMatch(text(renderer.root),/Decidir/);
+  await click('Volver a mermas');await click('Informar merma');await click('Material afectado');
+  const option=renderer.root.findByProps({className:'bodega-picker-option'});await act(async()=>option.props.onClick());
+  await input('Cantidad','1');await input('Referencia de respaldo','Acta');await input('Motivo','Daño observado');
+  await act(async()=>{await renderer.root.findByProps({className:'bodega-form'}).props.onSubmit({preventDefault(){}});await flush();});
+  assert.equal(created,true);const writes=calls.filter(c=>c.method==='POST');assert.equal(writes.length,1);assert.equal(writes[0].body.articulo,1);assert.equal(writes[0].body.cantidad,'1.000');
+  assert.match(text(renderer.root),/Reporte de merma registrado/);
  }finally{if(renderer)await act(async()=>renderer.unmount());}
 });

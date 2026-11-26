@@ -19,6 +19,7 @@ import Auditoria from './pages/Auditoria.jsx';
 import Inventario from './pages/Inventario.jsx';
 import Solicitudes from './pages/Solicitudes.jsx';
 import Mermas from './pages/Mermas.jsx';
+import BodegaMermas from './pages/BodegaMermas.jsx';
 import Egresos from './pages/Egresos.jsx';
 import Chat from './pages/Chat.jsx';
 import Bodega from './pages/Bodega.jsx';
@@ -35,7 +36,7 @@ export default function App() {
   const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
   const Page = warehouse ? Bodega : mod === 'inventario' ? Inventario
     : mod === 'solicitudes' ? Solicitudes
-      : mod === 'mermas' ? Mermas
+      : mod === 'mermas' ? (user.role==='BODEGUERO'?BodegaMermas:Mermas)
         : mod === 'egresos' ? Egresos
           : mod === 'chat' ? Chat
             : mod === 'auditoria' ? Auditoria

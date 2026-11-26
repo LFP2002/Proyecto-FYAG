@@ -15,3 +15,7 @@ Menú separado de resumen, inventario, movimientos, entregas, devoluciones, merm
 
 ## Verificación
 Pruebas dirigidas de permisos, proyección, remanentes, bloqueos, confirmación y búsqueda; pruebas de navegación, cantidades y recorrido de despacho. Validar suite inventario y frontend, compilación y recorrido real en ambos temas. No se afirma ejecución local.
+
+## Anexo 1.1 — Mermas de Bodega
+
+Secciones de lectura `mermas` (paginada, fecha e ID descendentes; buscar por nombre/código, estado y tipo) y `merma_detalle` (merma ID requerido, sin página). Reutilizan el alcance de consultas_mermas para BODEGA y la autorización exclusiva de BODEGUERO. Proyectan nombre y código actuales del artículo, unidad histórica, cantidades, motivo, referencia, estado, fecha, identidad actual de informante/decisor y eventos en detalle. No devuelven costos ni claves de terceros. La confirmación admite tipo MERMA y retorna únicamente el ID propio o null. La declaración conserva POST /api/inventario/mermas-bodega/ y el UUID original ante incertidumbre; la aprobación sigue reservada a Finanzas y no se realiza desde Bodega. Sin migraciones ni cambios en las rutas anteriores. OpenAPI 1.1.0.

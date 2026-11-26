@@ -6,11 +6,21 @@ export const quantity=v=>{const n=milli(v);return n===null?'—':(n/1000n).toLoc
 export const amount=(v,unit)=>quantity(v)+(milli(v)===null||!unit?'':' '+unit);
 // Display-only abbreviations; preserve original unit in the API and forms.
 const movementUnits=new Map([['litro','L'],['litros','L'],['l','L'],['unidad','un.'],['unidades','un.'],['un','un.'],['un.','un.'],['metro','m'],['metros','m'],['kilogramo','kg'],['kilogramos','kg']]);
-export const movementAmount=(v,unit)=>amount(v,movementUnits.get(unit?.trim().toLowerCase())??unit);
-export const timestamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',dateStyle:'short',timeStyle:'short',hour12:false}).format(new Date(v)):'—';
+export const shortUnit=unit=>movementUnits.get(unit?.trim().toLowerCase())??unit;
+export const movementAmount=(v,unit)=>amount(v,shortUnit(unit));
+const dateParts=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(v)).reduce((a,p)=>({...a,[p.type]:p.value}),{}):null;
+export const timestamp=v=>{const p=dateParts(v);return p?`${p.day}/${p.month}/${p.year} · ${p.hour}:${p.minute}`:'—';};
+export const recordCount=n=>n===1?'1 registro':`${n} registros`;
+export function authorizationStatus(row){
+ const pending=milli(row.pendiente),executed=milli(row.ejecutada),total=milli(row.cantidad);
+ if(pending===null||executed===null||total===null)return ['No disponible','neutral'];
+ if(pending===0n)return executed>=total?['Completada','good']:['Sin saldo pendiente','neutral'];
+ if(row.bloqueo)return ['Bloqueada','warn'];
+ return executed>0n?['Parcial','warn']:['Pendiente','warn'];
+}
 export function pathFor(section,filters={},page=1){
  const p=new URLSearchParams({seccion:section});
- if(section!=='resumen'&&section!=='confirmacion')p.set('page',String(page));
+ if(!['resumen','confirmacion','merma_detalle'].includes(section))p.set('page',String(page));
  for(const [k,v] of Object.entries(filters))if(v!==''&&v!==null&&v!==undefined)p.set(k,String(v));
  return ROOT+'bodega/?'+p;
 }
