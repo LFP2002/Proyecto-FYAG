@@ -83,6 +83,7 @@ export function safePage(link, path, filters = null) {
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
              : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
+             : path === '/api/inventario/mermas-bodega/' ? ['vista','buscar','estado','tipo','articulo']
              : path === '/api/inventario/finanzas/' ? ['seccion','buscar','filtro','tipo','desde','hasta']
              : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
@@ -121,6 +122,9 @@ export function safePage(link, path, filters = null) {
     }
     if(path==='/api/finanzas/egresos/supervision-gerencial/'){
       if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/mermas-bodega/'){
+      if((value('vista')&&value('vista')!=='finanzas')||(value('buscar')&&(value('vista')!=='finanzas'||value('buscar').length>150))||(value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('tipo')&&!['DANO','VENCIMIENTO','EXTRAVIO','DIFERENCIA_CONTEO','OTRA'].includes(value('tipo')))||(value('articulo')&&!validId(value('articulo'))))throw new Error('invalid');
     }
     if(path==='/api/inventario/finanzas/'){
       const section=value('seccion')||'inventario';
