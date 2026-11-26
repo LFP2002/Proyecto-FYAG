@@ -92,7 +92,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
           const data = await response.json();
           const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
-            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]']) allowed.add(field);
+            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]', 'buscar', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'justificacion', 'costo_unitario_neto', 'fecha_gasto', 'fecha_devolucion']) allowed.add(field);
           }
           if (path.startsWith('/api/alertas/')) {
             for (const field of ['motivo', 'estado', 'tipo', 'recurso_tipo', 'recurso_id', 'desde', 'hasta', 'page']) allowed.add(field);
@@ -110,6 +110,11 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
             if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
           }
           if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
+          if (response.status===409 && /^\/api\/obras\/\d+\/(?:costos\/validar|finalizar)\/$/.test(path) && data?.code==='costos_incompletos') {
+            code=data.code;
+            const known=new Set(['responsable_no_elegible','responsable_sin_membresia','sin_turno_acreditado','turnos_sin_acreditar','turno_inconsistente','turnos_abiertos','turnos_pendientes_revision','turnos_observados','turnos_sin_tarifa','duracion_administrativa_sin_verificar','ejecutor_inconsistente','duracion_inconsistente','evidencia_inconsistente','gasto_inconsistente','materiales_sin_declarar_o_incoherente','otros_sin_declarar_o_incoherente','costo_total_no_positivo','control_inexistente','validacion_obsoleta_o_ausente']);
+            if(Array.isArray(data.pendientes))fields.pendientes=[...new Set(data.pendientes.filter(value=>known.has(value)))];
+          }
           if (path.startsWith('/api/usuarios/') && ['ultima_ti', 'ultima_gerencia', 'autooperacion_protegida', 'asignaciones_pendientes', 'sin_cambios', 'version_agotada'].includes(data?.code)) code = data.code;
         } catch { /* Respuesta no pública: conservar mensaje genérico. */ }
       }
