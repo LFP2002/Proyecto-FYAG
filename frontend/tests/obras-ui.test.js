@@ -523,3 +523,20 @@ test('Supervisor: suspender pide motivo y confirmación; cancelar no cambia esta
   assert.equal(renderer.root.findAllByType('dialog').length,0);assert.match(buttons(renderer,'Reanudar obra')[0].props.className,/so-positive-action/);
  }finally{window.confirm=old;await unmount(renderer);}
 });
+
+test('Supervisor: turnos destaca duración, costo y estado en una superficie única',async()=>{
+ const b=obrasBackend(S);b.obras[0].estado='EN_PROCESO';
+ b.turnos=[{turno_id:6,obra:1,tecnico:7,iniciado_en:'2026-11-12T12:00:00Z',terminado_en:'2026-11-12T21:00:00Z',duracion_segundos:32400,duracion_ajustada_segundos:null,descripcion_trabajo:'Inspección de componentes',observacion_revision:'Horas verificadas',estado_revision:'VALIDADO',modo_cierre:'TECNICO',costo_hora_neto:'18500.00',costo_mano_obra:'166500.00',fotos:[]}];
+ const renderer=await mount(b);
+ try{
+  await click(renderer,'Ver obra');await click(renderer,'Turnos');
+  const panel=renderer.root.findByProps({'aria-labelledby':'turnos-title'});
+  assert.match(panel.props.className,/card-fyag so-panel so-turns/);
+  const facts=renderer.root.findByProps({className:'so-turn-facts'});
+  assert.match(text(facts),/Duración9 h/);assert.match(text(facts),/Costo mano de obra neto\$166\.500/);
+  assert.equal(text(renderer.root.findByProps({className:'so-turn-status','data-state':'VALIDADO'})),'Validado');
+  assert.match(text(panel),/Inspección de componentes/);assert.match(text(panel),/Horas verificadas/);
+  assert.equal(buttons(renderer,'Corregir turno').length,1);
+  assert.ok(b.calls.every(c=>c.method==='GET'));
+ }finally{await unmount(renderer);}
+});
