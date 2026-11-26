@@ -22,5 +22,5 @@ export function AppProvider({ children }) {
       setSelection(next);
     }
   };
-  return <Ctx.Provider value={{ role, mod, go, navigationTarget: navigationTarget?.module===mod?navigationTarget:null, navigationBlocked, setNavigationBlocked }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ role, mod, go, navigationTarget: role==='ADMINISTRATIVO_FINANZAS'&&navigationTarget?.module===mod?navigationTarget:null, navigationBlocked, setNavigationBlocked }}>{children}</Ctx.Provider>;
 }
