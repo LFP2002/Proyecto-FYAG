@@ -20,7 +20,7 @@ export function ObraStatus({ state }) {
   const [label, color] = OBRA_STATES[state] || ['Estado desconocido', 'gray'];
   return <Chip cls={color}>{label}</Chip>;
 }
-const fieldLabels = { descripcion: 'Descripción', nombre: 'Nombre', motivo: 'Motivo', presupuesto: 'Presupuesto', categoria_servicio: 'Categoría', tecnico: 'Técnico', tecnico_responsable: 'Responsable', fecha_programada: 'Fecha programada' };
+const fieldLabels = { buscar:'Búsqueda',materiales_estado:'Declaración de materiales',otros_estado:'Declaración de otros gastos',materiales_justificacion:'Justificación de materiales',otros_justificacion:'Justificación de otros gastos',justificacion:'Justificación',costo_unitario_neto:'Costo unitario neto',fecha_gasto:'Fecha del gasto',fecha_devolucion:'Fecha de devolución',descripcion: 'Descripción', nombre: 'Nombre', motivo: 'Motivo', presupuesto: 'Presupuesto', categoria_servicio: 'Categoría', tecnico: 'Técnico', tecnico_responsable: 'Responsable', fecha_programada: 'Fecha programada' };
 const pendingLabels={responsable_no_elegible:'Verifica que el responsable esté activo y sea elegible.',responsable_sin_membresia:'El responsable debe ser participante activo.',sin_turno_acreditado:'Debe existir al menos un turno cerrado y validado.',turnos_sin_acreditar:'Hay turnos que todavía no se han acreditado.',turno_inconsistente:'Revisa la coherencia de los turnos.',turnos_abiertos:'Hay turnos abiertos.',turnos_pendientes_revision:'Hay turnos pendientes de revisión.',turnos_observados:'Hay turnos observados pendientes de subsanación.',turnos_sin_tarifa:'Falta valorar la mano de obra de uno o más turnos.',duracion_administrativa_sin_verificar:'Falta verificar la duración de un turno cerrado administrativamente.',ejecutor_inconsistente:'Revisa los participantes asociados a los turnos.',duracion_inconsistente:'Revisa las duraciones registradas.',evidencia_inconsistente:'Hay evidencias que requieren revisión.',gasto_inconsistente:'Revisa la coherencia de los gastos.',materiales_sin_declarar_o_incoherente:'Revisa la declaración de materiales y sus registros.',otros_sin_declarar_o_incoherente:'Revisa la declaración de otros gastos y sus registros.',costo_total_no_positivo:'El costo real total debe ser mayor que cero.',control_inexistente:'Falta el control de costos.',validacion_obsoleta_o_ausente:'La validación no está vigente.'};
 export function OperationalErrors({ error }) {
   if (!error) return null;
@@ -53,12 +53,13 @@ export function focusError(event, errors) {
   if (name) event.currentTarget?.querySelector(`#obras-${name}`)?.focus();
 }
 export function PagedSelect({ name, label, path, value, onChange, disabled, activeOnly = false, selectedLabel, error, required = false, refreshKey = 0 }) {
-  const api = useOperational();
+  const api = useOperational(),{user}=useAuth();
+  const supervisor=user.role==='SUPERVISOR_OBRAS';
   const [page, setPage] = useState(1), [data, setData] = useState(null), [chosen, setChosen] = useState(null);
   const filters = activeOnly ? { activo: 'true' } : {};
   const read = () => api.load('choices', collectionPath(path, page, filters), (result) => setData(readPage(result, path)));
   useEffect(() => { setData(null); void read(); }, [path, page, activeOnly, refreshKey]);
-  const optionText = (row) => row.codigo ? `${row.codigo} · ${row.cliente_nombre} · #${row.id}` : `${row.nombre} · #${row.id}`;
+  const optionText = (row) => row.codigo ? `${row.codigo} · ${row.cliente_nombre}${supervisor?'':' · #'+row.id}` : `${row.nombre}${supervisor?'':' · #'+row.id}`;
   const options = [['', 'Selecciona una opción'], ...(data?.results || []).map((row) => [String(row.id), optionText(row)])];
   if (value && !options.some(([id]) => id === String(value))) options.push([String(value), chosen?.id === Number(value) ? optionText(chosen) : selectedLabel || `Seleccionado #${value}`]);
   return <div className="obras-selector">
@@ -68,7 +69,7 @@ export function PagedSelect({ name, label, path, value, onChange, disabled, acti
     <OperationalErrors error={api.error} />
     {api.error && <button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading} onClick={read}>Reconsultar {label.toLowerCase()}</button>}
     {api.error?.status === 404 && page > 1 && <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setPage(1)}>Primera página de {label.toLowerCase()}</button>}
-    {data && <Pager label={`Páginas de ${label.toLowerCase()}`} data={data} page={page} setPage={setPage} disabled={disabled || api.loading} />}
+    {data && (!supervisor||data.next||data.previous) && <Pager label={`Páginas de ${label.toLowerCase()}`} data={data} page={page} setPage={setPage} disabled={disabled || api.loading} />}
     {data && !data.count && <p className="commercial-help">No hay opciones disponibles.</p>}
   </div>;
 }
