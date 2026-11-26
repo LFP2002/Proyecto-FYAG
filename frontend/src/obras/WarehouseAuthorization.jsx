@@ -1,4 +1,4 @@
-import React,{useRef,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import InventoryPicker from '../integrations/InventoryPicker.jsx';
 import {useApi} from '../integrations/useApi.js';
 import {quantityInput,quantityHint,normalizeDecimalInput} from '../utils/decimalInput.js';
@@ -9,7 +9,15 @@ export default function WarehouseAuthorization({obra,delivery,onClose,onConfirme
  const [material,setMaterial]=useState(''),[quantity,setQuantity]=useState(''),[reference,setReference]=useState(''),[reason,setReason]=useState(''),[intent,setIntent]=useState(null),[issue,setIssue]=useState('');
  const returning=!!delivery, endpoint='/api/inventario/'+(returning?'autorizaciones-devolucion/':'autorizaciones-entrega/');
  const blocked=api.busy||!!intent;
- const definitive=[400,401,403,404,422].includes(api.error?.status)&&!api.locked;
+ const [hadUncertainty,setHadUncertainty]=useState(false);
+ const rejectedConflict=api.error?.status===409&&['estado_incompatible','remanente_insuficiente'].includes(api.error.code);
+ useEffect(()=>{if(api.locked&&!rejectedConflict)setHadUncertainty(true);},[api.locked,rejectedConflict]);
+ const definitive=rejectedConflict||(!hadUncertainty&&!api.locked&&[400,401,403,404,422].includes(api.error?.status));
+ async function discardRejected(){
+  if(!definitive||pending.current)return;
+  await api.reconcile(async()=>true);
+  frozen.current=null;setIntent(null);setHadUncertainty(false);api.setError(null);
+ }
  async function send(body,retry=false){
   if(!body||pending.current)return;
   pending.current=true;setIssue('');
@@ -47,7 +55,7 @@ export default function WarehouseAuthorization({obra,delivery,onClose,onConfirme
   <OperationalErrors error={api.error}/>{issue&&<p role="alert">{issue}</p>}
   {intent?<><p className="commercial-help" role="status">{api.busy?'Confirmando autorización…':'Se conserva la autorización original. No se enviará una distinta hasta confirmar el resultado.'}</p><div className="so-actions">
     <button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={()=>void send(frozen.current,true)}>Reintentar misma autorización</button>
-    {definitive&&<button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={()=>{frozen.current=null;setIntent(null);api.setError(null);}}>Corregir datos rechazados</button>}
+    {definitive&&<button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={()=>void discardRejected()}>Corregir datos rechazados</button>}
   </div></>:<div className="so-actions"><button type="button" className="btn btn-outline-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="btn btn-fyag-primary">{returning?'Autorizar devolución':'Autorizar entrega'}</button></div>}
  </form>;
 }

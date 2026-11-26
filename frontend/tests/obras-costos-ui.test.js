@@ -247,3 +247,74 @@ test('Supervisor: importes identificados y actividad económica con comparación
   assert.ok(backend.calls.every(c=>c.method==='GET'));
  }finally{await unmount(renderer);}
 });
+
+
+test('Supervisor: autorizar material desde obra conserva UUID y no registra gasto manual',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ const original=backend.request;let lost=true;let saved;
+ backend.request=async(path,opts={})=>{
+  if(path.startsWith('/api/inventario/articulos/')){
+   backend.calls.push({path,method:'GET'});
+   return {count:1,next:null,previous:null,results:[{id:9,nombre:'Tubería de cobre',codigo:'TUB-01',unidad:'metro',activo:true}]};
+  }
+  if(path==='/api/inventario/autorizaciones-entrega/'&&opts.method==='POST'){
+   backend.calls.push({path,method:'POST',body:structuredClone(opts.body)});
+   saved??={id:15,tipo:'AUTORIZACION_ENTREGA',...opts.body,cantidad:'2.500'};
+   if(lost){lost=false;throw new ApiError(503,'Respuesta incierta');}
+   return saved;
+  }
+  return original(path,opts);
+ };
+ const renderer=await mount(backend);
+ try{
+  await openExpenses(renderer);await click(renderer,'Autorizar material');
+  const form=()=>renderer.root.findByProps({'aria-label':'Autorizar material de Bodega'});
+  const select=form().findByType('select');
+  assert.ok(select.findAllByType('option').some(o=>text(o).includes('Tubería de cobre')));
+  await act(async()=>select.props.onChange({target:{value:'9'}}));
+  const quantity=form().findAllByType('input').find(n=>n.props.inputMode==='decimal');
+  await act(async()=>quantity.props.onChange({target:{value:'2,5'}}));
+  assert.doesNotMatch(text(form()),/Costo unitario neto \(CLP\)/);
+  await act(async()=>{await form().props.onSubmit({preventDefault(){}});await flush();});
+  assert.equal(buttons(renderer,'Reintentar misma autorización').length,1);
+  assert.ok(form().findByType('select').props.disabled);
+  await click(renderer,'Reintentar misma autorización');
+  const writes=backend.calls.filter(c=>c.method==='POST');
+  assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);
+  assert.equal(writes[0].body.obra,1);assert.equal(writes[0].body.articulo,9);assert.equal(writes[0].body.cantidad,'2.5');
+  assert.ok(writes[0].body.clave_idempotencia);
+  assert.ok(writes.every(c=>c.path==='/api/inventario/autorizaciones-entrega/'));
+  assert.equal(backend.expenses.length,0);assert.match(text(renderer.root),/Entrega autorizada/);
+ }finally{await unmount(renderer);}
+});
+
+test('Supervisor: origen Bodega impide edición manual y autoriza devolución de la entrega real',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ backend.expenses=[{...gasto,origen:'BODEGA_019B',entrega_bodega:55},{...gasto,id:5,descripcion:'Compra directa',origen:'MANUAL',entrega_bodega:null}];
+ const original=backend.request;
+ backend.request=async(path,opts={})=>{
+  if(path==='/api/inventario/autorizaciones-devolucion/'&&opts.method==='POST'){
+   backend.calls.push({path,method:'POST',body:structuredClone(opts.body)});
+   return {id:56,tipo:'AUTORIZACION_DEVOLUCION',obra:1,...opts.body,cantidad:'1.000'};
+  }
+  return original(path,opts);
+ };
+ const renderer=await mount(backend);
+ try{
+  await openExpenses(renderer);
+  const rows=renderer.root.findAllByType('tr');
+  const warehouse=rows.find(row=>text(row).includes('Cable'));
+  const external=rows.find(row=>text(row).includes('Compra directa'));
+  assert.match(text(warehouse),/Bodega/);assert.match(text(warehouse),/Autorizar devolución/);
+  assert.doesNotMatch(text(warehouse),/Corregir|Anular|Devolver cantidad/);
+  assert.match(text(external),/Corregir|Anular/);
+  await click(renderer,'Autorizar devolución');
+  const form=renderer.root.findByProps({'aria-label':'Autorizar devolución de Bodega'});
+  await act(async()=>form.findAllByType('input').find(n=>n.props.inputMode==='decimal').props.onChange({target:{value:'1'}}));
+  await act(async()=>{await form.props.onSubmit({preventDefault(){}});await flush();});
+  const writes=backend.calls.filter(c=>c.method==='POST');
+  assert.equal(writes.length,1);assert.equal(writes[0].body.entrega,55);assert.equal(writes[0].body.cantidad,'1');
+  assert.equal(backend.expenses[0].cantidad_devuelta,'0.000');
+  assert.match(text(renderer.root),/Devolución autorizada/);
+ }finally{await unmount(renderer);}
+});
