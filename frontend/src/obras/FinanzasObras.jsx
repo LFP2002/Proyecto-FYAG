@@ -36,7 +36,7 @@ function costShape(data,id){
   return data;
 }
 function FinancialStatus({state}){const [label,color]=FINANCE[state];return <Chip cls={color}>{label}</Chip>;}
-function Btn({icon,children,...props}){return <button type="button" className="btn btn-outline-secondary of-button" {...props}>{icon&&<TecIcon name={icon}/>} {children}</button>;}
+function Btn({icon,children,...props}){return <button type="button" className="btn btn-outline-secondary of-button" {...props}>{icon&&<TecIcon name={icon}/>}{children}</button>;}
 function Fact({label,value}){return <div className="of-fact"><dt>{label}</dt><dd>{value}</dd></div>;}
 function Detail({id,onBack}){
   const api=useApi(), app=useApp();
