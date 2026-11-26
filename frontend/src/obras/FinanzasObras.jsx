@@ -4,7 +4,7 @@ import { Chip } from '../components/ui';
 import { Errors, Pager } from '../comercial/ui.jsx';
 import { useApi, strictObject, decimalString, positiveInteger } from '../integrations/useApi.js';
 import { readPage, obraPath } from './api.js';
-import { OBRA_STATES, shortDate, timestamp } from './domain.js';
+import { OBRA_STATES, shortDate, timestamp, orderingOptions } from './domain.js';
 import { ObraStatus } from './ui.jsx';
 import { formatCompactCLP } from '../utils/format.js';
 import TecIcon from './TecIcon.jsx';
@@ -18,7 +18,7 @@ const FINANCE={
   DOCUMENTADO:['Facturada','blue'], SIN_COBRO:['Sin cobro','gray'],
 };
 const COLLECTION_KEYS=['id','codigo','presupuesto','presupuesto_codigo','cliente','cliente_nombre','categoria_servicio','categoria_nombre','tecnico_responsable','tecnico_nombre','fecha_programada','iniciado_en','estado','finalizado_en','monto_neto_aprobado','situacion_financiera'];
-const EMPTY={buscar:'',estado:'',situacion_financiera:'',cliente_nombre:'',categoria_nombre:'',responsable_nombre:''};
+const EMPTY={buscar:'',estado:'',situacion_financiera:'',cliente_nombre:'',categoria_nombre:'',responsable_nombre:'',fecha_programada_desde:'',fecha_programada_hasta:'',ordering:''};
 const CASH_STATES={PENDIENTE:'Pendiente de pago',PARCIAL:'Pago parcial',PAGADA:'Pagada',VENCIDA:'Vencida'};
 function shape(row, detail=false){
   strictObject(row,detail?[...COLLECTION_KEYS,'documento']:COLLECTION_KEYS);
@@ -91,7 +91,7 @@ export default function FinanzasObras(){
     <section className="card-fyag of-panel of-list">
       <form onSubmit={apply}>
         <div className="of-toolbar"><label className="of-search"><span>Buscar obra</span><input className="form-control" placeholder="Código, cliente o categoría" value={draft.buscar} maxLength={150} onChange={e=>change('buscar',e.target.value)}/></label><label>Estado operativo<select className="form-select" value={draft.estado} onChange={e=>change('estado',e.target.value)}><option value="">Todos</option>{Object.entries(OBRA_STATES).map(([k,[v]])=><option key={k} value={k}>{v}</option>)}</select></label><label>Facturación<select className="form-select" value={draft.situacion_financiera} onChange={e=>change('situacion_financiera',e.target.value)}><option value="">Todas</option>{Object.entries(FINANCE).map(([k,[v]])=><option key={k} value={k}>{v}</option>)}</select></label><Btn icon="filter" aria-expanded={expanded} onClick={()=>setExpanded(v=>!v)}>Filtros</Btn><button className="btn btn-fyag-primary" disabled={api.loading} type="submit">Buscar</button></div>
-        {expanded&&<div className="of-extra-filters">{[['cliente_nombre','Cliente'],['categoria_nombre','Categoría'],['responsable_nombre','Responsable']].map(([key,label])=><label key={key}>{label}<input className="form-control" value={draft[key]} maxLength={150} onChange={e=>change(key,e.target.value)} placeholder={'Nombre de '+label.toLowerCase()}/></label>)}</div>}
+        {expanded&&<div className="of-extra-filters">{[['cliente_nombre','Cliente'],['categoria_nombre','Categoría'],['responsable_nombre','Responsable']].map(([key,label])=><label key={key}>{label}<input className="form-control" value={draft[key]} maxLength={150} onChange={e=>change(key,e.target.value)} placeholder={'Nombre de '+label.toLowerCase()}/></label>)}{[['fecha_programada_desde','Programada desde'],['fecha_programada_hasta','Programada hasta']].map(([key,label])=><label key={key}>{label}<input type="date" className="form-control" value={draft[key]} onChange={e=>change(key,e.target.value)}/></label>)}<label>Ordenar por<select className="form-select" value={draft.ordering} onChange={e=>change('ordering',e.target.value)}>{orderingOptions.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label></div>}
         {Object.values(draft).some(Boolean)||Object.values(filters).some(Boolean)?<div className="of-actions"><Btn disabled={api.loading} onClick={()=>{setDraft(EMPTY);setFilters(EMPTY);setPage(1);}}>Limpiar filtros</Btn></div>:null}
       </form>
       <Errors error={api.error}/>{api.loading&&<p role="status">Cargando obras…</p>}
