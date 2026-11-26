@@ -84,6 +84,24 @@ class Presupuestos024API(PresupuestoAPIBase):
             self.autenticar(rol)
             self.assertEqual(self.client.get(self.url).data['count'], 3)
 
+    def test_busqueda_global_y_estado_respetan_scope(self):
+        propio = self.propio()
+        historico = self.propio('PENDIENTE_GERENCIA')
+        otro = Usuario.objects.create_user(username='otro_filtro', email='otro@filtro.test', rol=S)
+        ajeno = self.propio(actor=otro)
+        self.autenticar(S)
+        r = self.client.get(self.url, {'buscar': propio.codigo})
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual([x['id'] for x in r.data['results']], [propio.pk])
+        self.assertEqual(r.data['results'][0]['cliente_nombre'], self.cliente.nombre_legal)
+        self.assertEqual(self.client.get(self.url, {'buscar': ajeno.codigo}).data['count'], 0)
+        self.assertEqual(self.client.get(self.url, {'estado': 'PENDIENTE_FINANZAS'}).data['results'][0]['id'], historico.pk)
+        self.assertEqual(self.client.get(self.url, {'buscar': self.cliente.nombre_legal, 'estado': 'BORRADOR'}).data['count'], 1)
+        self.autenticar(AF)
+        self.assertEqual(self.client.get(self.url, {'buscar': ajeno.codigo}).data['count'], 1)
+        for query in ['?estado=NO', '?buscar=' + 'x'*201, '?estado=BORRADOR&estado=ANULADO', '?page=0', '?otro=x']:
+            self.assertEqual(self.client.get(self.url+query).status_code, 400)
+
     def test_matriz_seis_roles_y_decisiones_exclusivas(self):
         p = self.propio()
         for rol in Usuario.Rol:
