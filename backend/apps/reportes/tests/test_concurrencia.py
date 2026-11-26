@@ -9,6 +9,7 @@ from rest_framework.test import APIClient
 
 from apps.reportes import consultas
 from apps.reportes.catalogo import COLUMNAS
+from apps.reportes.exportadores.presentacion import LABELS, columnas_detalle, mostrar
 from apps.finanzas import services_documentos
 from apps.usuarios.tokens import AccessToken
 from .base import ReportesBase, BASE
@@ -77,18 +78,29 @@ class SnapshotReportesTests(ReportesBase, TransactionTestCase):
                     filas = list(libro["Resultados"].values)[1:]
                     esperado = [tuple(row[k] if row[k] is None or type(row[k]) is bool else str(row[k]) for k, _ in COLUMNAS[tipo]) for row in antes["results"]]
                     self.assertEqual(filas, esperado)
+                    detalle = list(libro["Detalle"].values)[1:]
+                    self.assertEqual(detalle, [tuple(mostrar(k, row[k]) for k, _ in columnas_detalle(tipo)) for row in antes["results"]])
                     resumen = dict(libro["Resumen"].values)
                     for k, v in antes["totales"].items():
                         self.assertEqual(resumen["Total " + k], str(v))
                 finally:
                     libro.close()
             else:
-                text = "".join("\n".join(p.extract_text() for p in self.leer_pdf(data).pages).split())
-                ultimo_header = "".join(COLUMNAS[tipo][-1][1].split())
-                cuerpo = text.split(ultimo_header, 1)[1]
-                for row in antes["results"]:
-                    esperado = "".join("" if row[k] is None else str(row[k]).lower() if type(row[k]) is bool else str(row[k]) for k, _ in COLUMNAS[tipo])
-                    self.assertIn("".join(esperado.split()), cuerpo)
+                # El PDF traduce estados y fechas y presenta CLP sin perder
+                # decimales significativos. Comparar todas las filas del snapshot,
+                # excluyendo únicamente los encabezados repetidos de cada página.
+                normalizar = lambda value: "".join(value.split())
+                paginas = [normalizar(p.extract_text()) for p in self.leer_pdf(data).pages]
+                ultimo_header = normalizar(COLUMNAS[tipo][-1][1])
+                partes = [p.split(ultimo_header, 1) for p in paginas]
+                self.assertTrue(all(len(p) == 2 for p in partes))
+                cuerpo = "".join(p[1] for p in partes)
+                esperado = "".join(normalizar(mostrar(k, row[k])) for row in antes["results"] for k, _ in COLUMNAS[tipo])
+                self.assertEqual(cuerpo, esperado)
+                cabecera = partes[0][0]
+                self.assertIn(normalizar("Filas: " + str(antes["count"])), cabecera)
+                for k, v in antes["totales"].items():
+                    self.assertIn(normalizar(LABELS[k] + mostrar(k, v)), cabecera)
         despues = self.listado(tipo).data
         return antes, despues
 
