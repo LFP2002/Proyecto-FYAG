@@ -4,7 +4,7 @@ import {useApp} from '../context/AppContext.jsx';
 import {Errors,Pager} from '../comercial/ui.jsx';
 import {useApi,readPage,positiveInteger,decimalString} from './useApi.js';
 import {civilRange} from './dates.js';
-import {formatCLP} from '../utils/format.js';
+import {formatCompactCLP} from '../utils/format.js';
 import TecIcon from '../obras/TecIcon.jsx';
 import '../styles/pages/inventario-finanzas.css';
 
@@ -14,7 +14,7 @@ const LABELS={inventario:'Materiales y existencias',movimientos:'Historial de mo
 const TYPES={INGRESO:'Ingreso',SALIDA:'Salida',DEVOLUCION:'Devolución',MERMA:'Merma',VALORIZACION:'Valoración',REGULARIZACION:'Regularización'};
 const EMPTY={buscar:'',filtro:'',tipo:'',desde:'',hasta:''};
 const qty=v=>v===null?'—':String(v).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'').replace('.',',');
-const amount=v=>v===null||v===undefined?'—':formatCLP(v);
+const amount=v=>v===null||v===undefined?'—':formatCompactCLP(v);
 const stamp=v=>v?new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(v)):'—';
 const isQty=v=>typeof v==='string'&&/^\d+\.\d{3}$/.test(v);
 const count=v=>Number.isSafeInteger(v)&&v>=0;
