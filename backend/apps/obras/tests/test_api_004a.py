@@ -312,6 +312,23 @@ class ObrasAPIContratoTests(ObrasAPIBase):
         res = self.client.get("/api/obras/?page=1000")
         self.assertEqual(res.status_code, 404)
 
+    def test_busqueda_supervisor_antes_de_paginar_y_orden_operativo(self):
+        primero = self.crear_obra(tecnico=self.usuarios[T])
+        segundo = self.crear_obra(presupuesto=self.crear_presupuesto())
+        Obra.objects.filter(pk=primero.pk).update(estado="EN_PROCESO")
+        url = "/api/obras/"
+        respuesta = self.client.get(url, {"buscar": "cliente para api"})
+        self.assertEqual(respuesta.status_code, 200, respuesta.data)
+        self.assertEqual([fila["id"] for fila in respuesta.data["results"]], [primero.pk, segundo.pk])
+        for termino in (f"OB-{primero.pk:06d}", self.usuarios[T].username):
+            respuesta = self.client.get(url, {"buscar": termino})
+            self.assertEqual(respuesta.status_code, 200, respuesta.data)
+            self.assertEqual([fila["id"] for fila in respuesta.data["results"]], [primero.pk])
+        for query in ("?buscar=", "?buscar=x&buscar=y", "?buscar=" + "a"*151):
+            self.assertEqual(self.client.get(url+query).status_code, 400)
+        self.autenticar(G)
+        self.assertEqual(self.client.get(url, {"buscar": "cliente"}).status_code, 400)
+
     def test_catalogo_y_permisos(self):
         self.autenticar(G)
         self.assertEqual(self.client.get("/api/categorias-servicio/").status_code, 200)
