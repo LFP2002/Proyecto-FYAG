@@ -32,6 +32,16 @@ export function obrasBackend(role = S) {
 
     const url = new URL(path, 'http://localhost'), route = url.pathname;
     if (/^\/api\/presupuestos\/\d+\/$/.test(route) && method==='GET') { assertRole([G,AF]); const id=Number(route.split('/')[3]); return {id,monto_neto:'45300.00'}; }
+    if (route.startsWith('/api/finanzas/obras-resumen/')) {
+      assertRole([AF]);
+      const rows=backend.obras.map(o=>({...project(o),monto_neto_aprobado:'45300.00',situacion_financiera:o.estado==='FINALIZADA'?'PENDIENTE_FACTURACION':'NO_HABILITADA'}));
+      if(route!=='/api/finanzas/obras-resumen/'){
+        const id=Number(route.split('/')[4]), row=rows.find(o=>o.id===id);
+        if(!row)throw new ApiError(404,'Obra no encontrada');
+        return {...row,documento:null};
+      }
+      return paginate(rows.filter(o=>(!url.searchParams.has('estado')||o.estado===url.searchParams.get('estado'))&&(!url.searchParams.has('situacion_financiera')||o.situacion_financiera===url.searchParams.get('situacion_financiera'))&&(!url.searchParams.has('buscar')||[o.codigo,o.cliente_nombre,o.categoria_nombre].some(v=>v.toLowerCase().includes(url.searchParams.get('buscar').toLowerCase())))),url);
+    }
     if (route === '/api/obras/supervision-gerencial/') {
       assertRole([G]);
       const rows=backend.obras.map(o=>{const cost=o.test_cost||'0.00',budget='45300.00',alerts=[];
