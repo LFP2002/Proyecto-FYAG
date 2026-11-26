@@ -401,3 +401,14 @@ test('Auditoría: valida los campos de identidad 1.1.0 y rechaza campos inespera
   }finally{await ui.close();}
  }
 });
+
+test('Destino de alerta: FinanceAdmin abre la factura exacta por ID y solo consulta',async()=>{
+  const backend=financeBackend();
+  const ui=await mount(FinanceAdmin,backend.request,'ADMINISTRATIVO_FINANZAS',{initialDocument:11});
+  try{
+    assert.ok(backend.calls.some(c=>c.path==='/api/finanzas/documentos/11/'));
+    assert.match(text(ui.renderer.root),/Factura /);
+    assert.ok(ui.renderer.root.findAllByType('button').some(b=>text(b)==='Volver a facturas'));
+    assert.equal(backend.calls.filter(c=>c.method==='POST'||c.options?.method==='POST').length,0);
+  }finally{await ui.close();}
+});
