@@ -35,12 +35,8 @@ async function input(renderer, name, value) { await act(async () => renderer.roo
 async function submit(renderer) { await act(async () => { await renderer.root.findByType('form').props.onSubmit({ preventDefault() {} }); await flush(); }); }
 async function unmount(renderer) { await act(async () => renderer.unmount()); }
 
-for (const role of [G, S, AF, T]) test(`Obras ${role}: rutas autorizadas y proyección sin importes`, async () => {
+for (const role of [G, S, T]) test(`Obras ${role}: rutas autorizadas y proyección sin importes`, async () => {
   const b = obrasBackend(role);
-  if (role === AF) {
-    const request = b.request;
-    b.request = async (...args) => { const result = await request(...args); if (result.results) result.results.forEach((row) => Object.assign(row, { descripcion: 'NO EXPONER', creado_por: 999, costo_total: '999999.99' })); else Object.assign(result, { descripcion: 'NO EXPONER', creado_por: 999, costo_total: '999999.99' }); return result; };
-  }
   const renderer = await mount(b);
   try {
     assert.equal(b.calls[0].path, role === T ? '/api/obras/mis-obras/?page=1' : role===G?'/api/obras/supervision-gerencial/?page=1':'/api/obras/?page=1');
@@ -56,6 +52,27 @@ for (const role of [G, S, AF, T]) test(`Obras ${role}: rutas autorizadas y proye
     if (role === AF || role === T) assert.ok(b.calls.every((c) => !/participantes|historial|categorias-servicio|disponibles/.test(c.path)));
     if (role === T) { assert.doesNotMatch(text(renderer.root), /Costos|Materiales y gastos/); assert.equal(b.obras[0].tecnico_responsable, 7); } // Miembro adicional, no filtrar por principal.
   } finally { await unmount(renderer); }
+});
+test('Obras Finanzas: resumen económico autorizado, búsqueda global y detalle sin datos privados', async()=>{
+  const b=obrasBackend(AF),renderer=await mount(b);
+  try{
+    assert.equal(b.calls[0].path,'/api/finanzas/obras-resumen/?page=1');
+    assert.match(text(renderer.root),/\$45\.300/);
+    assert.match(text(renderer.root),/No habilitada/);
+    const field=renderer.root.findByProps({placeholder:'Código, cliente o categoría'});
+    await act(async()=>field.props.onChange({target:{value:'Cliente operativo'}}));
+    await submit(renderer);
+    assert.match(b.calls.at(-1).path,/buscar=Cliente\+operativo/);
+    await click(renderer,'Ver obra');
+    assert.ok(b.calls.some(c=>c.path==='/api/finanzas/obras-resumen/1/'));
+    assert.ok(b.calls.some(c=>c.path==='/api/obras/1/costos/resumen/'));
+    assert.match(text(renderer.root),/Importe provisional/);
+    assert.match(text(renderer.root),/Pendiente de validación/);
+    assert.doesNotMatch(text(renderer.root),/Descripción operativa privada|Editar obra|Turnos/);
+    assert.ok(b.calls.every(c=>c.method==='GET'));
+    await click(renderer,'Volver a obras');
+    assert.match(b.calls.at(-1).path,/buscar=Cliente\+operativo/);
+  }finally{await unmount(renderer);}
 });
 test('filtros reales y paginación de Obras conservan estado/página al actualizar', async () => {
   const b = obrasBackend(); b.obras = Array.from({ length: 26 }, (_, i) => ({ ...b.obras[0], id: i + 1, codigo: `OB-${i + 1}` }));
