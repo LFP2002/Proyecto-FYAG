@@ -38,7 +38,7 @@ class GastosMixin:
             return self._respuesta_gasto(gasto, 201)
         self._sin_filtros()
         return self._paginado(
-            obra.gastos.order_by("-creado_en", "-id"), GastoLecturaSerializer,
+            obra.gastos.select_related("entrega_bodega").order_by("-creado_en", "-id"), GastoLecturaSerializer,
         )
 
     @action(

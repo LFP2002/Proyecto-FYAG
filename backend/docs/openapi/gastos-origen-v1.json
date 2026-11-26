@@ -1,0 +1,214 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Origen de gastos de obra",
+    "version": "1.1.0",
+    "description": "Complemento de SPEC-004B y 019B. Solo amplía representación de lectura; escrituras y permisos intactos."
+  },
+  "paths": {
+    "/api/obras/{id}/gastos/": {
+      "get": {
+        "summary": "Gastos de obra — Supervisor y Gerencia",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de gastos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Gasto"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Sin permiso"
+          },
+          "404": {
+            "description": "Obra no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Gasto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "obra",
+          "tipo",
+          "origen",
+          "entrega_bodega",
+          "descripcion",
+          "unidad",
+          "cantidad",
+          "cantidad_devuelta",
+          "costo_unitario_neto",
+          "subtotal",
+          "fecha_gasto",
+          "referencia_respaldo",
+          "observacion",
+          "motivo_anulacion",
+          "creado_en",
+          "actualizado_en",
+          "vigente",
+          "anulado_por",
+          "anulado_en",
+          "registrado_por"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "obra": {
+            "type": "integer"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "MATERIAL",
+              "TRANSPORTE",
+              "ARRIENDO_EQUIPO",
+              "SERVICIO_EXTERNO",
+              "OTRO"
+            ]
+          },
+          "origen": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "BODEGA_019B"
+            ],
+            "readOnly": true
+          },
+          "entrega_bodega": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "readOnly": true
+          },
+          "descripcion": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string"
+          },
+          "cantidad_devuelta": {
+            "type": "string"
+          },
+          "costo_unitario_neto": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "string"
+          },
+          "fecha_gasto": {
+            "type": "string"
+          },
+          "referencia_respaldo": {
+            "type": "string"
+          },
+          "observacion": {
+            "type": "string"
+          },
+          "motivo_anulacion": {
+            "type": "string"
+          },
+          "creado_en": {
+            "type": "string"
+          },
+          "actualizado_en": {
+            "type": "string"
+          },
+          "vigente": {
+            "type": "boolean"
+          },
+          "anulado_por": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "anulado_en": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registrado_por": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

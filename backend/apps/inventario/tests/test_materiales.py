@@ -206,6 +206,11 @@ class MaterialesTests(MaterialesBase, TestCase):
             with self.assertRaises(EstadoIncompatible):
                 func(self.obra, e.gasto_id, data, self.supervisor)
         self.autenticar(self.supervisor)
+        lectura = self.client.get(self.url)
+        self.assertEqual(lectura.status_code, 200)
+        fila = next(g for g in lectura.data['results'] if g['id'] == e.gasto_id)
+        self.assertEqual(fila['origen'], 'BODEGA_019B')
+        self.assertEqual(fila['entrega_bodega'], e.pk)
         self.assertEqual(self.client.patch(f'{self.url}{e.gasto_id}/', {'observacion': 'No', 'motivo': 'No'}, format='json').status_code, 409)
         self.autenticar(self.bodega)
         self.assertEqual(self.client.get(self.url).status_code, 403)

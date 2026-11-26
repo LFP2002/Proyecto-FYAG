@@ -100,6 +100,8 @@ class GastosTests(GastosBase, TestCase):
                 self.assertEqual(respuesta.status_code, 201, respuesta.data)
                 self.assertEqual(respuesta.data["obra"], self.obra.pk)
                 self.assertEqual(respuesta.data["tipo"], tipo)
+                self.assertEqual(respuesta.data["origen"], "MANUAL")
+                self.assertIsNone(respuesta.data["entrega_bodega"])
                 self.assertEqual(respuesta.data["vigente"], True)
                 self.assertEqual(respuesta.data["cantidad_devuelta"], "0.000")
                 self.assertEqual(respuesta.data["registrado_por"], self.supervisor.pk)

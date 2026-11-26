@@ -158,3 +158,9 @@ Las reglas siguientes precisan los apartados anteriores y **prevalecen** ante am
 - Ingresos elegibles: únicamente el primero no valorizado posterior al corte histórico por material, excluyendo bloqueos por saldo histórico sin regularizar. Saldos históricos elegibles: positivos y sin regularización ni valorización anterior. La escritura vuelve a comprobar las reglas bajo los bloqueos originales.
 - Cuatro pestañas a ancho completo, filtros y estados vacíos, ficha de movimientos/costos y formularios guiados por selección real. Se mantienen los POST originales y UUID, motivo y referencia; ante incertidumbre solo se permite repetir el payload congelado con la misma UUID. Sin modificación de cantidades físicas ni egresos por valorización.
 - Contrato complementario: backend/docs/openapi/inventario-finanzas-v1.json. Pruebas dirigidas añadidas; ejecución local y verificación visual pendientes. Sin merge.
+
+### Integración en ficha de Obra (Supervisor)
+- Desde Materiales y gastos, seleccionar artículo activo y autorizar entrega con la obra fijada. La autorización no reserva, descuenta ni imputa; el despacho confirmado conserva la imputación atómica original. La devolución se autoriza desde la entrega real vinculada.
+- Lectura de GastoObra incorpora `origen` (MANUAL/BODEGA_019B) y `entrega_bodega` (ID de entrega original o null), ambos de solo lectura, sin cambiar payloads de escritura. Listado paginado existente; gastos históricos manuales permanecen. No se amplían permisos ni se modifica el promedio.
+- Gastos BODEGA_019B no muestran acciones manuales; compras externas tienen advertencia explícita y confirmación para material. No hay deduplicación heurística. Autorizaciones mantienen UUID y payload ante incertidumbre; solo reintento explícito idéntico. No se elimina el flujo de solicitudes de materiales.
+- OpenAPI complementario: backend/docs/openapi/gastos-origen-v1.json. Pruebas dirigidas pendientes de ejecución local.
