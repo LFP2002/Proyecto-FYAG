@@ -9,6 +9,5 @@
 .finance-mermas .mf-warning svg {flex:none;color:#d99b28;}
 .finance-mermas .mf-history {margin:16px 0 0;}
 .finance-mermas .mf-history li p {margin:6px 0;overflow-wrap:anywhere;}
-.finance-mermas .if-detail-summary strong.if-negative {color:var(--fyag-text,#bd5151);}
 .finance-mermas .if-panel {min-width:0;}
 @media(max-width:760px){.finance-mermas .mf-wide {grid-column:1/-1;}.finance-mermas .mf-actions .btn {flex:1 1 140px;}}
