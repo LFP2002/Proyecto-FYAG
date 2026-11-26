@@ -30,7 +30,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
   const [refreshEpoch,setRefreshEpoch]=useState(0),[expenseOpen,setExpenseOpen]=useState(false);
   useEffect(()=>{onOperationalLock?.(api.busy||api.locked);return()=>onOperationalLock?.(false);},[api.busy,api.locked,onOperationalLock]);
   const [form, setForm] = useState(null), [issue, setIssue] = useState(''), [busyAction, setBusyAction] = useState(false);
-  const [finalReason, setFinalReason] = useState(''), [courtesyReason, setCourtesyReason] = useState(''), [motive, setMotive] = useState('');
+  const [motive, setMotive] = useState('');
   const canManage = user.role === S, canRead = [G, S, AF].includes(user.role), canSeeDetail = [G, S].includes(user.role);
   const expensesView = section === 'expenses', costsView = section === 'costs';
   const expensesPath = `${base}gastos/?page=${page}`, historyPath = `${base}costos/historial/?page=${historyPage}`;
@@ -75,12 +75,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
     try { return await api.write(path, method, body, afterWrite); }
     finally { setBusyAction(false); }
   }
-  async function declareRubric(name, state, justification) {
-    const payload = { [`${name}_estado`]: state, [`${name}_justificacion`]: state === 'NO_APLICA' ? justification.trim() : '', motivo: motive.trim() };
-    if (!payload.motivo) { setIssue('Indica el motivo del cambio de control.'); return; }
-    await action(`${base}costos/control/`, payload, 'PATCH');
-  }
-  async function finalize(reason=finalReason) {
+  async function finalize(reason) {
     if (!canManage || obra.estado !== 'EN_PROCESO' || !reason.trim() || !summary?.costos_validados || !control?.costos_validados || api.busy || api.loading || api.locked || busyAction) { setIssue('La finalización requiere validación vigente, un motivo y una obra en proceso.'); return false; }
     if (!globalThis.confirm?.('¿Finalizar esta obra? La finalización operativa es terminal.')) return false;
     setBusyAction(true); setIssue('');
@@ -118,9 +113,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
 
     {costsView && !canManage && canSeeDetail && control && <section className="card-fyag p-3 mb-3"><h3>Control de rubros</h3>
         <p>Versión {control.version_actual} · {control.costos_validados ? `Validada (versión ${control.version_validada})` : 'Sin validación vigente'}{control.validado_en ? ` · ${timestamp(control.validado_en)}` : ''}</p>
-        {canManage ? ['materiales', 'otros'].map((name) => <Rubric key={`${control.version_actual}:${name}`} name={name} control={control} disabled={obra.estado === 'FINALIZADA' || api.busy || api.locked} onDeclare={declareRubric} />) : <dl className="commercial-facts" aria-label="Estado de los rubros">{['materiales','otros'].map(name=><div key={name}><dt>{name==='materiales'?'Materiales':'Otros gastos'}</dt><dd>{({PENDIENTE:'Pendiente',CON_REGISTROS:'Con registros',NO_APLICA:'No aplica'})[control[`${name}_estado`]]}</dd>{control[`${name}_justificacion`]&&<dd>{control[`${name}_justificacion`]}</dd>}</div>)}</dl>}
-        {canManage && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-form-actions"><Field name="costos-motivo" label="Motivo para validar costos" value={motive} onChange={setMotive} maxLength={2000} /><button type="button" className="btn btn-fyag-primary" disabled={api.busy || api.locked || busyAction || control.costos_validados || !motive.trim()} onClick={() => action(`${base}costos/validar/`, { motivo: motive.trim() })}>Validar costos</button></div>}
-        {canManage && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-form-actions"><Field name="cortesia-justificacion" label="Justificación de sin cobro (no reduce costos)" value={courtesyReason} onChange={setCourtesyReason} maxLength={2000} /><button type="button" className="btn btn-outline-secondary" disabled={api.busy || api.locked || !courtesyReason.trim() || (!!summary.cortesia_sin_cobro && !motive.trim())} onClick={() => action(`${base}cortesia-sin-cobro/`, { justificacion: courtesyReason.trim(), ...(summary.cortesia_sin_cobro ? { motivo: motive.trim() } : {}) })}>Registrar / rectificar sin cobro</button></div>}
+        <dl className="commercial-facts" aria-label="Estado de los rubros">{['materiales','otros'].map(name=><div key={name}><dt>{name==='materiales'?'Materiales':'Otros gastos'}</dt><dd>{({PENDIENTE:'Pendiente',CON_REGISTROS:'Con registros',NO_APLICA:'No aplica'})[control[`${name}_estado`]]}</dd>{control[`${name}_justificacion`]&&<dd>{control[`${name}_justificacion`]}</dd>}</div>)}</dl>
       </section>}
 
       {expensesView&&canManage&&!expenseOpen&&!form&&['EN_PROCESO','SUSPENDIDA'].includes(obra.estado)&&<div className="so-actions"><button type="button" className="btn btn-fyag-primary" disabled={api.busy||api.loading||api.locked} onClick={()=>{setExpenseOpen(true);setIssue('');}}>Registrar gasto</button></div>}
@@ -144,14 +137,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
 
       {costsView && canSeeDetail && history && <section className={canManage?'card-fyag so-panel':'card-fyag p-3'}><h3>Historial de costos</h3>{history.results.length === 0 && (canManage?<SupervisorEmpty title="Sin movimientos de costos" description="Las declaraciones, validaciones y cambios de gastos aparecerán aquí."/>:<p>No hay eventos económicos.</p>)}<ol className={canManage?'commercial-timeline':undefined}>{history.results.map((event) => <li key={event.id}><strong>{canManage?({DECLARACION:'Declaración de rubros',VALIDACION:'Costos validados',CORTESIA:'Servicio sin cobro',ALTA:'Gasto registrado',CORRECCION:'Gasto corregido',DEVOLUCION:'Devolución registrada',ANULACION:'Gasto anulado'})[event.tipo]||String(event.tipo).replaceAll('_',' '):String(event.tipo).replaceAll('_', ' ')}</strong> · {timestamp(event.creado_en)} · Usuario #{event.registrado_por}<p>{event.motivo || 'Sin motivo'}</p><SafeChanges data={event.datos_nuevos} before={canManage?event.datos_anteriores:undefined} /></li>)}</ol>{(!canManage||history.next||history.previous)&&<Pager label="Paginación del historial de costos" data={history} page={historyPage} setPage={setHistoryPage} disabled={api.loading || api.busy || api.locked} />}</section>}
 
-    {false && costsView && canManage && obra.estado === 'EN_PROCESO' && <section className="card-fyag p-3 mt-3"><h3>Finalización operativa</h3><p>Para finalizar la obra, primero valida sus costos.</p><Field name="finalizar-motivo" label="Motivo de finalización" type="textarea" value={finalReason} onChange={setFinalReason} maxLength={2000} disabled={api.busy || api.locked} /><button type="button" className="btn btn-outline-danger mt-2" disabled={api.busy || api.locked || busyAction || !finalReason.trim() || !summary?.costos_validados} onClick={finalize}>Finalizar obra</button></section>}
   </section>;
-}
-
-function Rubric({ name, control, disabled, onDeclare }) {
-  const [state, setState] = useState(control[`${name}_estado`] === 'NO_APLICA' ? 'NO_APLICA' : 'CON_REGISTROS');
-  const [reason, setReason] = useState(control[`${name}_justificacion`] || '');
-  return <div className="obras-form-grid mb-3"><Field name={`rubric-${name}`} label={name === 'materiales' ? 'Materiales' : 'Otros gastos'} value={state} options={[[ 'CON_REGISTROS', 'Con registros' ], [ 'NO_APLICA', 'No aplica' ]]} disabled={disabled} onChange={setState} />{state === 'NO_APLICA' && <Field name={`rubric-${name}-reason`} label="Justificación obligatoria" value={reason} disabled={disabled} maxLength={2000} onChange={setReason} />}<button type="button" className="btn btn-outline-secondary align-self-end" disabled={disabled || (state === 'NO_APLICA' && !reason.trim())} onClick={() => onDeclare(name, state, reason)}>Guardar declaración de rubro</button></div>;
 }
 
 function TransactionForm({ mode, item, api, onCancel, onSave, obraPath: base }) {
