@@ -541,3 +541,45 @@ test('Supervisor: turnos destaca duración, costo y estado en una superficie ún
   assert.ok(b.calls.every(c=>c.method==='GET'));
  }finally{await unmount(renderer);}
 });
+
+
+test('Supervisor: documentación tiene una actualización conjunta y conserva borradores y revisión pendiente',async()=>{
+ const b=obrasBackend(S);b.obras[0].estado='EN_PROCESO';
+ let revision=0,conflict=true;
+ const evidence=()=>({evidencia_id:1,obra_id:1,turno_id:2,descripcion:'Descripción original',revision,etiquetas:[],atributos:{}});
+ const request=b.request;
+ b.request=async(path,opts={})=>{
+  if(path.startsWith('/api/documentos-metadata/')||path.startsWith('/api/adjuntos/obras/1/')){
+   b.calls.push({path,method:opts.method||'GET',body:opts.body});
+   if(path.startsWith('/api/documentos-metadata/?'))return {count:1,next:null,previous:null,results:[evidence()],proyeccion:'EVENTUAL',fuente_autoritativa:'POSTGRESQL'};
+   if(path==='/api/documentos-metadata/evidencias/1/'){
+    if(opts.method==='PATCH'){if(conflict)throw new ApiError(409,'Revisión obsoleta');revision++;return {...evidence(),descripcion:opts.body.descripcion};}
+    return evidence();
+   }
+   if(path==='/api/adjuntos/obras/1/?page=1')return {count:0,next:null,previous:null,results:[]};
+  }
+  return request(path,opts);
+ };
+ const renderer=await mount(b);
+ try{
+  await click(renderer,'Ver obra');await click(renderer,'Documentación');
+  assert.equal(buttons(renderer,'Actualizar').length,1);
+  assert.equal(buttons(renderer,'Actualizar adjuntos').length,0);
+  await click(renderer,'Editar descripción');
+  const annotation=()=>renderer.root.findByProps({'aria-label':'Anotaciones de evidencia'});
+  await act(async()=>annotation().findByType('textarea').props.onChange({target:{value:'Borrador técnico'}}));
+  const before=b.calls.length;
+  await click(renderer,'Actualizar datos');
+  const reads=b.calls.slice(before);
+  assert.deepEqual(reads.map(c=>c.path).sort(),['/api/adjuntos/obras/1/?page=1','/api/documentos-metadata/?obra=1&page=1','/api/obras/1/'].sort());
+  assert.ok(reads.every(c=>c.method==='GET'));
+  assert.equal(annotation().findByType('textarea').props.value,'Borrador técnico');
+  await act(async()=>{await annotation().props.onSubmit({preventDefault(){}});await flush();});
+  assert.equal(buttons(renderer,'Actualizar datos')[0].props.disabled,true);
+  assert.equal(buttons(renderer,'Guardar anotaciones')[0].props.disabled,true);
+  conflict=false;revision=2;
+  await click(renderer,'Reconsultar revisión');
+  assert.equal(buttons(renderer,'Actualizar datos')[0].props.disabled,false);
+  assert.equal(b.calls.filter(c=>c.method==='PATCH').length,1);
+ }finally{await unmount(renderer);}
+});
