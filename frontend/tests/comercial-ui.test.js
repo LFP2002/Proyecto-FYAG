@@ -97,12 +97,14 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
     assert.match(text(renderer.root), /Cliente activo/);
     const listRows = () => renderer.root.findByProps({ 'aria-label': 'Listado de clientes' }).findAllByType('tr').slice(1).map((row) => text(row));
     backend.clients.push({ ...backend.clients[0], id: 0, nombre_legal: 'Cliente cero' });
-    await click(renderer, 'Reconsultar datos');
+    await click(renderer, 'Actualizar');
     assert.deepEqual(listRows().map((row) => row.includes('Cliente cero') ? 0 : 1), [0, 1]);
     backend.clients.shift();
-    await click(renderer, 'Reconsultar datos');
+    await click(renderer, 'Actualizar');
     await click(renderer, 'Nuevo cliente');
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Listado de clientes' }).length, 0);
     await input(renderer, 'tipo_identificacion', 'SIN_IDENTIFICACION');
+    assert.equal(renderer.root.findAllByProps({ id: 'com-numero_identificacion' }).length, 0);
     await input(renderer, 'nombre_legal', 'Cliente nuevo'); await input(renderer, 'telefono', '456');
     backend.setFailure(new ApiError(400, 'Datos inválidos', null, { fieldErrors: { nombre_legal: ['Duplicado.'] } }));
     await submit(renderer); assert.equal(renderer.root.findByProps({ id: 'com-nombre_legal' }).props.value, 'Cliente nuevo'); assert.match(text(renderer.root), /Duplicado/);
@@ -113,7 +115,44 @@ test('Clientes montado: GET, alta, PATCH, detalle, desactivar/reactivar y errore
     await click(renderer, 'Editar cliente'); await input(renderer, 'nombre_legal', 'Inactivo editado'); await submit(renderer);
     assert.deepEqual(backend.calls.find((c) => c.method === 'PATCH').body, { nombre_legal: 'Inactivo editado' });
     await click(renderer, 'Activar'); assert.equal(backend.clients[1].activo, true);
-    await click(renderer, 'Volver al listado'); await click(renderer, 'Ver cliente', 1); assert.match(text(renderer.root), /Inactivo editado/);
+    await click(renderer, 'Volver a clientes'); await click(renderer, 'Ver detalle', 1); assert.match(text(renderer.root), /Inactivo editado/);
+  } finally { await act(async () => renderer.unmount()); }
+});
+test('Clientes: filtros combinados globales, RUT sin separadores y navegación independiente', async () => {
+  const b = fakeBackend();
+  b.clients.push({ ...b.clients[0], id: 2, tipo_cliente: 'EMPRESA', tipo_identificacion: 'RUT', numero_identificacion: '12.345.678-5', nombre_legal: 'Compañía Ñuble', nombre_contacto: 'Álvaro Pérez', correo: 'contacto@example.test', activo: false });
+  const renderer = await mount(Clientes, b.request);
+  const change = async (id, value) => act(async () => renderer.root.findByProps({ id }).props.onChange({ target: { value } }));
+  const rows = () => renderer.root.findByProps({ 'aria-label': 'Listado de clientes' }).findAllByType('tr').slice(1).map(text);
+  try {
+    const reads = b.calls.length;
+    assert.equal(rows().length, 2);
+    await change('clientes-search', 'alvaro');
+    assert.equal(rows().length, 1); assert.match(rows()[0], /Compañía Ñuble/);
+    await change('clientes-search', '123456785');
+    assert.equal(rows().length, 1);
+    await change('clientes-state', 'true');
+    assert.equal(rows().length, 0); assert.match(text(renderer.root), /No se encontraron clientes/);
+    await change('clientes-state', 'false');
+    await change('clientes-type', 'PERSONA');
+    assert.equal(rows().length, 0);
+    await change('clientes-type', 'EMPRESA');
+    assert.equal(rows().length, 1);
+    assert.equal(b.calls.length, reads);
+    await click(renderer, 'Ver detalle');
+    assert.equal(renderer.root.findAllByProps({ 'aria-label': 'Listado de clientes' }).length, 0);
+    assert.match(text(renderer.root), /Información de contacto/);
+    assert.doesNotMatch(text(renderer.root), /SIN_IDENTIFICACION|EMPRESA/);
+    await click(renderer, 'Editar cliente');
+    await input(renderer, 'tipo_identificacion', 'DOCUMENTO_EXTRANJERO');
+    assert.ok(renderer.root.findByProps({ id: 'com-pais_identificacion' }));
+    assert.ok(renderer.root.findByProps({ id: 'com-tipo_documento_extranjero' }));
+    await click(renderer, 'Cancelar');
+    await click(renderer, 'Volver a clientes');
+    assert.equal(rows().length, 1);
+    await click(renderer, 'Limpiar filtros');
+    assert.equal(rows().length, 2);
+    assert.equal(b.calls.filter(c => c.method !== 'GET').length, 0);
   } finally { await act(async () => renderer.unmount()); }
 });
 async function createBudget(renderer) {
@@ -330,7 +369,7 @@ test('presentación Comercial: controles Bootstrap, estados con texto, tablas ac
     checkButtons(renderer);
     assert.equal(renderer.root.findByProps({ 'aria-label': 'Listado de clientes' }).props.tabIndex, 0);
     assert.ok(renderer.root.findAllByType('span').some((n) => n.props.className === 'chip green' && text(n) === 'Activo'));
-    await click(renderer, 'Ver cliente');
+    await click(renderer, 'Ver detalle');
     const deactivate = renderer.root.findAllByType('button').find((n) => text(n) === 'Desactivar');
     assert.match(deactivate.props.className, /btn-outline-danger/);
     await click(renderer, 'Editar cliente'); checkButtons(renderer);
