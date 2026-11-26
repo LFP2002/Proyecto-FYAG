@@ -26,7 +26,7 @@ async function mount(backend, role = backend.role) {
   await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, React.createElement(Obras))); await flush(); });
   return renderer;
 }
-const buttons = (renderer, label) => renderer.root.findAllByType('button').filter((b) => text(b) === label || b.props['aria-label'] === label);
+const buttons = (renderer, label) => renderer.root.findAllByType('button').filter((b) => text(b).trim() === label || b.props['aria-label'] === label);
 async function click(renderer, label, index = 0) {
   const button = buttons(renderer, label)[index]; assert.ok(button, `Falta ${label}`); assert.ok(!button.props.disabled, `${label} deshabilitado`);
   await act(async () => { await button.props.onClick({ preventDefault() {} }); await flush(); });
@@ -47,7 +47,7 @@ for (const role of [G, S, T]) test(`Obras ${role}: rutas autorizadas y proyecci�
     assert.doesNotMatch(text(renderer.root), /999999|NO EXPONER|Usuario #999/);
     assert.equal(text(renderer.root).includes('Descripción operativa privada'), role !== AF);
     assert.equal(buttons(renderer, 'Editar obra').length, role === S ? 1 : 0);
-    assert.equal(buttons(renderer, 'Técnicos').length, role === S ? 1 : 0);
+    assert.equal(buttons(renderer, 'Equipo').length, role === S ? 1 : 0);
     assert.equal(buttons(renderer, 'Historial').length, role === S ? 1 : 0);
     if (role === AF || role === T) assert.ok(b.calls.every((c) => !/participantes|historial|categorias-servicio|disponibles/.test(c.path)));
     if (role === T) { assert.doesNotMatch(text(renderer.root), /Costos|Materiales y gastos/); assert.equal(b.obras[0].tecnico_responsable, 7); } // Miembro adicional, no filtrar por principal.
@@ -75,23 +75,23 @@ test('Obras Finanzas: resumen económico autorizado, búsqueda global y detalle 
   }finally{await unmount(renderer);}
 });
 test('filtros reales y paginación de Obras conservan estado/página al actualizar', async () => {
-  const b = obrasBackend(); b.obras = Array.from({ length: 26 }, (_, i) => ({ ...b.obras[0], id: i + 1, codigo: `OB-${i + 1}` }));
+  const b = obrasBackend(); b.obras = Array.from({ length: 26 }, (_, i) => ({ ...b.obras[0], id: i + 1, codigo: 'OB-'+(i+1) }));
   const renderer = await mount(b);
   try {
-    await click(renderer, 'Filtros');
-    for (const [key, value] of Object.entries({ estado: 'PLANIFICADA', cliente: '4', tecnico_responsable: '7', categoria_servicio: '1', fecha_programada_desde: '2026-11-01', fecha_programada_hasta: '2026-11-30', ordering: '-fecha_programada' })) await input(renderer, key, value);
+    await click(renderer,'Planificadas');
+    await input(renderer,'buscar','Cliente operativo');
+    await click(renderer,'Filtros');
+    for (const [key,value] of Object.entries({fecha_programada_desde:'2026-11-01',fecha_programada_hasta:'2026-11-30',ordering:'-fecha_programada'})) await input(renderer,key,value);
     await submit(renderer);
-    const url = new URL(b.calls.at(-1).path, 'http://localhost');
-    assert.equal(url.searchParams.get('estado'), 'PLANIFICADA'); assert.equal(url.searchParams.get('ordering'), '-fecha_programada'); assert.equal(url.searchParams.get('page'), '1');
-    assert.equal(url.searchParams.getAll('cliente').length, 1); assert.equal(url.searchParams.get('fecha_programada_desde'), '2026-11-01');
-    const pager = renderer.root.findByProps({ 'aria-label': 'Paginación de obras' }); assert.match(text(pager), /26 registros/);
-    await click(renderer, 'Siguiente'); assert.match(b.calls.at(-1).path, /page=2/);
-    const before = b.calls.at(-1).path; await click(renderer, 'Actualizar datos'); assert.equal(b.calls.at(-1).path, before);
-    assert.equal(renderer.root.findByProps({ id: 'obras-estado' }).props.value, 'PLANIFICADA');
-    await click(renderer, 'Anterior'); assert.match(b.calls.at(-1).path, /page=1/);
-    await click(renderer, 'Limpiar filtros'); assert.equal(b.calls.at(-1).path, '/api/obras/?page=1');
-    await input(renderer, 'cliente', '0'); const count = b.calls.length; await submit(renderer); assert.equal(b.calls.length, count); assert.match(text(renderer.root), /ID positivo/);
-  } finally { await unmount(renderer); }
+    const url=new URL(b.calls.at(-1).path,'http://localhost');
+    assert.equal(url.searchParams.get('estado'),'PLANIFICADA');assert.equal(url.searchParams.get('buscar'),'Cliente operativo');assert.equal(url.searchParams.get('ordering'),'-fecha_programada');assert.equal(url.searchParams.get('page'),'1');
+    assert.match(text(renderer.root.findByProps({'aria-label':'Paginación de obras'})),/26 registros/);
+    await click(renderer,'Siguiente');assert.match(b.calls.at(-1).path,/page=2/);
+    const before=b.calls.at(-1).path;await click(renderer,'Actualizar datos');assert.equal(b.calls.at(-1).path,before);
+    await click(renderer,'Anterior');await click(renderer,'Limpiar filtros');assert.equal(b.calls.at(-1).path,'/api/obras/?page=1&estado=PLANIFICADA');
+    await click(renderer,'Todas');assert.equal(b.calls.at(-1).path,'/api/obras/?page=1');
+    await click(renderer,'Filtros');await input(renderer,'fecha_programada_desde','2026-12-01');await input(renderer,'fecha_programada_hasta','2026-11-01');const count=b.calls.length;await submit(renderer);assert.equal(b.calls.length,count);assert.match(text(renderer.root),/Debe ser igual o posterior/);
+  }finally{await unmount(renderer);}
 });
 test('S crea desde presupuesto elegible y categoría activa con ID real y motivo de asignación', async () => {
   const b = obrasBackend(), renderer = await mount(b);
@@ -132,15 +132,15 @@ test('S cambia responsable por acción dedicada, inicia, suspende y reanuda con 
     }
     assert.equal(b.obras[0].iniciado_en, '2026-11-08T12:00:00Z');
     assert.equal(buttons(renderer, 'Finalizar obra').length, 0); assert.equal(buttons(renderer, 'Cancelar obra').length, 0);
-    await click(renderer, 'Historial'); assert.match(text(renderer.root), /CAMBIO ESTADO/); assert.match(text(renderer.root), /Usuario #2/);
+    await click(renderer, 'Historial'); assert.match(text(renderer.root), /Cambio de estado/); assert.match(text(renderer.root), /Usuario #2/);
     assert.ok(b.calls.some((c) => c.path === '/api/obras/1/participantes/historial/?page=1'));
   } finally { await unmount(renderer); }
 });
 test('participantes: PK de miembro independiente, reactivación, baja y principal protegido', async () => {
   const b = obrasBackend(), renderer = await mount(b);
   try {
-    await click(renderer, 'Ver obra'); await click(renderer, 'Técnicos');
-    assert.match(text(renderer.root), /Miembro #101/); assert.match(text(renderer.root), /Técnico #8/); assert.match(text(renderer.root), /MIGRACION_004B/);
+    await click(renderer, 'Ver obra'); await click(renderer, 'Equipo');
+    assert.match(text(renderer.root), /Responsable principal/); assert.match(text(renderer.root), /Técnico adicional/); assert.match(text(renderer.root), /Registro histórico/);
     assert.equal(buttons(renderer, 'Desasignar').length, 0);
     await click(renderer, 'Reactivar'); await input(renderer, 'motivo', 'Retomar apoyo'); await submit(renderer);
     assert.equal(b.members[1].id, 102); assert.ok(b.members[1].activo);
@@ -220,7 +220,7 @@ test('participantes, historial operativo e historial de membresías tienen pagin
   b.memberEvents = Array.from({ length: 26 }, (_, i) => ({ id: i + 1, participante: 102, tipo: 'ASIGNACION', registrado_por: 2, motivo: 'Apoyo', datos_anteriores: {}, datos_nuevos: { activo: true }, creado_en: '2026-11-08T12:00:00Z' }));
   const renderer = await mount(b);
   try {
-    await click(renderer, 'Ver obra'); await click(renderer, 'Técnicos'); await nextIn(renderer, 'Paginación de participantes');
+    await click(renderer, 'Ver obra'); await click(renderer, 'Equipo'); await nextIn(renderer, 'Paginación de participantes');
     assert.ok(b.calls.some((c) => c.path === '/api/obras/1/participantes/?page=2'));
     await click(renderer, 'Historial'); await nextIn(renderer, 'Paginación del historial operativo'); await nextIn(renderer, 'Paginación del historial de participantes');
     assert.ok(b.calls.some((c) => c.path === '/api/obras/1/historial/?page=2'));
@@ -352,7 +352,7 @@ test('responsable null solo en PLANIFICADA; Obras terminales no habilitan mutaci
     try {
       await click(renderer, 'Ver obra');
       for (const label of ['Editar obra', 'Cambiar responsable', 'Iniciar obra', 'Suspender obra', 'Reanudar obra', 'Finalizar obra', 'Cancelar obra']) assert.equal(buttons(renderer, label).length, 0);
-      await click(renderer, 'Técnicos'); assert.equal(buttons(renderer, 'Asignar participante').length, 0); assert.equal(buttons(renderer, 'Desasignar').length, 0);
+      await click(renderer, 'Equipo'); assert.equal(buttons(renderer, 'Asignar participante').length, 0); assert.equal(buttons(renderer, 'Desasignar').length, 0);
     } finally { await unmount(renderer); }
   }
 });
@@ -429,7 +429,7 @@ test('roles de lectura y técnico no muestran acciones administrativas ni fotos 
 test('reconsulta tras conflicto de participante respeta el principal actual sin repetir escritura', async () => {
   const b = obrasBackend(), renderer = await mount(b);
   try {
-    await click(renderer, 'Ver obra'); await click(renderer, 'Técnicos'); await click(renderer, 'Reactivar'); await input(renderer, 'motivo', 'Apoyo');
+    await click(renderer, 'Ver obra'); await click(renderer, 'Equipo'); await click(renderer, 'Reactivar'); await input(renderer, 'motivo', 'Apoyo');
     b.failure = new ApiError(409, 'La membresía cambió.'); await submit(renderer);
     b.obras[0].tecnico_responsable = 8; b.members[1].es_responsable = true; b.members[1].activo = true;
     const count = b.calls.filter((c) => c.method === 'POST').length;
