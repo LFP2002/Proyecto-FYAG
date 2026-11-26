@@ -48,14 +48,14 @@ test('Auditoría: matriz coincide con permissions.POR_ROL, Supervisor no hereda 
   for(const [role,sources] of Object.entries(expected)){
     assert.deepEqual(auditSources(role),sources);const calls=[];
     const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[],next_cursor:null,has_more:false,fecha_corte:'2026-11-17T12:00:00Z',zona_horaria:'America/Santiago'};},role);
-    try{if(role==='TECNICO')assert.equal(calls.length,0);else assert.deepEqual(control(ui.renderer.root,'Fuente').findAllByType('option').slice(1).map((node)=>text(node)),sources);}finally{await ui.close();}
+    try{if(role==='TECNICO')assert.equal(calls.length,0);else assert.deepEqual(control(ui.renderer.root,'Fuente').findAllByType('option').slice(1).map((node)=>node.props.value),sources);}finally{await ui.close();}
   }
 });
 test('Auditoría: draft actualiza fuentes, filtros válidos consultan, inválidos no, cursor solo y reinicio',async()=>{
   const calls=[];const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[],next_cursor:path.includes('cursor=')?null:'opaco',has_more:!path.includes('cursor='),fecha_corte:'2026-11-17T12:00:00Z',zona_horaria:'America/Santiago'};},'GERENCIA');
   try{
-    const root=ui.renderer.root;await change(root,'Módulo','OBRAS');assert.ok(control(root,'Fuente').findAllByType('option').some((node)=>text(node)==='OBRA_EVENTO'));
-    await change(root,'Fuente','OBRA_EVENTO');await change(root,'Módulo','FINANZAS');assert.equal(control(root,'Fuente').props.value,'');assert.deepEqual(control(root,'Fuente').findAllByType('option').slice(1).map(text),['FINANZAS_EVENTO']);
+    const root=ui.renderer.root;assert.equal(root.findByProps({id:'audit-filters'}).props.hidden,true);await click(root,'Filtros');const before=calls.length;await change(root,'Módulo','OBRAS');assert.equal(calls.length,before);assert.ok(control(root,'Fuente').findAllByType('option').some((node)=>node.props.value==='OBRA_EVENTO'));
+    await change(root,'Fuente','OBRA_EVENTO');await change(root,'Módulo','FINANZAS');assert.equal(control(root,'Fuente').props.value,'');assert.deepEqual(control(root,'Fuente').findAllByType('option').slice(1).map(node=>node.props.value),['FINANZAS_EVENTO']);
     await change(root,'Desde','2026-11-01');await change(root,'Hasta','2026-11-17');await submit(root);
     assert.match(calls.at(-1),/modulo=FINANZAS&desde=2026-11-01&hasta=2026-11-17/);
     await click(root,'Siguiente');assert.equal(calls.at(-1),'/api/auditoria/eventos/?cursor=opaco');await click(root,'Anterior');assert.doesNotMatch(calls.at(-1),/cursor=/);
@@ -372,4 +372,20 @@ test('Gerencia consulta evidencias sin acciones de edición',async()=>{
     assert.equal(ui.renderer.root.findAllByType('textarea').length,0);
     assert.ok(calls.length>0&&calls.every(c=>c.method==='GET'));
   }finally{await ui.close();}
+});
+
+test('Auditoría: detalle independiente, valores comparados y retorno sin nueva consulta',async()=>{
+ const calls=[],event={id:'FINANZAS_EVENTO:12',evento_id:12,fuente:'FINANZAS_EVENTO',modulo:'FINANZAS',recurso_tipo:'DOCUMENTO',recurso_id:5,tipo:'DOCUMENTO_REVERTIDO',actor:2,actor_etiqueta:null,motivo:'Rectificación',creado_en:'2026-11-25T20:33:59-03:00',datos_anteriores:{estado:'VIGENTE',monto_total:'1000.25'},datos_nuevos:{estado:'REVERTIDO',motivo_reversion:'Rectificación',monto_total:'1000.25',referencia_rectificacion_externa:null}};
+ const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[event],next_cursor:null,has_more:false,fecha_corte:'2026-11-25T21:00:00-03:00',zona_horaria:'America/Santiago'};},'GERENCIA');
+ try{
+  const root=ui.renderer.root,body=()=>text(ui.renderer.toJSON());
+  assert.match(body(),/Documento revertido/);assert.match(body(),/Usuario #2/);assert.doesNotMatch(body(),/DOCUMENTO_REVERTIDO|Rectificación/);
+  assert.equal(root.findAllByProps({'aria-label':'Paginación de auditoría'}).length,0);
+  await click(root,'Ver detalle');
+  assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,0);
+  assert.match(body(),/Vigente/);assert.match(body(),/Revertido/);assert.match(body(),/\$1\.000,25/);assert.match(body(),/No registrado/);assert.match(body(),/Sin valor/);
+  assert.equal(root.findAllByProps({className:'audit-changed'}).length,1);
+  await click(root,'Volver al historial');
+  assert.equal(calls.length,1);assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,1);
+ }finally{await ui.close();}
 });
