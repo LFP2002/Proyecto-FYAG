@@ -26,6 +26,7 @@ import './styles/pages/chat.css';
 import './styles/pages/mermas.css';
 import './styles/pages/solicitudes.css';
 import './styles/dark-mode.css';
+import './styles/pages/finanzas-visual.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
