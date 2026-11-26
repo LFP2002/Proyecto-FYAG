@@ -17,7 +17,9 @@ import { civilDate, civilTime } from './tecnicoDomain.js';
 export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
   const [obra, setObra] = useState(null), [tab, setTab] = useState(initialTab), [form, setForm] = useState(null), [errors, setErrors] = useState({});
-  const [childLocked,setChildLocked]=useState(false);
+  const [operationalChildLocked,setChildLocked]=useState(false),[evidenceLocked,setEvidenceLocked]=useState(false),[documentsRefreshing,setDocumentsRefreshing]=useState(false);
+  const evidenceRefresh=useRef(null),attachmentsRefresh=useRef(null),documentsPending=useRef(false);
+  const childLocked=operationalChildLocked||evidenceLocked||documentsRefreshing;
   const suspensionDialog=useRef(null);
   const suspensionOpen=form?.type==='suspender';
   useEffect(()=>{if(!suspensionOpen)return;const dialog=suspensionDialog.current;if(dialog&&!dialog.open)dialog.showModal();return()=>{if(dialog?.open)dialog.close();};},[suspensionOpen]);
@@ -46,6 +48,17 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     const results = [await readDetail(!suspensionOpen)];
     if (team) results.push(await readMembers(), await readHistory(), await readMemberHistory());
     return results.every(Boolean);
+  }
+  async function refreshCurrent() {
+    if(!supervisor||tab!=='documentos')return api.reconcile(reconcile);
+    if(documentsPending.current||childLocked||api.busy||api.loading)return;
+    documentsPending.current=true;setDocumentsRefreshing(true);
+    try{
+      return await api.reconcile(async()=>{
+        const results=await Promise.all([readDetail(false),evidenceRefresh.current?.(),attachmentsRefresh.current?.()]);
+        return results.every(value=>value===true);
+      });
+    }finally{documentsPending.current=false;setDocumentsRefreshing(false);}
   }
   async function afterWrite() {
     await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role)));
@@ -98,7 +111,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     </>}
   </article>;
   return <article className={supervisor?'so-detail':'card-fyag commercial-detail'}>
-    {supervisor?<><div className="so-heading"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked||childLocked||!!form} onClick={onBack}><TecIcon name="back"/> Volver al listado</button>{!['costos','gastos'].includes(tab)&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading||childLocked||!!form&&!api.locked} onClick={()=>void api.reconcile(reconcile)} aria-label="Actualizar datos"><TecIcon name="refresh"/> {api.locked?'Reconsultar resultado':'Actualizar'}</button>}</div><header className="so-heading so-work-heading"><div><h1>{obra?.codigo||'Detalle de obra'}</h1>{obra&&<><h2>{obra.cliente_nombre}</h2><p className="commercial-help">{obra.categoria_nombre} · {obra.presupuesto_codigo}</p></>}</div>{obra&&<ObraStatus state={obra.estado}/>}</header></>:<div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>}
+    {supervisor?<><div className="so-heading"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked||childLocked||!!form} onClick={onBack}><TecIcon name="back"/> Volver al listado</button>{!['costos','gastos'].includes(tab)&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading||childLocked||!!form&&!api.locked} onClick={()=>void refreshCurrent()} aria-label="Actualizar datos"><TecIcon name="refresh"/> {documentsRefreshing?'Actualizando…':api.locked?'Reconsultar resultado':'Actualizar'}</button>}</div><header className="so-heading so-work-heading"><div><h1>{obra?.codigo||'Detalle de obra'}</h1>{obra&&<><h2>{obra.cliente_nombre}</h2><p className="commercial-help">{obra.categoria_nombre} · {obra.presupuesto_codigo}</p></>}</div>{obra&&<ObraStatus state={obra.estado}/>}</header></>:<div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>}
     <Feedback api={api} />
     {obra && <>
       <nav className={supervisor?"so-tabs":"obras-tabs"} aria-label="Secciones de la obra">{tabs.map(([key, label]) => <button type="button" key={key} className={supervisor?undefined:`btn btn-sm ${tab === key ? 'btn-fyag-primary' : 'btn-outline-secondary'}`} aria-current={tab === key ? 'page' : undefined} aria-pressed={tab===key} disabled={api.busy || !!form || api.locked || childLocked} onClick={() => setTab(key)}>{supervisor?({resumen:'Resumen',tecnicos:'Equipo',costos:'Costos y cierre',documentos:'Documentación'})[key]||label:label}</button>)}</nav>
@@ -135,7 +148,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
       </section>}
       {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} supervisor={supervisor} />{(!supervisor||history?.next||history?.previous)&&<Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} />}<EventList title="Historial de participantes" data={memberHistory} supervisor={supervisor} />{(!supervisor||memberHistory?.next||memberHistory?.previous)&&<Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} />}</>}
       {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} onOperationalLock={supervisor?setChildLocked:undefined}/>}
-      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} supervisorPresentation={supervisor}/>}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} compactActions={supervisor} obraCode={obra.codigo} onOperationalLock={supervisor?setChildLocked:undefined} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
+      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} supervisorPresentation={supervisor} sharedRefresh={supervisor?evidenceRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setEvidenceLocked:undefined}/>}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} compactActions={supervisor} obraCode={obra.codigo} sharedRefresh={supervisor?attachmentsRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setChildLocked:undefined} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
       {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onTab={supervisor?setTab:undefined} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {form && (!supervisor||form.type!=='suspender') && <form className={supervisor?"card-fyag so-panel commercial-form obras-action-form":"commercial-form obras-action-form"} noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>

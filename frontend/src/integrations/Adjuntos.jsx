@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ApiError } from '../auth/client.js';
 import { positiveInteger, readPage, safePage, strictObject, useApi } from './useApi.js';
@@ -46,7 +46,7 @@ export default function Adjuntos(props) {
   if (!allowed.includes(user.role) || !positiveInteger(Number(props.destinationId))) return null;
   return <AttachmentScreen key={`${user.id}:${user.role}:${props.type}:${props.destinationId}`} {...props}/>;
 }
-function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=false,compactActions=false,obraCode,onOperationalLock}) {
+function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=false,compactActions=false,obraCode,onOperationalLock,sharedRefresh,externalRefreshing=false}) {
   const {user}=useAuth(),api=useApi();
   const [rows,setRows]=useState(null),[page,setPage]=useState(1),[selected,setSelected]=useState(null),[file,setFile]=useState(null);
   const [message,setMessage]=useState(''),[intent,setIntent]=useState(null),[detail,setDetail]=useState(null),[metadata,setMetadata]=useState(null),[form,setForm]=useState(null);
@@ -58,8 +58,12 @@ function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=
   const reload=()=>{setRows(null);return api.load('attachments',`${path}?page=${page}`,(data)=>setRows({...readPage(data,path),results:data.results.map(project)}));};
   function clearSelection(){setMenuId(null);api.cancelRead('attachment-selection');api.cancelRead('attachment-download');setSelected(null);setSelectionMode(null);setDetail(null);setMetadata(null);setForm(null);setMessage('');}
   useEffect(()=>{clearSelection();void reload();},[page]);
+  useImperativeHandle(sharedRefresh,()=>async()=>{
+    if(pending.current||intention.current||api.busy||api.locked||api.loading)return false;
+    api.setError(null);return reload();
+  });
   async function upload(event,retry=false) {
-    event?.preventDefault();if(!canEdit||!canUpload||pending.current||api.busy||(!retry&&api.locked))return;
+    event?.preventDefault();if(!canEdit||!canUpload||pending.current||api.busy||externalRefreshing||(!retry&&api.locked))return;
     const issue=validateFile(intention.current?.file||file);if(issue){setMessage(issue);return;}
     pending.current=true;setMessage('');
     try{
@@ -83,7 +87,7 @@ function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=
     return intention.current ? read() : api.reconcile(read);
   }
   async function saveMetadata(event) {
-    event.preventDefault();if(!canEdit||!metadata||!selected||api.busy||api.locked||pending.current||intention.current)return;
+    event.preventDefault();if(!canEdit||!metadata||!selected||api.busy||api.locked||pending.current||intention.current||externalRefreshing)return;
     const row=selected,revision=metadata.revision;pending.current=true;setMessage('');api.cancelRead('attachment-selection');
     try{
       await api.write(`/api/adjuntos/${row.id}/anotaciones/`,'PATCH',{revision,descripcion:form.descripcion,etiquetas:metadata.etiquetas,atributos:metadata.atributos},async(value)=>{
@@ -91,11 +95,12 @@ function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=
       });
     }finally{pending.current=false;}
   }
-  const blocked=api.busy||api.locked||!!intent;
+  const blocked=api.busy||api.locked||!!intent||externalRefreshing;
+  const operationalLock=api.busy||api.locked||!!intent||!!sharedRefresh&&api.loading;
   const app=useApp();
-  useEffect(()=>{if(!compactActions)return;onOperationalLock?.(blocked);app?.setNavigationBlocked?.(blocked);return()=>{onOperationalLock?.(false);app?.setNavigationBlocked?.(false);};},[compactActions,blocked,onOperationalLock,app?.setNavigationBlocked]);
+  useEffect(()=>{if(!compactActions)return;onOperationalLock?.(operationalLock);if(!sharedRefresh)app?.setNavigationBlocked?.(operationalLock);return()=>{onOperationalLock?.(false);if(!sharedRefresh)app?.setNavigationBlocked?.(false);};},[compactActions,operationalLock,onOperationalLock,sharedRefresh,app?.setNavigationBlocked]);
   return <section className={`attachments-panel${embedded?'':' card-fyag p-3 my-3'}`} aria-label={type==='RESPALDO_FACTURA'?'Adjuntos de factura externa':'Informes técnicos adjuntos'}>
-    <div className="attachments-header"><h3>{type==='RESPALDO_FACTURA'?'Respaldos documentales':'Informes técnicos'}</h3><button type="button" className="btn btn-outline-secondary btn-sm attachment-action" disabled={api.loading||api.busy} onClick={()=>{setMessage('');void reload();}}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-arrow-counterclockwise" viewBox="0 0 16 16"><path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/></svg>Actualizar adjuntos</button></div>
+    <div className="attachments-header"><h3>{type==='RESPALDO_FACTURA'?'Respaldos documentales':'Informes técnicos'}</h3>{!sharedRefresh&&<button type="button" className="btn btn-outline-secondary btn-sm attachment-action" disabled={api.loading||api.busy} onClick={()=>{setMessage('');void reload();}}><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" aria-hidden="true" focusable="false" fill="currentColor" className="bi bi-arrow-counterclockwise" viewBox="0 0 16 16"><path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/></svg>Actualizar adjuntos</button>}</div>
     {type==='RESPALDO_FACTURA'&&readOnly&&<p className="attachments-notice">Documento revertido · Archivos disponibles solo para consulta, sin nuevas cargas ni edición de anotaciones.</p>}
     {api.error&&<p className="alert alert-warning" role="alert">{({403:'No tienes permiso para esta operación.',404:'Adjunto o destino no disponible.',409:'Conflicto documental o revisión CAS obsoleta/pendiente: reconsulta antes de editar, sin sobrescribir.',413:'El archivo supera el máximo permitido.',422:'Archivo rechazado por validación de contenido.',503:'Scanner, almacenamiento o MongoDB no disponible. El resultado no se considera confirmado.'})[api.error.status]||api.error.message}</p>}
     {api.locked&&<p role="alert">Escrituras bloqueadas hasta reconsultar la revisión; una carga incierta conserva la misma clave y archivo.</p>}
