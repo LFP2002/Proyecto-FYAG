@@ -20,7 +20,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const [childLocked,setChildLocked]=useState(false);
   const suspensionDialog=useRef(null);
   const suspensionOpen=form?.type==='suspender';
-  useEffect(()=>{if(!suspensionOpen)return;const dialog=suspensionDialog.current;dialog?.showModal?.();return()=>{if(dialog?.open)dialog.close();};},[suspensionOpen]);
+  useEffect(()=>{if(!suspensionOpen)return;const dialog=suspensionDialog.current;if(dialog&&!dialog.open)dialog.showModal();return()=>{if(dialog?.open)dialog.close();};},[suspensionOpen]);
   const supervisor=user.role===S,app=useApp();
   useEffect(()=>{if(!supervisor)return;app?.setNavigationBlocked?.(api.busy||api.locked||childLocked);return()=>app?.setNavigationBlocked?.(false);},[supervisor,api.busy,api.locked,childLocked,app?.setNavigationBlocked]);
   const [members, setMembers] = useState(null), [memberPage, setMemberPage] = useState(1), [active, setActive] = useState('');
@@ -28,7 +28,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const [memberHistory, setMemberHistory] = useState(null), [memberHistoryPage, setMemberHistoryPage] = useState(1);
   const base = obraPath(id), team = canReadTeam(user.role), editable = obra && canEditObra(user.role, obra.estado);
   const disabled = api.busy || api.loading || api.locked || childLocked;
-  const readDetail = () => { setObra(null); return api.load('detail', base, (result) => setObra(projectObra(result, user.role))); };
+  const readDetail = (clear=true) => { if(clear)setObra(null); return api.load('detail', base, (result) => setObra(projectObra(result, user.role))); };
   const readMembers = () => api.load('members', collectionPath(`${base}participantes/`, memberPage, { activo: active }), (result) => setMembers(readPage(result, `${base}participantes/`)));
   const readHistory = () => api.load('history', collectionPath(`${base}historial/`, historyPage), (result) => setHistory(readPage(result, `${base}historial/`)));
   const readMemberHistory = () => api.load('memberHistory', collectionPath(`${base}participantes/historial/`, memberHistoryPage), (result) => setMemberHistory(readPage(result, `${base}participantes/historial/`)));
@@ -43,7 +43,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   useEffect(() => { if (team && tab === 'historial') { setHistory(null); void readHistory(); } }, [tab, historyPage]);
   useEffect(() => { if (team && tab === 'historial') { setMemberHistory(null); void readMemberHistory(); } }, [tab, memberHistoryPage]);
   async function reconcile() {
-    const results = [await readDetail()];
+    const results = [await readDetail(!suspensionOpen)];
     if (team) results.push(await readMembers(), await readHistory(), await readMemberHistory());
     return results.every(Boolean);
   }
