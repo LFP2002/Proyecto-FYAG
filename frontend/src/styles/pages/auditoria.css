@@ -43,3 +43,46 @@
 
 .audit-actor{display:flex;flex-direction:column;align-items:flex-start;gap:3px;overflow-wrap:anywhere;min-width:0;}
 .audit-actor .audit-secondary{margin:0;font-weight:400;}
+
+/* Finanzas: lectura estable a ancho completo y jerarquía de cambios reales. */
+.auditoria-page.audit-finance .page-head {display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;}
+.audit-finance .page-head h1 {font-size:1.75rem;font-weight:700;margin-bottom:4px;}
+.audit-finance .audit-filter-card,.audit-finance .audit-results {padding:0;overflow:hidden;}
+.audit-finance .audit-list-head {padding:16px 20px 0;}
+.audit-finance .audit-quick {display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:12px;align-items:end;padding:0 20px 16px;}
+.audit-finance .audit-quick .form-label {display:flex;flex-direction:column;gap:5px;font-size:.875rem;font-weight:600;margin:0;min-width:0;}
+.audit-finance .audit-quick :is(.form-control,.form-select) {font-weight:400;}
+.audit-finance .audit-applied {padding:0 20px 12px;}
+.audit-finance .auditoria-form {background:transparent;border:0;border-top:1px solid var(--fyag-line);border-radius:0;padding:16px 20px;}
+.audit-finance .auditoria-actions {justify-content:flex-end;}
+.audit-finance .audit-results table th {background:var(--fyag-surface-alt,transparent);}
+.audit-finance .audit-results table :is(th,td) {padding:13px 16px;}
+.audit-finance .audit-event-cell {width:34%;min-width:200px;}
+.audit-finance .audit-event-cell strong {font-size:1rem;}
+.audit-finance .audit-event-reason {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--fyag-muted);font-size:.8125rem;margin-top:5px;}
+.audit-finance .audit-results td:last-child,.audit-finance .audit-results th:last-child {text-align:left;white-space:nowrap;}
+.audit-finance .audit-results .commercial-pager {padding:12px;}
+.audit-finance .audit-detail {width:100%;gap:16px;}
+.audit-finance .audit-detail h1 {font-size:1.85rem;}
+.audit-finance .audit-detail-card {padding:22px;gap:16px;}
+.audit-finance .audit-detail-card h2 {font-size:1.125rem;}
+.audit-finance .audit-highlights {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:18px;border-block:1px solid var(--fyag-line);padding:18px 0;}
+.audit-finance .audit-highlight {min-width:0;display:flex;flex-direction:column;gap:6px;overflow-wrap:anywhere;}
+.audit-finance .audit-highlight>span,.audit-finance .audit-highlight>small {font-size:.875rem;color:var(--fyag-muted);}
+.audit-finance .audit-highlight>strong,.audit-finance .audit-transition>strong {font-size:1.75rem;font-weight:700;line-height:1.25;font-variant-numeric:tabular-nums;}
+.audit-finance .audit-transition {display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+.audit-finance .audit-transition>span {font-size:1.05rem;color:var(--fyag-muted);}
+.audit-finance .audit-critical {color:var(--bs-danger-text-emphasis,#b34b4b)!important;}
+.audit-finance .audit-reason p {font-size:1rem;line-height:1.6;}
+.audit-finance .audit-comparison {min-width:0;}
+.audit-finance .audit-comparison thead th {background:var(--fyag-surface-alt,transparent);}
+.audit-finance .audit-comparison tbody th {background:transparent;}
+.audit-finance .audit-comparison :is(th,td) {padding:14px 16px;}
+.audit-finance .audit-comparison .audit-changed td:last-child,.audit-finance .audit-comparison .audit-added td:last-child {background:var(--bs-primary-bg-subtle,transparent);color:var(--bs-primary-text-emphasis,inherit);font-weight:600;}
+.audit-finance .audit-change-label {display:block;font-size:.75rem;color:var(--fyag-muted);font-weight:400;margin-top:6px;}
+.audit-finance .audit-comparison-note {margin:0;}
+.audit-finance .audit-empty-state {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;min-height:176px;padding:24px;}
+.audit-finance .audit-empty-state svg,.audit-finance .audit-empty-state p {color:var(--fyag-muted);}
+.audit-finance .audit-empty-state p {margin:0;font-size:.875rem;}
+.audit-finance .audit-retry {display:flex;justify-content:flex-start;}
+@media(max-width:700px){.audit-finance .audit-quick {grid-template-columns:minmax(0,1fr);}.audit-finance .audit-detail-card {padding:16px;}.audit-finance .audit-comparison :is(th,td) {padding:9px;}.audit-finance .audit-comparison th:first-child {width:30%;}}
