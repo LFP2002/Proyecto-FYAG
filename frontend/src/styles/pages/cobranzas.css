@@ -183,7 +183,7 @@
 .cobranzas-operativas .saldo[data-overdue=true] {color:#b42318;}
 .cobranzas-operativas .finance-detail {
   /* Los márgenes automáticos en un hijo flex eliminan el estiramiento implícito. */
-  width:100%;max-width:1100px;min-width:0;align-self:center;margin-inline:auto;box-sizing:border-box;
+  width:100%;max-width:none;min-width:0;align-self:stretch;margin-inline:0;box-sizing:border-box;
   container-type:inline-size;
 }
 .cobranzas-operativas .finance-detail > :is(.finance-summary,.finance-tabs,.finance-tab-content,.finance-detail-toolbar) {width:100%;min-width:0;box-sizing:border-box;}
@@ -209,5 +209,39 @@
 @container (max-width: 320px) {
   .cobranzas-operativas .finance-detail .finance-summary {grid-template-columns:minmax(0,1fr);}
 }
-.cobranzas-operativas .finance-tab-content section[aria-label="Respaldos documentales del documento financiero"] {max-width:780px;margin-inline:auto;}
+.cobranzas-operativas .finance-tab-content section[aria-label="Respaldos documentales del documento financiero"] {width:100%;max-width:none;margin:0;}
 @media(max-width:600px){.cobranzas-operativas .finance-fields{grid-template-columns:1fr;}.cobranzas-operativas .finance-register-form{padding:12px;}.cobranzas-operativas .cobranzas-search label{flex-basis:100%!important;}.cobranzas-operativas .finance-search-row{flex-wrap:wrap;}.cobranzas-operativas .finance-form-footer>.btn{flex:1 1 auto;}}
+
+
+/* Detalle AF: una superficie por pestaña, sin tarjetas anidadas. */
+.cobranzas-operativas .finance-payments-heading {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+.cobranzas-operativas .finance-payments-heading h4 {margin:0;}
+.cobranzas-operativas .finance-detail .finance-register-form {
+  max-width:none;width:100%;margin:0 0 20px!important;padding:16px 0 20px;
+  background:transparent;border:0;border-bottom:1px solid var(--fyag-line);border-radius:0;box-shadow:none;
+}
+.cobranzas-operativas .finance-detail .finance-register-form h4 {margin:0 0 6px;}
+.cobranzas-operativas .finance-detail .finance-register-form .finance-fields {grid-template-columns:repeat(4,minmax(0,1fr));}
+.cobranzas-operativas .finance-detail .finance-correction {
+  background:transparent;border:0;border-top:1px solid var(--fyag-line);
+  border-radius:0;padding:18px 0 0;margin:18px 0 0!important;
+}
+.cobranzas-operativas .finance-reversal-action {display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--fyag-line);}
+.cobranzas-operativas .finance-reversal-action p {margin:0;}
+.cobranzas-operativas .finance-payments-list {min-width:0;}
+.cobranzas-operativas .finance-payments li:last-child {border-bottom:0;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form {
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;margin:16px 0 20px!important;
+  padding:0 0 16px;border-bottom:1px solid var(--fyag-line);
+}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > :is(label,p) {grid-column:1/-1;margin:0;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > button {margin-top:0!important;align-self:stretch;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > input {min-width:0;width:100%;}
+@container (max-width: 950px) {
+  .cobranzas-operativas .finance-detail .finance-register-form .finance-fields {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@container (max-width: 540px) {
+  .cobranzas-operativas .finance-detail .finance-register-form .finance-fields,
+  .cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form {grid-template-columns:minmax(0,1fr);}
+  .cobranzas-operativas .finance-reversal-action {justify-content:flex-start;}
+}
