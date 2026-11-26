@@ -44,3 +44,8 @@
 .finance-egresos .eg-work-results > div:last-child {border-bottom:0;}
 @media(max-width:900px){.finance-egresos .eg-fields,.finance-egresos .eg-detail-kpis {grid-template-columns:repeat(2,minmax(0,1fr));}.finance-egresos .eg-half {grid-column:span 1;}.finance-egresos .eg-facts {grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:540px){.finance-egresos .eg-fields,.finance-egresos .eg-facts,.finance-egresos .eg-kpis,.finance-egresos .eg-detail-kpis,.finance-egresos .eg-flow-kpis {grid-template-columns:minmax(0,1fr);}.finance-egresos .eg-panel {padding:12px;}.finance-egresos .eg-toolbar .form-label {flex-basis:100%;}.finance-egresos .eg-footer .btn {flex:1;}}
+
+.finance-egresos .eg-back {align-self:flex-start;width:auto;display:inline-flex;align-items:center;gap:6px;}
+.finance-egresos .eg-flow-empty {min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:20px 12px;margin-top:16px;border-top:1px solid var(--fyag-line);}
+.finance-egresos .eg-flow-empty > svg {width:30px;height:30px;color:var(--fyag-muted);}
+.finance-egresos .eg-flow-empty p {color:var(--fyag-muted);font-size:.875rem;margin:0;max-width:420px;}
