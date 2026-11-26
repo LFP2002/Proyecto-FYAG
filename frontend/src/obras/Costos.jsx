@@ -1,4 +1,6 @@
-import { formatCLP } from '../utils/format.js';
+import SupervisorCostReview, {SupervisorEmpty} from './SupervisorCostReview.jsx';
+import TecIcon from './TecIcon.jsx';
+import { formatCLP, formatCompactCLP, formatCivilDate } from '../utils/format.js';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { PageHead } from '../components/ui';
@@ -21,10 +23,12 @@ function projectExpense(row) {
 }
 function validDate(value) { if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false; const date = new Date(`${value}T00:00:00Z`); return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value; }
 
-export default function Costos({ obra, onFinalized, section = 'costs' }) {
+export default function Costos({ obra, onFinalized, section = 'costs', onTab, onOperationalLock }) {
   const { user } = useAuth(), api = useOperational();
   const base = obraPath(obra.id);
   const [page, setPage] = useState(1), [historyPage, setHistoryPage] = useState(1), [expenses, setExpenses] = useState(null), [control, setControl] = useState(null), [summary, setSummary] = useState(null), [history, setHistory] = useState(null);
+  const [refreshEpoch,setRefreshEpoch]=useState(0),[expenseOpen,setExpenseOpen]=useState(false);
+  useEffect(()=>{onOperationalLock?.(api.busy||api.locked);return()=>onOperationalLock?.(false);},[api.busy,api.locked,onOperationalLock]);
   const [form, setForm] = useState(null), [issue, setIssue] = useState(''), [busyAction, setBusyAction] = useState(false);
   const [finalReason, setFinalReason] = useState(''), [courtesyReason, setCourtesyReason] = useState(''), [motive, setMotive] = useState('');
   const canManage = user.role === S, canRead = [G, S, AF].includes(user.role), canSeeDetail = [G, S].includes(user.role);
@@ -47,11 +51,11 @@ export default function Costos({ obra, onFinalized, section = 'costs' }) {
       if (costsView) results.push(await api.requiredLoad('history', historyPath, (data) => setHistory(readPage(data, `${base}costos/historial/`))));
     }
     // requiredLoad resolves only after each refresh applies successfully; it throws on failure.
-    if (results.length) { setForm(null); setIssue(''); setMotive(''); }
+    if (results.length) { setForm(null); setIssue(''); setMotive(''); setExpenseOpen(false); }
   }
 
   async function saveExpense(event) {
-    event.preventDefault(); if (!canManage || api.busy || api.locked) return;
+    event.preventDefault(); if (!canManage || !['EN_PROCESO','SUSPENDIDA'].includes(obra.estado) || api.busy || api.loading || api.locked) return;
     const item = form?.item, values = form?.values || emptyExpense;
     const errors = {};
     if (!values.descripcion.trim()) errors.descripcion = 'Campo obligatorio';
@@ -66,9 +70,9 @@ export default function Costos({ obra, onFinalized, section = 'costs' }) {
   }
 
   async function action(path, body, method = 'POST') {
-    if (!canManage || busyAction || api.busy || api.locked) return;
+    if (!canManage || !['EN_PROCESO','SUSPENDIDA'].includes(obra.estado) || busyAction || api.busy || api.loading || api.locked) return false;
     setIssue(''); setBusyAction(true);
-    try { await api.write(path, method, body, afterWrite); }
+    try { return await api.write(path, method, body, afterWrite); }
     finally { setBusyAction(false); }
   }
   async function declareRubric(name, state, justification) {
@@ -76,20 +80,32 @@ export default function Costos({ obra, onFinalized, section = 'costs' }) {
     if (!payload.motivo) { setIssue('Indica el motivo del cambio de control.'); return; }
     await action(`${base}costos/control/`, payload, 'PATCH');
   }
-  async function finalize() {
-    if (!canManage || obra.estado !== 'EN_PROCESO' || !finalReason.trim()) { setIssue('La finalización requiere un motivo y una obra en proceso.'); return; }
-    if (!globalThis.confirm?.('¿Finalizar esta obra? La finalización operativa es terminal.')) return;
+  async function finalize(reason=finalReason) {
+    if (!canManage || obra.estado !== 'EN_PROCESO' || !reason.trim() || !summary?.costos_validados || !control?.costos_validados || api.busy || api.loading || api.locked || busyAction) { setIssue('La finalización requiere validación vigente, un motivo y una obra en proceso.'); return false; }
+    if (!globalThis.confirm?.('¿Finalizar esta obra? La finalización operativa es terminal.')) return false;
     setBusyAction(true); setIssue('');
-    try { await api.write(`${base}finalizar/`, 'POST', { motivo: finalReason.trim() }, async () => { await onFinalized(); await afterWrite(); }); }
+    try { return await api.write(`${base}finalizar/`, 'POST', { motivo: reason.trim() }, async () => { await onFinalized(); await afterWrite(); }); }
     finally { setBusyAction(false); }
   }
 
+  async function reconsult() {
+    if(api.busy||api.loading)return;
+    await api.reconcile(async()=>{
+      const reads=costsView?[loadSummary(),loadControl(),loadHistory()]:[loadExpenses(),loadSummary(),loadControl()];
+      const ok=(await Promise.all(reads)).every(Boolean);
+      if(!ok)return false;
+      if(api.locked&&onFinalized){try{await onFinalized();}catch{return false;}}
+      setForm(null);setExpenseOpen(false);setIssue('');setMotive('');setRefreshEpoch(v=>v+1);
+      return true;
+    });
+  }
   if (!canRead) return <p role="alert">No tienes acceso a los costos de esta obra.</p>;
-  return <section aria-label="Costos y finalización">
-    <PageHead title={expensesView ? 'Materiales y gastos' : 'Costos y cierre operativo'} sub={expensesView ? 'Movimientos de gastos registrados en esta Obra.' : 'Consulta los costos de esta obra.'} />
+  return <section className={canManage?'so-costs':undefined} aria-label="Costos y finalización">
+    {canManage?<div className="so-section-head"><div><h2>{expensesView?'Materiales y gastos':'Costos y cierre operativo'}</h2><p className="commercial-help">{expensesView?'Consulta y registra los gastos efectivos de la obra.':'Revisa los rubros, valida los costos y completa el cierre.'}</p></div><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading} onClick={()=>void reconsult()}><TecIcon name="refresh"/> {api.locked?'Reconsultar resultado':'Actualizar'}</button></div>:<PageHead title={expensesView ? 'Materiales y gastos' : 'Costos y cierre operativo'} sub={expensesView ? 'Movimientos de gastos registrados en esta Obra.' : 'Consulta los costos de esta obra.'} />}
     <Feedback api={api} />
     {issue && <p className="alert alert-warning" role="alert">{issue}</p>}
-    {costsView && summary && <section className="card-fyag p-3 mb-3" aria-label="Resumen de costos">
+    {costsView&&canManage&&<SupervisorCostReview obra={obra} summary={summary} control={control} api={api} busyAction={busyAction} refreshEpoch={refreshEpoch} onAction={(suffix,body,method)=>action(base+suffix,body,method)} onFinalize={finalize} onTab={onTab}/>}
+    {costsView && !canManage && summary && <section className="card-fyag p-3 mb-3" aria-label="Resumen de costos">
       <h3>Resumen económico</h3>
       <dl className="commercial-facts">
         <div><dt>Materiales netos</dt><dd>{money(summary.materiales_total)}</dd></div><div><dt>Otros gastos netos</dt><dd>{money(summary.otros_total)}</dd></div>
@@ -100,34 +116,35 @@ export default function Costos({ obra, onFinalized, section = 'costs' }) {
       {summary.cortesia_justificacion && <p>Justificación de cortesía: {summary.cortesia_justificacion}</p>}
     </section>}
 
-    {costsView && canSeeDetail && control && <section className="card-fyag p-3 mb-3"><h3>Control de rubros</h3>
+    {costsView && !canManage && canSeeDetail && control && <section className="card-fyag p-3 mb-3"><h3>Control de rubros</h3>
         <p>Versión {control.version_actual} · {control.costos_validados ? `Validada (versión ${control.version_validada})` : 'Sin validación vigente'}{control.validado_en ? ` · ${timestamp(control.validado_en)}` : ''}</p>
         {canManage ? ['materiales', 'otros'].map((name) => <Rubric key={`${control.version_actual}:${name}`} name={name} control={control} disabled={obra.estado === 'FINALIZADA' || api.busy || api.locked} onDeclare={declareRubric} />) : <dl className="commercial-facts" aria-label="Estado de los rubros">{['materiales','otros'].map(name=><div key={name}><dt>{name==='materiales'?'Materiales':'Otros gastos'}</dt><dd>{({PENDIENTE:'Pendiente',CON_REGISTROS:'Con registros',NO_APLICA:'No aplica'})[control[`${name}_estado`]]}</dd>{control[`${name}_justificacion`]&&<dd>{control[`${name}_justificacion`]}</dd>}</div>)}</dl>}
         {canManage && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-form-actions"><Field name="costos-motivo" label="Motivo para validar costos" value={motive} onChange={setMotive} maxLength={2000} /><button type="button" className="btn btn-fyag-primary" disabled={api.busy || api.locked || busyAction || control.costos_validados || !motive.trim()} onClick={() => action(`${base}costos/validar/`, { motivo: motive.trim() })}>Validar costos</button></div>}
         {canManage && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-form-actions"><Field name="cortesia-justificacion" label="Justificación de sin cobro (no reduce costos)" value={courtesyReason} onChange={setCourtesyReason} maxLength={2000} /><button type="button" className="btn btn-outline-secondary" disabled={api.busy || api.locked || !courtesyReason.trim() || (!!summary.cortesia_sin_cobro && !motive.trim())} onClick={() => action(`${base}cortesia-sin-cobro/`, { justificacion: courtesyReason.trim(), ...(summary.cortesia_sin_cobro ? { motivo: motive.trim() } : {}) })}>Registrar / rectificar sin cobro</button></div>}
       </section>}
 
-      {expensesView && canManage && !form?.mode && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <form className="card-fyag commercial-form mb-3" noValidate onSubmit={saveExpense}>
+      {expensesView&&canManage&&!expenseOpen&&!form&&['EN_PROCESO','SUSPENDIDA'].includes(obra.estado)&&<div className="so-actions"><button type="button" className="btn btn-fyag-primary" disabled={api.busy||api.loading||api.locked} onClick={()=>{setExpenseOpen(true);setIssue('');}}>Registrar gasto</button></div>}
+      {expensesView && canManage && (expenseOpen||form?.item) && !form?.mode && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <form className="card-fyag commercial-form mb-3" noValidate onSubmit={saveExpense}>
         <h3>{form?.item ? `Corregir gasto #${form.item.id}` : 'Registrar material u otro gasto'}</h3>
         <div className="obras-form-grid">
           <Field name="gasto-tipo" label="Tipo" value={form?.values.tipo ?? emptyExpense.tipo} options={TYPES} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), tipo: v } })} />
-          {['descripcion', 'unidad', 'cantidad', 'costo_unitario_neto', 'fecha_gasto', 'referencia_respaldo', 'observacion'].map((key) => <Field key={key} name={`gasto-${key}`} label={({ descripcion: 'Descripción', unidad: 'Unidad', cantidad: 'Cantidad (decimal)', costo_unitario_neto: 'Costo unitario neto (decimal string)', fecha_gasto: 'Fecha del gasto', referencia_respaldo: 'Referencia de respaldo', observacion: 'Observación' })[key]} type={key === 'fecha_gasto' ? 'date' : ['observacion'].includes(key) ? 'textarea' : 'text'} value={form?.values[key] ?? emptyExpense[key]} maxLength={key === 'descripcion' ? 500 : key === 'unidad' ? 30 : key === 'observacion' ? 2000 : undefined} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), [key]: v } })} />)}
+          {['descripcion', 'unidad', 'cantidad', 'costo_unitario_neto', 'fecha_gasto', 'referencia_respaldo', 'observacion'].map((key) => <Field key={key} name={`gasto-${key}`} label={({ descripcion: 'Descripción', unidad: 'Unidad', cantidad: 'Cantidad', costo_unitario_neto: 'Costo unitario neto (CLP)', fecha_gasto: 'Fecha del gasto', referencia_respaldo: 'Referencia de respaldo', observacion: 'Observación' })[key]} type={key === 'fecha_gasto' ? 'date' : ['observacion'].includes(key) ? 'textarea' : 'text'} value={form?.values[key] ?? emptyExpense[key]} maxLength={key === 'descripcion' ? 500 : key === 'unidad' ? 30 : key === 'observacion' ? 2000 : undefined} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), [key]: v } })} />)}
           {form?.item && <Field name="gasto-motivo" label="Motivo de corrección" value={motive} onChange={setMotive} maxLength={2000} disabled={api.busy || api.locked} />}
         </div>
-        <div className="commercial-form-actions"><button type="submit" className="btn btn-fyag-primary" disabled={api.busy || api.locked}>{api.busy ? 'Guardando…' : form?.item ? 'Guardar corrección' : 'Registrar gasto'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={() => { setForm(null); setMotive(''); setIssue(''); }}>Cancelar</button></div>
+        <div className="commercial-form-actions"><button type="submit" className="btn btn-fyag-primary" disabled={api.busy || api.locked}>{api.busy ? 'Guardando…' : form?.item ? 'Guardar corrección' : 'Registrar gasto'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={() => { setForm(null); setExpenseOpen(false); setMotive(''); setIssue(''); }}>Cancelar</button></div>
       </form>}
 
-      {expensesView && canSeeDetail && <section className="card-fyag p-3 mb-3"><h3>Materiales y gastos</h3>
-        {expenses?.results.length === 0 && <p className="commercial-empty">No hay gastos registrados.</p>}
-        <div className="table-responsive" role="region" aria-label="Gastos de la obra" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Tipo', 'Descripción', 'Unidad', 'Cantidad / devuelta', 'Costo unitario neto', 'Subtotal neto', 'Fecha', 'Vigencia', ...(canManage ? ['Acciones'] : [])].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{expenses?.results.map((item) => <tr key={item.id}><td>{TYPES.find(([key]) => key === item.tipo)?.[1] || item.tipo}</td><td>{item.descripcion}</td><td>{item.unidad}</td><td>{item.cantidad} / {item.cantidad_devuelta}</td><td>{money(item.costo_unitario_neto)}</td><td>{money(item.subtotal)}</td><td>{item.fecha_gasto}</td><td>{item.vigente ? 'Vigente' : `Anulado${item.motivo_anulacion ? `: ${item.motivo_anulacion}` : ''}`}</td>{canManage && <td>{item.vigente && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.locked} onClick={() => { setForm({ item, values: Object.fromEntries(Object.keys(emptyExpense).map((key) => [key, item[key] ?? ''])) }); setMotive(''); }}>Corregir</button>{item.tipo === 'MATERIAL' && compareDecimal(item.cantidad_devuelta, item.cantidad) < 0 && <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.locked} onClick={() => setForm({ mode: 'devolver', item, values: { cantidad: '', fecha_devolucion: '', motivo: '' } })}>Devolver cantidad</button>}<button className="btn btn-outline-danger btn-sm" disabled={api.busy || api.locked} onClick={() => setForm({ mode: 'anular', item, values: { motivo: '' } })}>Anular</button></div>}</td>}</tr>)}</tbody></table></div>
-        <Pager label="Paginación de gastos" data={expenses} page={page} setPage={setPage} disabled={api.loading || api.busy || api.locked} />
+      {expensesView && canSeeDetail && <section className={canManage?'card-fyag so-panel':'card-fyag p-3 mb-3'}><h3>{canManage?'Gastos registrados':'Materiales y gastos'}</h3>
+        {expenses?.results.length === 0 && (canManage?<SupervisorEmpty title="No hay gastos registrados" description="Los materiales y gastos de esta obra aparecerán aquí."/>:<p className="commercial-empty">No hay gastos registrados.</p>)}
+        {(!canManage||!!expenses?.results.length)&&<div className="table-responsive" role="region" aria-label="Gastos de la obra" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Tipo', 'Descripción', 'Unidad', 'Cantidad / devuelta', 'Costo unitario neto', 'Subtotal neto', 'Fecha', 'Vigencia', ...(canManage ? ['Acciones'] : [])].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{expenses?.results.map((item) => <tr key={item.id}><td>{TYPES.find(([key]) => key === item.tipo)?.[1] || item.tipo}</td><td>{item.descripcion}</td><td>{item.unidad}</td><td>{item.cantidad} / {item.cantidad_devuelta}</td><td className={canManage?'commercial-money':undefined}>{canManage?formatCompactCLP(item.costo_unitario_neto):money(item.costo_unitario_neto)}</td><td className={canManage?'commercial-money fw-bold':undefined}>{canManage?formatCompactCLP(item.subtotal):money(item.subtotal)}</td><td>{canManage?formatCivilDate(item.fecha_gasto):item.fecha_gasto}</td><td>{item.vigente ? 'Vigente' : `Anulado${item.motivo_anulacion ? `: ${item.motivo_anulacion}` : ''}`}</td>{canManage && <td>{item.vigente && ['EN_PROCESO', 'SUSPENDIDA'].includes(obra.estado) && <div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.locked || !!form || expenseOpen} onClick={() => { setForm({ item, values: Object.fromEntries(Object.keys(emptyExpense).map((key) => [key, item[key] ?? ''])) }); setMotive(''); }}>Corregir</button>{item.tipo === 'MATERIAL' && compareDecimal(item.cantidad_devuelta, item.cantidad) < 0 && <button className="btn btn-outline-secondary btn-sm" disabled={api.busy || api.locked || !!form || expenseOpen} onClick={() => setForm({ mode: 'devolver', item, values: { cantidad: '', fecha_devolucion: '', motivo: '' } })}>Devolver cantidad</button>}<button className="btn btn-outline-danger btn-sm" disabled={api.busy || api.locked || !!form || expenseOpen} onClick={() => setForm({ mode: 'anular', item, values: { motivo: '' } })}>Anular</button></div>}</td>}</tr>)}</tbody></table></div>}
+        {(!canManage||expenses?.next||expenses?.previous)&&<Pager label="Paginación de gastos" data={expenses} page={page} setPage={setPage} disabled={api.loading || api.busy || api.locked || !!form || expenseOpen} />}
       </section>}
 
       {expensesView && form?.mode && <TransactionForm mode={form.mode} item={form.item} api={api} onCancel={() => setForm(null)} onSave={(body, endpoint) => action(endpoint, body)} obraPath={base} />}
 
-      {costsView && canSeeDetail && history && <section className="card-fyag p-3"><h3>Historial de costos</h3>{history.results.length === 0 && <p>No hay eventos económicos.</p>}<ol>{history.results.map((event) => <li key={event.id}><strong>{String(event.tipo).replaceAll('_', ' ')}</strong> · {timestamp(event.creado_en)} · Usuario #{event.registrado_por}<p>{event.motivo || 'Sin motivo'}</p><SafeChanges data={event.datos_nuevos} /></li>)}</ol><Pager label="Paginación del historial de costos" data={history} page={historyPage} setPage={setHistoryPage} disabled={api.loading || api.busy || api.locked} /></section>}
+      {costsView && canSeeDetail && history && <section className={canManage?'card-fyag so-panel':'card-fyag p-3'}><h3>Historial de costos</h3>{history.results.length === 0 && (canManage?<SupervisorEmpty title="Sin movimientos de costos" description="Las declaraciones, validaciones y cambios de gastos aparecerán aquí."/>:<p>No hay eventos económicos.</p>)}<ol className={canManage?'commercial-timeline':undefined}>{history.results.map((event) => <li key={event.id}><strong>{canManage?({DECLARACION:'Declaración de rubros',VALIDACION:'Costos validados',CORTESIA:'Servicio sin cobro',ALTA:'Gasto registrado',CORRECCION:'Gasto corregido',DEVOLUCION:'Devolución registrada',ANULACION:'Gasto anulado'})[event.tipo]||String(event.tipo).replaceAll('_',' '):String(event.tipo).replaceAll('_', ' ')}</strong> · {timestamp(event.creado_en)} · Usuario #{event.registrado_por}<p>{event.motivo || 'Sin motivo'}</p><SafeChanges data={event.datos_nuevos} before={canManage?event.datos_anteriores:undefined} /></li>)}</ol>{(!canManage||history.next||history.previous)&&<Pager label="Paginación del historial de costos" data={history} page={historyPage} setPage={setHistoryPage} disabled={api.loading || api.busy || api.locked} />}</section>}
 
-    {costsView && canManage && obra.estado === 'EN_PROCESO' && <section className="card-fyag p-3 mt-3"><h3>Finalización operativa</h3><p>Para finalizar la obra, primero valida sus costos.</p><Field name="finalizar-motivo" label="Motivo de finalización" type="textarea" value={finalReason} onChange={setFinalReason} maxLength={2000} disabled={api.busy || api.locked} /><button type="button" className="btn btn-outline-danger mt-2" disabled={api.busy || api.locked || busyAction || !finalReason.trim() || !summary?.costos_validados} onClick={finalize}>Finalizar obra</button></section>}
+    {false && costsView && canManage && obra.estado === 'EN_PROCESO' && <section className="card-fyag p-3 mt-3"><h3>Finalización operativa</h3><p>Para finalizar la obra, primero valida sus costos.</p><Field name="finalizar-motivo" label="Motivo de finalización" type="textarea" value={finalReason} onChange={setFinalReason} maxLength={2000} disabled={api.busy || api.locked} /><button type="button" className="btn btn-outline-danger mt-2" disabled={api.busy || api.locked || busyAction || !finalReason.trim() || !summary?.costos_validados} onClick={finalize}>Finalizar obra</button></section>}
   </section>;
 }
 
@@ -151,9 +168,9 @@ function TransactionForm({ mode, item, api, onCancel, onSave, obraPath: base }) 
 }
 
 const SAFE_CHANGE_KEYS = new Set(['tipo', 'descripcion', 'unidad', 'cantidad', 'cantidad_devuelta', 'costo_unitario_neto', 'fecha_gasto', 'vigente', 'subtotal', 'version_costos', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'cortesia', 'version_actual', 'version_validada']);
-function SafeChanges({ data }) {
+function SafeChanges({ data, before }) {
   if (!object(data)) return null;
   const entries = Object.entries(data).filter(([key, value]) => SAFE_CHANGE_KEYS.has(key) && (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'));
   if (!entries.length) return null;
-  return <dl className="obras-event-changes">{entries.map(([key, value]) => <div key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd>{String(value)}</dd></div>)}</dl>;
+  return <dl className="obras-event-changes">{entries.map(([key, value]) => <div key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd>{before&&Object.hasOwn(before,key)?<><span className="commercial-help">{String(before[key]??'—')}</span> → </>:null}{String(value)}</dd></div>)}</dl>;
 }
