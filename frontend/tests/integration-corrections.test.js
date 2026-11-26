@@ -389,3 +389,18 @@ test('Auditoría: detalle independiente, valores comparados y retorno sin nueva 
   assert.equal(calls.length,1);assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,1);
  }finally{await ui.close();}
 });
+
+test('Auditoría: valida los campos de identidad 1.1.0 y rechaza campos inesperados',async()=>{
+ const event={id:'FINANZAS_EVENTO:12',evento_id:12,fuente:'FINANZAS_EVENTO',modulo:'FINANZAS',recurso_tipo:'DOCUMENTO',recurso_id:5,tipo:'DOCUMENTO_REVERTIDO',actor:2,actor_etiqueta:'Camila Hernández',actor_username:'finanzas',actor_identidad_origen:'HISTORICA',motivo:'Rectificación',creado_en:'2026-11-25T20:33:59-03:00',datos_anteriores:{},datos_nuevos:{}};
+ const {actor_username:omitted,...incomplete}=event;
+ for(const [row,valid] of [[event,true],[{...event,actor_etiqueta:null,actor_username:null},true],[incomplete,false],[{...event,actor_username:12},false],[{...event,actor_identidad_origen:'DESCONOCIDA'},false],[{...event,email:'privado@example.test'},false]]){
+  const ui=await mount(Auditoria,async()=>({results:[row],next_cursor:null,has_more:false,fecha_corte:'2026-11-25T21:00:00-03:00',zona_horaria:'America/Santiago'}),'GERENCIA');
+  try{
+   const root=ui.renderer.root,body=()=>text(ui.renderer.toJSON());
+   assert.equal(root.findAllByProps({'aria-label':'Eventos de auditoría'}).length,valid?1:0);
+   assert.equal(body().includes('Evento de auditoría inválido.'),!valid);
+   assert.doesNotMatch(body(),/privado@example\.test/);
+   if(valid&&row.actor_etiqueta){assert.match(body(),/Camila Hernández/);assert.doesNotMatch(body(),/Identidad actual/);await click(root,'Ver detalle');assert.match(body(),/Identidad registrada en el evento/);}
+  }finally{await ui.close();}
+ }
+});

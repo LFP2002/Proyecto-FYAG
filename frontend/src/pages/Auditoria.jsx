@@ -56,11 +56,13 @@ function EventDetail({event,onBack}){
 }
 const RESOURCE_TYPES = ['PRESUPUESTO','OBRA','PARTICIPANTE','CATEGORIA_SERVICIO','TURNO','GASTO','CONTROL_COSTOS','CORTESIA','DOCUMENTO','CIERRE_SIN_COBRO','PAGO','USUARIO'];
 function validEvent(event) {
-  const keys = ['id','evento_id','fuente','modulo','recurso_tipo','recurso_id','tipo','actor','actor_etiqueta','motivo','creado_en','datos_anteriores','datos_nuevos'];
+  const keys = ['id','evento_id','fuente','modulo','recurso_tipo','recurso_id','tipo','actor','actor_etiqueta','actor_username','actor_identidad_origen','motivo','creado_en','datos_anteriores','datos_nuevos'];
   if (!event || Object.keys(event).some((key) => !keys.includes(key)) || keys.some((key) => !Object.hasOwn(event,key))
       || typeof event.id !== 'string' || !Number.isSafeInteger(event.evento_id) || !Number.isSafeInteger(event.actor) || !Number.isSafeInteger(event.recurso_id)
       || !SOURCES.includes(event.fuente) || typeof event.modulo !== 'string' || typeof event.recurso_tipo !== 'string' || typeof event.tipo !== 'string'
-      || (event.actor_etiqueta !== null && typeof event.actor_etiqueta !== 'string') || typeof event.motivo !== 'string' || typeof event.creado_en !== 'string'
+      || (event.actor_etiqueta !== null && typeof event.actor_etiqueta !== 'string')
+      || (event.actor_username !== null && typeof event.actor_username !== 'string')
+      || !['HISTORICA','ACTUAL'].includes(event.actor_identidad_origen) || typeof event.motivo !== 'string' || typeof event.creado_en !== 'string'
       || !event.datos_anteriores || !event.datos_nuevos || typeof event.datos_anteriores !== 'object' || typeof event.datos_nuevos !== 'object') throw new Error('Evento de auditoría inválido.');
   return event;
 }
