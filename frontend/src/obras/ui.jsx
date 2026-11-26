@@ -21,13 +21,15 @@ export function ObraStatus({ state }) {
   return <Chip cls={color}>{label}</Chip>;
 }
 const fieldLabels = { descripcion: 'Descripción', nombre: 'Nombre', motivo: 'Motivo', presupuesto: 'Presupuesto', categoria_servicio: 'Categoría', tecnico: 'Técnico', tecnico_responsable: 'Responsable', fecha_programada: 'Fecha programada' };
+const pendingLabels={responsable_no_elegible:'Verifica que el responsable esté activo y sea elegible.',responsable_sin_membresia:'El responsable debe ser participante activo.',sin_turno_acreditado:'Debe existir al menos un turno cerrado y validado.',turnos_sin_acreditar:'Hay turnos que todavía no se han acreditado.',turno_inconsistente:'Revisa la coherencia de los turnos.',turnos_abiertos:'Hay turnos abiertos.',turnos_pendientes_revision:'Hay turnos pendientes de revisión.',turnos_observados:'Hay turnos observados pendientes de subsanación.',turnos_sin_tarifa:'Falta valorar la mano de obra de uno o más turnos.',duracion_administrativa_sin_verificar:'Falta verificar la duración de un turno cerrado administrativamente.',ejecutor_inconsistente:'Revisa los participantes asociados a los turnos.',duracion_inconsistente:'Revisa las duraciones registradas.',evidencia_inconsistente:'Hay evidencias que requieren revisión.',gasto_inconsistente:'Revisa la coherencia de los gastos.',materiales_sin_declarar_o_incoherente:'Revisa la declaración de materiales y sus registros.',otros_sin_declarar_o_incoherente:'Revisa la declaración de otros gastos y sus registros.',costo_total_no_positivo:'El costo real total debe ser mayor que cero.',control_inexistente:'Falta el control de costos.',validacion_obsoleta_o_ausente:'La validación no está vigente.'};
 export function OperationalErrors({ error }) {
   if (!error) return null;
   return <div className="alert alert-warning commercial-feedback" role="alert">
     <p>{error.message || 'Revisa los datos.'}</p>
     {error.code === 'sin_cambios' && <p>No hay un cambio aplicable. Consulta el estado actual.</p>}
     {error.code === 'presupuesto_utilizado' && <p>El presupuesto ya tiene una Obra asociada.</p>}
-    {Object.entries(error.fieldErrors || {}).map(([field, values]) => <p key={field}>{fieldLabels[field] || (field === 'detail' || field === 'non_field_errors' ? 'Detalle' : field)}: {values.join(' ')}</p>)}
+    {Object.entries(error.fieldErrors || {}).filter(([field])=>field!=='pendientes').map(([field, values]) => <p key={field}>{fieldLabels[field] || (field === 'detail' || field === 'non_field_errors' ? 'Detalle' : field)}: {values.join(' ')}</p>)}
+    {!!error.fieldErrors?.pendientes?.some(key=>pendingLabels[key])&&<div><strong>Requisitos pendientes</strong><ul>{error.fieldErrors.pendientes.filter(key=>pendingLabels[key]).map(key=><li key={key}>{pendingLabels[key]}</li>)}</ul></div>}
     {error.retryAfter && <p>Espera indicada por el servidor: {error.retryAfter}.</p>}
   </div>;
 }
