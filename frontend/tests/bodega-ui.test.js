@@ -50,7 +50,7 @@ test('Bodega: menú propio, despacho desde autorización y una sola escritura',a
   await act(async()=>{await renderer.root.findByProps({className:'bodega-form'}).props.onSubmit({preventDefault(){}});await flush();});
   const writes=calls.filter(c=>c.method==='POST');
   assert.equal(writes.length,1);assert.equal(writes[0].body.autorizacion,15);assert.equal(writes[0].body.cantidad,'2.000');
-  assert.match(text(renderer.root),/No hay autorizaciones pendientes/);
+  assert.match(text(renderer.root),/No hay entregas pendientes/);
   await click('Inventario');assert.match(text(renderer.root),/Tubería/);
  }finally{if(renderer)await act(async()=>renderer.unmount());}
 });
@@ -77,5 +77,44 @@ test('Movimientos: unidades compactas, precisión y celdas numéricas uniformes'
    assert.equal(cells[4].findByType('strong').type,'strong');
    assert.match(text(cells[6]),/RecepciónMotivo de pruebabodega_qa/);
   }
+ }finally{if(renderer)await act(async()=>renderer.unmount());}
+});
+
+test('Bodega: estados vacíos contextuales, fuera de cuadrículas y tablas, y filtros aplicados',async()=>{
+ const calls=[];
+ const session={status:'authenticated',user:{id:9,username:'bodega',email:'bodega@example.test',role:'BODEGUERO'}};
+ const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts={})=>{
+  calls.push({path,method:opts.method||'GET'});
+  const section=new URL(path,'http://localhost').searchParams.get('seccion');
+  if(section==='resumen')return {materiales:0,sin_stock:0,entregas:0,devoluciones:0,faltantes:[],pendientes:[],retornos:[]};
+  return page([]);
+ }};
+ let renderer;
+ const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});};
+ const empty=()=>renderer.root.findByProps({className:'bodega-empty',role:'status'});
+ try{
+  await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+  assert.equal(renderer.root.findAllByProps({className:'bodega-empty bodega-empty-compact',role:'status'}).length,3);
+  await click('Devoluciones');
+  assert.match(text(empty()),/No hay devoluciones pendientes/);
+  assert.equal(renderer.root.findAllByProps({className:'bodega-pending-grid'}).length,0);
+  assert.ok(empty().findAllByType('path').length>0);
+  const before=calls.length;
+  await act(async()=>renderer.root.findByProps({'aria-label':'Buscar registros'}).props.onChange({target:{value:'inexistente'}}));
+  assert.equal(calls.length,before);
+  assert.match(text(empty()),/No hay devoluciones pendientes/);
+  await act(async()=>{renderer.root.findByProps({className:'bodega-filter-form'}).props.onSubmit({preventDefault(){}});await flush();});
+  assert.match(text(empty()),/No hay resultados/);
+  await click('Limpiar filtros');
+  await click('Historial');
+  assert.match(text(empty()),/No hay devoluciones registradas/);
+  assert.equal(renderer.root.findAllByProps({className:'table bodega-table'}).length,0);
+  await click('Autorizaciones');
+  assert.match(text(empty()),/No hay autorizaciones de devolución/);
+  await click('Inventario');
+  assert.match(text(empty()),/No hay materiales registrados/);
+  await click('Movimientos');
+  assert.match(text(empty()),/No hay movimientos registrados/);
+  assert.ok(calls.every(c=>c.method==='GET'));
  }finally{if(renderer)await act(async()=>renderer.unmount());}
 });
