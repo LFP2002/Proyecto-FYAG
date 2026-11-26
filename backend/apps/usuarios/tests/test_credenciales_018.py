@@ -388,7 +388,12 @@ class ConfiguracionTTLTests(SimpleTestCase):
         from apps.usuarios.serializers_usuarios import CrearUsuarioSerializer, UsuarioLecturaSerializer
         schema = json.loads((settings.BASE_DIR / "docs/openapi/SPEC-018A-v1.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["openapi"], "3.0.3")
-        self.assertEqual(schema["info"]["version"], "1.1.1")
+        self.assertEqual(schema["info"]["version"], "1.2.0")
+        listing = schema["paths"]["/api/usuarios/"]["get"]
+        self.assertEqual({p["name"] for p in listing["parameters"]}, {"page", "rol", "activo", "buscar", "resumen"})
+        response = listing["responses"]["200"]["content"]["application/json"]["schema"]
+        self.assertNotIn("resumen", response["required"])
+        self.assertEqual(set(response["properties"]["resumen"]["required"]), {"total", "activas", "inactivas", "temporales"})
         self.assertEqual(set(schema["components"]["schemas"]["Usuario"]["properties"]["estado_credencial"]["enum"]),
                          {"PERSONAL", "INICIAL", "RECUPERACION", "NO_DISPONIBLE"})
         self.assertIn("seguridad_no_disponible", schema["components"]["responses"]["Conflicto"]["description"])
