@@ -1,3 +1,4 @@
+import {financialAmountInput,moneyHint} from '../utils/decimalInput.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ApiError } from '../auth/client.js';
@@ -54,15 +55,16 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
   }
   async function submit(event) {
     event.preventDefault(); if (!canWrite || blocked || pending.current) return;
+    const amounts=Object.fromEntries(['monto_neto','monto_impuesto','monto_total'].map(k=>[k,financialAmountInput(form[k],k==='monto_total')]));
     if (!safeFinancialId(form.obra) || !chosen || chosen.obra !== Number(form.obra) || !/^[0-9]+$/.test(form.folio_externo)
         || !isoDate(form.fecha_emision) || !isoDate(form.fecha_vencimiento) || form.fecha_emision > todayInSantiago() || form.fecha_emision > form.fecha_vencimiento
-        || !['monto_neto','monto_impuesto','monto_total'].every((k)=>/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$/.test(form[k])) || !form.referencia_respaldo.trim()) {
-      setMessage('Selecciona una obra elegible y completa folio, fechas, importes decimales y referencia.'); return;
+        || Object.values(amounts).some(value=>value===null) || !form.referencia_respaldo.trim()) {
+      setMessage('Selecciona una obra elegible y completa folio, fechas, montos válidos y referencia.'); return;
     }
     if (!confirm('¿Registrar este documento externo ya emitido? FYAG no emite un DTE ni mueve dinero.')) return;
     pending.current = true; invalidate();
     try {
-      await api.write(DOCUMENTS,'POST',{...form, obra:Number(form.obra), referencia_respaldo:form.referencia_respaldo.trim()},async(result)=>{
+      await api.write(DOCUMENTS,'POST',{...form, ...amounts, obra:Number(form.obra), referencia_respaldo:form.referencia_respaldo.trim()},async(result)=>{
         const created = financialDocument(result);
         if (created.origen.obra !== Number(form.obra)) throw new ApiError(502,'El documento recibido no corresponde al origen.');
         await refreshAffected();
@@ -124,7 +126,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       {eligible && !eligible.count && <p>No hay obras elegibles para facturación en esta consulta.</p>}
       <button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked||api.loading} onClick={()=>void loadEligible()}>Reconsultar obras elegibles</button>
       {chosen && <p>Neto aprobado: {formatCompactCLP(chosen.monto_neto_aprobado)} CLP.</p>}
-      <div className="finance-fields">{[['folio_externo','Folio de factura'],['fecha_emision','Fecha de emisión'],['fecha_vencimiento','Fecha de vencimiento'],['monto_neto','Monto neto (CLP)'],['monto_impuesto','Impuesto (CLP)'],['monto_total','Monto total (CLP)'],['referencia_respaldo','Referencia del respaldo']].map(([key,label])=><label className="form-label" key={key}>{label}<input className="form-control" type={key.startsWith('fecha_')?'date':'text'} disabled={blocked} value={form[key]} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}
+      <div className="finance-fields">{[['folio_externo','Folio de factura'],['fecha_emision','Fecha de emisión'],['fecha_vencimiento','Fecha de vencimiento'],['monto_neto','Monto neto (CLP)'],['monto_impuesto','Impuesto (CLP)'],['monto_total','Monto total (CLP)'],['referencia_respaldo','Referencia del respaldo']].map(([key,label])=><label className="form-label" key={key}>{label}<input className="form-control" type={key.startsWith('fecha_')?'date':'text'} inputMode={key.startsWith('monto_')?'decimal':undefined} placeholder={key.startsWith('monto_')?'Ej.: 150000':undefined} title={key.startsWith('monto_')?moneyHint:undefined} disabled={blocked} value={form[key]} onChange={(e)=>setForm({...form,[key]:e.target.value})}/></label>)}
         <label className="form-label">Tipo<select className="form-select" value={form.tipo_documento} disabled={blocked} onChange={(e)=>setForm({...form,tipo_documento:e.target.value})}><option value="FACTURA_AFECTA">Factura afecta</option><option value="FACTURA_EXENTA">Factura exenta</option></select></label></div>
       <div className="finance-form-footer"><button className="btn btn-outline-secondary" type="button" disabled={blocked} onClick={()=>setCreate(false)}>Cancelar</button><button className="btn btn-fyag-primary" disabled={blocked||api.loading}>Registrar factura</button></div>
     </form>}

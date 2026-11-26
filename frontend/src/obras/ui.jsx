@@ -40,12 +40,12 @@ export function Feedback({ api }) {
     {api.loading && <p className="commercial-loading" role="status">Cargando datos…</p>}
   </>;
 }
-export function Field({ name, label, value, onChange, error, type = 'text', options, disabled, maxLength, required = false }) {
+export function Field({ name, label, value, onChange, error, type = 'text', options, disabled, maxLength, required = false, inputMode, placeholder }) {
   const props = { id: `obras-${name}`, value: value ?? '', disabled, required, 'aria-invalid': !!error, 'aria-describedby': error ? `obras-${name}-error` : undefined, onChange: (e) => onChange(e.target.value) };
   return <div className="obras-field"><label className="form-label" htmlFor={props.id}>{label}</label>
     {options ? <select {...props} className={`form-select${error ? ' is-invalid' : ''}`}>{options.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select>
       : type === 'textarea' ? <textarea {...props} rows={3} maxLength={maxLength} className={`form-control${error ? ' is-invalid' : ''}`} />
-        : <input {...props} type={type} maxLength={maxLength} className={`form-control${error ? ' is-invalid' : ''}`} />}
+        : <input {...props} type={type} inputMode={inputMode} placeholder={placeholder} maxLength={maxLength} className={`form-control${error ? ' is-invalid' : ''}`} />}
     {error && <div id={`obras-${name}-error`} className="invalid-feedback">{error}</div>}
   </div>;
 }

@@ -1,3 +1,4 @@
+import {quantityInput,unitCostInput,quantityHint,moneyHint} from '../utils/decimalInput.js';
 import SupervisorCostHistory from './SupervisorCostHistory.jsx';
 import SupervisorCostReview, {SupervisorEmpty} from './SupervisorCostReview.jsx';
 import TecIcon from './TecIcon.jsx';
@@ -61,12 +62,13 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
     const errors = {};
     if (!values.descripcion.trim()) errors.descripcion = 'Campo obligatorio';
     if (!values.unidad.trim()) errors.unidad = 'Campo obligatorio';
-    if (!decimal(values.cantidad, 3) || Number(values.cantidad) <= 0) errors.cantidad = 'Usa una cantidad positiva con hasta 3 decimales.';
-    if (!decimal(values.costo_unitario_neto, 2)) errors.costo_unitario_neto = 'Usa un decimal positivo con hasta 2 decimales.';
+    const quantity=quantityInput(values.cantidad),unitCost=unitCostInput(values.costo_unitario_neto);
+    if (quantity===null) errors.cantidad = 'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma.';
+    if (unitCost===null) errors.costo_unitario_neto = 'Ingresa un costo por unidad válido, sin separadores de miles.';
     if (!validDate(values.fecha_gasto)) errors.fecha_gasto = 'Fecha inválida.';
     if (item && !motive.trim()) errors.motivo = 'Indica el motivo de corrección.';
     if (Object.keys(errors).length) { setIssue(Object.values(errors).join(' ')); return; }
-    const payload = { ...values, descripcion: values.descripcion.trim(), unidad: values.unidad.trim(), cantidad: values.cantidad.trim(), costo_unitario_neto: values.costo_unitario_neto.trim(), referencia_respaldo: values.referencia_respaldo.trim(), observacion: values.observacion.trim(), ...(item ? { motivo: motive.trim() } : {}) };
+    const payload = { ...values, descripcion: values.descripcion.trim(), unidad: values.unidad.trim(), cantidad: quantity, costo_unitario_neto: unitCost, referencia_respaldo: values.referencia_respaldo.trim(), observacion: values.observacion.trim(), ...(item ? { motivo: motive.trim() } : {}) };
     await api.write(item ? `${base}gastos/${item.id}/` : `${base}gastos/`, item ? 'PATCH' : 'POST', payload, afterWrite);
   }
 
@@ -122,7 +124,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
         <h3>{form?.item ? `Corregir gasto #${form.item.id}` : 'Registrar material u otro gasto'}</h3>
         <div className="obras-form-grid">
           <Field name="gasto-tipo" label="Tipo" value={form?.values.tipo ?? emptyExpense.tipo} options={TYPES} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), tipo: v } })} />
-          {['descripcion', 'unidad', 'cantidad', 'costo_unitario_neto', 'fecha_gasto', 'referencia_respaldo', 'observacion'].map((key) => <Field key={key} name={`gasto-${key}`} label={({ descripcion: 'Descripción', unidad: 'Unidad', cantidad: 'Cantidad', costo_unitario_neto: 'Costo unitario neto (CLP)', fecha_gasto: 'Fecha del gasto', referencia_respaldo: 'Referencia de respaldo', observacion: 'Observación' })[key]} type={key === 'fecha_gasto' ? 'date' : ['observacion'].includes(key) ? 'textarea' : 'text'} value={form?.values[key] ?? emptyExpense[key]} maxLength={key === 'descripcion' ? 500 : key === 'unidad' ? 30 : key === 'observacion' ? 2000 : undefined} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), [key]: v } })} />)}
+          {['descripcion', 'unidad', 'cantidad', 'costo_unitario_neto', 'fecha_gasto', 'referencia_respaldo', 'observacion'].map((key) => <Field key={key} name={`gasto-${key}`} label={({ descripcion: 'Descripción', unidad: 'Unidad', cantidad: 'Cantidad', costo_unitario_neto: 'Costo unitario neto (CLP)', fecha_gasto: 'Fecha del gasto', referencia_respaldo: 'Referencia de respaldo', observacion: 'Observación' })[key]} type={key === 'fecha_gasto' ? 'date' : ['observacion'].includes(key) ? 'textarea' : 'text'} inputMode={['cantidad','costo_unitario_neto'].includes(key)?'decimal':undefined} placeholder={key==='cantidad'?quantityHint:key==='costo_unitario_neto'?moneyHint:undefined} value={form?.values[key] ?? emptyExpense[key]} maxLength={key === 'descripcion' ? 500 : key === 'unidad' ? 30 : key === 'observacion' ? 2000 : undefined} disabled={api.busy || api.locked} onChange={(v) => setForm({ ...(form || {}), values: { ...emptyExpense, ...(form?.values || {}), [key]: v } })} />)}
           {form?.item && <Field name="gasto-motivo" label="Motivo de corrección" value={motive} onChange={setMotive} maxLength={2000} disabled={api.busy || api.locked} />}
         </div>
         <div className="commercial-form-actions"><button type="submit" className="btn btn-fyag-primary" disabled={api.busy || api.locked}>{api.busy ? 'Guardando…' : form?.item ? 'Guardar corrección' : 'Registrar gasto'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy||api.locked} onClick={() => { setForm(null); setExpenseOpen(false); setMotive(''); setIssue(''); }}>Cancelar</button></div>
@@ -147,11 +149,12 @@ function TransactionForm({ mode, item, api, onCancel, onSave, obraPath: base }) 
   async function submit(event) {
     event.preventDefault();
     if (!values.motivo.trim()) { setError('El motivo es obligatorio.'); return; }
-    if (mode === 'devolver' && (!decimal(values.cantidad, 3) || compareDecimal(values.cantidad, '0') <= 0 || !validDate(values.fecha_devolucion))) { setError('Ingresa una cantidad decimal positiva y fecha.'); return; }
+    const quantity=quantityInput(values.cantidad);
+    if (mode === 'devolver' && (quantity===null || !validDate(values.fecha_devolucion))) { setError('Ingresa una cantidad mayor que cero y una fecha válida.'); return; }
     const endpoint = mode === 'devolver' ? `${base}gastos/${item.id}/devolver/` : `${base}gastos/${item.id}/anular/`;
-    await onSave(mode === 'devolver' ? { ...values, cantidad: values.cantidad.trim(), motivo: values.motivo.trim() } : { motivo: values.motivo.trim() }, endpoint);
+    await onSave(mode === 'devolver' ? { ...values, cantidad: quantity, motivo: values.motivo.trim() } : { motivo: values.motivo.trim() }, endpoint);
   }
-  return <form className="card-fyag commercial-form" onSubmit={submit}><h3>{mode === 'devolver' ? `Devolver cantidad del material #${item.id}` : `Anular gasto #${item.id}`}</h3>{mode === 'devolver' && <><Field name="devolucion-cantidad" label="Cantidad a devolver" value={values.cantidad} onChange={(v) => setValues({ ...values, cantidad: v })} /><Field name="devolucion-fecha" label="Fecha de devolución" type="date" value={values.fecha_devolucion} onChange={(v) => setValues({ ...values, fecha_devolucion: v })} /></>}<Field name="transaccion-motivo" label="Motivo" type="textarea" value={values.motivo} maxLength={2000} onChange={(v) => setValues({ ...values, motivo: v })} />{error && <p role="alert">{error}</p>}<div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy || api.locked} type="submit">Confirmar</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy||api.locked} onClick={onCancel}>Cancelar</button></div></form>;
+  return <form className="card-fyag commercial-form" onSubmit={submit}><h3>{mode === 'devolver' ? `Devolver cantidad del material #${item.id}` : `Anular gasto #${item.id}`}</h3>{mode === 'devolver' && <><Field name="devolucion-cantidad" label="Cantidad a devolver" inputMode="decimal" placeholder={quantityHint} value={values.cantidad} onChange={(v) => setValues({ ...values, cantidad: v })} /><Field name="devolucion-fecha" label="Fecha de devolución" type="date" value={values.fecha_devolucion} onChange={(v) => setValues({ ...values, fecha_devolucion: v })} /></>}<Field name="transaccion-motivo" label="Motivo" type="textarea" value={values.motivo} maxLength={2000} onChange={(v) => setValues({ ...values, motivo: v })} />{error && <p role="alert">{error}</p>}<div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy || api.locked} type="submit">Confirmar</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy||api.locked} onClick={onCancel}>Cancelar</button></div></form>;
 }
 
 const SAFE_CHANGE_KEYS = new Set(['tipo', 'descripcion', 'unidad', 'cantidad', 'cantidad_devuelta', 'costo_unitario_neto', 'fecha_gasto', 'vigente', 'subtotal', 'version_costos', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'cortesia', 'version_actual', 'version_validada']);

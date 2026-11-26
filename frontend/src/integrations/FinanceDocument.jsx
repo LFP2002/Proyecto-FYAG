@@ -1,3 +1,4 @@
+import {financialAmountInput,moneyHint} from '../utils/decimalInput.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { ApiError } from '../auth/client.js';
@@ -75,10 +76,11 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
   }
   async function submitPayment(event) {
     event.preventDefault();if(!writable||blocked||submitting.current||intention.current||detail?.estado!=='VIGENTE'||!detail.cobranza||detail.cobranza.saldo==='0.00')return;
-    if(!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$/.test(form.monto)||!isoDate(form.fecha_pago)||form.fecha_pago>todayInSantiago()||!form.referencia_respaldo.trim()) {setMessage('Monto recibido, fecha válida y referencia del pago son obligatorios.');return;}
+    const amount=financialAmountInput(form.monto,true);
+    if(amount===null||!isoDate(form.fecha_pago)||form.fecha_pago>todayInSantiago()||!form.referencia_respaldo.trim()) {setMessage('Monto recibido, fecha válida y referencia del pago son obligatorios.');return;}
     const key=globalThis.crypto?.randomUUID?.();if(!key){setMessage('No se pudo generar una clave segura de idempotencia.');return;}
     if(!confirm('¿Registrar el pago ya recibido e informado externamente? FYAG no transfiere dinero.'))return;
-    const current={key,body:{...form,referencia_respaldo:form.referencia_respaldo.trim(),observacion:form.observacion.trim()}};
+    const current={key,body:{...form,monto:amount,referencia_respaldo:form.referencia_respaldo.trim(),observacion:form.observacion.trim()}};
     intention.current=current;setIntent(current);submitting.current=true;setPending(true);
     try{await performPayment(current);}finally{submitting.current=false;setPending(false);}
   }
@@ -122,7 +124,7 @@ function DocumentScreen({ document: doc, onClose, onChanged = async () => true, 
     <div className="finance-payments-heading"><h4>Pagos del documento</h4>{writable&&detail?.estado==='VIGENTE'&&detail.cobranza&&detail.cobranza.saldo!=='0.00'&&!showPayment&&!correction&&<button className="btn btn-fyag-primary" type="button" disabled={blocked} onClick={()=>{setShowPayment(true);setCorrection(null);}}>Registrar pago</button>}</div>
     {writable&&detail?.estado==='VIGENTE'&&detail.cobranza&&detail.cobranza.saldo!=='0.00'&&showPayment&&<form className="commercial-form finance-register-form" onSubmit={submitPayment} aria-label="Registro de pago informado"><h4>Registrar pago recibido</h4><p className="commercial-help">Registra un pago que ya recibiste. Saldo pendiente: {formatCompactCLP(detail.cobranza.saldo)} CLP.</p>
       <div className="finance-fields">
-        <label className="form-label">Monto recibido (CLP)<input className="form-control" inputMode="decimal" placeholder="Ej.: 150000" value={form.monto} disabled={blocked} onChange={e=>setForm({...form,monto:e.target.value})}/></label>
+        <label className="form-label">Monto recibido (CLP)<input className="form-control" inputMode="decimal" title={moneyHint} placeholder="Ej.: 150000" value={form.monto} disabled={blocked} onChange={e=>setForm({...form,monto:e.target.value})}/></label>
         <label className="form-label">Fecha de pago<input className="form-control" type="date" value={form.fecha_pago} disabled={blocked} onChange={e=>setForm({...form,fecha_pago:e.target.value})}/></label>
         <label className="form-label">Medio de pago<select className="form-select" value={form.medio} disabled={blocked} onChange={e=>setForm({...form,medio:e.target.value})}>{Object.entries({TRANSFERENCIA:'Transferencia',EFECTIVO:'Efectivo',TARJETA:'Tarjeta',OTRO:'Otro'}).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
         <label className="form-label">Referencia del pago<input className="form-control" placeholder="Número de comprobante" value={form.referencia_respaldo} disabled={blocked} onChange={e=>setForm({...form,referencia_respaldo:e.target.value})}/></label>

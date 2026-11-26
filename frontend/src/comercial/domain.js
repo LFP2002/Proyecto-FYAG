@@ -1,3 +1,4 @@
+import {quantityInput,unitCostInput} from '../utils/decimalInput.js';
 export const AF = 'ADMINISTRATIVO_FINANZAS';
 export const G = 'GERENCIA';
 export const canRead = (role, module) => (role === AF || (role === G && module !== 'clientes')) || (role === 'SUPERVISOR_OBRAS' && module === 'presupuestos');
@@ -52,7 +53,7 @@ export function validDecimal(value, integers, scale, positive = false) {
   return typeof value === 'string' && new RegExp(`^[0-9]{1,${integers}}(?:\\.[0-9]{1,${scale}})?$`).test(value) && (!positive || /[1-9]/.test(value));
 }
 export function itemPayload(form, original) {
-  const data = { descripcion: form.descripcion.trim(), cantidad: form.cantidad.trim(), unidad: form.unidad.trim(), precio_unitario: form.precio_unitario.trim(), orden: Number(form.orden) };
+  const data = { descripcion: form.descripcion.trim(), cantidad: quantityInput(form.cantidad), unidad: form.unidad.trim(), precio_unitario: unitCostInput(form.precio_unitario), orden: Number(form.orden) };
   if (Object.hasOwn(form, 'articulo') && (form.articulo !== null || original?.articulo != null)) {
     data.articulo = form.articulo;
   }
@@ -71,8 +72,8 @@ export function validateItem(form) {
   for (const k of ['descripcion', 'unidad']) if (!form[k].trim()) errors[k] = ['Campo obligatorio.'];
   if (form.descripcion.trim().length > 2000) errors.descripcion = ['La descripción debe tener como máximo 2000 caracteres.'];
   if (form.unidad.trim().length > 30) errors.unidad = ['La unidad debe tener como máximo 30 caracteres.'];
-  if (!validDecimal(form.cantidad, 9, 3, true)) errors.cantidad = ['Usa hasta 9 enteros y 3 decimales; mínimo 0.001.'];
-  if (!validDecimal(form.precio_unitario, 13, 2)) errors.precio_unitario = ['Usa hasta 13 enteros y 2 decimales, sin comas.'];
+  if (quantityInput(form.cantidad)===null) errors.cantidad = ['Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma.'];
+  if (unitCostInput(form.precio_unitario)===null) errors.precio_unitario = ['Ingresa un precio válido, sin separadores de miles.'];
   if (!/^[1-9][0-9]*$/.test(String(form.orden)) || Number(form.orden) > 2147483647) errors.orden = ['Orden entero positivo hasta 2147483647.'];
   return errors;
 }

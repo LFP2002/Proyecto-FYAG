@@ -1,3 +1,4 @@
+import {quantityInput,quantityHint} from '../utils/decimalInput.js';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui/index.js';
@@ -55,8 +56,9 @@ export default function Solicitudes() {
   }
   async function submit(event) {
     event.preventDefault();
+    const quantity=quantityInput(form.cantidad);if(quantity===null){api.setError({message:'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma.'});return;}
     const body = {
-      obra: Number(form.obra), articulo: Number(form.articulo), cantidad: form.cantidad,
+      obra: Number(form.obra), articulo: Number(form.articulo), cantidad: quantity,
       justificacion: form.justificacion.trim(), clave_idempotencia: form.clave_idempotencia,
     };
     await api.write(`${BASE}solicitudes-materiales/`, 'POST', body, async () => {
@@ -67,11 +69,12 @@ export default function Solicitudes() {
   }
   async function decide(event) {
     event.preventDefault();
+    const quantity=quantityInput(decision.cantidad_aprobada);if(decision.decision==='APROBAR'&&quantity===null){api.setError({message:'Ingresa una cantidad aprobada mayor que cero.'});return;}
     const body = {
       decision: decision.decision,
       motivo: decision.motivo.trim(),
       clave_idempotencia: decision.clave_idempotencia,
-      ...(decision.decision === 'APROBAR' ? { cantidad_aprobada: decision.cantidad_aprobada } : {}),
+      ...(decision.decision === 'APROBAR' ? { cantidad_aprobada: quantity } : {}),
     };
     await api.write(`${BASE}solicitudes-materiales/${selected.id}/decidir/`, 'POST', body, async (saved) => {
       setDecision(null);
@@ -93,7 +96,7 @@ export default function Solicitudes() {
       <div className="d-grid commercial-fields">
         <div><label className="form-label" htmlFor="sol-obra">Obra</label><select id="sol-obra" className="form-select" required value={form.obra} onChange={(event) => setForm({ ...form, obra: event.target.value })}><option value="">Selecciona</option>{works.filter((work) => ['EN_PROCESO', 'SUSPENDIDA'].includes(work.estado)).map((work) => <option key={work.id} value={work.id}>{work.codigo} · #{work.id}</option>)}</select></div>
         <div><label className="form-label" htmlFor="sol-articulo">Artículo</label><select id="sol-articulo" className="form-select" required value={form.articulo} onChange={(event) => setForm({ ...form, articulo: event.target.value })}><option value="">Selecciona</option>{catalog.map((item) => <option key={item.id} value={item.id}>{item.codigo} · {item.nombre} ({item.unidad})</option>)}</select></div>
-        <div><label className="form-label" htmlFor="sol-cantidad">Cantidad</label><input id="sol-cantidad" className="form-control" required inputMode="decimal" value={form.cantidad} onChange={(event) => setForm({ ...form, cantidad: event.target.value })} /></div>
+        <div><label className="form-label" htmlFor="sol-cantidad">Cantidad</label><input id="sol-cantidad" className="form-control" required inputMode="decimal" placeholder="Ej.: 2,5" title={quantityHint} value={form.cantidad} onChange={(event) => setForm({ ...form, cantidad: event.target.value })} /></div>
       </div>
       <div className="mb-3"><label className="form-label" htmlFor="sol-justificacion">Justificación</label><textarea id="sol-justificacion" className="form-control" required maxLength="2000" rows="3" value={form.justificacion} onChange={(event) => setForm({ ...form, justificacion: event.target.value })} /></div>
       <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy}>Enviar</button><button type="button" className="btn btn-outline-secondary" onClick={() => setForm(null)}>Cancelar</button></div>
@@ -109,7 +112,7 @@ export default function Solicitudes() {
       <h2>Decidir solicitud #{selected.id}</h2>
       <div className="d-grid commercial-fields">
         <div><label className="form-label" htmlFor="sol-decision">Decisión</label><select id="sol-decision" className="form-select" value={decision.decision} onChange={(event) => setDecision({ ...decision, decision: event.target.value, clave_idempotencia: uuid() })}><option value="APROBAR">Aprobar</option><option value="RECHAZAR">Rechazar</option></select></div>
-        {decision.decision === 'APROBAR' && <div><label className="form-label" htmlFor="sol-cant-aprobada">Cantidad aprobada</label><input id="sol-cant-aprobada" className="form-control" required inputMode="decimal" value={decision.cantidad_aprobada} onChange={(event) => setDecision({ ...decision, cantidad_aprobada: event.target.value })} /></div>}
+        {decision.decision === 'APROBAR' && <div><label className="form-label" htmlFor="sol-cant-aprobada">Cantidad aprobada</label><input id="sol-cant-aprobada" className="form-control" required inputMode="decimal" placeholder="Ej.: 2,5" title={quantityHint} value={decision.cantidad_aprobada} onChange={(event) => setDecision({ ...decision, cantidad_aprobada: event.target.value })} /></div>}
       </div>
       <div className="mb-3"><label className="form-label" htmlFor="sol-decision-motivo">Motivo</label><textarea id="sol-decision-motivo" className="form-control" required maxLength="2000" rows="3" value={decision.motivo} onChange={(event) => setDecision({ ...decision, motivo: event.target.value })} /></div>
       <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy}>Confirmar decisión</button><button type="button" className="btn btn-outline-secondary" onClick={() => setDecision(null)}>Cancelar</button></div>

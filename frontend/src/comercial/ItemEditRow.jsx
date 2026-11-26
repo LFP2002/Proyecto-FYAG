@@ -1,12 +1,14 @@
+import {quantityInput,unitCostInput,quantityHint,moneyHint} from '../utils/decimalInput.js';
 import React, { useRef, useState } from 'react';
 import UnitField from './UnitField.jsx';
 import MaterialPicker from './MaterialPicker.jsx';
-import { money, validateItem, validDecimal, nextItemOrder } from './domain.js';
+import { money, validateItem, nextItemOrder } from './domain.js';
 import { Errors } from './ui.jsx';
 
 // Estimación exacta en centavos; el servidor confirma los importes definitivos.
 export function estimateSubtotal(quantity, price) {
-  if (!validDecimal(quantity, 9, 3, true) || !validDecimal(price, 13, 2)) return '—';
+  quantity=quantityInput(quantity);price=unitCostInput(price);
+  if (quantity===null||price===null) return '—';
   const scaled = (value, scale) => {
     const [whole, fraction = ''] = value.split('.');
     return BigInt(whole + fraction.padEnd(scale, '0'));
@@ -18,7 +20,7 @@ export function estimateSubtotal(quantity, price) {
 export function itemRowErrors(form, items, original) {
   const order = original ? original.orden : nextItemOrder(items);
   const errors = validateItem({ ...form, orden: order });
-  const messages = { descripcion: 'Máximo 2000 caracteres', cantidad: 'Ingresa una cantidad válida', unidad: 'Máximo 30 caracteres', precio_unitario: 'Ingresa un precio válido', orden: 'Ingresa un entero positivo válido' };
+  const messages = { descripcion: 'Máximo 2000 caracteres', cantidad: 'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma', unidad: 'Máximo 30 caracteres', precio_unitario: 'Ingresa un precio válido, sin separadores de miles', orden: 'Ingresa un entero positivo válido' };
   for (const name of Object.keys(errors)) errors[name] = [String(form[name]).trim() ? messages[name] : 'Campo obligatorio'];
   if (items.some((item) => item.id !== original?.id && item.orden === Number(order))) errors.orden = ['Orden ya utilizado'];
   return errors;
@@ -75,9 +77,9 @@ export default function ItemEditRow({ line, items, onChange, onSave, onCancel, d
             <div className="budget-item-full">
               {linked ? <div className="budget-material-selected"><div><strong>{line.form.descripcion}</strong><span className="commercial-help d-block">Material de bodega · {line.form.codigo_articulo}</span></div><button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>setPicker(true)}>Cambiar material</button></div> : field('descripcion','Descripción',{autoFocus:true,maxLength:2000,placeholder:'Nombre del material o servicio'})}
             </div>
-            <div>{field('cantidad','Cantidad',{inputMode:'decimal',placeholder:'Ej.: 2.5'})}</div>
+            <div>{field('cantidad','Cantidad',{inputMode:'decimal',placeholder:'Ej.: 2,5',title:quantityHint})}</div>
             <div>{linked?<><label className="form-label commercial-cell-label" htmlFor="com-unidad">Unidad de medida</label><input id="com-unidad" className="form-control form-control-sm" readOnly value={line.form.unidad}/></>:<UnitField value={line.form.unidad} onChange={value=>change('unidad',value)} disabled={blocked} error={errors.unidad?.[0]}/>}</div>
-            <div>{field('precio_unitario','Precio unitario (CLP)',{inputMode:'decimal',placeholder:'Ej.: 55000'})}</div>
+            <div>{field('precio_unitario','Precio unitario (CLP)',{inputMode:'decimal',placeholder:'Ej.: 55000',title:moneyHint})}</div>
           </div>
           <div className="budget-item-subtotal"><span className="commercial-help">Subtotal estimado</span><strong data-testid="item-estimated-subtotal">{estimateSubtotal(line.form.cantidad,line.form.precio_unitario)}</strong></div>
           {errors.orden&&<p role="alert" className="commercial-help">No se pudo asignar una posición. Actualiza los datos y vuelve a intentar.</p>}

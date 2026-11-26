@@ -1,3 +1,4 @@
+import {hourlyCostInput} from '../utils/decimalInput.js';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { collectionPath, obraPath, readPage } from './api.js';
@@ -21,10 +22,7 @@ function validPhotos(files, existing = 0) {
 }
 
 // Accept whole pesos or a fractional amount with comma or dot; retain exact API precision.
-export function normalizeHourlyCost(value) {
-  const match=String(value??'').trim().match(/^(\d{1,13})(?:[,.](\d{1,2}))?$/);
-  return match ? match[1]+'.'+(match[2]||'').padEnd(2,'0') : null;
-}
+export const normalizeHourlyCost = hourlyCostInput;
 export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
   const [form, setForm] = useState({ descripcion_trabajo: '', decision: 'VALIDAR', motivo: '', costo_hora_neto: item?.costo_hora_neto || '', duracion_ajustada_segundos: item?.duracion_ajustada_segundos ?? '', fotos: [] });
   const [validation, setValidation] = useState('');

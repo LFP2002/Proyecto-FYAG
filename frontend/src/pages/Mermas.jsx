@@ -1,3 +1,4 @@
+import {quantityInput,quantityHint} from '../utils/decimalInput.js';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui/index.js';
@@ -81,9 +82,10 @@ function MermasOperativas() {
   }
   async function create(event) {
     event.preventDefault();
+    const quantity=quantityInput(form.cantidad);if(quantity===null){api.setError({message:'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma.'});return;}
     const body = scope === 'BODEGA'
-      ? { articulo: Number(form.articulo), cantidad: form.cantidad, tipo: form.tipo, motivo: form.motivo.trim(), referencia_respaldo: form.referencia.trim(), clave_idempotencia: form.clave_idempotencia }
-      : { entrega: Number(form.entrega), cantidad: form.cantidad, tipo: form.tipo, motivo: form.motivo.trim(), actividad: form.actividad.trim(), referencia: form.referencia.trim(), clave_idempotencia: form.clave_idempotencia };
+      ? { articulo: Number(form.articulo), cantidad: quantity, tipo: form.tipo, motivo: form.motivo.trim(), referencia_respaldo: form.referencia.trim(), clave_idempotencia: form.clave_idempotencia }
+      : { entrega: Number(form.entrega), cantidad: quantity, tipo: form.tipo, motivo: form.motivo.trim(), actividad: form.actividad.trim(), referencia: form.referencia.trim(), clave_idempotencia: form.clave_idempotencia };
     await api.write(base, 'POST', body, async () => {
       setForm(null);
       setMsg('Reporte de merma registrado.');
@@ -128,7 +130,7 @@ function MermasOperativas() {
       <p className="mermas-note">El reporte queda en estado PENDIENTE hasta que se decida conforme al rol.</p>
       <div className="d-grid commercial-fields">
         <div><label className="form-label" htmlFor="merma-ref-id">{scope === 'BODEGA' ? 'ID artículo' : 'ID entrega 019B'}</label><input id="merma-ref-id" className="form-control" required inputMode="numeric" value={scope === 'BODEGA' ? form.articulo : form.entrega} onChange={(event) => setForm({ ...form, [scope === 'BODEGA' ? 'articulo' : 'entrega']: event.target.value })} /></div>
-        <div><label className="form-label" htmlFor="merma-cantidad">Cantidad</label><input id="merma-cantidad" className="form-control" required inputMode="decimal" value={form.cantidad} onChange={(event) => setForm({ ...form, cantidad: event.target.value })} /></div>
+        <div><label className="form-label" htmlFor="merma-cantidad">Cantidad</label><input id="merma-cantidad" className="form-control" required inputMode="decimal" placeholder="Ej.: 2,5" title={quantityHint} value={form.cantidad} onChange={(event) => setForm({ ...form, cantidad: event.target.value })} /></div>
         <div><label className="form-label" htmlFor="merma-tipo">Tipo</label><select id="merma-tipo" className="form-select" value={form.tipo} onChange={(event) => setForm({ ...form, tipo: event.target.value })}>{types.map((type) => <option key={type} value={type}>{tipoTxt(type)}</option>)}</select></div>
         <div><label className="form-label" htmlFor="merma-referencia">Referencia{scope === 'BODEGA' ? ' (obligatoria)' : ' (opcional)'}</label><input id="merma-referencia" className="form-control" required={scope === 'BODEGA'} maxLength="150" value={form.referencia} onChange={(event) => setForm({ ...form, referencia: event.target.value })} /></div>
       </div>

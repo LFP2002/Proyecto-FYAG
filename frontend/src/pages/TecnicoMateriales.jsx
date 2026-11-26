@@ -1,3 +1,4 @@
+import {quantityHint} from '../utils/decimalInput.js';
 import React,{useEffect,useRef,useState} from 'react';
 import {useAuth} from '../auth/AuthContext.jsx';
 import {useApp} from '../context/AppContext.jsx';
@@ -98,7 +99,7 @@ export default function TecnicoMateriales({loss=false}){
    <Picker key={form.work?.id||0} section={loss?'entregas':'catalogo'} label={loss?'Material entregado':'Material'} workId={form.work?.id} value={form.material} onChange={r=>update('material',r)} disabled={locked||!form.work}/>
    {loss&&form.material&&<><div className="tec-facts tec-material-balance"><Fact label="Cantidad entregada">{movementAmount(form.material.cantidad,form.material.unidad)}</Fact><Fact label="Remanente consultado">{movementAmount(form.material.remanente,form.material.unidad)}</Fact></div><small className="tec-muted">Descuenta devoluciones recibidas y mermas aprobadas. Los reportes pendientes no reservan saldo.</small></>}
    </section>
-   <section className="card-fyag tec-panel"><h2>{loss?'Datos de la merma':'Datos de la solicitud'}</h2><div className="tec-facts"><label className="tec-field">Cantidad {form.material?'('+shortUnit(form.material.unidad)+')':''}<input className="form-control" aria-label="Cantidad" required inputMode="decimal" maxLength={13} disabled={locked} value={form.cantidad} onChange={e=>update('cantidad',e.target.value)}/></label>
+   <section className="card-fyag tec-panel"><h2>{loss?'Datos de la merma':'Datos de la solicitud'}</h2><div className="tec-facts"><label className="tec-field">Cantidad {form.material?'('+shortUnit(form.material.unidad)+')':''}<input className="form-control" aria-label="Cantidad" required inputMode="decimal" placeholder="Ej.: 2,5" title={quantityHint} maxLength={13} disabled={locked} value={form.cantidad} onChange={e=>update('cantidad',e.target.value)}/></label>
    {loss&&<label className="tec-field">Tipo de merma<select className="form-select" disabled={locked} value={form.tipo} onChange={e=>update('tipo',e.target.value)}>{Object.entries(TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>}</div>
    {loss&&form.material&&milli(form.cantidad)>milli(form.material.cantidad)&&<p className="tec-observation">La cantidad no puede superar la entrega original.</p>}
    {loss&&form.material&&milli(form.cantidad)>milli(form.material.remanente)&&milli(form.cantidad)<=milli(form.material.cantidad)&&<p className="tec-observation">La cantidad supera el remanente consultado. El supervisor deberá verificarla antes de aprobar.</p>}
