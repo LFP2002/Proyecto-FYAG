@@ -82,7 +82,8 @@
 .supervisor-obras .so-detail .list-group-item {background:transparent;border-color:var(--fyag-line);color:var(--fyag-text)}
 .supervisor-obras .so-category-detail,.supervisor-obras .so-category-create {width:100%;min-width:0}
 .supervisor-obras .so-category-create .obras-field {max-width:760px}
-.supervisor-obras .so-detail section[aria-labelledby='turnos-title'] {padding:20px;border:1px solid var(--fyag-line);border-radius:9px;background:var(--so-soft)}
+.supervisor-obras .so-detail section.so-turns[aria-labelledby='turnos-title'] {padding:20px;border:1px solid var(--fyag-line);border-radius:12px;background:#fff;color:var(--fyag-text)}
+:root[data-fyag-theme='dark'] .supervisor-obras .so-detail section.so-turns[aria-labelledby='turnos-title'] {background:#1b2633;border-color:#53677d}
 @media(max-width:900px) {
  .supervisor-obras .so-filter-fields,.supervisor-obras .so-costs .obras-form-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
  .supervisor-obras .so-rubric-amount {min-width:0}
@@ -99,7 +100,33 @@
 .supervisor-obras.so-create .commercial-section-head h2 {font-size:1.75rem;font-weight:700}
 .supervisor-obras .so-category-detail .commercial-section-head h2.so-category-name {font-size:1.5rem;font-weight:700}
 .supervisor-obras .so-create .obras-form-grid,.supervisor-obras .obras-action-form .obras-form-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
-.supervisor-obras .so-turn {padding:16px}
+.supervisor-obras .so-turn-list {display:flex;flex-direction:column;gap:0;list-style:none;padding:0;margin:16px 0 0}
+.supervisor-obras .so-turn {padding:20px 0;border-top:1px solid var(--fyag-line);min-width:0}
+.supervisor-obras .so-turn:last-child {padding-bottom:0}
+.supervisor-obras .so-turn-header {display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.supervisor-obras .so-turn-header h4 {font-size:1.125rem;margin:0 0 5px;font-weight:700}
+.supervisor-obras .so-turn-header p {margin:0}
+.supervisor-obras .so-turn-status {display:inline-block;padding:5px 10px;border-radius:20px;background:#e1eaf4;color:#275783;font-size:.8125rem;font-weight:600}
+.supervisor-obras .so-turn-status[data-state='VALIDADO'] {background:#e0f0e7;color:#246b4b}
+.supervisor-obras .so-turn-status[data-state='PENDIENTE_REVISION'] {background:#f9edd5;color:#87520d}
+.supervisor-obras .so-turn-status[data-state='OBSERVADO'] {background:#f7e4e4;color:#a43b3b}
+:root[data-fyag-theme='dark'] .supervisor-obras .so-turn-status {background:#29445e;color:#bddafa}
+:root[data-fyag-theme='dark'] .supervisor-obras .so-turn-status[data-state='VALIDADO'] {background:#25483b;color:#a3e1be}
+:root[data-fyag-theme='dark'] .supervisor-obras .so-turn-status[data-state='PENDIENTE_REVISION'] {background:#4b3a25;color:#f1cb89}
+:root[data-fyag-theme='dark'] .supervisor-obras .so-turn-status[data-state='OBSERVADO'] {background:#502e35;color:#ffc0bf}
+.supervisor-obras .so-turn-facts {display:grid;grid-template-columns:repeat(2,minmax(0,1.25fr)) repeat(2,minmax(0,1fr));gap:16px;margin:18px 0;padding:16px;border-radius:8px;background:var(--so-soft)}
+.supervisor-obras .so-turn-facts>div {min-width:0}
+.supervisor-obras .so-turn-facts dt {font-size:.8125rem;font-weight:500;color:var(--fyag-muted);margin-bottom:6px}
+.supervisor-obras .so-turn-facts dd {margin:0;font-size:.9375rem;font-weight:600;overflow-wrap:anywhere}
+.supervisor-obras .so-turn-facts .so-turn-metric dd {font-size:1.35rem;line-height:1.25;font-variant-numeric:tabular-nums;color:var(--fyag-primary)}
+.supervisor-obras .so-turn-notes {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:18px;margin:16px 0}
+.supervisor-obras .so-turn-notes h5 {font-size:.875rem;font-weight:700;margin:0 0 6px}
+.supervisor-obras .so-turn-notes p {margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.supervisor-obras .so-turn .so-turn-actions {justify-content:flex-end;margin:14px 0 0;padding-top:12px;border-top:1px solid var(--fyag-line)}
+.supervisor-obras .so-turn .so-turn-actions:empty {display:none}
+.supervisor-obras .so-turn > form.card-fyag {margin-top:16px;box-shadow:none;background:transparent;padding:16px 0 0;border:0;border-top:1px solid var(--fyag-line);border-radius:0}
+@media(max-width:900px){.supervisor-obras .so-turn-facts {grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.supervisor-obras .so-detail section.so-turns[aria-labelledby='turnos-title'] {padding:14px}.supervisor-obras .so-turn-facts {grid-template-columns:minmax(0,1fr);gap:12px}.supervisor-obras .so-turn .so-turn-actions>.btn {width:auto;flex:0 1 auto}}
 .supervisor-obras .so-detail :is(.attachments-panel,section[aria-label='Metadatos de evidencias fotográficas']) {margin:0!important;padding:20px!important}
 .supervisor-obras .so-detail :is(.attachments-panel,section[aria-label='Metadatos de evidencias fotográficas']) h3 {font-size:1.0625rem;font-weight:700}
 @media(max-width:600px){.supervisor-obras.so-create .obras-form-grid,.supervisor-obras .obras-action-form .obras-form-grid {grid-template-columns:minmax(0,1fr)}}
