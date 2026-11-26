@@ -19,7 +19,7 @@ const movement={...material,id:6,tipo:'INGRESO',cantidad:'10.000',saldo_anterior
 const stock={...material,descripcion:'Cobre',activo:true,saldo:'10.000',pendiente:true,valor_neto:'0.00'};
 const summary={materiales:12,sin_stock:1,pendientes:1,valor_neto:'12345.67'};
 const page=results=>({count:results.length,next:null,previous:null,results});
-async function mount(){
+async function mount({rows=[stock]}={}){
  const calls=[],session={status:'authenticated',user:{id:2,username:'finanzas',role:'ADMINISTRATIVO_FINANZAS'}};
  let saved=null;
  const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts={})=>{
@@ -30,7 +30,7 @@ async function mount(){
   }
   if(url.pathname!==BASE)throw Error('Ruta no prevista: '+path);
   switch(url.searchParams.get('seccion')){
-   case 'inventario':return {...page(url.searchParams.get('buscar')==='ausente'?[]:[stock]),resumen:summary};
+   case 'inventario':return {...page(url.searchParams.get('buscar')==='ausente'?[]:rows),resumen:summary};
    case 'movimientos':return page([movement]);
    case 'ingresos':return page(saved?[]:[movement]);
    case 'valoraciones':return page(saved?[saved]:[]);
@@ -69,5 +69,25 @@ test('Inventario AF: selección de ingreso real y registro neto confirmado',asyn
   assert.equal(writes.length,1);assert.equal(writes[0].body.ingreso,6);assert.equal(writes[0].body.costo_unitario_neto,'8900');assert.ok(writes[0].body.clave_idempotencia);
   assert.match(body(),/Operación confirmada/);assert.match(body(),/8\.900/);
   await click(r,'Ver detalle');assert.match(body(),/Costo promedio anterior/);assert.match(body(),/Referencia del ingreso/);
+ }finally{await ui.close();}
+});
+
+test('Inventario AF: estados separados, prioridad de indicadores y accesos desde la ficha',async()=>{
+ const empty={...stock,id:2,nombre:'Compresor',codigo:'com-001',unidad:'unidad',saldo:'0.000',pendiente:false,descripcion:'',valor_neto:'0.00'};
+ const ui=await mount({rows:[empty,stock]}),r=ui.renderer;
+ try{
+  const root=r.root;
+  assert.equal(root.findAllByProps({'data-tone':'danger'}).length>=1,true);
+  assert.equal(root.findAllByProps({'data-tone':'warning'}).length>=1,true);
+  const row=root.findAllByType('tr').find(n=>text(n).includes('Compresor'));
+  const cells=row.findAllByType('td');
+  assert.match(text(cells[1]),/0 unidades/);assert.match(text(cells[1]),/Sin stock/);
+  assert.equal(text(cells[3]),'Valorizado');assert.doesNotMatch(text(cells[3]),/Sin stock/);
+  await click(r,'Ver detalle');
+  assert.match(text(r.toJSON()),/Sin descripción registrada/);
+  assert.match(text(r.toJSON()),/Existencias actuales/);
+  await click(r,'Ver movimientos');
+  assert.ok(ui.calls.some(c=>c.path.includes('seccion=movimientos')&&c.path.includes('buscar=com-001')));
+  assert.ok(ui.calls.every(c=>c.method==='GET'));
  }finally{await ui.close();}
 });
