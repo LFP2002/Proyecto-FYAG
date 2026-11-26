@@ -8,6 +8,7 @@ import { actionButtonClass, BudgetStatus, Errors, Pager, useCommercial } from '.
 import ItemEditRow, { itemRowErrors } from '../comercial/ItemEditRow.jsx';
 import SeguimientoComercial from '../comercial/SeguimientoComercial.jsx';
 import TecIcon from '../obras/TecIcon.jsx';
+import { useApp } from '../context/AppContext.jsx';
 
 // Agrupación exclusivamente visual; los estados originales conservan sus permisos e historial.
 const HISTORICAL_FILTERS = { PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS', APROBADO_GERENCIA:'APROBADO_FINANZAS', RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS' };
@@ -31,6 +32,8 @@ export default function Presupuestos() {
 function PresupuestosOperativos() {
   const { user } = useAuth();
   const api = useCommercial();
+  const target = useApp()?.navigationTarget;
+  const initialBudget = useRef(target?.module==='presupuestos' && Number.isSafeInteger(target.presupuesto) && target.presupuesto>0 ? target.presupuesto : null);
   const [clients, setClients] = useState([]);
   const [clientPage, setClientPage] = useState(1);
   const [clientPageInfo, setClientPageInfo] = useState(null);
@@ -88,6 +91,7 @@ function PresupuestosOperativos() {
     : api.load('clients', clientPath(), (data) => { setClients(data); setClientPageInfo(null); });
   const loadHistory = (pk, p = 1) => api.load('history', pagePath(`${budgetPath(pk)}historial/`, p), (data) => setHistory(validatePage(data, `${budgetPath(pk)}historial/`)));
   useEffect(() => { setList(null); void reload(); }, [page, filter, search]);
+  useEffect(()=>{const id=initialBudget.current;if(!id)return;initialBudget.current=null;setOpening(true);void api.load('detail',budgetPath(id),setSelected).finally(()=>setOpening(false));},[]);
   useEffect(() => { void loadClients(); }, [user.id, user.role, clientPage, clientSearch]);
   useEffect(() => { if (selected) { setHistory(null); void loadHistory(selected.id, historyPage); } }, [selected?.id, historyPage]);
   async function detail(pk,event) {
