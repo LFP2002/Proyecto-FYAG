@@ -131,3 +131,9 @@ Los ingresos, entregas, devoluciones y gastos derivados de Bodega **siguen exclu
 - La aprobación del cliente es un registro efectuado por Finanzas sobre la respuesta recibida; no existe portal o sesión de cliente en este cambio.
 - Cobertura local añadida/actualizada en `frontend/tests/comercial-domain.test.js`, `comercial-ui.test.js` y `frontend-contract.test.js`, incluida una prueba de Supervisor que verifica selector elegible y envío a Finanzas. En esta sesión, 49 pruebas focalizadas y `npm.cmd run build` pasaron.
 - Alcance limitado a frontend y pruebas. La SPEC es contrato de backend; no se cambió backend, no se publicó y no se afirma integración en `main`, QA E2E ni aprobación de PR.
+
+## Ajuste de consulta operativa — 26-11-2026
+
+- El listado de presupuestos admite filtros globales combinables por estado y búsqueda de código, cliente o descripción antes de paginar. Se mantiene el scope SQL por autor para Supervisor y las atribuciones actuales de Finanzas/Gerencia. Los estados históricos se agrupan en sus equivalentes financieros únicamente al filtrar.
+- La respuesta incorpora el nombre legal del cliente asociado, sin ampliar el selector mínimo ni exponer datos de contacto al Supervisor. Los permisos, transiciones, montos Decimal y servicios de escritura siguen vigentes.
+- OpenAPI y pruebas dirigidas actualizadas en la rama de reajustes visuales; ejecución local y CI pendientes.
