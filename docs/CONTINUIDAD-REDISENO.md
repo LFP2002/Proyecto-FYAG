@@ -37,3 +37,8 @@ Continuar con Mermas cuando el usuario confirme o solicite avanzar. Revisar capt
 ## Mermas AF — implementado
 
 Vista exclusiva Finanzas para Bodega, cuatro indicadores globales, búsqueda por material, filtros, detalle con jerarquía de cantidad y pérdida confirmada, historial y aprobación/rechazo contextual. GET original con vista=finanzas opcional, POST de decisión intacto, UUID y reconsulta. SPEC-019C-2 y OpenAPI actualizados. Pruebas dirigidas backend apps.inventario.tests.test_mermas_finanzas apps.inventario.tests.test_mermas; frontend tests/mermas-finanzas-ui.test.js. Pendiente ejecución local y visual; sin merge. Siguiente módulo AF: Auditoría cuando el usuario lo solicite.
+
+## Auditoría AF — implementado
+
+Rediseño directo autorizado sin prototipo para este módulo. Auditoría financiera de solo lectura: filtros principales tipo de evento/recurso; filtros avanzados por referencias exactas, período y límite. Se ocultan módulo/fuente redundantes y recursos de otros roles. Tabla prioriza evento, motivo, recurso y actor. Detalle a ancho completo con transición de estado e importe histórico solo si existe en el snapshot, comparación de valores registrados/modificados, atribución histórica/actual y estado vacío explicativo. No se incorporan totales globales, folios ni búsquedas por nombre no soportadas por el contrato. Se conserva cursor opaco, rango civil y permisos SPEC-008 sin cambios en backend/OpenAPI. Cambios limitados visualmente a AF; prueba frontend tests/auditoria-finanzas-ui.test.js. Pendientes: pruebas locales, build y validación visual. Sin merge. Siguiente módulo AF: Chat interno, si el usuario solicita revisarlo; comprobar primero componentes compartidos.
+
