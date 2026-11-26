@@ -32,3 +32,15 @@
 .manager-alert-timeline li { overflow-wrap:anywhere; }
 @media(max-width:700px) { .manager-alert-row { grid-template-columns:32px minmax(0,1fr); gap:8px; padding:12px; } .manager-alert-icon { width:32px;height:32px; } .manager-alert-side { grid-column:2; justify-content:space-between; } .manager-alert-info .manager-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:380px) { .manager-alert-info .manager-facts { grid-template-columns:1fr; } }
+
+/* Finanzas reutiliza la bandeja ejecutiva sin duplicar componentes. */
+.finance-alertas .manager-alert-row.pending.medium {border-left-color:#ECA321;}
+.finance-alertas .manager-alert-row.pending.medium .manager-alert-icon {background:#fcf0da;color:#99600a;}
+.finance-alertas .manager-alert-row.medium .manager-alert-priority {color:var(--fyag-muted);}
+.finance-alertas .finance-alert-attention {border-top:1px solid var(--fyag-line);padding-top:16px;margin-top:16px;}
+.finance-alertas .finance-alert-attention h2 {font-size:1rem;font-weight:700;margin-bottom:8px;}
+.finance-alertas .finance-alert-attention p {color:var(--fyag-muted);margin-bottom:12px;}
+.finance-alertas .finance-alert-attention label {display:block;font-weight:600;margin-bottom:6px;}
+.finance-alertas .finance-alert-actions {display:flex;justify-content:flex-end;margin-top:12px;}
+.finance-alertas .manager-work-panel {width:100%;max-width:none;min-width:0;}
+@media(max-width:540px){.finance-alertas .finance-alert-actions button {width:100%;}}
