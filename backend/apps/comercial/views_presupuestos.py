@@ -1,3 +1,5 @@
+import re
+
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
@@ -10,7 +12,7 @@ from rest_framework.response import Response
 from apps.inventario.models import ArticuloInventario
 
 from . import services_presupuestos as servicios
-from .services_seguimiento import seguimiento_comercial
+from .services_seguimiento import HISTORICOS, ESTADOS, seguimiento_comercial
 from .exceptions import (
     ClienteInactivo,
     DatosInvalidos,
@@ -74,7 +76,7 @@ class PresupuestoPaginacion(PageNumberPagination):
 
 
 def presupuestos_con_lineas():
-    return Presupuesto.objects.prefetch_related(Prefetch(
+    return Presupuesto.objects.select_related('cliente').prefetch_related(Prefetch(
         "items", queryset=PresupuestoItem.objects.order_by("orden", "id"),
         to_attr="lineas_respuesta",
     ))
@@ -93,6 +95,30 @@ class PresupuestoViewSet(
         if self.action in {"list", "retrieve"}:
             queryset = presupuestos_con_lineas()
         return presupuestos_visibles(self.request.user, queryset).order_by("-creado_en", "-id")
+
+    def list(self, request, *args, **kwargs):
+        params = request.query_params
+        if set(params) - {'page', 'buscar', 'estado'} or any(len(params.getlist(k)) != 1 for k in params):
+            raise ValidationError({'query': ['Parámetros desconocidos o repetidos.']})
+        if 'page' in params and (not re.fullmatch(r'[1-9][0-9]{0,18}', params['page']) or int(params['page']) > 9223372036854775807):
+            raise ValidationError({'page': ['Página inválida.']})
+        estado = params.get('estado', '')
+        if estado and estado not in ESTADOS:
+            raise ValidationError({'estado': ['Estado desconocido.']})
+        buscar = params.get('buscar', '').strip()
+        if len(buscar) > 200 or any(ord(c) < 32 for c in buscar):
+            raise ValidationError({'buscar': ['Búsqueda inválida.']})
+        queryset = self.get_queryset()
+        if estado:
+            queryset = queryset.filter(estado__in=[estado, *(k for k, v in HISTORICOS.items() if v == estado)])
+        if buscar:
+            criteria = Q(cliente__nombre_legal__icontains=buscar) | Q(descripcion__icontains=buscar)
+            match = re.fullmatch(r'(?:PRE-)?([0-9]{1,19})', buscar, re.IGNORECASE)
+            if match and 0 < int(match[1]) <= 9223372036854775807:
+                criteria |= Q(pk=int(match[1]))
+            queryset = queryset.filter(criteria)
+        page = self.paginate_queryset(queryset)
+        return self.get_paginated_response(self.get_serializer(page, many=True).data)
 
     def get_serializer_class(self):
         return {
