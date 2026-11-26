@@ -24,6 +24,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
   const [obraInput,setObraInput] = useState(''), [obraId,setObraId] = useState(initialObra ? String(initialObra) : ''), [state,setState] = useState(null), [reason,setReason] = useState('');
   const [childBlocked,setChildBlocked] = useState(false);
   const [paymentFirst,setPaymentFirst]=useState(false);
+  const [detailVersion,setDetailVersion]=useState(0);
   const [searchDraft,setSearchDraft]=useState(''),[search,setSearch]=useState('');
   const [eligibleDraft,setEligibleDraft]=useState(''),[eligibleSearch,setEligibleSearch]=useState('');
   const pending = useRef(false);
@@ -39,7 +40,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
   useEffect(()=>{ void reload(); },[path]);
   useEffect(()=>{ if (canWrite && create) void loadEligible(); },[create,eligiblePage,eligibleSearch]);
   useEffect(()=>{if(initialObra){void loadState(String(initialObra));}},[initialObra]);
-  useEffect(()=>{if(openRequest&&!blocked){setSelected(openRequest.doc);setPaymentFirst(openRequest.payment);setCreate(false);}},[openRequest]);
+  useEffect(()=>{if(openRequest&&!blocked){setSelected(openRequest.doc);setPaymentFirst(openRequest.payment);setDetailVersion(v=>v+1);setCreate(false);}},[openRequest]);
   useEffect(()=>{onBlockedChange?.(blocked);return ()=>onBlockedChange?.(false);},[blocked,onBlockedChange]);
   function invalidate() {
     setMessage(''); setData(null); setState(null); api.cancelRead('all-docs'); api.cancelRead('financial-state');
@@ -88,7 +89,7 @@ function FinanceAdminScreen({ onChanged = async () => true, onMutationStart = ()
       });
     } finally { pending.current = false; }
   }
-  if(selected)return <FinanceDocument document={selected} initialPayment={paymentFirst} onClose={()=>{setSelected(null);setPaymentFirst(false);}} onChanged={refreshAffected} onMutationStart={invalidate} onBlockedChange={setChildBlocked} />;
+  if(selected)return <FinanceDocument key={detailVersion} document={selected} initialPayment={paymentFirst} onClose={()=>{setSelected(null);setPaymentFirst(false);}} onChanged={refreshAffected} onMutationStart={invalidate} onBlockedChange={setChildBlocked} />;
   return <section className="card-fyag p-3 my-3" aria-label="Administración de documentos financieros">
     <div className="d-flex flex-wrap justify-content-between gap-2"><h3>Facturas registradas</h3><div className="d-flex gap-2">
       <button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.loading || api.busy || childBlocked} onClick={()=>{setMessage('');void refreshAffected().catch(api.setError);}}>Actualizar</button>
