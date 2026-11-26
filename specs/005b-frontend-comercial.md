@@ -293,3 +293,10 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - Alta, edición y detalle centrados con ancho máximo de 900 px; campos principales a ancho completo, restantes en dos columnas adaptables, iconos reutilizados, ayudas de entrada y marca de campos obligatorios según la validación vigente. Correo o teléfono sigue siendo requisito alternativo.
 - Ficha con encabezado de identidad, estado, ID informativo y acciones separadas; datos agrupados por filas, valores ausentes identificados como «No registrado». Sin cambios de API, permisos o escritura. Se conserva Actualizar para reconsulta y resolución de incertidumbre.
 - Pruebas dirigidas actualizadas; ejecución local y verificación visual pendientes.
+
+## Refinamiento de ítems de Presupuestos — 26-11-2026
+
+- Finanzas y Supervisor: selección de materiales y edición compactas en el mismo espacio; catálogo con desplazamiento interno, búsqueda y paginación existentes. Tras seleccionar, descripción y unidad de catálogo se conservan; cantidad y precio se ingresan en campos alineados.
+- Sin columna, campo ni acción de reordenamiento. El orden interno se asigna automáticamente al crear y se conserva al editar. Las restricciones de unicidad y validaciones del servidor permanecen.
+- Subtotal estimado local mediante enteros de precisión arbitraria y redondeo a centavos; el importe definitivo y el total del presupuesto siguen siendo los confirmados por el servidor. No hay modificación de stock por cotizar.
+- Pruebas de presentación actualizadas; ejecución local y comprobación visual pendientes. Sin cambios de API ni merge.
