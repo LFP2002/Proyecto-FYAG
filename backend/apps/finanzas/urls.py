@@ -8,9 +8,13 @@ from .views_egresos import EgresosListaView, EgresoDetalleView, EgresoAnularView
 from .views_supervision import SupervisionCobranzasView
 from .views_egresos_gerencia import SupervisionEgresosView
 
+from .views_obras_resumen import ObrasResumenFinanzasView
+
 router = SimpleRouter()
 router.register("documentos", DocumentoViewSet, basename="documento-financiero")
 urlpatterns = [
+    path("obras-resumen/", ObrasResumenFinanzasView.as_view(), name="obras-resumen-finanzas"),
+    path("obras-resumen/<str:obra_id>/", ObrasResumenFinanzasView.as_view(), name="obra-resumen-finanzas"),
     path("egresos/", EgresosListaView.as_view(), name="egresos"),
     path("egresos/supervision-gerencial/", SupervisionEgresosView.as_view(), name="supervision-egresos"),
     path("egresos/<str:egreso_id>/", EgresoDetalleView.as_view(), name="detalle-egreso"),
