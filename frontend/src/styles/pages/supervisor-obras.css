@@ -200,3 +200,8 @@
  .supervisor-obras .so-event-marker {width:28px;height:28px}
  .supervisor-obras .so-cost-event:not(:last-child)::before {left:13px;top:28px}
 }
+
+/* Mantener las acciones principales de gastos en una única barra. */
+.supervisor-obras .so-expense-toolbar {flex:0 0 auto;align-items:center;gap:9px}
+.supervisor-obras .so-expense-toolbar .btn {min-height:36px;white-space:nowrap}
+@media(max-width:520px){.supervisor-obras .so-expense-toolbar {flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}}

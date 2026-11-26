@@ -59,7 +59,10 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
   const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
   const renderer = await mount(backend);
   try {
-    await openExpenses(renderer); await click(renderer,'Registrar gasto');
+    await openExpenses(renderer);
+    const toolbar=renderer.root.findByProps({className:'so-actions so-expense-toolbar'});
+    const actions=toolbar.findAllByType('button').map(button=>text(button).trim());
+    assert.deepEqual(actions,['Actualizar','Registrar gasto']); await click(renderer,'Registrar gasto');
     await input(renderer, 'obras-gasto-descripcion', 'Cable'); await input(renderer, 'obras-gasto-unidad', 'metro');
     await input(renderer, 'obras-gasto-cantidad', '2,000'); await input(renderer, 'obras-gasto-costo_unitario_neto', '12,50'); await input(renderer, 'obras-gasto-fecha_gasto', '2026-11-12');
     await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar material'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
