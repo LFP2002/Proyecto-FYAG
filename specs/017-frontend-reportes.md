@@ -55,3 +55,10 @@ Exportación usa Blob autenticado y metadatos Content-Type/Content-Disposition, 
 - MIME/nombre incompatibles y errores no producen un archivo confirmado.
 
 Pruebas en `frontend/tests/integrations-domain.test.js` y `auth-client.test.js` (transporte); resultados actuales en seguimiento de rama. QA de descargas reales, permisos, límites y revisión visual siguen pendientes. Estado documental: revisión local, aprobación histórica no acreditada; código: integración local presente, sin certificar despliegue. Revisar informe antes de cualquier publicación y solicitar autorización separada de merge. Referencias: SPEC-011, OpenAPI SPEC-011, `backend/apps/reportes/`, `frontend/src/pages/Reportes.jsx`.
+
+## Rediseño de Reportes para Finanzas — 26-11-2026
+
+- Administrativo/Finanzas reutiliza la presentación de Gerencia exclusivamente para el reporte de cobranzas autorizado por SPEC-011. No se muestra selector redundante cuando el catálogo contiene un solo tipo.
+- Indicadores de totales filtrados, tabla de columnas explícitas, fechas civiles y valores CLP sin pérdida de precisión; filtros plegables con selección por nombre de cliente y etiquetas de estados. Sin identificadores internos visibles, gráficos nuevos ni barras de progreso.
+- Menú único de exportación CSV/XLSX/PDF según catálogo; exportación del período efectivamente consultado y filtros aplicados, sin paginación. La exportación sigue siendo una consulta nueva al servidor y no una reconstrucción histórica ni copia inmutable de la vista.
+- Se conservan las validaciones de catálogo, enlaces paginados, tipo MIME y nombre de archivo, permisos y contratos existentes. No hay cambios de backend ni OpenAPI. Pruebas dirigidas adaptadas; ejecución local y validación visual pendientes. Sin merge.
