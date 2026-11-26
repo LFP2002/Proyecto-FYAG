@@ -252,3 +252,8 @@ Este PR **solo define documentación** y no habilita ningún endpoint. El workfl
 - Importe neto aprobado calculado por el dominio comercial; estado financiero derivado de documento vigente, cierre sin cobro, finalización, cierre de costos y aprobación. El detalle incluye el folio, total documentado y cobranza vigente; no confunde costos con pagos o ingresos. Los costos por rubro se leen del endpoint 004B autorizado y se identifican como provisionales mientras no estén validados.
 - UI específica AF, acceso contextual al presupuesto de origen y cartera de cobranza filtrada; para pendientes, acceso a la sección de documentos y pagos. No se realizan escrituras desde Obras. No hay llamadas por fila ni cambios de stock, costo o facturación.
 - Contrato en backend/docs/openapi/obras-resumen-finanzas-v1.json. Pruebas dirigidas añadidas; validación local y visual pendientes, sin merge.
+
+## Búsqueda global de cobranzas — 26-11-2026
+
+- Parámetro opcional buscar en GET /api/finanzas/cobranzas/, /api/finanzas/cobranzas/resumen/, /api/finanzas/documentos/ y /api/finanzas/obras-elegibles/. Texto no vacío tras recortar espacios, máximo 150 caracteres, sin controles ASCII ni repetición. Nombre legal y folio por coincidencia parcial sin distinguir mayúsculas, código OB completo por ID validado; obras elegibles solo nombre o código. Filtro SQL previo a paginación y agregado. Permisos y respuestas existentes intactos.
+- Contrato complementario en backend/docs/openapi/cobranzas-busqueda-v1.json. Prueba de coincidencia entre cartera y resumen, validación y consulta histórica. Ejecución local pendiente.
