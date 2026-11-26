@@ -30,7 +30,7 @@ export default function DesktopLayout({ children }) {
 
   return (
     <>
-      <TopBar menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} menuButtonRef={menuButtonRef} fontLevel={fontLevel} fontCount={FONT_LEVELS.length} onSelectFont={selectFont} onNavigate={()=>{setMenuOpen(false);mainRef.current?.focus();}} />
+      <TopBar menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((open) => !open)} menuButtonRef={menuButtonRef} fontLevel={fontLevel} fontCount={FONT_LEVELS.length} onSelectFont={selectFont} />
       <div className="fyag-body">
         <SideNav mobileOpen={menuOpen} onNavigate={closeOnNavigate} onEscape={closeOnEscape} />
         <main ref={mainRef} tabIndex={-1} className="fyag-content">{children}</main>

@@ -140,18 +140,17 @@ test('selector de letra compacto con puntero y tres controles', async()=>{
   assert.match(css,/\.fyag-font-controls\s*\{[^}]*grid-template-columns:44px minmax\(0,1fr\) 44px/);
 });
 
-test('Gerencia: nueve accesos principales, auditoría secundaria y sin módulos operativos de materiales',async()=>{
+test('Gerencia: auditoría visible al final, sin módulos operativos de materiales ni acceso duplicado',async()=>{
   const view=await mount();
   try{
     const nav=view.root.findByProps({id:'fyag-modules-nav'});
-    assert.deepEqual(nav.findAllByType('button').map(textContent),['Dashboard','Presupuestos','Obras','Cobranzas','Egresos','Inventario','Alertas','Reportes','Chat interno']);
-    assert.equal(btn(view,'Auditoría'),undefined);
-    await act(async()=>view.root.findByProps({'aria-label':'Menú de usuario'}).props.onClick());
-    assert.ok(btn(view,'Auditoría'));
+    assert.deepEqual(nav.findAllByType('button').map(textContent),['Dashboard','Presupuestos','Obras','Cobranzas','Egresos','Inventario','Alertas','Reportes','Chat interno','Auditoría']);
+    assert.equal(view.root.findAllByProps({'aria-label':'Menú de usuario'}).length,0);
+    assert.equal(view.root.findAllByType('button').filter(b=>textContent(b)==='Auditoría').length,1);
+    await act(async()=>btn(view,'Menú').props.onClick());
     await act(async()=>btn(view,'Auditoría').props.onClick());
-    assert.equal(view.root.findByProps({'aria-label':'Menú de usuario'}).props['aria-expanded'],false);
-    await act(async()=>view.root.findByProps({'aria-label':'Menú de usuario'}).props.onClick());
     assert.equal(btn(view,'Auditoría').props['aria-current'],'page');
+    assert.equal(btn(view,'Menú').props['aria-expanded'],false);
   }finally{await act(async()=>view.unmount());}
 });
 test('Supervisor conserva solicitudes, mermas y auditoría en navegación principal',async()=>{

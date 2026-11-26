@@ -1,21 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLES } from '../../data/constants';
-import { useApp } from '../../context/AppContext';
 import { Icon } from '../ui';
 
-export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=4, onSelectFont, onNavigate }) {
+export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, fontLevel=0, fontCount=4, onSelectFont }) {
   const { user, logout } = useAuth();
-  const app=useApp();
-  const [accountOpen,setAccountOpen]=useState(false);
-  const accountRef=useRef(null),accountButton=useRef(null);
-  useEffect(()=>{
-    if(!accountOpen)return;
-    const closeOutside=event=>{if(accountRef.current&&!accountRef.current.contains(event.target))setAccountOpen(false);};
-    globalThis.document?.addEventListener?.('pointerdown',closeOutside);
-    return ()=>globalThis.document?.removeEventListener?.('pointerdown',closeOutside);
-  },[accountOpen]);
-  const closeAccount=()=>{setAccountOpen(false);accountButton.current?.focus();};
   const [fontOpen,setFontOpen]=useState(false);
   const fontRef=useRef(null), fontButton=useRef(null), fontPanel=useRef(null);
   useLayoutEffect(()=>{
@@ -90,21 +79,10 @@ export default function TopBar({ menuOpen = false, onToggleMenu, menuButtonRef, 
             </button>
           </div>}
         </div>
-        {user.role==='GERENCIA'&&app?<div className="fyag-account-picker" ref={accountRef}
-          onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setAccountOpen(false);}}
-          onKeyDown={event=>{if(event.key==='Escape'&&accountOpen){event.preventDefault();closeAccount();}}}>
-          <button type="button" ref={accountButton} className="fyag-account-trigger" aria-label="Menú de usuario" aria-expanded={accountOpen} aria-controls="fyag-account-options" onClick={()=>setAccountOpen(open=>!open)}>
-            <Icon d="M20 21v-1a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-            <span>{user.username} · {ROLES[user.role].short}</span>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"/></svg>
-          </button>
-          {accountOpen&&<div className="fyag-account-options" id="fyag-account-options" role="group" aria-label="Opciones de usuario">
-            <button type="button" aria-current={app.mod==='auditoria'?'page':undefined} onClick={()=>{app.go('auditoria');setAccountOpen(false);onNavigate?.();}}><svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2zM8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/><path d="M7.5 5a.5.5 0 0 1 1 0v3.25l2 1.2a.5.5 0 1 1-.514.857l-2.25-1.35A.5.5 0 0 1 7.5 8.5z"/></svg>Auditoría</button>
-          </div>}
-        </div>:<><span className="d-inline-flex align-items-center gap-2">
+        <span className="d-inline-flex align-items-center gap-2">
           <Icon d="M20 21v-1a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v1M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
           {user.username} · {ROLES[user.role].short}
-        </span></>}
+        </span>
         <button className="btn btn-sm btn-fyag-white" onClick={() => void logout()}>
           <Icon d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" /> Salir
         </button>
