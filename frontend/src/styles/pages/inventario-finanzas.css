@@ -50,9 +50,9 @@
 .finance-inventory .if-stock-state.empty {color:#c34d4d;font-weight:600;}
 .finance-inventory .if-stock-state.unknown {font-weight:600;}
 .finance-inventory .if-table .chip {display:inline-block;white-space:normal;}
-.finance-inventory .if-stock-detail {padding:26px;}
-.finance-inventory .if-stock-detail .if-heading {align-items:center;}
-.finance-inventory .if-stock-detail .if-heading h2 {font-size:1.6rem;line-height:1.3;margin:6px 0;}
+.finance-inventory .if-record-detail {padding:26px;}
+.finance-inventory .if-record-detail .if-heading {align-items:center;}
+.finance-inventory .if-record-detail .if-heading h2 {font-size:1.6rem;line-height:1.3;margin:6px 0;}
 .finance-inventory .if-detail-summary {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin:24px 0 0;padding:22px 0;border-block:1px solid var(--fyag-line);}
 .finance-inventory .if-detail-summary > div {min-width:0;}
 .finance-inventory .if-detail-summary > div + div {border-left:1px solid var(--fyag-line);padding-left:22px;}
@@ -61,11 +61,17 @@
 .finance-inventory .if-detail-summary small {display:block;color:var(--fyag-muted);font-size:.8125rem;}
 .finance-inventory .if-detail-valuation {margin:12px 0;}
 .finance-inventory .if-detail-info {padding:22px 0;}
-.finance-inventory .if-stock-detail h3 {font-size:1rem;font-weight:700;margin:0 0 8px;}
-.finance-inventory .if-stock-detail .if-facts dd {font-size:1rem;}
+.finance-inventory .if-record-detail h3 {font-size:1rem;font-weight:700;margin:0 0 8px;}
+.finance-inventory .if-record-detail .if-facts dd {font-size:1rem;}
 .finance-inventory .if-detail-links {display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;border-top:1px solid var(--fyag-line);padding-top:20px;}
 @media (prefers-color-scheme:dark) {
  .finance-inventory .if-metric[data-tone="danger"] :is(strong,svg),.finance-inventory .if-stock-state.empty {color:#f18b8b;}
  .finance-inventory .if-metric[data-tone="warning"] :is(strong,svg) {color:#eab65e;}
 }
-@media(max-width:760px){.finance-inventory .if-detail-summary {grid-template-columns:minmax(0,1fr);gap:16px;}.finance-inventory .if-detail-summary > div + div {border-left:0;padding-left:0;border-top:1px solid var(--fyag-line);padding-top:16px;}.finance-inventory .if-stock-detail {padding:16px;}.finance-inventory .if-detail-links .if-toolbar {width:100%;}}
+@media(max-width:760px){.finance-inventory .if-detail-summary {grid-template-columns:minmax(0,1fr);gap:16px;}.finance-inventory .if-detail-summary > div + div {border-left:0;padding-left:0;border-top:1px solid var(--fyag-line);padding-top:16px;}.finance-inventory .if-record-detail {padding:16px;}.finance-inventory .if-detail-links .if-toolbar {width:100%;}}
+
+/* Las fichas comparten la misma escala y distribución; el dato previo es secundario. */
+.finance-inventory .if-detail-summary > div > strong.if-secondary-value {font-size:1.4rem;color:var(--fyag-muted);}
+.finance-inventory .if-detail-divider {border-top:1px solid var(--fyag-line);}
+.finance-inventory .if-record-detail .if-heading h2 {overflow-wrap:anywhere;}
+.finance-inventory .if-record-detail .if-heading > div {min-width:0;}
