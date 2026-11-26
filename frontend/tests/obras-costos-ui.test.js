@@ -71,34 +71,40 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
   } finally { await unmount(renderer); }
 });
 
-test('Gerencia separa la pestaña Materiales y gastos de Costos y solo consulta', async () => {
+test('Gerencia consulta resumen económico y actividad reciente sin acciones de escritura', async () => {
   const backend = obrasBackend(G); backend.obras[0].estado = 'EN_PROCESO'; backend.expenses = [gasto];
+  backend.costTotals={materiales_total:'25.00',otros_total:'0.00',mano_obra_total:'0.00',costo_total:'25.00'};
   const renderer = await mount(backend);
   try {
-    await openExpenses(renderer);
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/gastos/?page=1'));
-    assert.match(text(renderer.root), /\$25,00 CLP/);
-    assert.doesNotMatch(text(renderer.root), /Resumen económico|Control de rubros|Historial de costos/);
-    assert.equal(buttons(renderer, 'Registrar gasto').length, 0);
-    await click(renderer, 'Costos');
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/resumen/'));
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/historial/?page=1'));
-    assert.match(text(renderer.root), /Resumen económico/);
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/resumen/'));
-    assert.doesNotMatch(text(renderer.root), /Gastos de la obra|Cable/);
-    assert.equal(buttons(renderer, 'Validar costos').length, 0);
-    assert.equal(buttons(renderer, 'Finalizar obra').length, 0);
+    await click(renderer,'Ver obra');
+    assert.ok(backend.calls.some(entry=>entry.path==='/api/obras/1/costos/resumen/'));
+    await click(renderer,'Resumen económico');
+    const summary=renderer.root.findByProps({'aria-label':'Resumen económico'});
+    assert.match(text(summary),/Materiales/);
+    assert.match(text(summary),/Mano de obra/);
+    assert.match(text(summary),/\$25/);
+    assert.doesNotMatch(text(summary),/Gastos de la obra|Cable/);
+    await click(renderer,'Actividad reciente');
+    assert.ok(backend.calls.some(entry=>entry.path.startsWith('/api/obras/1/historial/')));
+    assert.match(text(renderer.root.findByProps({'aria-label':'Actividad reciente'})),/Obra creada/);
+    for(const label of ['Registrar gasto','Validar costos','Finalizar obra'])assert.equal(buttons(renderer,label).length,0);
+    assert.ok(backend.calls.every(entry=>entry.method==='GET'&&!/gastos|costos\/control|costos\/historial/.test(entry.path)));
   } finally { await unmount(renderer); }
 });
 
 test('Administrativo ve solo el resumen económico mínimo, sin consultas de gastos/control/historial', async () => {
   const backend = obrasBackend(AF); backend.obras[0].estado = 'EN_PROCESO';
+  backend.costTotals={materiales_total:'25.00',otros_total:'0.00',mano_obra_total:'0.00',costo_total:'25.00'};
   const renderer = await mount(backend);
   try {
-    await openCosts(renderer);
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/resumen/'));
-    assert.ok(backend.calls.every((entry) => !/gastos|costos\/control|costos\/historial/.test(entry.path)));
-    assert.doesNotMatch(text(renderer.root), /Materiales y gastos|Control de rubros|Validar costos|Finalizar obra|Version/);
+    await click(renderer,'Ver obra');
+    assert.ok(backend.calls.some(entry=>entry.path==='/api/finanzas/obras-resumen/1/'));
+    assert.ok(backend.calls.some(entry=>entry.path==='/api/obras/1/costos/resumen/'));
+    assert.match(text(renderer.root),/Desglose de costos/);
+    assert.match(text(renderer.root),/Costo real registrado/);
+    assert.match(text(renderer.root),/\$25/);
+    assert.ok(backend.calls.every(entry=>entry.method==='GET'&&!/gastos|costos\/control|costos\/historial/.test(entry.path)));
+    assert.doesNotMatch(text(renderer.root), /Materiales y gastos|Control de rubros|Validar costos|Finalizar obra|Versión/);
   } finally { await unmount(renderer); }
 });
 

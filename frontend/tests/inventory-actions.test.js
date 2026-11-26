@@ -29,12 +29,20 @@ test('inventario no muestra proyecciones económicas de entregas a Bodeguero',()
 });
 
 test('Egresos usa filtros REST acordados, detalle, historial paginado y no pone claves en URL',()=>{
- const source=read('pages/Egresos.jsx');
- for(const key of ['categoria','medio','obra','activo','desde','hasta'])assert.ok(source.includes(`'${key}'`)||source.includes(`${key}:`),`falta filtro ${key}`);
+ const router=read('pages/Egresos.jsx'),source=read('integrations/FinanzasEgresos.jsx'),manager=read('integrations/GerenciaEgresos.jsx');
+ assert.match(router,/user\.role==='GERENCIA'.*<GerenciaEgresos/);
+ assert.match(router,/user\.role==='ADMINISTRATIVO_FINANZAS'.*<FinanzasEgresos/);
+ for(const key of ['buscar','categoria','medio','activo','desde','hasta'])assert.match(source,new RegExp('const FILTERS=\\{[^}]*\\b'+key+':'));
+ assert.match(source,/Concepto, beneficiario o código de obra/);
+ assert.match(source,/const BASE='\/api\/finanzas\/egresos\/'/);
  assert.match(source,/Idempotency-Key/);
- assert.match(source,/egresos\/\$\{row\.id\}\//);
- assert.match(source,/egresos\/\$\{selected\.id\}\/historial\/\?page=\$\{next\}/);
+ assert.match(source,/api\.load\('detail',BASE\+id\+'\/'/);
+ assert.match(source,/api\.load\('history',BASE\+id\+'\/historial\/\?page='\+p/);
+ assert.match(source,/setPage=\{setHistoryPage\}/);
  assert.doesNotMatch(source,/clave_idempotencia=.*URLSearchParams/);
+ assert.match(manager,/PATH=BASE\+'supervision-gerencial\/'/);
+ assert.match(manager,/hp\+'\?page='\+page/);
+ assert.doesNotMatch(manager,/Idempotency-Key/);
 });
 
 test('Chat usa ticket REST y WS sin transportar ticket por URL; avisos recuperan por REST',()=>{

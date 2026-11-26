@@ -48,7 +48,20 @@ test('Auditoría: matriz coincide con permissions.POR_ROL, Supervisor no hereda 
   for(const [role,sources] of Object.entries(expected)){
     assert.deepEqual(auditSources(role),sources);const calls=[];
     const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[],next_cursor:null,has_more:false,fecha_corte:'2026-11-17T12:00:00Z',zona_horaria:'America/Santiago'};},role);
-    try{if(role==='TECNICO')assert.equal(calls.length,0);else assert.deepEqual(control(ui.renderer.root,'Fuente').findAllByType('option').slice(1).map((node)=>node.props.value),sources);}finally{await ui.close();}
+    try{
+      const root=ui.renderer.root;
+      if(role==='TECNICO')assert.equal(calls.length,0);
+      else if(role==='ADMINISTRATIVO_FINANZAS'){
+        assert.equal(root.findAllByType('label').some(node=>node.children[0]==='Fuente'||node.children[0]==='Módulo'),false);
+        assert.ok(control(root,'Tipo de evento').findAllByType('option').some(node=>node.props.value==='DOCUMENTO_REVERTIDO'));
+        await change(root,'Tipo de evento','DOCUMENTO_REVERTIDO');
+        await submit(root,'Filtrar eventos financieros');
+        const query=new URL(calls.at(-1),'http://localhost').searchParams;
+        assert.equal(query.get('tipo'),'DOCUMENTO_REVERTIDO');
+        assert.ok(!query.has('fuente')||query.get('fuente')==='FINANZAS_EVENTO');
+        assert.ok(!query.has('modulo')||query.get('modulo')==='FINANZAS');
+      }else assert.deepEqual(control(root,'Fuente').findAllByType('option').slice(1).map(node=>node.props.value),sources);
+    }finally{await ui.close();}
   }
 });
 test('Auditoría: draft actualiza fuentes, filtros válidos consultan, inválidos no, cursor solo y reinicio',async()=>{

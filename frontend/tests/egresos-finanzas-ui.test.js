@@ -45,9 +45,15 @@ test('Finanzas: egresos legibles, filtros globales, detalle y anulación context
  const ui=await mount(),r=ui.renderer,old=globalThis.confirm;globalThis.confirm=()=>true;
  try{
    assert.match(text(r.toJSON()),/\$3\.989\.000/);assert.match(text(r.toJSON()),/24\/11\/2026/);assert.doesNotMatch(text(r.toJSON()),/ID de obra|REGISTRO_ADMINISTRATIVO_DINERO_PAGADO|Anular egreso/);
-   await change(r,'Buscar egreso','Distribuidora');await submit(r,'Filtros de egresos');
-   assert.ok(ui.calls.some(c=>c.path.includes('buscar=Distribuidora')&&c.path.includes('resumen=true')));
-   await click(r,'Ver detalle');assert.match(text(r.toJSON()),/Egreso registrado/);
+   await change(r,'Buscar egreso','Distribuidora');await click(r,'Filtros');
+   await change(r,'Categoría','MATERIALES');await change(r,'Medio de pago','TRANSFERENCIA');await change(r,'Estado','true');
+   await change(r,'Pagado desde','2026-11-01');await change(r,'Pagado hasta','2026-11-30');
+   await submit(r,'Filtros de egresos');
+   const filtered=ui.calls.findLast(c=>c.path.includes('buscar=Distribuidora')&&c.path.includes('resumen=true'));
+   assert.ok(filtered);const query=new URL(filtered.path,'http://localhost').searchParams;
+   for(const [key,value] of Object.entries({categoria:'MATERIALES',medio:'TRANSFERENCIA',activo:'true',desde:'2026-11-01',hasta:'2026-11-30'}))assert.equal(query.get(key),value);
+   assert.equal(query.has('clave_idempotencia'),false);
+   await click(r,'Ver detalle');assert.match(text(r.toJSON()),/Egreso registrado/);assert.ok(ui.calls.some(c=>c.path===BASE+'6/historial/?page=1'));
    await click(r,'Anular egreso');await change(r,'Motivo','Error de registro');await change(r,'Referencia de corrección','RECT-1');await submit(r,'Anular egreso');
    assert.equal(ui.calls.filter(c=>c.method==='POST').length,1);assert.equal(ui.rows[0].activo,false);assert.match(text(r.toJSON()),/Egreso anulado/);
    assert.match(r.root.findAllByType('button').find(b=>text(b).trim()==='Volver a egresos').props.className,/eg-back/);
