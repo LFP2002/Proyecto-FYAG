@@ -183,3 +183,26 @@ test('Supervisor: rechazo de validación presenta pendientes y no reenvía autom
   assert.equal(buttons(renderer,'Finalizar obra').length,0);
  }finally{await unmount(renderer);}
 });
+
+test('Supervisor: declaración idéntica bloqueada, rectificación permitida y sin cobro confirmado',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';backend.control.materiales_estado='CON_REGISTROS';backend.control.otros_estado='NO_APLICA';
+ backend.costTotals={materiales_total:'420000.00',otros_total:'0.00',mano_obra_total:'350000.00',costo_total:'770000.00'};
+ const renderer=await mount(backend),old=window.confirm;
+ try{
+  await openCosts(renderer);
+  assert.equal(buttons(renderer,'Actualizar').length,1);
+  assert.equal(buttons(renderer,'Actualizar datos').length,0);
+  await click(renderer,'Rectificar materiales');
+  await input(renderer,'obras-rubric-materiales-motivo','Motivo de prueba');
+  assert.equal(buttons(renderer,'Guardar declaración')[0].props.disabled,true);
+  await submitNamed(renderer,'Declarar materiales');assert.equal(backend.calls.filter(c=>c.method==='PATCH').length,0);
+  await input(renderer,'obras-rubric-materiales','NO_APLICA');await input(renderer,'obras-rubric-materiales-reason','Se debe rectificar el rubro');
+  assert.equal(buttons(renderer,'Guardar declaración')[0].props.disabled,false);
+  await click(renderer,'Cancelar');
+  assert.match(buttons(renderer,'Registrar sin cobro')[0].props.className,/so-danger-action/);
+  await click(renderer,'Registrar sin cobro');await input(renderer,'obras-cortesia-justificacion','Garantía');
+  let confirmation='';window.confirm=m=>{confirmation=m;return false;};
+  await submitNamed(renderer,'Registrar servicio sin cobro');assert.match(confirmation,/no puede retirarse/);assert.equal(backend.calls.filter(c=>c.method==='POST').length,0);
+  window.confirm=()=>true;await submitNamed(renderer,'Registrar servicio sin cobro');assert.equal(backend.courtesy.justificacion,'Garantía');
+ }finally{window.confirm=old;await unmount(renderer);}
+});
