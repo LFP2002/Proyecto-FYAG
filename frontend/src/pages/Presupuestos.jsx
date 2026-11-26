@@ -91,7 +91,7 @@ function PresupuestosOperativos() {
     : api.load('clients', clientPath(), (data) => { setClients(data); setClientPageInfo(null); });
   const loadHistory = (pk, p = 1) => api.load('history', pagePath(`${budgetPath(pk)}historial/`, p), (data) => setHistory(validatePage(data, `${budgetPath(pk)}historial/`)));
   useEffect(() => { setList(null); void reload(); }, [page, filter, search]);
-  useEffect(()=>{const id=initialBudget.current;if(!id)return;initialBudget.current=null;setOpening(true);void api.load('detail',budgetPath(id),setSelected).finally(()=>setOpening(false));},[]);
+  useEffect(()=>{const id=initialBudget.current;if(!id)return;setOpening(true);void api.load('detail',budgetPath(id),setSelected).finally(()=>setOpening(false));},[]);
   useEffect(() => { void loadClients(); }, [user.id, user.role, clientPage, clientSearch]);
   useEffect(() => { if (selected) { setHistory(null); void loadHistory(selected.id, historyPage); } }, [selected?.id, historyPage]);
   async function detail(pk,event) {
