@@ -1,4 +1,4 @@
-/* Egresos AF: superficies a ancho completo, sin gráficos ni tarjetas anidadas. */
+/* Egresos AF: superficies a ancho completo, sin tarjetas anidadas. */
 .finance-egresos {width:100%;min-width:0;}
 .finance-egresos .eg-panel {padding:20px;width:100%;min-width:0;}
 .finance-egresos .eg-panel h2,.finance-egresos .eg-panel h3 {font-size:1rem;font-weight:700;color:var(--fyag-primary);margin:0 0 12px;}
@@ -49,3 +49,27 @@
 .finance-egresos .eg-flow-empty {min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:20px 12px;margin-top:16px;border-top:1px solid var(--fyag-line);}
 .finance-egresos .eg-flow-empty > svg {width:30px;height:30px;color:var(--fyag-muted);}
 .finance-egresos .eg-flow-empty p {color:var(--fyag-muted);font-size:.875rem;margin:0;max-width:420px;}
+
+/* Dos gráficos de datos, no barras de progreso; una sola superficie. */
+.finance-egresos .eg-flow-charts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:24px;padding-top:20px;border-top:1px solid var(--fyag-line);align-items:start;}
+.finance-egresos .eg-flow-chart {min-width:0;}
+.finance-egresos .eg-flow-chart + .eg-flow-chart {border-left:1px solid var(--fyag-line);padding-left:24px;}
+.finance-egresos .eg-flow-chart h3 {margin:0 0 5px;}
+.finance-egresos .eg-flow-chart > p.commercial-help {margin:0 0 10px;}
+.finance-egresos .eg-flow-svg {display:block;width:100%;height:auto;max-height:310px;overflow:visible;color:var(--fyag-muted);}
+.finance-egresos .eg-chart-axis {font-size:10px;fill:currentColor;}
+.finance-egresos .eg-chart-label {font-size:12px;font-weight:600;fill:currentColor;}
+.finance-egresos .eg-chart-grid {stroke:currentColor;stroke-opacity:.2;stroke-dasharray:3 4;}
+.finance-egresos .eg-chart-zero {stroke:currentColor;stroke-opacity:.85;stroke-width:1.3;}
+.finance-egresos .eg-chart-connector {stroke:currentColor;stroke-width:1.1;stroke-dasharray:4 3;}
+.finance-egresos .eg-chart-income {fill:#26865f;stroke:#26865f;}
+.finance-egresos .eg-chart-expense {fill:#bd5151;stroke:#bd5151;}
+.finance-egresos .eg-chart-neutral {fill:currentColor;stroke:currentColor;}
+.finance-egresos .eg-chart-zero-mark {stroke-width:1.5;}
+.finance-egresos rect[data-chart-bar] {stroke:none;}
+.finance-egresos .eg-flow-result {margin:10px 0 0;font-size:.875rem;line-height:1.5;color:var(--fyag-muted);}
+.finance-egresos .eg-flow-result strong {color:var(--fyag-primary);}
+@media(max-width:1000px) {
+  .finance-egresos .eg-flow-charts {grid-template-columns:minmax(0,1fr);gap:20px;}
+  .finance-egresos .eg-flow-chart + .eg-flow-chart {border-left:0;border-top:1px solid var(--fyag-line);padding:18px 0 0;}
+}
