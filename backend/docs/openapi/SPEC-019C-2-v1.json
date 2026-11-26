@@ -1,81 +1,1197 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "FYAG Beta — Mermas de Bodega y Obras", "version": "1.0.0", "description": "SPEC-019C-2. MB: Bodeguero informa, AF decide; aprobación genera exactamente una Op MERMA y un Movimiento MERMA, congela promedio, reduce saldo físico/valorado sin GastoObra ni dinero. MO: Técnico participante informa sobre ENTREGA real, Supervisor decide; clasifica sin stock, valoración, gasto ni eventos económicos adicionales. Importe MO es informativo no aditivo. Roles/sesión/credencial/bloqueo persistidos, revalidados tras esperas. No bypass staff/superuser/claims. Originales/eventos inmutables; decisión completa única, sin editar, cancelar, reabrir o aprobar parcial. Respuestas privadas/no-store y Vary Authorization. Cuerpos/queries cerrados. IDs BIGINT positivos; cantidades strings Decimal(12,3); textos trim sin controles Unicode."},
-  "servers": [{"url": "/"}],
-  "security": [{"bearerAuth": []}],
+  "info": {
+    "title": "FYAG Beta — Mermas de Bodega y Obras",
+    "version": "1.0.0",
+    "description": "SPEC-019C-2. MB: Bodeguero informa, AF decide; aprobación genera exactamente una Op MERMA y un Movimiento MERMA, congela promedio, reduce saldo físico/valorado sin GastoObra ni dinero. MO: Técnico participante informa sobre ENTREGA real, Supervisor decide; clasifica sin stock, valoración, gasto ni eventos económicos adicionales. Importe MO es informativo no aditivo. Roles/sesión/credencial/bloqueo persistidos, revalidados tras esperas. No bypass staff/superuser/claims. Originales/eventos inmutables; decisión completa única, sin editar, cancelar, reabrir o aprobar parcial. Respuestas privadas/no-store y Vary Authorization. Cuerpos/queries cerrados. IDs BIGINT positivos; cantidades strings Decimal(12,3); textos trim sin controles Unicode."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "paths": {
     "/api/inventario/mermas-bodega/": {
-      "get": {"operationId": "listarMermasBodega", "description": "B sin economía; AF/G con pérdida histórica si aprobada (null pendiente/rechazada). Sin acceso T/S/TI. ID ASC, 25 por página.", "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/Articulo"}, {"$ref": "#/components/parameters/Estado"}, {"name": "tipo", "in": "query", "schema": {"$ref": "#/components/schemas/TipoMB"}}], "responses": {"200": {"$ref": "#/components/responses/Lista"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}},
-      "post": {"operationId": "informarMermaBodega", "description": "Solo B. Artículo activo; guarda unidad y último movimiento físico bajo lock. No requiere valoración o stock suficiente hasta aprobar. Sin efectos físicos/económicos. Sin query params. 201 inicial; replay 200 con imagen original PENDIENTE, aun después de decidir.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CrearMB"}}}}, "responses": {"201": {"$ref": "#/components/responses/Acto"}, "200": {"$ref": "#/components/responses/Acto"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+      "get": {
+        "operationId": "listarMermasBodega",
+        "description": "B sin economía; AF/G con pérdida histórica si aprobada (null pendiente/rechazada). Sin acceso T/S/TI. ID ASC, 25 por página. Con vista=finanzas: orden reciente primero, identidad actual del material y responsables, y resumen global de Bodega independiente de búsqueda, filtros y página; suma de importes históricos aprobados redondeados por merma.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Articulo"
+          },
+          {
+            "$ref": "#/components/parameters/Estado"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TipoMB"
+            }
+          },
+          {
+            "name": "vista",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "const": "finanzas"
+            },
+            "description": "Opcional y exclusivo AF. Sin este parámetro se conserva el contrato original."
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "description": "Solo vista=finanzas. Coincidencia parcial de nombre o código del material."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginada, scope y proyección por rol",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Pagina"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PaginaFinanzas"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
+        }
+      },
+      "post": {
+        "operationId": "informarMermaBodega",
+        "description": "Solo B. Artículo activo; guarda unidad y último movimiento físico bajo lock. No requiere valoración o stock suficiente hasta aprobar. Sin efectos físicos/económicos. Sin query params. 201 inicial; replay 200 con imagen original PENDIENTE, aun después de decidir.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearMB"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "201": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
+        }
+      }
     },
     "/api/inventario/mermas-bodega/{id}/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "get": {"operationId": "obtenerMermaBodega", "description": "B/AF/G. Estado actual e historial sin costos en eventos. B nunca recibe campos económicos. Sin query params.", "responses": {"200": {"$ref": "#/components/responses/Detalle"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "operationId": "obtenerMermaBodega",
+        "description": "B/AF/G. Estado actual e historial sin costos en eventos. B nunca recibe campos económicos. Con vista=finanzas, identidad actual del material y nombres actuales de responsables.",
+        "responses": {
+          "200": {
+            "description": "Estado actual e historial inmutable",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Detalle"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DetalleFinanzas"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
+        },
+        "parameters": [
+          {
+            "name": "vista",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "const": "finanzas"
+            },
+            "description": "Opcional y exclusivo AF. Sin este parámetro se conserva el contrato original."
+          }
+        ]
+      }
     },
     "/api/inventario/mermas-bodega/{id}/decidir/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "post": {"operationId": "decidirMermaBodega", "description": "Solo AF. Aprobar: mismo corte físico, activo, stock suficiente, saldo totalmente valorizado y promedio vigente. Cambio de libro: corte_desactualizado; una valoración sin movimiento usa promedio oficial nuevo. Pérdida Decimal HALF_UP a centavo, sin redondear positivo a cero. Promedio restante igual, null al agotar. AF es actor físico, B informante en observación. Rechazar no exige corte/stock/actividad/valoración actuales. Sin query params. UUID distinta a creación; replay exacto devuelve decisión original sin efectos adicionales.", "requestBody": {"$ref": "#/components/requestBodies/Decision"}, "responses": {"200": {"$ref": "#/components/responses/Acto"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "operationId": "decidirMermaBodega",
+        "description": "Solo AF. Aprobar: mismo corte físico, activo, stock suficiente, saldo totalmente valorizado y promedio vigente. Cambio de libro: corte_desactualizado; una valoración sin movimiento usa promedio oficial nuevo. Pérdida Decimal HALF_UP a centavo, sin redondear positivo a cero. Promedio restante igual, null al agotar. AF es actor físico, B informante en observación. Rechazar no exige corte/stock/actividad/valoración actuales. Sin query params. UUID distinta a creación; replay exacto devuelve decisión original sin efectos adicionales.",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Decision"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
+        }
+      }
     },
     "/api/inventario/mermas-obra/": {
-      "get": {"operationId": "listarMermasObra", "description": "T solo propias (scope SQL), incluidas históricas tras desasignación/finalización; sin economía. S/G con costo histórico e importe informativo no aditivo. B/AF/TI sin acceso. ID ASC, 25 por página.", "parameters": [{"$ref": "#/components/parameters/Page"}, {"$ref": "#/components/parameters/Articulo"}, {"$ref": "#/components/parameters/Estado"}, {"name": "tipo", "in": "query", "schema": {"$ref": "#/components/schemas/TipoMO"}}, {"name": "obra", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}}, {"name": "entrega", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}}], "responses": {"200": {"$ref": "#/components/responses/Lista"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}},
-      "post": {"operationId": "informarMermaObra", "description": "Solo T participante activo en Obra EN_PROCESO/SUSPENDIDA. ENTREGA 019B auténtica; deriva Obra/artículo/unidad, cantidad <= entregada. Pendiente no reserva clasificación ni devolución. Tipo/motivo explican inutilización; actividad obligatoria, referencia opcional. Sin query params. Replay retorna imagen inicial PENDIENTE.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CrearMO"}}}}, "responses": {"201": {"$ref": "#/components/responses/Acto"}, "200": {"$ref": "#/components/responses/Acto"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+      "get": {
+        "operationId": "listarMermasObra",
+        "description": "T solo propias (scope SQL), incluidas históricas tras desasignación/finalización; sin economía. S/G con costo histórico e importe informativo no aditivo. B/AF/TI sin acceso. ID ASC, 25 por página.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Articulo"
+          },
+          {
+            "$ref": "#/components/parameters/Estado"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TipoMO"
+            }
+          },
+          {
+            "name": "obra",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          {
+            "name": "entrega",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Lista"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
+        }
+      },
+      "post": {
+        "operationId": "informarMermaObra",
+        "description": "Solo T participante activo en Obra EN_PROCESO/SUSPENDIDA. ENTREGA 019B auténtica; deriva Obra/artículo/unidad, cantidad <= entregada. Pendiente no reserva clasificación ni devolución. Tipo/motivo explican inutilización; actividad obligatoria, referencia opcional. Sin query params. Replay retorna imagen inicial PENDIENTE.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearMO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "201": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
+        }
+      }
     },
     "/api/inventario/mermas-obra/{id}/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "get": {"operationId": "obtenerMermaObra", "description": "T solo propia; S/G lectura. Ajena/inexistente mismo 404. Historial sin economía. Sin query params.", "responses": {"200": {"$ref": "#/components/responses/Detalle"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "operationId": "obtenerMermaObra",
+        "description": "T solo propia; S/G lectura. Ajena/inexistente mismo 404. Historial sin economía. Sin query params.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Detalle"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          }
+        }
+      }
     },
     "/api/inventario/mermas-obra/{id}/decidir/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "post": {"operationId": "decidirMermaObra", "description": "Solo S y Obra operativa. Aprobar exige informante activo y participante, entrega real/gasto BODEGA_019B vigente y MO aprobadas + devoluciones físicas + cantidad <= entregada. Rechazar permite informante desasignado, pero no Obra finalizada. Sin Op/movimiento/valoración/gasto/evento económico/control/cierre/pago/egreso nuevos. Cantidad irreversible; nuevas autorizaciones descuentan MO y toda cantidad antes autorizada; recepciones antiguas también excluyen MO. GET autorizaciones-devolucion publica remanente efectivo sin modificar historia. UUID independiente por acto; sin query params.", "requestBody": {"$ref": "#/components/requestBodies/Decision"}, "responses": {"200": {"$ref": "#/components/responses/Acto"}, "400": {"$ref": "#/components/responses/Validacion"}, "401": {"$ref": "#/components/responses/Sesion"}, "403": {"$ref": "#/components/responses/Permiso"}, "404": {"$ref": "#/components/responses/NoEncontrado"}, "405": {"$ref": "#/components/responses/Metodo"}, "409": {"$ref": "#/components/responses/Conflicto"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "operationId": "decidirMermaObra",
+        "description": "Solo S y Obra operativa. Aprobar exige informante activo y participante, entrega real/gasto BODEGA_019B vigente y MO aprobadas + devoluciones físicas + cantidad <= entregada. Rechazar permite informante desasignado, pero no Obra finalizada. Sin Op/movimiento/valoración/gasto/evento económico/control/cierre/pago/egreso nuevos. Cantidad irreversible; nuevas autorizaciones descuentan MO y toda cantidad antes autorizada; recepciones antiguas también excluyen MO. GET autorizaciones-devolucion publica remanente efectivo sin modificar historia. UUID independiente por acto; sin query params.",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/Decision"
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Acto"
+          },
+          "400": {
+            "$ref": "#/components/responses/Validacion"
+          },
+          "401": {
+            "$ref": "#/components/responses/Sesion"
+          },
+          "403": {
+            "$ref": "#/components/responses/Permiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "405": {
+            "$ref": "#/components/responses/Metodo"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflicto"
+          }
+        }
+      }
     }
   },
   "components": {
-    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
-    "parameters": {
-      "Id": {"name": "id", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/Id"}},
-      "Articulo": {"name": "articulo", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}},
-      "Estado": {"name": "estado", "in": "query", "schema": {"enum": ["PENDIENTE", "APROBADA", "RECHAZADA"]}},
-      "Page": {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 999999999}, "description": "Positiva canónica, sin ceros iniciales; página inexistente 404. Queries desconocidas/repetidas/vacías 400."}
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
     },
-    "headers": {"Cache": {"schema": {"const": "private, no-store"}}, "Vary": {"schema": {"type": "string"}, "description": "Incluye Authorization"}, "Replay": {"schema": {"enum": ["false", "true"]}, "description": "true solo para UUID/actor/payload/acción idénticos; creación inicial 201, replay 200, decisión inicial/replay 200"}},
-    "requestBodies": {"Decision": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Decision"}}}}},
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "Articulo": {
+        "name": "articulo",
+        "in": "query",
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        }
+      },
+      "Estado": {
+        "name": "estado",
+        "in": "query",
+        "schema": {
+          "enum": [
+            "PENDIENTE",
+            "APROBADA",
+            "RECHAZADA"
+          ]
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 999999999
+        },
+        "description": "Positiva canónica, sin ceros iniciales; página inexistente 404. Queries desconocidas/repetidas/vacías 400."
+      }
+    },
+    "headers": {
+      "Cache": {
+        "schema": {
+          "const": "private, no-store"
+        }
+      },
+      "Vary": {
+        "schema": {
+          "type": "string"
+        },
+        "description": "Incluye Authorization"
+      },
+      "Replay": {
+        "schema": {
+          "enum": [
+            "false",
+            "true"
+          ]
+        },
+        "description": "true solo para UUID/actor/payload/acción idénticos; creación inicial 201, replay 200, decisión inicial/replay 200"
+      }
+    },
+    "requestBodies": {
+      "Decision": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Decision"
+            }
+          }
+        }
+      }
+    },
     "schemas": {
-      "Id": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807},
-      "IdNullable": {"type": ["integer", "null"], "format": "int64", "minimum": 1},
-      "UUID": {"type": "string", "format": "uuid", "pattern": "^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$", "description": "Creaciones y decisiones MB/MO comparten dominio C2. Otro actor/payload/acción con misma clave 409. Operación física MB tiene UUID servidor independiente (dominio 019B)."},
-      "Cantidad": {"type": "string", "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$", "description": "Estrictamente positiva, <=999999999.999; no floats, signos, exponentes ni truncamiento"},
-      "CantidadSalida": {"type": "string", "pattern": "^[0-9]+\\.[0-9]{3}$"},
-      "DineroNullable": {"type": ["string", "null"], "pattern": "^[0-9]+\\.[0-9]{2}$"},
-      "Texto": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Trim, no vacío ni controles Unicode; describir pérdida/no reutilización"},
-      "Referencia": {"type": "string", "minLength": 1, "maxLength": 150},
-      "TipoMB": {"enum": ["DANO", "VENCIMIENTO", "EXTRAVIO", "DIFERENCIA_CONTEO", "OTRA"]},
-      "TipoMO": {"enum": ["CORTE_NO_REUTILIZABLE", "DANO_EN_OBRA", "EXTRAVIO_EN_OBRA", "OTRA"]},
-      "CrearMB": {"type": "object", "additionalProperties": false, "required": ["articulo", "cantidad", "tipo", "motivo", "referencia_respaldo", "clave_idempotencia"], "properties": {"articulo": {"$ref": "#/components/schemas/Id"}, "cantidad": {"$ref": "#/components/schemas/Cantidad"}, "tipo": {"$ref": "#/components/schemas/TipoMB"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "referencia_respaldo": {"$ref": "#/components/schemas/Referencia"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "CrearMO": {"type": "object", "additionalProperties": false, "required": ["entrega", "cantidad", "tipo", "motivo", "actividad", "clave_idempotencia"], "properties": {"entrega": {"$ref": "#/components/schemas/Id"}, "cantidad": {"$ref": "#/components/schemas/Cantidad"}, "tipo": {"$ref": "#/components/schemas/TipoMO"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "actividad": {"$ref": "#/components/schemas/Texto"}, "referencia": {"type": "string", "maxLength": 150}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "Decision": {"type": "object", "additionalProperties": false, "required": ["decision", "motivo", "clave_idempotencia"], "properties": {"decision": {"enum": ["APROBAR", "RECHAZAR"]}, "motivo": {"$ref": "#/components/schemas/Texto"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "Evento": {"type": "object", "additionalProperties": false, "required": ["id", "tipo", "actor", "motivo", "creado_en"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "tipo": {"enum": ["CREACION", "APROBACION", "RECHAZO"]}, "actor": {"$ref": "#/components/schemas/Id"}, "motivo": {"$ref": "#/components/schemas/Texto"}, "creado_en": {"type": "string", "format": "date-time"}}},
-      "MermaBase": {"type": "object", "required": ["id", "ambito", "articulo", "obra", "entrega", "unidad", "cantidad", "tipo", "motivo", "referencia", "actividad", "corte_movimiento", "informado_por", "clave_idempotencia", "creado_en", "estado", "decidido_por", "decidido_en", "motivo_decision", "operacion"], "properties": {
-        "id": {"$ref": "#/components/schemas/Id"}, "ambito": {"enum": ["BODEGA", "OBRA"]}, "articulo": {"$ref": "#/components/schemas/Id"}, "obra": {"$ref": "#/components/schemas/IdNullable"}, "entrega": {"$ref": "#/components/schemas/IdNullable"}, "unidad": {"type": "string", "maxLength": 30}, "cantidad": {"$ref": "#/components/schemas/CantidadSalida"}, "tipo": {"enum": ["DANO", "VENCIMIENTO", "EXTRAVIO", "DIFERENCIA_CONTEO", "CORTE_NO_REUTILIZABLE", "DANO_EN_OBRA", "EXTRAVIO_EN_OBRA", "OTRA"]}, "motivo": {"$ref": "#/components/schemas/Texto"}, "referencia": {"type": "string", "maxLength": 150}, "actividad": {"type": "string", "maxLength": 2000}, "corte_movimiento": {"$ref": "#/components/schemas/IdNullable"}, "informado_por": {"$ref": "#/components/schemas/Id"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}, "creado_en": {"type": "string", "format": "date-time"}, "estado": {"enum": ["PENDIENTE", "APROBADA", "RECHAZADA"]}, "decidido_por": {"$ref": "#/components/schemas/IdNullable"}, "decidido_en": {"type": ["string", "null"], "format": "date-time"}, "motivo_decision": {"type": "string", "maxLength": 2000}, "operacion": {"$ref": "#/components/schemas/IdNullable"}, "historial": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"$ref": "#/components/schemas/Evento"}}
-      }},
-      "MermaPublica": {"allOf": [{"$ref": "#/components/schemas/MermaBase"}], "unevaluatedProperties": false},
-      "MermaBodegaCosto": {"allOf": [{"$ref": "#/components/schemas/MermaBase"}, {"type": "object", "required": ["costo_unitario_neto", "importe_perdida"], "properties": {"ambito": {"const": "BODEGA"}, "costo_unitario_neto": {"$ref": "#/components/schemas/DineroNullable"}, "importe_perdida": {"$ref": "#/components/schemas/DineroNullable"}}}], "unevaluatedProperties": false},
-      "MermaObraCosto": {"allOf": [{"$ref": "#/components/schemas/MermaBase"}, {"type": "object", "required": ["costo_unitario_neto", "importe_informativo_no_aditivo"], "properties": {"ambito": {"const": "OBRA"}, "costo_unitario_neto": {"$ref": "#/components/schemas/DineroNullable"}, "importe_informativo_no_aditivo": {"$ref": "#/components/schemas/DineroNullable"}}}], "unevaluatedProperties": false},
-      "Merma": {"oneOf": [{"$ref": "#/components/schemas/MermaPublica"}, {"$ref": "#/components/schemas/MermaBodegaCosto"}, {"$ref": "#/components/schemas/MermaObraCosto"}]},
-      "Detalle": {"allOf": [{"$ref": "#/components/schemas/Merma"}, {"required": ["historial"]}]},
-      "Pagina": {"type": "object", "additionalProperties": false, "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Merma"}}}},
-      "Error": {"type": "object"},
-      "Conflicto": {"type": "object", "required": ["code", "detail"], "properties": {"code": {"enum": ["estado_incompatible", "idempotencia_conflictiva", "merma_ya_decidida", "corte_desactualizado", "existencia_insuficiente", "valoracion_pendiente", "remanente_insuficiente", "importe_fuera_rango"]}, "detail": {"type": "string"}}}
+      "Id": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 9223372036854776000
+      },
+      "IdNullable": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "int64",
+        "minimum": 1
+      },
+      "UUID": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$",
+        "description": "Creaciones y decisiones MB/MO comparten dominio C2. Otro actor/payload/acción con misma clave 409. Operación física MB tiene UUID servidor independiente (dominio 019B)."
+      },
+      "Cantidad": {
+        "type": "string",
+        "pattern": "^[0-9]{1,9}(\\.[0-9]{1,3})?$",
+        "description": "Estrictamente positiva, <=999999999.999; no floats, signos, exponentes ni truncamiento"
+      },
+      "CantidadSalida": {
+        "type": "string",
+        "pattern": "^[0-9]+\\.[0-9]{3}$"
+      },
+      "DineroNullable": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[0-9]+\\.[0-9]{2}$"
+      },
+      "Texto": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "description": "Trim, no vacío ni controles Unicode; describir pérdida/no reutilización"
+      },
+      "Referencia": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 150
+      },
+      "TipoMB": {
+        "enum": [
+          "DANO",
+          "VENCIMIENTO",
+          "EXTRAVIO",
+          "DIFERENCIA_CONTEO",
+          "OTRA"
+        ]
+      },
+      "TipoMO": {
+        "enum": [
+          "CORTE_NO_REUTILIZABLE",
+          "DANO_EN_OBRA",
+          "EXTRAVIO_EN_OBRA",
+          "OTRA"
+        ]
+      },
+      "CrearMB": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "cantidad",
+          "tipo",
+          "motivo",
+          "referencia_respaldo",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "articulo": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "cantidad": {
+            "$ref": "#/components/schemas/Cantidad"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoMB"
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "referencia_respaldo": {
+            "$ref": "#/components/schemas/Referencia"
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "CrearMO": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entrega",
+          "cantidad",
+          "tipo",
+          "motivo",
+          "actividad",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "entrega": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "cantidad": {
+            "$ref": "#/components/schemas/Cantidad"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoMO"
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "actividad": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "referencia": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "Decision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "decision",
+          "motivo",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "decision": {
+            "enum": [
+              "APROBAR",
+              "RECHAZAR"
+            ]
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "Evento": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tipo",
+          "actor",
+          "motivo",
+          "creado_en"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "tipo": {
+            "enum": [
+              "CREACION",
+              "APROBACION",
+              "RECHAZO"
+            ]
+          },
+          "actor": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MermaBase": {
+        "type": "object",
+        "required": [
+          "id",
+          "ambito",
+          "articulo",
+          "obra",
+          "entrega",
+          "unidad",
+          "cantidad",
+          "tipo",
+          "motivo",
+          "referencia",
+          "actividad",
+          "corte_movimiento",
+          "informado_por",
+          "clave_idempotencia",
+          "creado_en",
+          "estado",
+          "decidido_por",
+          "decidido_en",
+          "motivo_decision",
+          "operacion"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "ambito": {
+            "enum": [
+              "BODEGA",
+              "OBRA"
+            ]
+          },
+          "articulo": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "obra": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "entrega": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "unidad": {
+            "type": "string",
+            "maxLength": 30
+          },
+          "cantidad": {
+            "$ref": "#/components/schemas/CantidadSalida"
+          },
+          "tipo": {
+            "enum": [
+              "DANO",
+              "VENCIMIENTO",
+              "EXTRAVIO",
+              "DIFERENCIA_CONTEO",
+              "CORTE_NO_REUTILIZABLE",
+              "DANO_EN_OBRA",
+              "EXTRAVIO_EN_OBRA",
+              "OTRA"
+            ]
+          },
+          "motivo": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "referencia": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "actividad": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "corte_movimiento": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "informado_por": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "estado": {
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "decidido_por": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "operacion": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "historial": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/Evento"
+            }
+          }
+        }
+      },
+      "MermaPublica": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MermaBase"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "MermaBodegaCosto": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MermaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "costo_unitario_neto",
+              "importe_perdida"
+            ],
+            "properties": {
+              "ambito": {
+                "const": "BODEGA"
+              },
+              "costo_unitario_neto": {
+                "$ref": "#/components/schemas/DineroNullable"
+              },
+              "importe_perdida": {
+                "$ref": "#/components/schemas/DineroNullable"
+              }
+            }
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "MermaObraCosto": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MermaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "costo_unitario_neto",
+              "importe_informativo_no_aditivo"
+            ],
+            "properties": {
+              "ambito": {
+                "const": "OBRA"
+              },
+              "costo_unitario_neto": {
+                "$ref": "#/components/schemas/DineroNullable"
+              },
+              "importe_informativo_no_aditivo": {
+                "$ref": "#/components/schemas/DineroNullable"
+              }
+            }
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "Merma": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MermaPublica"
+          },
+          {
+            "$ref": "#/components/schemas/MermaBodegaCosto"
+          },
+          {
+            "$ref": "#/components/schemas/MermaObraCosto"
+          }
+        ]
+      },
+      "Detalle": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Merma"
+          },
+          {
+            "required": [
+              "historial"
+            ]
+          }
+        ]
+      },
+      "Pagina": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Merma"
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object"
+      },
+      "Conflicto": {
+        "type": "object",
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "estado_incompatible",
+              "idempotencia_conflictiva",
+              "merma_ya_decidida",
+              "corte_desactualizado",
+              "existencia_insuficiente",
+              "valoracion_pendiente",
+              "remanente_insuficiente",
+              "importe_fuera_rango"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "MermaFinanzas": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MermaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "costo_unitario_neto",
+              "importe_perdida"
+            ],
+            "properties": {
+              "ambito": {
+                "const": "BODEGA"
+              },
+              "costo_unitario_neto": {
+                "$ref": "#/components/schemas/DineroNullable"
+              },
+              "importe_perdida": {
+                "$ref": "#/components/schemas/DineroNullable"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "articulo_nombre",
+              "articulo_codigo",
+              "informado_nombre",
+              "decidido_nombre"
+            ],
+            "properties": {
+              "articulo_nombre": {
+                "type": "string"
+              },
+              "articulo_codigo": {
+                "type": "string"
+              },
+              "informado_nombre": {
+                "type": "string"
+              },
+              "decidido_nombre": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "DetalleFinanzas": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MermaFinanzas"
+          },
+          {
+            "required": [
+              "historial"
+            ]
+          }
+        ]
+      },
+      "PaginaFinanzas": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results",
+          "resumen"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/MermaFinanzas"
+            }
+          },
+          "resumen": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pendientes",
+              "aprobadas",
+              "rechazadas",
+              "perdida_neta"
+            ],
+            "properties": {
+              "pendientes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "aprobadas": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rechazadas": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "perdida_neta": {
+                "type": "string",
+                "pattern": "^[0-9]+\\.[0-9]{2}$"
+              }
+            }
+          }
+        }
+      }
     },
     "responses": {
-      "Lista": {"description": "Paginada, scope y proyección por rol", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Pagina"}}}},
-      "Detalle": {"description": "Estado actual e historial inmutable", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
-      "Acto": {"description": "Creación o decisión, proyección por rol, replay original sin nuevos efectos", "headers": {"Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}, "Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Merma"}}}},
-      "Validacion": {"description": "Datos, body, ID, UUID, Decimal, texto o query inválidos", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "Sesion": {"description": "Sesión/actividad/credencial/bloqueo persistidos no operativos", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "Permiso": {"description": "Rol persistido no autorizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "NoEncontrado": {"description": "Recurso ajeno, inexistente o página inexistente", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "Metodo": {"description": "Método no publicado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "Conflicto": {"description": "Conflicto de estado/idempotencia, sin SQL ni valores económicos", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Conflicto"}}}}
+      "Lista": {
+        "description": "Paginada, scope y proyección por rol",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Pagina"
+            }
+          }
+        }
+      },
+      "Detalle": {
+        "description": "Estado actual e historial inmutable",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Detalle"
+            }
+          }
+        }
+      },
+      "Acto": {
+        "description": "Creación o decisión, proyección por rol, replay original sin nuevos efectos",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/Cache"
+          },
+          "Vary": {
+            "$ref": "#/components/headers/Vary"
+          },
+          "Idempotency-Replayed": {
+            "$ref": "#/components/headers/Replay"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Merma"
+            }
+          }
+        }
+      },
+      "Validacion": {
+        "description": "Datos, body, ID, UUID, Decimal, texto o query inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Sesion": {
+        "description": "Sesión/actividad/credencial/bloqueo persistidos no operativos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Permiso": {
+        "description": "Rol persistido no autorizado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoEncontrado": {
+        "description": "Recurso ajeno, inexistente o página inexistente",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Metodo": {
+        "description": "Método no publicado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflicto": {
+        "description": "Conflicto de estado/idempotencia, sin SQL ni valores económicos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Conflicto"
+            }
+          }
+        }
+      }
     }
   }
 }
