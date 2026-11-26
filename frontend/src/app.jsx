@@ -21,6 +21,8 @@ import Solicitudes from './pages/Solicitudes.jsx';
 import Mermas from './pages/Mermas.jsx';
 import Egresos from './pages/Egresos.jsx';
 import Chat from './pages/Chat.jsx';
+import Bodega from './pages/Bodega.jsx';
+import { modules as warehouseModules } from './bodega/domain.js';
 
 export default function App() {
   const { status, user } = useAuth();
@@ -30,7 +32,8 @@ export default function App() {
   }
   if (status !== 'authenticated' || !user) return <Login />;
 
-  const Page = mod === 'inventario' ? Inventario
+  const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
+  const Page = warehouse ? Bodega : mod === 'inventario' ? Inventario
     : mod === 'solicitudes' ? Solicitudes
       : mod === 'mermas' ? Mermas
         : mod === 'egresos' ? Egresos
@@ -43,5 +46,5 @@ export default function App() {
           : mod === 'reportes' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Reportes
             : mod === 'cobranzas' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Cobranzas
               : canRead(user.role, mod) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
-  return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
+  return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${warehouse?'bodega':mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
 }

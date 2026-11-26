@@ -10,12 +10,13 @@ export const useApp = () => useContext(Ctx);
 export function AppProvider({ children }) {
   const { user } = useAuth();
   const [selection, setSelection] = useState(null);
-  useEffect(() => { setSelection(null); }, [user?.id, user?.role]);
+  const [navigationBlocked,setNavigationBlocked]=useState(false);
+  useEffect(() => { setSelection(null); setNavigationBlocked(false); }, [user?.id, user?.role]);
   const role = user?.role;
   const allowed = NAV[role] || [];
   const mod = allowed.includes(selection) ? selection : DEFMOD[role];
   const go = (next) => {
-    if (user && allowed.includes(next)) setSelection(next);
+    if (user && !navigationBlocked && allowed.includes(next)) setSelection(next);
   };
-  return <Ctx.Provider value={{ role, mod, go }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ role, mod, go, navigationBlocked, setNavigationBlocked }}>{children}</Ctx.Provider>;
 }

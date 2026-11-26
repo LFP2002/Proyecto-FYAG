@@ -27,12 +27,16 @@ export const NAV = {
   SUPERVISOR_OBRAS: ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat'],
   TECNICO: ['obras', 'solicitudes', 'mermas', 'chat'],
   ADMINISTRADOR_TI: ['usuarios', 'auditoria', 'chat'],
-  BODEGUERO: ['inventario', 'mermas', 'chat']
+  BODEGUERO: ['bodega_resumen', 'inventario', 'bodega_movimientos', 'bodega_entregas', 'bodega_devoluciones', 'mermas', 'chat']
 };
 
-export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras', ADMINISTRADOR_TI: 'usuarios', BODEGUERO: 'inventario' }
+export const DEFMOD = { GERENCIA: 'dashboard', ADMINISTRATIVO_FINANZAS: 'presupuestos', SUPERVISOR_OBRAS: 'obras', TECNICO: 'obras', ADMINISTRADOR_TI: 'usuarios', BODEGUERO: 'bodega_resumen' }
 
 export const MODS = {
+  bodega_resumen: { label: 'Resumen de bodega' },
+  bodega_movimientos: { label: 'Movimientos' },
+  bodega_entregas: { label: 'Entregas' },
+  bodega_devoluciones: { label: 'Devoluciones' },
   dashboard: { label: 'Dashboard', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
   clientes: { label: 'Clientes', icon: 'M16 20v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1a4 4 0 0 0-3-3.9M15 4.2a3.5 3.5 0 0 1 0 6.6' },
   presupuestos: { label: 'Presupuestos', icon: 'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6' },
