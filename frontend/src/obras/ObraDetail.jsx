@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {useApp} from '../context/AppContext.jsx';
 import {SupervisorEmpty} from './SupervisorCostReview.jsx';
 import { useAuth } from '../auth/AuthContext';
@@ -18,6 +18,9 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
   const [obra, setObra] = useState(null), [tab, setTab] = useState(initialTab), [form, setForm] = useState(null), [errors, setErrors] = useState({});
   const [childLocked,setChildLocked]=useState(false);
+  const suspensionDialog=useRef(null);
+  const suspensionOpen=form?.type==='suspender';
+  useEffect(()=>{if(!suspensionOpen)return;const dialog=suspensionDialog.current;dialog?.showModal?.();return()=>{if(dialog?.open)dialog.close();};},[suspensionOpen]);
   const supervisor=user.role===S,app=useApp();
   useEffect(()=>{if(!supervisor)return;app?.setNavigationBlocked?.(api.busy||api.locked||childLocked);return()=>app?.setNavigationBlocked?.(false);},[supervisor,api.busy,api.locked,childLocked,app?.setNavigationBlocked]);
   const [members, setMembers] = useState(null), [memberPage, setMemberPage] = useState(1), [active, setActive] = useState('');
@@ -78,7 +81,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     const cambioResponsable = type === 'cambiar-tecnico' && payload.tecnico_responsable !== obra.tecnico_responsable;
     const avisoRelevo = cambioResponsable
       ? `¿Cambiar responsable en ${obra.codigo}?\n\n${obra.tecnico_responsable ? 'El responsable anterior dejará de ser participante activo de esta obra. ' : ''}${payload.tecnico_responsable ? 'El nuevo responsable quedará activo, incluso si fue desasignado anteriormente.' : 'La obra planificada quedará sin responsable.'}\n\n¿Deseas continuar?`
-      : `¿${actionLabels[type]} en ${obra.codigo}?`;
+      : type==='suspender'?`¿Estás seguro de suspender ${obra.codigo}?\n\nLa ejecución quedará suspendida y la decisión se registrará en el historial. Podrás reanudar la obra posteriormente. No se permite suspender con turnos abiertos.`:`¿${actionLabels[type]} en ${obra.codigo}?`;
     if (['desasignar', 'cambiar-tecnico', 'suspender'].includes(type) && !window.confirm(avisoRelevo)) return;
     await api.write(path, method, payload, afterWrite);
   }
@@ -95,7 +98,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     </>}
   </article>;
   return <article className={supervisor?'so-detail':'card-fyag commercial-detail'}>
-    {supervisor?<><div className="so-heading"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked||childLocked||!!form} onClick={onBack}><TecIcon name="back"/> Volver al listado</button><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading||childLocked||!!form&&!api.locked} onClick={()=>void api.reconcile(reconcile)} aria-label="Actualizar datos"><TecIcon name="refresh"/> {api.locked?'Reconsultar resultado':'Actualizar'}</button></div><header className="so-heading so-work-heading"><div><h1>{obra?.codigo||'Detalle de obra'}</h1>{obra&&<><h2>{obra.cliente_nombre}</h2><p className="commercial-help">{obra.categoria_nombre} · {obra.presupuesto_codigo}</p></>}</div>{obra&&<ObraStatus state={obra.estado}/>}</header></>:<div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>}
+    {supervisor?<><div className="so-heading"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked||childLocked||!!form} onClick={onBack}><TecIcon name="back"/> Volver al listado</button>{!['costos','gastos'].includes(tab)&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading||childLocked||!!form&&!api.locked} onClick={()=>void api.reconcile(reconcile)} aria-label="Actualizar datos"><TecIcon name="refresh"/> {api.locked?'Reconsultar resultado':'Actualizar'}</button>}</div><header className="so-heading so-work-heading"><div><h1>{obra?.codigo||'Detalle de obra'}</h1>{obra&&<><h2>{obra.cliente_nombre}</h2><p className="commercial-help">{obra.categoria_nombre} · {obra.presupuesto_codigo}</p></>}</div>{obra&&<ObraStatus state={obra.estado}/>}</header></>:<div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>}
     <Feedback api={api} />
     {obra && <>
       <nav className={supervisor?"so-tabs":"obras-tabs"} aria-label="Secciones de la obra">{tabs.map(([key, label]) => <button type="button" key={key} className={supervisor?undefined:`btn btn-sm ${tab === key ? 'btn-fyag-primary' : 'btn-outline-secondary'}`} aria-current={tab === key ? 'page' : undefined} aria-pressed={tab===key} disabled={api.busy || !!form || api.locked || childLocked} onClick={() => setTab(key)}>{supervisor?({resumen:'Resumen',tecnicos:'Equipo',costos:'Costos y cierre',documentos:'Documentación'})[key]||label:label}</button>)}</nav>
@@ -104,7 +107,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
         <p className="so-description">{obra.descripcion||'Sin descripción registrada.'}</p>
         <div className="so-summary-facts"><div><span><TecIcon name="calendar"/> Fecha programada</span><strong>{civilDate(obra.fecha_programada)}</strong></div><div><span><TecIcon name="person"/> Responsable principal</span><strong>{obra.tecnico_nombre||'Sin asignar'}</strong></div><div><span><TecIcon name="clock"/> Inicio efectivo</span><strong>{obra.iniciado_en?timestamp(obra.iniciado_en):'Sin iniciar'}</strong></div>{obra.finalizado_en&&<div><span>Finalización</span><strong>{timestamp(obra.finalizado_en)}</strong></div>}{obra.cancelado_en&&<div><span>Cancelación histórica</span><strong>{timestamp(obra.cancelado_en)}</strong></div>}</div>
         <dl className="so-facts"><div><dt>Presupuesto de origen</dt><dd>{obra.presupuesto_codigo}</dd></div><div><dt>Categoría</dt><dd>{obra.categoria_nombre}</dd></div><div><dt>Creación</dt><dd>{timestamp(obra.creado_en)} · Usuario #{obra.creado_por}</dd></div><div><dt>Última actualización</dt><dd>{timestamp(obra.actualizado_en)}</dd></div></dl>
-        {editable&&<div className="so-actions so-separated"><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('editar')}>Editar obra</button><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('cambiar-tecnico')}>Cambiar responsable</button>{operationFor(user.role,obra)&&<button type="button" className={'btn '+(operationFor(user.role,obra)==='suspender'?'btn-outline-secondary':'btn-fyag-primary')} disabled={disabled||!!form} onClick={()=>open(operationFor(user.role,obra))}>{actionLabels[operationFor(user.role,obra)]}</button>}</div>}
+        {editable&&<div className="so-actions so-separated"><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('editar')}>Editar obra</button><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('cambiar-tecnico')}>Cambiar responsable</button>{operationFor(user.role,obra)&&<button type="button" className={'btn '+(operationFor(user.role,obra)==='suspender'?'btn-outline-danger so-danger-action':'btn-outline-success so-positive-action')} disabled={disabled||!!form} onClick={()=>open(operationFor(user.role,obra))}>{actionLabels[operationFor(user.role,obra)]}</button>}</div>}
       </section>}
       {tab === 'resumen' && !supervisor && <>
         <dl className="commercial-facts">
@@ -135,7 +138,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
       {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} supervisorPresentation={supervisor}/>}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} compactActions={supervisor} obraCode={obra.codigo} onOperationalLock={supervisor?setChildLocked:undefined} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
       {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onTab={supervisor?setTab:undefined} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
-      {form && <form className={supervisor?"card-fyag so-panel commercial-form obras-action-form":"commercial-form obras-action-form"} noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
+      {form && (!supervisor||form.type!=='suspender') && <form className={supervisor?"card-fyag so-panel commercial-form obras-action-form":"commercial-form obras-action-form"} noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
         {form.type === 'editar' ? <ObraFields form={form.data} setForm={(data) => setForm({ ...form, data })} original={obra} errors={errors} disabled={api.busy || !editable} /> : <div className="obras-form-grid">
           {['cambiar-tecnico', 'asignar'].includes(form.type) && <PagedSelect name={form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable'} label={form.type === 'asignar' ? 'Técnico participante' : 'Nuevo responsable'} path={`${obraPath()}tecnicos-disponibles/`} value={form.type === 'asignar' ? form.data.tecnico : form.data.tecnico_responsable} selectedLabel={form.member?.tecnico_nombre} onChange={(value) => setForm({ ...form, data: { ...form.data, [form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']: value } })} disabled={api.busy || !editable} error={errors[form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']} />}
           <Field name="motivo" label="Motivo" type="textarea" value={form.data.motivo} onChange={(value) => setForm({ ...form, data: { ...form.data, motivo: value } })} disabled={api.busy || !editable} error={errors.motivo} required maxLength={2000} />
@@ -143,6 +146,16 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
         {!formAllowed && <p className="alert alert-warning">Los datos actuales ya no permiten esta acción. Cancela para continuar.</p>}
         <div className="commercial-form-actions"><button type="submit" className={`btn ${form.type === 'desasignar' ? 'btn-outline-danger' : 'btn-fyag-primary'}`} disabled={disabled || !formAllowed}>{api.busy ? 'Guardando…' : 'Guardar cambios'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy||api.locked} onClick={() => setForm(null)}>Cancelar</button></div>
       </form>}
+      {supervisor&&suspensionOpen&&<dialog ref={suspensionDialog} className="so-confirm-dialog" aria-labelledby="so-suspend-title" onCancel={event=>{event.preventDefault();if(!api.busy&&!api.locked)setForm(null);}}>
+        <form noValidate onSubmit={submit} className="so-suspend-form">
+          <div className="so-section-head"><h2 id="so-suspend-title">Suspender obra</h2></div>
+          <p className="so-warning"><TecIcon name="warning"/> La ejecución se detendrá temporalmente. Podrás reanudarla después; no se permite suspender con turnos abiertos.</p>
+          <Field name="motivo" label="Motivo de suspensión" type="textarea" value={form.data.motivo} onChange={value=>setForm({...form,data:{...form.data,motivo:value}})} disabled={disabled} error={errors.motivo} required maxLength={2000}/>
+          <Feedback api={api}/>
+          <div className="so-actions"><button type="button" className="btn btn-outline-secondary" disabled={api.busy||api.locked} onClick={()=>setForm(null)}>Cancelar</button>
+          {api.locked?<button type="button" className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={()=>void api.reconcile(async()=>{const ok=await reconcile();if(ok)setForm(null);return ok;})}>Reconsultar resultado</button>:<button type="submit" className="btn btn-outline-danger so-danger-action" disabled={disabled||!formAllowed||!form.data.motivo.trim()}>{api.busy?'Guardando…':'Guardar cambios'}</button>}</div>
+        </form>
+      </dialog>}
     </>}
   </article>;
 }
