@@ -67,38 +67,38 @@ test('Auditoría: draft actualiza fuentes, filtros válidos consultan, inválido
 test('Obras elegibles: AF pagina todo el selector y conserva la obra elegida de otra página',async()=>{
   const backend=financeBackend(),ui=await mount(FinanceAdmin,backend.request);
   try{
-    const root=ui.renderer.root;await click(root,'Registrar documento externo');assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/obras-elegibles/?page=1'));
+    const root=ui.renderer.root;await click(root,'Registrar factura');assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/obras-elegibles/?page=1'));
     await change(root,'Obra elegible para facturación','7');const nav=root.findByProps({'aria-label':'Paginación de obras elegibles'});await click(nav,'Siguiente');
     assert.equal(control(root,'Obra elegible para facturación').props.value,'7');assert.ok(control(root,'Obra elegible para facturación').findAllByType('option').some((o)=>o.props.value==='7'));
     assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/obras-elegibles/?page=2'));await change(root,'Obra elegible para facturación','32');await click(root.findByProps({'aria-label':'Paginación de obras elegibles'}),'Anterior');assert.equal(control(root,'Obra elegible para facturación').props.value,'32');
-    for(const [field,value] of Object.entries({'Folio externo exacto':'00088','Fecha de emisión':'2026-11-10','Fecha de vencimiento':'2026-11-20','Neto decimal':'100.00','Impuesto decimal':'0.00','Total decimal':'100.00','Referencia externa':'Respaldo sintético'}))await change(root,field,value);
+    for(const [field,value] of Object.entries({'Folio de factura':'00088','Fecha de emisión':'2026-11-10','Fecha de vencimiento':'2026-11-20','Monto neto (CLP)':'100.00','Impuesto (CLP)':'0.00','Monto total (CLP)':'100.00','Referencia del respaldo':'Respaldo sintético'}))await change(root,field,value);
     await submit(root,'Registro de documento externo');const created=backend.calls.find((c)=>c.method==='POST');assert.equal(created.body.obra,32);assert.equal(created.body.monto_total,'100.00');assert.equal(created.body.folio_externo,'00088');assert.match(text(ui.renderer.toJSON()),/relecturas confirmadas/);
   }finally{await ui.close();}
 });
 test('Finanzas: Gerencia consulta estado real, no elegibles ni escritura; otros roles no solicitan API',async()=>{
   for(const role of ['GERENCIA','SUPERVISOR_OBRAS','TECNICO','ADMINISTRADOR_TI']){
     const backend=financeBackend(),ui=await mount(FinanceAdmin,backend.request,role);
-    try{if(role==='GERENCIA'){await change(ui.renderer.root,'ID de Obra para consulta financiera','80');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');assert.match(text(ui.renderer.toJSON()),/PENDIENTE_REGISTRO_SIN_COBRO/);assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Confirmar cierre sin cobro'),false);assert.ok(backend.calls.every((c)=>!c.path.includes('obras-elegibles')&&c.method==='GET'));}else assert.equal(backend.calls.length,0);}finally{await ui.close();}
+    try{if(role==='GERENCIA'){await change(ui.renderer.root,'Código de obra','OB-000080');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');assert.match(text(ui.renderer.toJSON()),/Pendiente de cierre sin cobro/);assert.equal(ui.renderer.root.findAllByType('button').some((b)=>text(b)==='Confirmar cierre sin cobro'),false);assert.ok(backend.calls.every((c)=>!c.path.includes('obras-elegibles')&&c.method==='GET'));}else assert.equal(backend.calls.length,0);}finally{await ui.close();}
   }
 });
 test('Cierre sin cobro: consulta previa, motivo, confirmación, un POST y relecturas obligatorias',async()=>{
   const backend=financeBackend();let updated=0;const ui=await mount(FinanceAdmin,backend.request,'ADMINISTRATIVO_FINANZAS',{onChanged:async()=>{updated+=1;return true;}});
   try{
     const root=ui.renderer.root;assert.equal(root.findAllByProps({'aria-label':'Registro administrativo sin cobro'}).length,0);
-    await change(root,'ID de Obra para consulta financiera','80');await submit(root,'Consulta del estado financiero de una obra');await change(root,'Motivo de registro sin cobro',' Cierre autorizado ');
+    await change(root,'Código de obra','OB-000080');await submit(root,'Consulta del estado financiero de una obra');await change(root,'Motivo de registro sin cobro',' Cierre autorizado ');
     const form=root.findByProps({'aria-label':'Registro administrativo sin cobro'});globalThis.window.confirm=()=>false;await submit(root,'Registro administrativo sin cobro');assert.equal(backend.calls.some((c)=>c.method==='POST'),false);
     globalThis.window.confirm=()=>true;await act(async()=>{await Promise.all([form.props.onSubmit({preventDefault(){}}),form.props.onSubmit({preventDefault(){}})]);await flush();});
-    const calls=backend.calls.filter((c)=>c.method==='POST');assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/finanzas/obras/80/registrar-sin-cobro/');assert.deepEqual(calls[0].body,{motivo_registro:'Cierre autorizado'});assert.equal(updated,1);assert.match(text(ui.renderer.toJSON()),/SIN_COBRO/);assert.match(text(ui.renderer.toJSON()),/estado reconsultado/);
+    const calls=backend.calls.filter((c)=>c.method==='POST');assert.equal(calls.length,1);assert.equal(calls[0].path,'/api/finanzas/obras/80/registrar-sin-cobro/');assert.deepEqual(calls[0].body,{motivo_registro:'Cierre autorizado'});assert.equal(updated,1);assert.match(text(ui.renderer.toJSON()),/Sin cobro/);assert.match(text(ui.renderer.toJSON()),/estado reconsultado/);
   }finally{globalThis.window.confirm=()=>true;await ui.close();}
 });
 for(const status of [400,403,404,409,503])test(`Cierre sin cobro: error ${status} no se reintenta ni confirma éxito`,async()=>{
   const backend=financeBackend();backend.fail=(path,options)=>options.method==='POST'?new ApiError(status,`Error ${status}`):null;const ui=await mount(FinanceAdmin,backend.request);
-  try{await change(ui.renderer.root,'ID de Obra para consulta financiera','80');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');await change(ui.renderer.root,'Motivo de registro sin cobro','Motivo');await submit(ui.renderer.root,'Registro administrativo sin cobro');assert.equal(backend.calls.filter((c)=>c.method==='POST').length,1);assert.doesNotMatch(text(ui.renderer.toJSON()),/registrado y estado reconsultado/);}finally{await ui.close();}
+  try{await change(ui.renderer.root,'Código de obra','OB-000080');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');await change(ui.renderer.root,'Motivo de registro sin cobro','Motivo');await submit(ui.renderer.root,'Registro administrativo sin cobro');assert.equal(backend.calls.filter((c)=>c.method==='POST').length,1);assert.doesNotMatch(text(ui.renderer.toJSON()),/registrado y estado reconsultado/);}finally{await ui.close();}
 });
 test('Cierre sin cobro no se ofrece sin finalización, sin cortesía o con documento vigente',async()=>{
   for(const scenario of ['no-finalizada','sin-cortesia','documentado']){
     const backend=financeBackend();if(scenario==='no-finalizada')backend.financial.origen.finalizado_en=null;if(scenario==='sin-cortesia'){backend.financial.origen.cortesia=null;backend.financial.estado_financiero='PENDIENTE_FACTURACION';}if(scenario==='documentado'){backend.financial={origen:origin(80),estado_financiero:'DOCUMENTADO',documento_vigente:doc(11,80),cierre_sin_cobro:null};}
-    const ui=await mount(FinanceAdmin,backend.request);try{await change(ui.renderer.root,'ID de Obra para consulta financiera','80');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');assert.equal(ui.renderer.root.findAllByProps({'aria-label':'Registro administrativo sin cobro'}).length,0);}finally{await ui.close();}
+    const ui=await mount(FinanceAdmin,backend.request);try{await change(ui.renderer.root,'Código de obra','OB-000080');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');assert.equal(ui.renderer.root.findAllByProps({'aria-label':'Registro administrativo sin cobro'}).length,0);}finally{await ui.close();}
   }
 });
 
@@ -107,11 +107,11 @@ test('Sin cobro confirmado con relectura fallida conserva motivo y no habilita o
   backend.fail=(path)=>path.endsWith('/estado-financiero/')&&backend.financial.estado_financiero==='SIN_COBRO'?new ApiError(503,'Lectura no disponible'):null;
   const ui=await mount(FinanceAdmin,backend.request);
   try {
-    await change(ui.renderer.root,'ID de Obra para consulta financiera','80');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');
+    await change(ui.renderer.root,'Código de obra','OB-000080');await submit(ui.renderer.root,'Consulta del estado financiero de una obra');
     await change(ui.renderer.root,'Motivo de registro sin cobro','Motivo conservado');await submit(ui.renderer.root,'Registro administrativo sin cobro');
     assert.match(text(ui.renderer.toJSON()),/Escritura bloqueada/);assert.doesNotMatch(text(ui.renderer.toJSON()),/registrado y estado reconsultado/);
-    backend.fail=null;await click(ui.renderer.root,'Actualizar documentos y estado');
-    assert.match(text(ui.renderer.toJSON()),/SIN_COBRO/);assert.equal(backend.calls.filter((c)=>c.method==='POST').length,1);
+    backend.fail=null;await click(ui.renderer.root,'Actualizar');
+    assert.match(text(ui.renderer.toJSON()),/Sin cobro/);assert.equal(backend.calls.filter((c)=>c.method==='POST').length,1);
   } finally {await ui.close();}
 });
 
@@ -124,7 +124,7 @@ test('Documento: tres paginaciones independientes y reset completo al cambiar de
     await ui.update({document:doc(12),onClose(){}});assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/documentos/12/pagos/?page=1'));assert.match(text(root.findByProps({'aria-label':'Paginación: Historial del documento'})),/Página 1/);
   }finally{await ui.close();}
 });
-async function paymentForm(root){for(const [label,value] of Object.entries({'Monto decimal':'25.00','Fecha de pago':'2026-11-11','Referencia externa del pago':'Comprobante sintético','Observación del pago':'Observación sintética'}))await change(root,label,value);}
+async function paymentForm(root){if(!root.findAllByProps({'aria-label':'Registro de pago informado'}).length)await click(root,'Registrar pago');for(const [label,value] of Object.entries({'Monto recibido (CLP)':'25.00','Fecha de pago':'2026-11-11','Referencia del pago':'Comprobante sintético','Observaciones':'Observación sintética'}))await change(root,label,value);}
 test('Pago incierto conserva clave y payload inmutables; reintento explícito no duplica y notifica al padre',async()=>{
   const backend=financeBackend();backend.lostPayment=true;let updated=0;const ui=await mount(FinanceDocument,backend.request,'ADMINISTRATIVO_FINANZAS',{document:doc(),onClose(){},onChanged:async()=>{updated+=1;return true;}});
   try{
@@ -135,18 +135,18 @@ test('Pago incierto conserva clave y payload inmutables; reintento explícito no
 });
 test('Pago rechazado cambia de clave solamente después de descartar explícitamente la intención',async()=>{
   const backend=financeBackend();backend.fail=(path,opts)=>opts.method==='POST'?new ApiError(400,'Rechazo contractual'):null;const ui=await mount(FinanceDocument,backend.request,'ADMINISTRATIVO_FINANZAS',{document:doc(),onClose(){}});
-  try{await paymentForm(ui.renderer.root);await submit(ui.renderer.root,'Registro de pago informado');await click(ui.renderer.root,'Actualizar detalle financiero');assert.equal(control(ui.renderer.root,'Monto decimal').props.disabled,true);await click(ui.renderer.root,'Nueva intención tras rechazo');await change(ui.renderer.root,'Fecha de pago','2026-11-12');backend.fail=null;await submit(ui.renderer.root,'Registro de pago informado');const writes=backend.calls.filter((c)=>c.method==='POST');assert.notEqual(writes[0].headers['Idempotency-Key'],writes[1].headers['Idempotency-Key']);assert.equal(writes[1].body.fecha_pago,'2026-11-12');}finally{await ui.close();}
+  try{await paymentForm(ui.renderer.root);await submit(ui.renderer.root,'Registro de pago informado');await click(ui.renderer.root,'Actualizar');assert.equal(control(ui.renderer.root,'Monto recibido (CLP)').props.disabled,true);await click(ui.renderer.root,'Nueva intención tras rechazo');await change(ui.renderer.root,'Fecha de pago','2026-11-12');backend.fail=null;await submit(ui.renderer.root,'Registro de pago informado');const writes=backend.calls.filter((c)=>c.method==='POST');assert.notEqual(writes[0].headers['Idempotency-Key'],writes[1].headers['Idempotency-Key']);assert.equal(writes[1].body.fecha_pago,'2026-11-12');}finally{await ui.close();}
 });
 test('Documento: anulación y reversión reconsultan recursos y un callback fallido impide éxito/reenvío',async()=>{
   const backend=financeBackend();backend.payments=[payment(1)];let callbacks=0;const ui=await mount(FinanceDocument,backend.request,'ADMINISTRATIVO_FINANZAS',{document:doc(),onClose(){},onChanged:async()=>{callbacks+=1;return callbacks===1;}});
   try{
-    const root=ui.renderer.root;await change(root,'Motivo de reversión o anulación','Corrección');await change(root,'Referencia externa de rectificación o reversión','Comprobante');await click(root,'Anular pago #1');assert.equal(callbacks,1);assert.equal(backend.payments[0].activo,false);
-    await change(root,'Motivo de reversión o anulación','Rectificación');await change(root,'Referencia externa de rectificación o reversión','Nota externa');await click(root,'Revertir documento externo');assert.equal(callbacks,2);assert.doesNotMatch(text(ui.renderer.toJSON()),/Operación confirmada con relecturas/);assert.match(text(ui.renderer.toJSON()),/Falta confirmar el resultado/);assert.equal(backend.calls.filter((c)=>c.method==='POST').length,2);
+    const root=ui.renderer.root;await click(root,'Anular pago');await change(root,'Motivo de reversión o anulación','Corrección');await change(root,'Referencia externa de rectificación o reversión','Comprobante');await click(root,'Confirmar anulación');assert.equal(callbacks,1);assert.equal(backend.payments[0].activo,false);
+    await click(root,'Revertir factura');await change(root,'Motivo de reversión o anulación','Rectificación');await change(root,'Referencia externa de rectificación o reversión','Nota externa');await click(root,'Confirmar reversión');assert.equal(callbacks,2);assert.doesNotMatch(text(ui.renderer.toJSON()),/Operación confirmada con relecturas/);assert.match(text(ui.renderer.toJSON()),/Falta confirmar el resultado/);assert.equal(backend.calls.filter((c)=>c.method==='POST').length,2);
   }finally{await ui.close();}
 });
 test('Cobranzas recibe callbacks de pago y actualiza lista administrativa, cartera y resumen',async()=>{
   const backend=financeBackend(),ui=await mount(Cobranzas,backend.request);
-  try{const root=ui.renderer.root;await click(root,'Documentos y pagos');await click(root,'Consultar / administrar');await paymentForm(root);const before=backend.calls.length;await submit(root,'Registro de pago informado');const reads=backend.calls.slice(before).filter((c)=>c.method==='GET');for(const prefix of ['/api/finanzas/documentos/?','/api/finanzas/cobranzas/','/api/finanzas/cobranzas/resumen/'])assert.ok(reads.some((c)=>c.path.startsWith(prefix)),prefix);assert.match(text(root.findByProps({id:'cobranzas-cartera'})),/\$75/);}finally{await ui.close();}
+  try{const root=ui.renderer.root;await click(root.findByProps({id:'cobranzas-cartera'}),'Registrar pago');await paymentForm(root);const before=backend.calls.length;await submit(root,'Registro de pago informado');const reads=backend.calls.slice(before).filter((c)=>c.method==='GET');for(const prefix of ['/api/finanzas/documentos/?','/api/finanzas/cobranzas/','/api/finanzas/cobranzas/resumen/'])assert.ok(reads.some((c)=>c.path.startsWith(prefix)),prefix);assert.match(text(root.findByProps({id:'cobranzas-cartera'})),/\$75/);}finally{await ui.close();}
 });
 
 test('Factura revertida: Gerencia y Finanzas consultan respaldos históricos sin permitir cargas ni PATCH',async()=>{
@@ -252,22 +252,19 @@ test('Cobranzas: pestañas conservan consultas y filtros solo se aplican al conf
     assert.equal(root.findByProps({id:'cobranzas-cartera'}).props.hidden,false);
     assert.equal(root.findByProps({id:'cobranzas-documentos'}).props.hidden,true);
     await click(root,'Documentos y pagos');
-    await change(root,'ID de Obra para consulta financiera','80');
+    await change(root,'Código de obra','OB-000080');
     await click(root,'Cobranzas vigentes');await click(root,'Documentos y pagos');
-    assert.equal(control(root,'ID de Obra para consulta financiera').props.value,'80');
+    assert.equal(control(root,'Código de obra').props.value,'OB-000080');
     await click(root,'Cobranzas vigentes');await click(root,'Filtros');
     const before=backend.calls.length;
-    await change(root,'ID de cliente','0');
-    assert.equal(button(root,'Aplicar filtros').props.disabled,true);
-    await change(root,'ID de cliente','9');
+    await change(root,'Buscar factura','Cliente sintético');
     assert.equal(backend.calls.length,before);
     await submit(root,'Filtros de cobranzas');
-    assert.ok(backend.calls.slice(before).some(c=>c.path.startsWith('/api/finanzas/cobranzas/')&&c.path.includes('cliente=9')));
-    assert.equal(root.findByProps({id:'cobranzas-filtros'}).props.hidden,true);
-    await click(root,'Filtros (1)');await click(root,'Limpiar');
-    assert.equal(control(root,'ID de cliente').props.value,'');
-    await submit(root,'Filtros de cobranzas');
-    assert.equal(root.findByProps({id:'cobranzas-filtros'}).props.hidden,true);
+    for(const prefix of ['/api/finanzas/cobranzas/?','/api/finanzas/cobranzas/resumen/?'])assert.ok(backend.calls.slice(before).some(c=>c.path.startsWith(prefix)&&new URL(c.path,'http://localhost').searchParams.get('buscar')==='Cliente sintético'));
+    assert.equal(root.findByProps({id:'cobranzas-filtros-avanzados'}).props.hidden,true);
+    await click(root,'Limpiar filtros');
+    assert.equal(control(root,'Buscar factura').props.value,'');
+    assert.equal(root.findByProps({id:'cobranzas-filtros-avanzados'}).props.hidden,true);
   }finally{await ui.close();}
 });
 
