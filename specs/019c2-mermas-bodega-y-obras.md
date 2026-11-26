@@ -135,3 +135,10 @@ La aprobación de este documento autoriza exclusivamente preparar implementació
 - `frontend/src/pages/Mermas.jsx` expone la presentación por ámbito y conserva la matriz del contrato: Bodeguero informa mermas de Bodega; Técnico informa mermas de Obra; Administrativo/Finanzas decide Bodega y Supervisor de Obras decide Obra. El Técnico no recibe campos monetarios.
 - La vista mapea códigos API a etiquetas en español solo para presentar, mantiene payloads con códigos originales y ofrece filtros, formulario, detalle, historial y paginación. Se añadió `frontend/src/styles/pages/mermas.css`, enlazado desde `main.jsx`.
 - Test de contrato existente `tests/inventory-actions.test.js` comprueba scope, paginación y ocultación de importes a Técnico. Estado local de frontend; no implica cambios backend, CI completa, merge ni despliegue.
+
+## Vista operativa de Finanzas — 26-11-2026
+
+- GET de mermas-bodega (listado y detalle) admite vista=finanzas exclusivamente AF. Sin el parámetro, contratos y roles anteriores intactos. En listado, buscar por nombre/código (máximo 150 caracteres), filtros originales, orden reciente primero y 25 por página. Incluye identidad y nombres actuales de responsables (no instantáneas históricas) sin reemplazar IDs de auditoría.
+- Resumen global de Bodega: pendientes, aprobadas, rechazadas y pérdida neta acumulada (sumatoria de importes históricos por merma aprobada, redondeados según el dominio). No incluye pendientes/rechazadas ni representa pagos. Los agregados son lecturas del estado actual, no cierre contable.
+- Pantalla AF independiente a ancho completo, estados vacíos, filtros, revisión contextual y decisiones explícitas con motivo. POST original sin cambios; validación de stock, corte, artículo y valoración permanece en backend. La escritura no es automática; ante incertidumbre, congelar datos y UUID, reconsultar o repetir únicamente la misma solicitud. Confirmación por GET de detalle. No se muestran pérdidas estimadas como reales.
+- OpenAPI SPEC-019C-2-v1.json actualizado y pruebas dirigidas añadidas. Ejecución local y validación visual pendientes. Sin merge.
