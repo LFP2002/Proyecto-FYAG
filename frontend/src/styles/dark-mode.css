@@ -231,7 +231,11 @@
 :root[data-fyag-theme='dark'] .app-root :where(.detalle-aviso,.detalle-cambios > div) { border:1px solid #53677d; }
 :root[data-fyag-theme='dark'] .app-root :where(.auditoria-empty,.auditoria-page .table-responsive,.auditoria-page .commercial-pager) { color:#e2ecf7; background-color:#1b2633 !important; border-color:#53677d !important; }
 :root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-grid .form-label,details[open] > p) { color:#e2ecf7 !important; }
+:root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-form) { color:#e6edf5 !important; background-color:#1b2633 !important; border-color:#53677d !important; }
+:root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-group legend,.auditoria-page .auditoria-grid .form-label) { color:#e2ecf7 !important; }
+:root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-grid .form-control,.auditoria-page .auditoria-grid .form-select) { color:#f0f5fb !important; background-color:#111c28 !important; border-color:#6b7f94 !important; }
 :root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-actions .btn-outline-secondary) { color:#dce8f5 !important; background-color:#243243 !important; border-color:#71849a !important; }
+:root[data-fyag-theme='dark'] .app-root :where(.auditoria-page .auditoria-actions .btn-outline-secondary:hover) { background-color:#30445b !important; }
 :root[data-fyag-theme='dark'] .app-root :where(.inventory-attention-icon,.inventory-attention-icon.stock) { filter:brightness(.82) saturate(1.12); }
 
 /* Inventario gerencial: atención y resumen de mermas sin paneles claros en modo oscuro. */

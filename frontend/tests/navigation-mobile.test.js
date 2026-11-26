@@ -183,6 +183,10 @@ test('tema oscuro global sobrescribe superficies blancas de todas las páginas y
   assert.match(css,/\.usuarios-matriz \.trow:not\(\.thead\):nth-child\(odd\)[^}]*background-color:#243243 !important/s);
   assert.match(css,/\.usuarios-pill\[data-tone='ti'\][^}]*color:#c8e0ff !important/s);
   assert.match(css,/\.auditoria-empty[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.auditoria-page \.auditoria-form[^}]*background-color:#1b2633 !important/s);
+  assert.match(css,/\.auditoria-page \.auditoria-group legend[^}]*color:#e2ecf7 !important/s);
+  assert.match(css,/\.auditoria-page \.auditoria-grid \.form-control[^}]*background-color:#111c28 !important/s);
+  assert.match(css,/\.auditoria-page \.auditoria-actions \.btn-outline-secondary:hover[^}]*background-color:#30445b !important/s);
   assert.match(css,/\.commercial-toolbar,.commercial-period,.mermas-filters[^}]*background-color:#1b2633 !important/s);
   assert.match(css,/\.mermas-filters label[^}]*color:#e2ecf7 !important/s);
   assert.match(css,/\.mermas-filters \.form-control,.mermas-filters \.form-select[^}]*background-color:#111c28 !important/s);
