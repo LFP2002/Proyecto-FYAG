@@ -20,6 +20,11 @@ function validPhotos(files, existing = 0) {
   return '';
 }
 
+// Accept whole pesos or a fractional amount with comma or dot; retain exact API precision.
+export function normalizeHourlyCost(value) {
+  const match=String(value??'').trim().match(/^(\d{1,13})(?:[,.](\d{1,2}))?$/);
+  return match ? match[1]+'.'+(match[2]||'').padEnd(2,'0') : null;
+}
 export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
   const [form, setForm] = useState({ descripcion_trabajo: '', decision: 'VALIDAR', motivo: '', costo_hora_neto: item?.costo_hora_neto || '', duracion_ajustada_segundos: item?.duracion_ajustada_segundos ?? '', fotos: [] });
   const [validation, setValidation] = useState('');
@@ -32,8 +37,9 @@ export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
     if (['finalizar', 'cerrar'].includes(mode) && !form.descripcion_trabajo.trim()) errors.descripcion_trabajo = 'Campo obligatorio';
     if (['revisar', 'corregir', 'cerrar'].includes(mode) && !form.motivo.trim()) errors.motivo = 'Campo obligatorio';
     if (mode === 'subsanar' && !form.descripcion_trabajo.trim() && !form.fotos.length) errors.descripcion_trabajo = 'Agrega una aclaración o fotografías.';
-    if (mode === 'revisar' && form.decision === 'VALIDAR' && !/^\d{1,13}\.\d{2}$/.test(form.costo_hora_neto)) errors.costo_hora_neto = 'Ingresa la tarifa como decimal con dos cifras, por ejemplo 8000.00.';
-    if (form.duracion_ajustada_segundos !== '' && (!validId(form.duracion_ajustada_segundos))) errors.duracion_ajustada_segundos = 'Ingresa un entero positivo.';
+    const hourlyCost=normalizeHourlyCost(form.costo_hora_neto);
+    if (((mode === 'revisar' && form.decision === 'VALIDAR') || (mode === 'corregir' && form.costo_hora_neto !== '')) && hourlyCost === null) errors.costo_hora_neto = 'Ingresa un costo por hora válido, sin separadores de miles. Por ejemplo: 18500 o 18500,50.';
+    if (form.duracion_ajustada_segundos !== '' && (!validId(form.duracion_ajustada_segundos))) errors.duracion_ajustada_segundos = 'Ingresa una duración mayor que cero, en segundos completos.';
     if (Object.keys(errors).length) { setValidation(Object.values(errors).join(' ')); return; }
     setValidation('');
     let action = mode, body = {};
@@ -46,10 +52,10 @@ export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
       } else if (form.descripcion_trabajo.trim()) body = { descripcion_trabajo: form.descripcion_trabajo.trim() };
     } else if (mode === 'revisar') {
       action = `${item.turno_id}/revisar/`;
-      body = { decision: form.decision, motivo: form.motivo.trim(), ...(form.decision === 'VALIDAR' ? { costo_hora_neto: form.costo_hora_neto } : {}) };
+      body = { decision: form.decision, motivo: form.motivo.trim(), ...(form.decision === 'VALIDAR' ? { costo_hora_neto: hourlyCost } : {}) };
     } else if (mode === 'corregir') {
       action = `${item.turno_id}/corregir/`;
-      body = { motivo: form.motivo.trim(), ...(form.duracion_ajustada_segundos !== '' ? { duracion_ajustada_segundos: Number(form.duracion_ajustada_segundos) } : {}), ...(form.costo_hora_neto ? { costo_hora_neto: form.costo_hora_neto } : {}) };
+      body = { motivo: form.motivo.trim(), ...(form.duracion_ajustada_segundos !== '' ? { duracion_ajustada_segundos: Number(form.duracion_ajustada_segundos) } : {}), ...(form.costo_hora_neto ? { costo_hora_neto: hourlyCost } : {}) };
     } else if (mode === 'cerrar') {
       action = `${item.turno_id}/cerrar-administrativamente/`;
       body = { motivo: form.motivo.trim(), descripcion_trabajo: form.descripcion_trabajo.trim(), ...(form.duracion_ajustada_segundos !== '' ? { duracion_ajustada_segundos: Number(form.duracion_ajustada_segundos) } : {}) };
@@ -64,7 +70,8 @@ export function TurnoEditor({ obraId, item, mode, api, onCancel, onSaved }) {
     {['finalizar', 'subsanar', 'cerrar'].includes(mode) && <Field name="descripcion_trabajo" label="Descripción del trabajo" type="textarea" value={form.descripcion_trabajo} onChange={(v) => set('descripcion_trabajo', v)} disabled={disabled} maxLength={2000} required={mode !== 'subsanar'} />}
     {['finalizar', 'subsanar'].includes(mode) && <div className="obras-field"><label className="form-label" htmlFor="turno-fotos">Fotografías (JPEG, PNG o WebP; máximo 5 por turno)</label><input id="turno-fotos" className="form-control" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={disabled} onChange={(e) => { const files = Array.from(e.target.files || []); const issue = validPhotos(files, item.fotos?.length || 0); setValidation(issue); set('fotos', issue ? [] : files); }} /></div>}
     {mode === 'revisar' && <Field name="decision" label="Decisión" options={[[ 'VALIDAR', 'Validar' ], [ 'OBSERVAR', 'Observar' ]]} value={form.decision} onChange={(v) => set('decision', v)} disabled={disabled} />}
-    {['revisar', 'corregir'].includes(mode) && <Field name="costo_hora_neto" label="Costo horario neto (string decimal)" value={form.costo_hora_neto} onChange={(v) => set('costo_hora_neto', v)} disabled={disabled || (mode === 'revisar' && form.decision !== 'VALIDAR')} />}
+    {['revisar', 'corregir'].includes(mode) && <Field name="costo_hora_neto" label="Costo por hora de trabajo (CLP, neto)" value={form.costo_hora_neto} onChange={(v) => set('costo_hora_neto', v)} disabled={disabled || (mode === 'revisar' && form.decision !== 'VALIDAR')} />}
+    {['revisar','corregir'].includes(mode)&& (mode!=='revisar'||form.decision==='VALIDAR') && <p className="commercial-help">Ingresa el valor de una hora de trabajo, sin puntos de miles. Ejemplo: 18500 para $18.500.</p>}
     {['cerrar', 'corregir'].includes(mode) && <Field name="duracion_ajustada_segundos" label="Duración ajustada (segundos, opcional)" value={form.duracion_ajustada_segundos} onChange={(v) => set('duracion_ajustada_segundos', v)} disabled={disabled} />}
     {['revisar', 'corregir', 'cerrar'].includes(mode) && <Field name="motivo" label="Motivo" type="textarea" value={form.motivo} onChange={(v) => set('motivo', v)} disabled={disabled} maxLength={2000} required />}
     {validation && <p className="invalid-feedback d-block" role="alert">{validation}</p>}
