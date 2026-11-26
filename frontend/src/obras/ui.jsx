@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Chip } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { collectionPath, readPage } from './api.js';
+import TecIcon from './TecIcon.jsx';
+import { formatCivilDate } from '../utils/format.js';
 import { OBRA_STATES, timestamp } from './domain.js';
 export { Pager };
 export const useOperational = useCommercial;
@@ -69,7 +71,29 @@ export function PagedSelect({ name, label, path, value, onChange, disabled, acti
   </div>;
 }
 const eventKeys = { estado: 'Estado', categoria_servicio: 'Categoría (ID)', presupuesto: 'Presupuesto (ID)', descripcion: 'Descripción', tecnico_responsable: 'Responsable (ID)', fecha_programada: 'Fecha programada', iniciado_en: 'Inicio', finalizado_en: 'Finalización', nombre: 'Nombre', activo: 'Activo', tecnico: 'Técnico (ID)', asignado_por: 'Asignado por', asignado_en: 'Asignación', motivo_asignacion: 'Motivo de asignación', desasignado_por: 'Desasignado por', desasignado_en: 'Desasignación', motivo_desasignacion: 'Motivo de desasignación', origen_registro: 'Origen' };
-export function EventList({ data, title }) {
+const eventLabels={CREACION:'Creación',EDICION:'Edición de ficha',CAMBIO_ESTADO:'Cambio de estado',CAMBIO_TECNICO:'Cambio de responsable',ASIGNACION:'Asignación de participante',DESASIGNACION:'Desasignación de participante',REACTIVACION:'Reactivación de participante',RENOMBRE:'Renombre de categoría',ACTIVACION:'Activación',DESACTIVACION:'Desactivación'};
+function eventValue(key,value){
+ if(value===null||value===undefined||value==='')return 'No registrado';
+ if(typeof value==='boolean')return value?'Sí':'No';
+ if(key==='estado')return OBRA_STATES[value]?.[0]||String(value);
+ if(key==='fecha_programada')return formatCivilDate(value);
+ if(['iniciado_en','finalizado_en','asignado_en','desasignado_en'].includes(key))return timestamp(value);
+ if(key==='origen_registro')return ({OPERACION:'Asignación operativa',MIGRACION_004B:'Registro histórico'})[value]||String(value);
+ return String(value);
+}
+export function EventList({ data, title, supervisor=false }) {
+  if(supervisor)return <section className="card-fyag so-panel so-event-panel"><h3>{title}</h3>
+    {data&&!data.results.length&&<div className="so-empty" role="status"><TecIcon name="inbox"/><strong>Sin eventos registrados</strong><p>Los cambios realizados en esta sección aparecerán aquí.</p></div>}
+    <ol className="commercial-timeline">{data?.results.map(event=>{
+      const before=event.datos_anteriores||{},after=event.datos_nuevos||{};
+      const entries=Object.entries(eventKeys).filter(([key])=>Object.hasOwn(before,key)||Object.hasOwn(after,key));
+      const changed=entries.filter(([key])=>JSON.stringify(before[key]??null)!==JSON.stringify(after[key]??null));
+      return <li key={event.id}><strong>{eventLabels[event.tipo]||event.tipo.replaceAll('_',' ')}{event.participante?' · Miembro #'+event.participante:''}</strong>
+      {event.estado_nuevo&&<div>{event.estado_anterior&&<><ObraStatus state={event.estado_anterior}/> → </>}<ObraStatus state={event.estado_nuevo}/></div>}
+      <p className="commercial-help">{timestamp(event.creado_en)} · Usuario #{event.registrado_por}</p>{event.motivo&&<p className="commercial-long-text">{event.motivo}</p>}
+      {entries.length>0&&<details className="so-history"><summary>{changed.length?changed.length+' campos modificados':'Valores registrados'} · Ver comparación</summary><dl className="obras-event-changes">{entries.map(([key,label])=><div key={key}><dt>{label}</dt><dd><span className="so-event-previous">{eventValue(key,before[key])}</span> → <span className="so-event-new">{eventValue(key,after[key])}</span></dd></div>)}</dl></details>}</li>;
+    })}</ol>
+  </section>;
   return <section className="commercial-history"><h3>{title}</h3>
     {data && !data.results.length && <p className="commercial-help">No hay eventos registrados.</p>}
     <ol className="commercial-timeline">{data?.results.map((event) => <li key={event.id}>
