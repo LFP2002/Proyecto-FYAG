@@ -1,9 +1,96 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { ROLES, ROLE_NOTE } from '../data/constants';
-import { PageHead, Table, Icon } from '../components/ui';
+import { PageHead, Table } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { canManageUsers, userPath, usersPath, historyPath, readUser, readUsers, readHistory } from '../usuarios/api.js';
+
+// Bootstrap Icons v1.13.1 (MIT), twbs/icons; SVG originales incorporados localmente.
+const tiIcons={
+  "back": [
+    {
+      "d": "M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8",
+      "rule": "evenodd"
+    }
+  ],
+  "refresh": [
+    {
+      "d": "M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z",
+      "rule": "evenodd"
+    },
+    {
+      "d": "M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"
+    }
+  ],
+  "plus": [
+    {
+      "d": "M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2",
+      "rule": "evenodd"
+    }
+  ],
+  "chevron": [
+    {
+      "d": "M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708",
+      "rule": "evenodd"
+    }
+  ],
+  "filter": [
+    {
+      "d": "M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"
+    }
+  ],
+  "search": [
+    {
+      "d": "M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"
+    }
+  ],
+  "person": [
+    {
+      "d": "M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"
+    }
+  ],
+  "check": [
+    {
+      "d": "M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m1.679-4.493-1.335 2.226a.75.75 0 0 1-1.174.144l-.774-.773a.5.5 0 0 1 .708-.708l.547.548 1.17-1.951a.5.5 0 1 1 .858.514M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4"
+    },
+    {
+      "d": "M8.256 14a4.5 4.5 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10q.39 0 .74.025c.226-.341.496-.65.804-.918Q8.844 9.002 8 9c-5 0-6 3-6 4s1 1 1 1z"
+    }
+  ],
+  "dash": [
+    {
+      "d": "M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M11 12h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1m0-7a3 3 0 1 1-6 0 3 3 0 0 1 6 0M8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4"
+    },
+    {
+      "d": "M8.256 14a4.5 4.5 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10q.39 0 .74.025c.226-.341.496-.65.804-.918Q8.844 9.002 8 9c-5 0-6 3-6 4s1 1 1 1z"
+    }
+  ],
+  "key": [
+    {
+      "d": "M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8m4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5"
+    },
+    {
+      "d": "M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0"
+    }
+  ],
+  "shield": [
+    {
+      "d": "M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .101.025 1 1 0 0 0 .1-.025q.114-.034.294-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56"
+    },
+    {
+      "d": "M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0"
+    }
+  ],
+  "info": [
+    {
+      "d": "M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"
+    },
+    {
+      "d": "m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"
+    }
+  ]
+};
+function TiIcon({name}){return <svg className="ti-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">{tiIcons[name].map((path,i)=><path key={i} fillRule={path.rule} d={path.d}/>)}</svg>;}
 
 const roles = Object.entries(ROLES).map(([key, value]) => [key, value.short]);
 const empty = { email: '', username: '', first_name: '', last_name: '', rol: 'TECNICO', motivo: '', nueva_clave: '', clave_actual: '' };
@@ -33,12 +120,12 @@ function Feedback({ api }) {
   </>;
 }
 
-function Field({ name, label, form, setForm, disabled, type = 'text', options, required = true }) {
+function Field({ name, label, form, setForm, disabled, type = 'text', options, required = true, placeholder }) {
   const props = { id: `usuario-${name}`, value: form[name], disabled, required,
     onChange: (event) => setForm((prev) => ({ ...prev, [name]: event.target.value })) };
   return <div><label className="form-label" htmlFor={props.id}>{label}</label>
     {options ? <select {...props} className="form-select">{options.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select>
-      : name==='motivo'?<textarea {...props} className="form-control" rows={3} maxLength={2000}/>: <input {...props} className="form-control" type={type} maxLength={['motivo'].includes(name) ? 2000 : type === 'password' ? 4096 : name === 'email' ? 254 : 150} autoComplete={type === 'password' ? name === 'clave_actual' ? 'current-password' : 'new-password' : 'off'} />}</div>;
+      : name==='motivo'?<textarea {...props} className="form-control" rows={3} maxLength={2000}/>: <input {...props} className="form-control" type={type} placeholder={placeholder} maxLength={['motivo'].includes(name) ? 2000 : type === 'password' ? 4096 : name === 'email' ? 254 : 150} autoComplete={type === 'password' ? name === 'clave_actual' ? 'current-password' : 'new-password' : 'off'} />}</div>;
 }
 
 function AccountForm({ mode, account, api, onSaved, onCancel }) {
@@ -88,9 +175,27 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
       });
     } finally { setForm((prev) => ({ ...prev, nueva_clave: '', clave_actual: '' })); }
   }
+  if(mode==='crear')return <form aria-label={titles[mode]} onSubmit={submit} className="ti-create-form">
+    <div className="ti-create-grid">
+      <section className="card-fyag ti-panel"><h2 className="ti-section-title"><TiIcon name="person"/>Información personal</h2>
+        <div className="ti-create-fields">
+          <Field name="first_name" label="Nombres" placeholder="Ej. Camila" required={false} {...{form,setForm}} disabled={busy}/>
+          <Field name="last_name" label="Apellidos" placeholder="Ej. Hernández" required={false} {...{form,setForm}} disabled={busy}/>
+          <Field name="username" label="Nombre de usuario" placeholder="Ej. chernandez" {...{form,setForm}} disabled={busy}/>
+          <Field name="email" label="Correo electrónico" placeholder="usuario@fyag.cl" type="email" {...{form,setForm}} disabled={busy}/>
+        </div>
+      </section>
+      <section className="card-fyag ti-panel"><h2 className="ti-section-title"><TiIcon name="shield"/>Rol y permisos</h2>
+        <Field name="rol" label="Rol asignado" options={roles} {...{form,setForm}} disabled={busy}/>
+        <div className="ti-role-description"><strong>Funciones del rol</strong><p>{ROLE_NOTE[form.rol]}</p></div>
+      </section>
+    </div>
+    <section className="card-fyag ti-panel ti-activation"><TiIcon name="info"/><div><h2>Activación de la cuenta</h2><p>La cuenta se creará inactiva. El servidor emitirá una credencial temporal de una sola exhibición. La activación se realiza posteriormente.</p></div></section>
+    <div className="ti-create-actions"><button className="btn btn-outline-secondary" type="button" disabled={api.busy||api.locked} onClick={onCancel}>Cancelar</button><button className="btn btn-fyag-primary ti-button" disabled={busy} type="submit"><TiIcon name="plus"/>Crear cuenta</button></div>
+  </form>;
   return <form aria-label={titles[mode]} onSubmit={submit} className={`card-fyag p-3 mb-3${mode === 'crear' ? ' usuario-crear-form' : ''}`}>
     <h2>{titles[mode]}</h2>
-    {mode==='crear'&&<p className="detalle-aviso">La cuenta se creará inactiva. El servidor emitirá una credencial temporal de una sola exhibición. La activación es independiente.</p>}
+    
     {['activar','desactivar','rol','clave'].includes(mode)&&<p className="detalle-aviso">{({activar:'Habilita la cuenta; se mantienen las reglas de primer acceso.',desactivar:'Impide el acceso y revoca las sesiones. El historial se conserva.',rol:'Cambia los permisos y revoca las sesiones existentes.',clave:'Emite una credencial temporal y revoca las sesiones existentes.'})[mode]} Cuenta: <strong>{nameOf(account)} ({account.username})</strong>.</p>}
     <div className="fgrid commercial-fields">
       {['crear', 'editar'].includes(mode) && <>
@@ -128,8 +233,8 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
   const own = user.id === id, disabled = api.busy || api.loading || api.locked;
   return <section className="commercial-page usuarios-page usuarios-detalle">
     <div className="usuarios-toolbar ti-detail-toolbar">
-      <button className="ti-back" disabled={api.busy||api.locked} onClick={()=>{setIssuedCredential(null);onHideTemporaryCredential?.();onBack();}}><Icon d="M19 12H5M12 5l-7 7 7 7"/>Volver a usuarios</button>
-      <button className="btn btn-outline-secondary" disabled={api.busy || api.loading} onClick={refresh}><Icon d="M20 11a8 8 0 1 1-2-5M20 4v7h-7"/>Actualizar</button>
+      <button className="ti-back" disabled={api.busy||api.locked} onClick={()=>{setIssuedCredential(null);onHideTemporaryCredential?.();onBack();}}><TiIcon name="back"/>Volver a usuarios</button>
+      <button className="btn btn-outline-secondary ti-button" disabled={api.busy || api.loading} onClick={refresh}><TiIcon name="refresh"/>Actualizar</button>
     </div>
     <Feedback api={api} />
     {account&&<>
@@ -171,17 +276,17 @@ function UsuariosTI() {
   function apply(e){e.preventDefault();setPage(1);setFilters({...draft,buscar:draft.buscar.trim()});setFilterOpen(false);}
   function clear(){const empty={rol:'',activo:'',buscar:''};setDraft(empty);setFilters(empty);setPage(1);}
   if(selected)return <Detail key={selected} id={selected} onBack={()=>{setTemporaryCredential(null);setSelected(null);}} temporaryCredential={temporaryCredential} onHideTemporaryCredential={()=>setTemporaryCredential(null)}/>;
-  if(creating)return <section className="commercial-page usuarios-page usuarios-lista"><div className="usuarios-toolbar ti-detail-toolbar"><button className="ti-back" disabled={api.busy||api.locked} onClick={()=>setCreating(false)}><Icon d="M19 12H5M12 5l-7 7 7 7"/>Volver a usuarios</button><button className="btn btn-outline-secondary" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}>Actualizar</button></div><PageHead title="Nueva cuenta" sub="Registra una cuenta y asigna su rol."/><Feedback api={api}/><AccountForm mode="crear" api={api} onCancel={()=>setCreating(false)} onSaved={async(account,credential)=>{if(credential)setTemporaryCredential({...credential,userId:account.id});setCreating(false);setSelected(account.id);}}/></section>;
+  if(creating)return <section className="commercial-page usuarios-page usuarios-lista"><div className="usuarios-toolbar ti-detail-toolbar"><button className="ti-back" disabled={api.busy||api.locked} onClick={()=>setCreating(false)}><TiIcon name="back"/>Volver a usuarios</button>{api.locked&&<button className="btn btn-outline-secondary ti-button" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><TiIcon name="refresh"/>Actualizar</button>}</div><PageHead title="Nueva cuenta" sub="Registra una cuenta y asigna su rol."/><Feedback api={api}/><AccountForm mode="crear" api={api} onCancel={()=>setCreating(false)} onSaved={async(account,credential)=>{if(credential)setTemporaryCredential({...credential,userId:account.id});setCreating(false);setSelected(account.id);}}/></section>;
   return <section className="commercial-page usuarios-page usuarios-lista">
-    <PageHead title="Usuarios y roles" sub="Administración de cuentas y accesos"><button className="btn btn-outline-secondary" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><Icon d="M20 11a8 8 0 1 1-2-5M20 4v7h-7"/>Actualizar</button><button className="btn btn-fyag-primary" disabled={disabled} onClick={()=>setCreating(true)}><Icon d="M12 5v14M5 12h14"/>Nueva cuenta</button></PageHead>
-    <div className="ti-kpis">{[['total','Total de cuentas'],['activas','Cuentas activas'],['inactivas','Cuentas inactivas'],['temporales','Cambio de clave pendiente']].map(([key,label])=><div key={key} className="card-fyag ti-kpi"><span>{label}</span><strong>{summary?summary[key].toLocaleString('es-CL'):'—'}</strong>{key==='temporales'&&<small>Incluye credenciales vencidas</small>}</div>)}</div>
+    <div className="ti-page-heading"><div><h1>Usuarios y roles</h1><p>Administración de cuentas y accesos</p></div><div className="ti-heading-actions"><button className="btn btn-outline-secondary ti-icon-button" aria-label="Actualizar" title="Actualizar" disabled={api.busy||api.loading} onClick={()=>api.reconcile(load)}><TiIcon name="refresh"/></button><button className="btn btn-fyag-primary ti-button" disabled={disabled} onClick={()=>setCreating(true)}><TiIcon name="plus"/>Nueva cuenta</button></div></div>
+    <div className="ti-kpis">{[['total','Total de cuentas','person'],['activas','Cuentas activas','check'],['inactivas','Cuentas inactivas','dash'],['temporales','Cambio de clave pendiente','key']].map(([key,label,icon])=><div key={key} className="card-fyag ti-kpi"><div className="ti-kpi-heading"><span>{label}</span><TiIcon name={icon}/></div><strong>{summary?summary[key].toLocaleString('es-CL'):'—'}</strong>{key==='temporales'&&<small>Incluye credenciales vencidas</small>}</div>)}</div>
     <Feedback api={api}/>
     {api.error?.status===404&&page>1&&<button className="btn btn-outline-secondary" onClick={()=>setPage(1)}>Primera página</button>}
-    <section className="card-fyag ti-panel"><div className="ti-head"><div><h2>Cuentas registradas</h2><small>{data?data.count+' cuentas coincidentes':'—'}</small></div><button type="button" className="btn btn-outline-secondary" aria-expanded={filterOpen} aria-controls="ti-filters" onClick={()=>setFilterOpen(x=>!x)}>Filtros</button></div>
-    <form className="ti-search" onSubmit={apply}><label htmlFor="ti-search" className="visually-hidden">Buscar usuarios</label><input id="ti-search" className="form-control" maxLength={150} placeholder="Buscar por nombre, alias o correo" value={draft.buscar} disabled={disabled} onChange={e=>setDraft(old=>({...old,buscar:e.target.value}))}/><button className="btn btn-fyag-primary" disabled={disabled}>Buscar</button></form>
+    <section className="card-fyag ti-panel"><div className="ti-head"><div><h2>Cuentas registradas</h2><small>{data?data.count+' cuentas coincidentes':'—'}</small></div><button type="button" className="btn btn-outline-secondary ti-button" aria-expanded={filterOpen} aria-controls="ti-filters" onClick={()=>setFilterOpen(x=>!x)}><TiIcon name="filter"/>Filtros</button></div>
+    <form className="ti-search" onSubmit={apply}><label htmlFor="ti-search" className="visually-hidden">Buscar usuarios</label><div className="ti-search-field"><TiIcon name="search"/><input id="ti-search" className="form-control" maxLength={150} placeholder="Buscar por nombre, alias o correo" value={draft.buscar} disabled={disabled} onChange={e=>setDraft(old=>({...old,buscar:e.target.value}))}/></div><button className="btn btn-outline-secondary" disabled={disabled}>Buscar</button></form>
     <form id="ti-filters" className="ti-filter-form" hidden={!filterOpen} onSubmit={apply}><label>Rol<select aria-label="Filtrar rol" className="form-select" value={draft.rol} disabled={disabled} onChange={e=>setDraft(old=>({...old,rol:e.target.value}))}><option value="">Todos</option>{roles.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label><label>Estado<select aria-label="Filtrar estado" className="form-select" value={draft.activo} disabled={disabled} onChange={e=>setDraft(old=>({...old,activo:e.target.value}))}><option value="">Todos</option><option value="true">Activas</option><option value="false">Inactivas</option></select></label><button className="btn btn-fyag-primary" disabled={disabled}>Aplicar filtros</button></form>
     {(filters.rol||filters.activo||filters.buscar)&&<div className="ti-head"><small>{[filters.buscar,ROLES[filters.rol]?.short,filters.activo==='true'?'Activas':filters.activo==='false'?'Inactivas':''].filter(Boolean).join(' · ')}</small><button className="btn btn-outline-secondary btn-sm" disabled={disabled} onClick={clear}>Limpiar filtros</button></div>}
-    {data?.results.length>0?<div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="850px" columns="minmax(0,1.4fr) minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,1fr) 100px" head={['Usuario','Correo','Rol','Estado','Detalle']}>{data.results.map(account=><div key={account.id} className="trow" role="row"><div role="cell" className="ti-person"><span className="usuarios-avatar ti-avatar-small" aria-hidden="true">{initials(account)}</span><div><strong>{nameOf(account)}</strong>{nameOf(account)!==account.username&&<small>{account.username}</small>}</div></div><div role="cell">{account.email}</div><div role="cell"><span className="usuarios-pill" data-tone={roleTone[account.rol]}>{ROLES[account.rol].short}</span></div><div role="cell"><span className="usuarios-state" data-active={String(account.is_active)}>{account.is_active?'Activa':'Inactiva'}</span>{account.estado_credencial&&account.estado_credencial!=='PERSONAL'&&<small className="ti-credential">{credentialLabel[account.estado_credencial]}</small>}</div><div role="cell" className="usuarios-detail"><button className="btn btn-link btn-sm" aria-label={'Ver cuenta #'+account.id} disabled={disabled} onClick={()=>setSelected(account.id)}>Ver cuenta <Icon d="M9 5l7 7-7 7"/></button></div></div>)}</Table></div>:data&&<p className="ti-empty">No hay cuentas para estos filtros.</p>}
+    {data?.results.length>0?<div className="usuarios-table-region" role="region" aria-label="Desplazamiento de cuentas de usuario" tabIndex={0}><Table label="Cuentas de usuario" min="780px" columns="minmax(0,1.3fr) minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,0.85fr) 64px" head={['Usuario','Correo','Rol','Estado','Detalle']}>{data.results.map(account=><div key={account.id} className="trow" role="row"><div role="cell" className="ti-person"><span className="usuarios-avatar ti-avatar-small" aria-hidden="true">{initials(account)}</span><div><strong>{nameOf(account)}</strong>{nameOf(account)!==account.username&&<small>{account.username}</small>}</div></div><div role="cell">{account.email}</div><div role="cell"><span className="usuarios-pill" data-tone={roleTone[account.rol]}>{ROLES[account.rol].short}</span></div><div role="cell"><span className="usuarios-state" data-active={String(account.is_active)}>{account.is_active?'Activa':'Inactiva'}</span>{account.estado_credencial&&account.estado_credencial!=='PERSONAL'&&<small className="ti-credential">{credentialLabel[account.estado_credencial]}</small>}</div><div role="cell" className="usuarios-detail"><button className="btn btn-link ti-row-open" aria-label={'Ver cuenta #'+account.id} title={'Ver cuenta de '+nameOf(account)} disabled={disabled} onClick={()=>setSelected(account.id)}><TiIcon name="chevron"/></button></div></div>)}</Table></div>:data&&<p className="ti-empty">No hay cuentas para estos filtros.</p>}
     {data&&(data.next||data.previous)&&<Pager {...{data,page,setPage}} disabled={disabled} label="Páginas de usuarios"/>}</section>
     <section className="card-fyag ti-panel"><div className="ti-head"><h2>Funciones de los roles</h2><button className="btn btn-outline-secondary" aria-expanded={matrixOpen} onClick={()=>setMatrixOpen(x=>!x)}>{matrixOpen?'Ocultar':'Ver roles'}</button></div>{matrixOpen&&<dl className="ti-role-list">{roles.map(([key,label])=><div key={key}><dt>{label}</dt><dd>{ROLE_NOTE[key]}</dd></div>)}</dl>}</section>
   </section>;

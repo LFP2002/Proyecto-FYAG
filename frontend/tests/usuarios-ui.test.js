@@ -92,6 +92,10 @@ test('Usuarios consulta, crea inactiva, edita, activa/desactiva, cambia rol y es
   const api = backend(), { renderer } = await mount(api.request);
   try {
     await click(renderer, 'Nueva cuenta');
+    assert.equal(renderer.root.findAllByProps({className:'ti-create-grid'}).length,1);
+    assert.equal(renderer.root.findAllByType('button').filter(b=>text(b)==='Actualizar'||b.props['aria-label']==='Actualizar').length,0);
+    assert.match(text(renderer.root),/Información personal/);
+    assert.match(text(renderer.root),/Funciones del rol/);
     await input(renderer, 'email', 'nueva@example.test'); await input(renderer, 'username', 'nueva');
     assert.equal(renderer.root.findAllByProps({ id: 'usuario-password' }).length, 0);
     await submit(renderer);
@@ -241,6 +245,9 @@ test('TI búsqueda remota, resumen global y credencial real sin estadísticas de
  const {renderer}=await mount(api.request);
  try{
   assert.match(text(renderer.root),/Camila Hernández/);
+  const detailButton=renderer.root.findByProps({'aria-label':'Ver cuenta #2'});
+  assert.equal(text(detailButton),'');
+  assert.equal(detailButton.findAllByType('svg').length,1);
   assert.match(text(renderer.root),/Primer cambio pendiente/);
   const before=api.calls.length;
   await act(async()=>renderer.root.findByProps({id:'ti-search'}).props.onChange({target:{value:'Camila Hernández'}}));
