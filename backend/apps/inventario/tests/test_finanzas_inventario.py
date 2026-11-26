@@ -62,4 +62,8 @@ class FinanzasInventarioTests(MaterialesBase, TestCase):
                   "?seccion=valoraciones&tipo=INGRESO", "?seccion=movimientos&desde=2026-11-01",
                   "?seccion=movimientos&desde=2026-11-30&hasta=2026-11-01"):
             self.assertEqual(self.client.get(URL + q).status_code, 400, q)
-        self.assertEqual(self.client.post(URL, {}, format="json").status_code, 405)
+        # DRF comprueba permisos antes de resolver el método HTTP.
+        # Finanzas no tiene permiso de escritura en la proyección de inventario.
+        self.assertEqual(self.client.post(URL, {}, format="json").status_code, 403)
+        self.assertFalse(MovimientoInventario.objects.exists())
+        self.assertFalse(OperacionMaterial.objects.exists())
