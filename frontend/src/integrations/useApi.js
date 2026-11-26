@@ -77,7 +77,9 @@ export function safePage(link, path, filters = null) {
           : path === '/api/reportes/cobranzas/'
             ? ['desde','hasta','cliente','estado']
             : path === '/api/finanzas/cobranzas/'
-            ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
+            ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta','buscar']
+             : ['/api/finanzas/documentos/','/api/finanzas/obras-elegibles/'].includes(path) ? ['buscar']
+             : path==='/api/finanzas/obras-resumen/' ? ['buscar','estado','situacion_financiera','cliente_nombre','categoria_nombre','responsable_nombre','fecha_programada_desde','fecha_programada_hasta','ordering']
              : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
              : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
@@ -119,6 +121,7 @@ export function safePage(link, path, filters = null) {
       const stock=(value('seccion')||'existencias')==='existencias',state=value('estado');
       if(!['existencias','mermas'].includes(value('seccion')||'existencias')||(value('buscar')||'').length>100||(value('filtro')&&!(stock?['sin_stock','pendiente']:['bodega','obra']).includes(value('filtro')))||(state&&!['APROBADA','PENDIENTE','RECHAZADA'].includes(state))||!datePair('desde','hasta')||(stock&&(state||value('desde')))||(!stock&&value('articulo'))||(value('articulo')&&!validId(value('articulo')))||(state==='PENDIENTE'&&value('desde')))throw new Error('invalid');
     }
+    if((value('buscar')||'').length>150 && ['/api/finanzas/cobranzas/','/api/finanzas/documentos/','/api/finanzas/obras-elegibles/','/api/finanzas/obras-resumen/'].includes(path))throw new Error('invalid');
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;
   } catch { throw new ApiError(502, 'El servidor devolvió una página no segura.'); }
