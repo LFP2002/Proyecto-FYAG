@@ -6,6 +6,7 @@ import { createServer } from 'vite';
 import { ApiError } from '../src/auth/client.js';
 import { AF, G, S, T } from '../src/obras/domain.js';
 import { obrasBackend } from './helpers/obras-backend.js';
+import {economicDifference} from '../src/obras/managerEconomy.js';
 let server, AuthProvider, AppProvider, App, Obras;
 before(async () => {
   server = await createServer({ configFile: false, esbuild: { jsx: 'automatic' }, server: { middlewareMode: true, ws: false, hmr: false }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } });
@@ -161,6 +162,8 @@ test('Gerencia tiene ficha propia, resume datos reales y carga información secu
     assert.equal(buttons(renderer,'Editar obra').length,0);
     await click(renderer,'Resumen económico');
     assert.match(text(renderer.root),/Costos pendientes de validación/);
+    assert.match(text(renderer.root),/Composición de costos netos/);
+    assert.match(text(renderer.root),/Desviación presupuestaria/);
     assert.equal(renderer.root.findAllByType('select').length,0);
     await click(renderer,'Actividad reciente');
     assert.match(text(renderer.root),/Obra creada/);
@@ -425,6 +428,16 @@ test('Panel gerencial: indicadores globales, prioridad y filtros remotos sin con
   try{
     assert.equal(b.calls.length,1);
     assert.match(text(renderer.root.findAllByType('article')[0]),/OB-26/);
+    assert.match(text(renderer.root.findAllByType('article')[0]),/Sobrecosto/);
+    assert.equal(renderer.root.findAllByProps({className:'portfolio-track'}).length,0);
+    assert.equal(renderer.root.findByProps({id:'manager-obra-filters'}).props.hidden,true);
+    await click(renderer,'Filtros');
+    const before=b.calls.length;
+    await act(async()=>{renderer.root.findByProps({id:'manager-obra-search'}).props.onChange({target:{value:'OB-26'}});await flush();});
+    assert.equal(b.calls.length,before);
+    await act(async()=>{renderer.root.findByProps({id:'manager-obra-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+    assert.match(b.calls.at(-1).path,/buscar=OB-26/);
+    await click(renderer,'Limpiar filtros');
     assert.match(text(renderer.root),/26 obras/);
     await click(renderer,'Requieren atención');
     assert.match(b.calls.at(-1).path,/atencion=requiere/);
@@ -438,4 +451,14 @@ test('Panel gerencial: indicadores globales, prioridad y filtros remotos sin con
     await click(renderer,'Actualizar datos');
     assert.equal(renderer.root.findAllByType('article').length,0);
   }finally{await unmount(renderer);}
+});
+
+test('Diferencias económicas gerenciales exactas, sin porcentajes ficticios ni redondeo monetario',()=>{
+  const over=economicDifference('600000.00','1023500.00');
+  assert.equal(over.value,'+$423.500');assert.equal(over.detail,'70,6 % sobre presupuesto');assert.equal(over.tone,'red');
+  assert.equal(economicDifference('580000.00','0.00').label,'Presupuesto restante');
+  assert.equal(economicDifference('100.25','0.12',true).value,'$100,13');
+  assert.equal(economicDifference('0.00','100.00').deviation,null);
+  assert.equal(economicDifference(null,'100.00'),null);
+  assert.equal(economicDifference('12345678901234567890.01','0.01').value,'$12.345.678.901.234.567.890');
 });

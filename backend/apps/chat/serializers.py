@@ -17,10 +17,18 @@ class FechaUTC(serializers.DateTimeField):
 class ConversacionSerializer(serializers.ModelSerializer):
     creado_en = FechaUTC(read_only=True)
     no_leidos = serializers.IntegerField(read_only=True, default=0)
+    ultimo_mensaje = serializers.SerializerMethodField()
+
+    def get_ultimo_mensaje(self, obj):
+        if getattr(obj, 'preview_id', None) is None:
+            return None
+        return {'id': obj.preview_id, 'autor': obj.preview_autor, 'texto': obj.preview_texto,
+                'creado_en': FechaUTC().to_representation(obj.preview_creado),
+                'vence_en': FechaUTC().to_representation(obj.preview_vence)}
 
     class Meta:
         model = ConversacionChat
-        fields = ['id', 'tipo', 'titulo', 'creador', 'creado_en', 'no_leidos']
+        fields = ['id', 'tipo', 'titulo', 'creador', 'creado_en', 'no_leidos', 'ultimo_mensaje']
         read_only_fields = fields
 
 

@@ -170,3 +170,7 @@ Rollback: retirar el include de `/api/auditoria/` o volver a la versión anterio
 9. Ejecutar la colección Postman revisada por ChatGPT/responsable y reportar Passed/Failed; las carreras de confirmación tardía se reproducen en TransactionTestCase, no mediante sleeps en Postman.
 
 La implementación solo será «integrada» después de revisión, CI y Postman aceptados y merge autorizado. No se realiza merge a main.
+
+## Actualización 1.1.0 — atribución laboral
+
+Este incremento reemplaza la regla de etiqueta exclusivamente TI descrita en la implementación original. Cada rol autorizado obtiene nombre laboral y alias del actor de sus eventos, sin abrir Usuarios ni cambiar POR_ROL. Las cuatro migraciones identidad_evento añaden columnas nulas y triggers en las ocho fuentes; no hay backfill. Los registros posteriores al despliegue capturan ambos datos en INSERT y protegen su inmutabilidad. Los anteriores utilizan el perfil vigente, con origen ACTUAL explícito. No se exponen los nuevos campos desde serializers de origen. GET conserva su límite SQL y sus joins acotados, sin consultas por fila. Rollback de aplicación: conservar migraciones siempre que sea posible; revertir esquema elimina los nuevos snapshots. Pruebas de migraciones, concurrencia y regresión local/CI pendientes; no se afirma ejecución. Ver anexo de SPEC-008 y OpenAPI 1.1.0.

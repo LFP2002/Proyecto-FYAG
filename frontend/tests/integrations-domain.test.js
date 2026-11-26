@@ -40,6 +40,7 @@ function apiFor(role, calls) {
     if (path === '/api/dashboard/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', moneda: 'CLP', periodo: { desde: '2026-06-01', hasta: '2026-11-14' }, operacion: { obras_por_estado_actual: { PLANIFICADA: 0, EN_PROCESO: 0, SUSPENDIDA: 0, FINALIZADA: 0, CANCELADA: 0 }, presupuestos_pendientes_gerencia_actual: 0, presupuestos_pendientes_finanzas_actual: 0, obras_finalizadas_periodo: 0 }, incidencias: { criticas_activas: 0, pendientes_por_area: { ADMINISTRATIVO_FINANZAS: 0, SUPERVISOR_OBRAS: 0 }, por_estado: { PENDIENTE: 0, ATENDIDA: 0, RESUELTA: 0 }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } }, rentabilidad_cerrada_periodo: { obras_con_cierre: 0, presupuesto_neto: '0.00', costo_real_neto: '0.00', margen_real_neto: '0.00' }, cobranza_actual: { documentos_vigentes: 0, monto_documentado_bruto: '0.00', abonado: '0.00', saldo: '0.00', saldo_vencido: '0.00' } };
     if (path.startsWith('/api/dashboard/serie-obras/')) { const months = Number(new URL(path, 'http://localhost').searchParams.get('meses') || 6); return { metrica: 'OBRAS_FINALIZADAS', zona_horaria: 'America/Santiago', puntos: Array.from({ length: months }, (_, i) => ({ mes: `2026-${String(i + 1).padStart(2, '0')}`, cantidad: 0 })) }; }
     if (path.startsWith('/api/dashboard/obras-activas/')) return { count: 0, next: null, previous: null, results: [] };
+    if (path === '/api/clientes/') return [{id:15,nombre_legal:'Packing Valle de Coihue SpA'},{id:16,nombre_legal:'Viña Senderos del Itata SpA'}];
     if (path === '/api/reportes/catalogo/') return { moneda: 'CLP', zona_horaria: 'America/Santiago', formatos: ['csv', 'xlsx', 'pdf'], reportes: (role === 'GERENCIA' ? ['obras', 'rentabilidad', 'cobranzas'] : ['cobranzas']).map((tipo) => ({ tipo, titulo: tipo, filtros: ['desde', 'hasta', 'cliente', ...(tipo === 'obras' ? ['estado', 'fecha_base'] : tipo === 'cobranzas' ? ['estado'] : [])], formatos: ['csv', 'xlsx', 'pdf'] })) };
     if (path.startsWith('/api/reportes/') && path.includes('/exportar/')) { const type=path.split('/')[3],format=new URL(path,'http://localhost').searchParams.get('formato'),mime={csv:'text/csv',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pdf:'application/pdf'}[format];return {blob:new Blob([`${type}-${format}`],{type:mime}),contentType:mime,contentDisposition:`attachment; filename="fyag-${type}-20261114-120000.${format}"`}; }
     if (path.startsWith('/api/reportes/')) { const tipo = path.split('/')[3]; return { count: 0, next: null, previous: null, results: [], totales: tipo === 'obras' ? { obras: 0, presupuesto_neto: '0.00' } : tipo === 'rentabilidad' ? { obras: 0, presupuesto_neto: '0.00', costo_real_neto: '0.00', margen_neto: '0.00' } : { documentos: 0, monto_documentado_bruto: '0.00', abonado: '0.00', saldo: '0.00', saldo_vencido: '0.00' }, periodo: { desde: '2026-11-01', hasta: '2026-11-14' }, moneda: 'CLP', fecha_corte: '2026-11-14T10:00:00-03:00' }; }
@@ -71,25 +72,27 @@ test('safePage acepta filtros paginados propios de cada endpoint y rechaza query
 test('Reportes exporta los tres formatos con filtros permitidos por tipo solamente', { timeout: 15000 }, async () => {
   const {renderer,calls}=await mount(Reportes,'GERENCIA');
   const oldCreate=URL.createObjectURL,oldRevoke=URL.revokeObjectURL;URL.createObjectURL=()=> 'blob:reporte';URL.revokeObjectURL=()=>{};
+  const field=async(id,value)=>{await act(async()=>{renderer.root.findByProps({id:'report-'+id}).props.onChange({target:{value}});await flush();});};
+  const apply=async()=>{await act(async()=>{renderer.root.findByProps({id:'report-filters'}).props.onSubmit({preventDefault(){}});await flush();});};
+  const exportAs=async format=>{await click(renderer,'Exportar reporte');await act(async()=>{renderer.root.findByProps({'aria-label':'Descargar '+format}).props.onClick();await flush();});return new URL(calls.filter(c=>c.path.includes('/exportar/')).at(-1).path,'http://localhost');};
   try{
-    const typeSelect=()=>renderer.root.findAllByType('select').find((el)=>el.findAllByType('option').some((op)=>op.props.value==='rentabilidad'));
-    const setDate=async(index,value)=>{const el=renderer.root.findAllByType('input').filter((item)=>item.props.type==='date')[index];assert.ok(el,`date input ${index} missing`);await act(async()=>{el.props.onChange({target:{value}});await flush();});};
-    await setDate(0,'2026-11-01');await setDate(1,'2026-11-14');
-    let selects=renderer.root.findAllByType('select');const base=selects.find((el)=>el.findAllByType('option').some((op)=>op.props.value==='FINALIZACION'));
-    await act(async()=>{base.props.onChange({target:{value:'FINALIZACION'}});await flush();});
-    selects=renderer.root.findAllByType('select');const state=selects.find((el)=>el.findAllByType('option').some((op)=>op.props.children==='FINALIZADA'));
-    assert.ok(state,'Obras estado selector missing');
-    await act(async()=>{state.props.onChange({target:{value:'FINALIZADA'}});await flush();});
-    const cliente=renderer.root.findAllByType('input').find((el)=>el.props.inputMode==='numeric');await act(async()=>{cliente.props.onChange({target:{value:'15'}});await flush();});
-    for(const format of ['CSV','XLSX','PDF']){await click(renderer,`Descargar ${format}`);const call=calls.filter((item)=>item.path.includes('/exportar/')).at(-1);const url=new URL(call.path,'http://localhost');assert.equal(url.pathname,'/api/reportes/obras/exportar/');assert.equal(url.searchParams.get('formato'),format.toLowerCase());assert.equal(url.searchParams.get('fecha_base'),'FINALIZACION');assert.equal(url.searchParams.get('estado'),'FINALIZADA');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('desde'),'2026-11-01');assert.equal(url.searchParams.has('page'),false);}
-    await act(async()=>{typeSelect().props.onChange({target:{value:'rentabilidad'}});await flush();});
-    const latestRent=calls.filter((item)=>item.path.startsWith('/api/reportes/rentabilidad/')&&!item.path.includes('/exportar/')).at(-1);
+    assert.equal(renderer.root.findByProps({id:'report-filters'}).props.hidden,true);
+    assert.ok(!calls.some(c=>c.path==='/api/clientes/'));
+    await click(renderer,'Filtros');
+    assert.equal(renderer.root.findByProps({id:'report-filters'}).props.hidden,false);
+    assert.ok(calls.some(c=>c.path==='/api/clientes/'));
+    assert.ok(renderer.root.findByProps({id:'report-cliente'}).findAllByType('option').some(o=>o.props.children==='Packing Valle de Coihue SpA'));
+    const before=calls.length;
+    await field('desde','2026-11-01');await field('hasta','2026-11-14');await field('fecha_base','FINALIZACION');await field('estado','FINALIZADA');await field('cliente','15');
+    assert.equal(calls.length,before);
+    await apply();
+    for(const format of ['CSV','XLSX','PDF']){const url=await exportAs(format);assert.equal(url.pathname,'/api/reportes/obras/exportar/');assert.equal(url.searchParams.get('formato'),format.toLowerCase());assert.equal(url.searchParams.get('fecha_base'),'FINALIZACION');assert.equal(url.searchParams.get('estado'),'FINALIZADA');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('desde'),'2026-11-01');assert.equal(url.searchParams.has('page'),false);}
+    await click(renderer,'Rentabilidad');
+    const latestRent=calls.filter(c=>c.path.startsWith('/api/reportes/rentabilidad/')&&!c.path.includes('/exportar/')).at(-1);
     assert.equal(latestRent.path,'/api/reportes/rentabilidad/?desde=2026-11-01&hasta=2026-11-14&cliente=15');
-    await click(renderer,'Descargar XLSX');let call=calls.filter((item)=>item.path.includes('/exportar/')).at(-1);let url=new URL(call.path,'http://localhost');assert.equal(url.pathname,'/api/reportes/rentabilidad/exportar/');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('desde'),'2026-11-01');assert.equal(url.searchParams.has('fecha_base'),false);assert.equal(url.searchParams.has('estado'),false);
-    await act(async()=>{typeSelect().props.onChange({target:{value:'cobranzas'}});await flush();});
-    const cobranzasState=renderer.root.findAllByType('select').find((el)=>el.findAllByType('option').some((op)=>op.props.children==='PAGADA'));assert.ok(cobranzasState);
-    await act(async()=>{cobranzasState.props.onChange({target:{value:'PAGADA'}});await flush();});
-    await click(renderer,'Descargar PDF');call=calls.filter((item)=>item.path.includes('/exportar/')).at(-1);url=new URL(call.path,'http://localhost');assert.equal(url.pathname,'/api/reportes/cobranzas/exportar/');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('estado'),'PAGADA');assert.equal(url.searchParams.has('fecha_base'),false);
+    let url=await exportAs('XLSX');assert.equal(url.pathname,'/api/reportes/rentabilidad/exportar/');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('desde'),'2026-11-01');assert.equal(url.searchParams.has('fecha_base'),false);assert.equal(url.searchParams.has('estado'),false);
+    await click(renderer,'Cobranzas');await click(renderer,'Filtros');await field('estado','PAGADA');await apply();
+    url=await exportAs('PDF');assert.equal(url.pathname,'/api/reportes/cobranzas/exportar/');assert.equal(url.searchParams.get('cliente'),'15');assert.equal(url.searchParams.get('estado'),'PAGADA');assert.equal(url.searchParams.has('fecha_base'),false);
   }finally{await act(async()=>renderer.unmount());URL.createObjectURL=oldCreate;URL.revokeObjectURL=oldRevoke;}
 });
 
@@ -153,25 +156,49 @@ test('cobranzas consulta cartera y resumen sin exponer acciones de mutación', {
   const { renderer, calls } = await mount(Cobranzas, 'ADMINISTRATIVO_FINANZAS');
   try { assert.ok(calls.some((c) => c.path.startsWith('/api/finanzas/cobranzas/'))); assert.ok(calls.some((c) => c.path.startsWith('/api/finanzas/cobranzas/resumen/'))); assert.doesNotMatch(text(renderer.toJSON()), /Nuevo pago|Anular|Facturado/); } finally { await act(async () => renderer.unmount()); }
 });
-test('Reportes limita filtros al tipo, limpia filtros obsoletos y descarta respuesta tardía al cambiar tipo', { timeout: 15000 }, async () => {
+test('Reportes limita filtros al tipo, valida antes de consultar y oculta paginación innecesaria', { timeout: 15000 }, async () => {
   const { renderer, calls } = await mount(Reportes, 'GERENCIA');
   try {
-    const selects=renderer.root.findAllByType('select');
-    const typeSelect=selects.find((element)=>element.findAllByType('option').some((option)=>option.props.value==='rentabilidad'));
-    const baseSelect=selects.find((element)=>element.findAllByType('option').some((option)=>option.props.value==='FINALIZACION'));
-    assert.ok(typeSelect);assert.ok(baseSelect);
-    await act(async()=>{baseSelect.props.onChange({target:{value:'FINALIZACION'}});await flush();});
-    assert.equal(calls.some((c)=>c.path.includes('/api/reportes/obras/')&&c.path.includes('fecha_base=FINALIZACION')),false,'no enviar filtro de finalización incompatible');
-    const stateSelect=renderer.root.findAllByType('select').find((element)=>element.findAllByType('option').some((option)=>option.children?.includes('FINALIZADA')));
-    assert.ok(stateSelect,'estado de obra selector missing');
-    await act(async()=>{stateSelect.props.onChange({target:{value:'FINALIZADA'}});await flush();});
-    assert.ok(calls.some((c)=>c.path==='/api/reportes/obras/?estado=FINALIZADA&fecha_base=FINALIZACION'));
-    await act(async()=>{typeSelect.props.onChange({target:{value:'rentabilidad'}});await flush();});
-    const latest=calls.filter((c)=>c.path.startsWith('/api/reportes/rentabilidad/')).at(-1);
+    await click(renderer,'Filtros');
+    const field=async(id,value)=>await act(async()=>{renderer.root.findByProps({id:'report-'+id}).props.onChange({target:{value}});await flush();});
+    const apply=async()=>await act(async()=>{renderer.root.findByProps({id:'report-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+    await field('fecha_base','FINALIZACION');await apply();
+    assert.equal(calls.some(c=>c.path.includes('/api/reportes/obras/')&&c.path.includes('fecha_base=FINALIZACION')),false);
+    assert.match(text(renderer.toJSON()),/Selecciona el estado Finalizada/);
+    await field('estado','FINALIZADA');await apply();
+    assert.ok(calls.some(c=>c.path==='/api/reportes/obras/?estado=FINALIZADA&fecha_base=FINALIZACION'));
+    await click(renderer,'Rentabilidad');
+    const latest=calls.filter(c=>c.path.startsWith('/api/reportes/rentabilidad/')).at(-1);
     assert.equal(latest.path,'/api/reportes/rentabilidad/');
-    assert.doesNotMatch(latest.path,/estado|fecha_base/);
-    assert.equal(renderer.root.findByProps({'aria-label':'Paginación del reporte rentabilidad'}).props['aria-label'],'Paginación del reporte rentabilidad');
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Paginación del reporte rentabilidad'}).length,0);
+    assert.match(text(renderer.toJSON()),/Sin importes para representar/);
+    assert.match(text(renderer.toJSON()),/Margen porcentual/);
+    await click(renderer,'Filtros');
+    assert.equal(renderer.root.findAllByProps({id:'report-estado'}).length,0);
+    assert.equal(renderer.root.findAllByProps({id:'report-fecha_base'}).length,0);
   } finally { await act(async()=>renderer.unmount()); }
+});
+
+test('Reportes gerenciales: filas legibles y cascada con margen negativo real',async()=>{
+  const calls=[],base=apiFor('GERENCIA',calls);
+  const session={status:'authenticated',user:{id:9,username:'gerencia',role:'GERENCIA'}};
+  const client={getSnapshot:()=>session,subscribe:()=>()=>{},restore:async()=>{},request:async(path,opts)=>{
+    const value=await base(path,opts);
+    if(!path.startsWith('/api/reportes/rentabilidad/'))return value;
+    return {...value,count:1,results:[{obra:8,codigo_obra:'OB-000008',cliente:15,cliente_nombre:'Packing Valle de Coihue SpA',finalizado_en:'2026-11-14T10:00:00-03:00',moneda:'CLP',presupuesto_neto:'1000.25',costo_real_neto:'1200.30',margen_neto:'-200.05',tiene_cortesia_sin_cobro:false}],totales:{obras:1,presupuesto_neto:'1000.25',costo_real_neto:'1200.30',margen_neto:'-200.05'}};
+  }};
+  let renderer;
+  try{
+    await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(Reportes)));await flush();});
+    await click(renderer,'Rentabilidad');
+    const body=text(renderer.toJSON());
+    assert.match(body,/OB-000008/);assert.match(body,/Packing Valle de Coihue/);
+    assert.match(body,/-\$200,05/);assert.match(body,/-20%/);assert.match(body,/14\/11\/2026/);
+    assert.doesNotMatch(body,/cliente_nombre|presupuesto_neto|2026-11-14T/);
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Cascada: presupuesto neto menos costos reales igual a margen neto'}).length,1);
+    assert.ok(renderer.root.findAllByType('rect').some(r=>r.props.fill==='#E34D59'&&r.props.height>0));
+    assert.equal(renderer.root.findAllByProps({'aria-label':'Paginación del reporte rentabilidad'}).length,0);
+  }finally{if(renderer)await act(async()=>renderer.unmount());}
 });
 
 test('reportes consulta catálogo autorizado y primer listado JSON', { timeout: 15000 }, async () => {

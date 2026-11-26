@@ -18,6 +18,7 @@ from apps.reportes import catalogo, services
 from apps.reportes.catalogo import COLUMNAS, MONETARIOS, TIPOS
 from apps.reportes.consistencia import ExportacionGrande, PresupuestoTiempo
 from apps.reportes.exportadores.comun import ArchivoLimitado, texto_csv
+from apps.reportes.exportadores.presentacion import clp, mostrar, columnas_detalle
 from apps.finanzas.models import DocumentoCobro
 from apps.obras.models import Obra
 from apps.comercial.models import Cliente, Presupuesto, PresupuestoItem
@@ -57,7 +58,12 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
                         self.assertTrue(binario.startswith(b"PK"))
                         libro = self.leer_xlsx(binario)
                         try:
-                            self.assertEqual(libro.sheetnames, ["Resultados", "Resumen"])
+                            self.assertEqual(libro.sheetnames, ["Resumen", "Detalle", "Resultados"])
+                            detalle = list(libro["Detalle"].values)
+                            self.assertEqual(detalle[0], tuple(label for _, label in columnas_detalle(tipo)))
+                            self.assertEqual(len(detalle)-1, datos["count"])
+                            for actual, esperado in zip(detalle[1:], datos["results"]):
+                                self.assertEqual(actual, tuple(mostrar(k, esperado[k]) for k, _ in columnas_detalle(tipo)))
                             rows = list(libro["Resultados"].values)
                             self.assertEqual(rows[0], tuple(label for _, label in COLUMNAS[tipo]))
                             self.assertEqual(len(rows) - 1, datos["count"])
@@ -78,11 +84,12 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
                         self.assertIn("Reporte de gestión", text)
                         self.assertIn("no es documento tributario ni DTE", text)
                         self.assertIn("Cliente de obra", text)
-                        self.assertIn("Total ", text)
+                        self.assertIn("FRÍO Y AGROINDUSTRIA", text)
+                        self.assertIn("Filas: " + str(datos["count"]), text)
                         for fila in datos["results"]:
                             self.assertIn(fila["codigo_obra"], text)
-                        for value in datos["totales"].values():
-                            self.assertIn(str(value), text)
+                        for key, value in datos["totales"].items():
+                            self.assertIn("".join(mostrar(key, value).split()), "".join(text.split()))
 
     def test_cero_filas_json_y_archivos_autenticos_con_cabeceras(self):
         for tipo in TIPOS:
@@ -95,6 +102,7 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
                 elif formato == "xlsx":
                     libro = self.leer_xlsx(data)
                     self.assertEqual(len(list(libro["Resultados"].values)), 1)
+                    self.assertEqual(len(list(libro["Detalle"].values)), 1)
                     libro.close()
                 else:
                     self.assertIn("Filas: 0", self.leer_pdf(data).pages[0].extract_text())
@@ -140,6 +148,10 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
             self.assertEqual(rows[1][6].data_type, "s")
             self.assertEqual(rows[1][10].value, "123456789012345678901234567890123456.79")
             self.assertEqual(rows[1][4].value, malicioso)
+            detalle = list(libro["Detalle"].values)
+            self.assertIn(clp("123456789012345678901234567890123456.79"), detalle[1])
+            self.assertIn("00001234", detalle[1])
+            self.assertIn(malicioso, detalle[1])
             self.assertTrue(all(c.data_type != "f" for hoja in libro for row in hoja for c in row))
         finally:
             libro.close()
@@ -168,7 +180,7 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
             self.assertGreater(float(pagina.mediabox.width), float(pagina.mediabox.height))
         # La cadena de dígitos de un importe grande se conserva aun envuelta.
         limpio = "".join(total_texto.split())
-        self.assertIn("9999999999989990000000.00", limpio)
+        self.assertIn(clp("9999999999989990000000.00"), limpio)
 
     def test_pdf_conserva_importes_38_digitos_sin_recortar_columnas(self):
         doc = self.documento(folio="0000001")
@@ -178,7 +190,7 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
         pdf = self.leer_pdf(data)
         texto = "".join("\n".join(p.extract_text() for p in pdf.pages).split())
         cuerpo = texto.split("Estadocobranza", 1)[1]
-        self.assertIn(importe, cuerpo)
+        self.assertIn(clp(importe), cuerpo)
         self.assertIn("0000001", cuerpo)
 
     def test_normalizacion_xml_y_controles_no_rompe_archivos(self):
@@ -346,3 +358,32 @@ class ExportacionesTests(ReportesBase, TransactionTestCase):
         r = self.client.get(BASE + "obras/exportar/", {"formato": "csv"}, HTTP_ORIGIN="https://ajeno.example.test")
         self.assertNotIn("Access-Control-Allow-Origin", r)
         r.close()
+
+    def test_plantilla_corporativa_estilos_logo_y_filtros(self):
+        from openpyxl import load_workbook
+        self.documento(folio="00001234")
+        binario, _ = self.exportacion("cobranzas", "xlsx")
+        libro = load_workbook(BytesIO(binario))
+        try:
+            self.assertEqual(libro.active.title, "Resumen")
+            self.assertEqual(len(libro["Resumen"]._images), 1)
+            for nombre in ("Detalle", "Resultados"):
+                hoja = libro[nombre]
+                self.assertEqual(hoja.freeze_panes, "A2")
+                self.assertFalse(hoja.sheet_view.showGridLines)
+                self.assertTrue(hoja["A1"].font.bold)
+                self.assertEqual(hoja["A1"].fill.fgColor.rgb[-6:], "16324D")
+                self.assertTrue(hoja.auto_filter.ref.endswith("2"))
+            self.assertEqual(clp("1234567.89"), "$1.234.567,89")
+            self.assertEqual(clp("-5919.78"), "-$5.919,78")
+        finally:
+            libro.close()
+        binario, _ = self.exportacion("cobranzas", "pdf")
+        pagina = self.leer_pdf(binario).pages[0]
+        self.assertTrue(len(pagina.images) >= 1)
+        texto = pagina.extract_text()
+        self.assertIn("FRÍO Y AGROINDUSTRIA", texto)
+        self.assertIn("Corte Santiago", texto)
+        self.assertIn("Emisor: Gerencia", texto)
+        self.assertIn("Reporte de gestión", texto)
+        self.assertIn("Página 1", texto)

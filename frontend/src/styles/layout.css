@@ -68,15 +68,6 @@
 .fyag-top .top-right > span { overflow-wrap:anywhere; }
 .fyag-side .navbtn span { min-width:0; overflow-wrap:anywhere; }
 
-/* Acceso secundario de Gerencia. */
-.fyag-account-picker { position:relative; min-width:0; max-width:100%; }
-.fyag-account-trigger { display:flex; align-items:center; gap:7px; min-height:40px; padding:5px 6px; border:0; border-radius:6px; background:transparent; color:inherit; font:inherit; text-align:left; }
-.fyag-account-trigger span { min-width:0; overflow-wrap:anywhere; }
-.fyag-account-trigger svg { flex:none; }
-.fyag-account-trigger:hover,.fyag-account-trigger[aria-expanded=true] { background:#1f4064; }
-.fyag-account-options { position:absolute; right:0; top:calc(100% + 6px); z-index:1050; min-width:150px; max-width:calc(100vw - 24px); padding:5px; border:1px solid var(--fyag-line); border-radius:8px; background:#fff; color:var(--fyag-text); box-shadow:0 5px 22px #14202e26; }
-.fyag-account-options button { display:flex; align-items:center; gap:8px; width:100%; padding:10px; border:0; border-radius:5px; color:var(--fyag-primary); background:transparent; text-align:left; font:inherit; }
-.fyag-account-options button:hover,.fyag-account-options button[aria-current=page] { background:#e2edf8; }
 .inventory-manager .portfolio-kpi small { font-size:.75rem; color:var(--fyag-muted); }
 .inventory-manager .portfolio-kpi strong { overflow-wrap:anywhere; }
 .inventory-mermas-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:16px; }
@@ -87,4 +78,4 @@
 .inventory-mermas-summary > p { grid-column:1/-1; margin:0; }
 .inventory-manager .commercial-table td,.inventory-manager .commercial-table th { padding:10px 12px; }
 .inventory-manager .commercial-table td .chip { margin:2px 4px 2px 0; }
-@media(max-width:600px) { .inventory-mermas-summary { grid-template-columns:1fr; } .fyag-account-options { right:auto; left:0; } }
+@media(max-width:600px) { .inventory-mermas-summary { grid-template-columns:1fr; } }

@@ -40,7 +40,7 @@ def consultar(actor, params):
         if ultima:
             qs = f.despues(qs, ultima)
         # A lo sumo limit+1 por fuente. Nunca iterar el histórico completo.
-        for row in qs.order_by("-creado_en", "-pk").values(*f.columnas(etiqueta=actor.rol == "ADMINISTRADOR_TI"))[:limite + 1]:
+        for row in qs.order_by("-creado_en", "-pk").values(*f.columnas())[:limite + 1]:
             candidatos.append((f, row))
     # Ordenaciones estables: sin epoch float y sin depender de collation SQL.
     candidatos.sort(key=lambda item: item[1]["id"], reverse=True)
