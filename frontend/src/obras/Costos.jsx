@@ -1,3 +1,4 @@
+import SupervisorCostHistory from './SupervisorCostHistory.jsx';
 import SupervisorCostReview, {SupervisorEmpty} from './SupervisorCostReview.jsx';
 import TecIcon from './TecIcon.jsx';
 import { formatCLP, formatCompactCLP, formatCivilDate } from '../utils/format.js';
@@ -135,7 +136,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
 
       {expensesView && form?.mode && <TransactionForm mode={form.mode} item={form.item} api={api} onCancel={() => setForm(null)} onSave={(body, endpoint) => action(endpoint, body)} obraPath={base} />}
 
-      {costsView && canSeeDetail && history && <section className={canManage?'card-fyag so-panel':'card-fyag p-3'}><h3>Historial de costos</h3>{history.results.length === 0 && (canManage?<SupervisorEmpty title="Sin movimientos de costos" description="Las declaraciones, validaciones y cambios de gastos aparecerán aquí."/>:<p>No hay eventos económicos.</p>)}<ol className={canManage?'commercial-timeline':undefined}>{history.results.map((event) => <li key={event.id}><strong>{canManage?({DECLARACION:'Declaración de rubros',VALIDACION:'Costos validados',CORTESIA:'Servicio sin cobro',ALTA:'Gasto registrado',CORRECCION:'Gasto corregido',DEVOLUCION:'Devolución registrada',ANULACION:'Gasto anulado'})[event.tipo]||String(event.tipo).replaceAll('_',' '):String(event.tipo).replaceAll('_', ' ')}</strong> · {timestamp(event.creado_en)} · Usuario #{event.registrado_por}<p>{event.motivo || 'Sin motivo'}</p><SafeChanges data={event.datos_nuevos} before={canManage?event.datos_anteriores:undefined} /></li>)}</ol>{(!canManage||history.next||history.previous)&&<Pager label="Paginación del historial de costos" data={history} page={historyPage} setPage={setHistoryPage} disabled={api.loading || api.busy || api.locked} />}</section>}
+      {costsView && canSeeDetail && history && <section className={canManage?'card-fyag so-panel':'card-fyag p-3'}><h3>Historial de costos</h3>{history.results.length === 0 && (canManage?<SupervisorEmpty title="Sin movimientos de costos" description="Las declaraciones, validaciones y cambios de gastos aparecerán aquí."/>:<p>No hay eventos económicos.</p>)}{history.results.length>0&&(canManage?<SupervisorCostHistory events={history.results}/>:<ol>{history.results.map(event=><li key={event.id}><strong>{String(event.tipo).replaceAll('_',' ')}</strong> · {timestamp(event.creado_en)} · Usuario #{event.registrado_por}<p>{event.motivo || 'Sin motivo'}</p><SafeChanges data={event.datos_nuevos}/></li>)}</ol>)}{(!canManage||history.next||history.previous)&&<Pager label="Paginación del historial de costos" data={history} page={historyPage} setPage={setHistoryPage} disabled={api.loading || api.busy || api.locked} />}</section>}
 
   </section>;
 }
