@@ -36,7 +36,7 @@
   font-weight:700;
   letter-spacing:0;
 }
-:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content :is(.clientes-panel h2,.commercial-form h2,.commercial-section-head h2,.budget-header-form h3,.budget-item-form h3,.budget-commercial-actions h3,.of-panel > h2,.manager-work-panel h2,.portfolio-list-head h2,.cobranzas-panel-head h2,.finance-detail h4,.finance-egresos .eg-panel h2,.finance-egresos .eg-panel h3,.finance-inventory .if-panel h2,.finance-inventory .if-record-detail h3,.audit-list-head h2,.audit-detail-card h2,.chat-sidebar-head h2,.chat-head h2) {
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content :is(.clientes-panel h2,.commercial-form h2,.commercial-section-head h2,.budget-header-form h3,.budget-item-form h3,.budget-commercial-actions h3,.of-panel > h2,.manager-work-panel h2,.portfolio-list-head h2,.cobranzas-panel-head h2,.finance-detail h4,.finance-egresos .eg-panel h2,.finance-egresos .eg-panel h3,.finance-inventory .if-panel h2,.finance-inventory .if-record-detail h3,.audit-list-head h2,.audit-detail-card h2,.audit-reason h3,.manager-alert-description h2,.finance-alert-attention h2,.report-filter-card h2,.report-waterfall h2,.chat-sidebar-head h2,.chat-head h2) {
   font-size:var(--af-section-title-size);
   font-weight:700;
   line-height:1.35;
