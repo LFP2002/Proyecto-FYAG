@@ -105,7 +105,7 @@ function AttachmentScreen({type,destinationId,canUpload,readOnly=false,embedded=
     </form>}
     {intent&&<><p>Se conserva la intención de carga sin cambiar archivo ni clave.</p><button type="button" className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={()=>void upload(null,true)}>Reconsultar y reintentar misma carga</button>
       {!api.locked&&[400,403,404,413,415,422].includes(api.error?.status)&&<button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={()=>{intention.current=null;setIntent(null);api.setError(null);setMessage('Carga rechazada descartada; selecciona explícitamente otro archivo si corresponde.');}}>Nueva intención tras rechazo de archivo</button>}</>}
-    {rows&&!rows.count&&<p className="attachments-empty">No hay adjuntos registrados.</p>}
+    {rows&&!rows.count&&(user.role==='SUPERVISOR_OBRAS'&&type==='INFORME_TECNICO'?<div className="so-empty" role="status"><TecIcon name="document"/><strong>No hay adjuntos registrados.</strong><p>{canUpload&&canEdit?'Los informes técnicos que subas aparecerán aquí.':'Los informes técnicos asociados a esta obra aparecerán aquí.'}</p></div>:<p className="attachments-empty">No hay adjuntos registrados.</p>)}
     {!rows&&api.loading&&<p role="status" className="commercial-help">Cargando adjuntos…</p>}
     <ul className="attachments-list">{rows?.results.map(row=>{
       const active=selected?.id===row.id;
