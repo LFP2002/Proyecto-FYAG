@@ -98,7 +98,8 @@ class PresupuestoViewSet(
 
     def list(self, request, *args, **kwargs):
         params = request.query_params
-        if set(params) - {'page', 'buscar', 'estado'} or any(len(params.getlist(k)) != 1 for k in params):
+        # Compatibilidad: page_size y ordering se ignoran; tamaño y orden fijos.
+        if set(params) - {'page', 'buscar', 'estado', 'page_size', 'ordering'} or any(len(params.getlist(k)) != 1 for k in ('page', 'buscar', 'estado') if k in params):
             raise ValidationError({'query': ['Parámetros desconocidos o repetidos.']})
         if 'page' in params and (not re.fullmatch(r'[1-9][0-9]{0,18}', params['page']) or int(params['page']) > 9223372036854775807):
             raise ValidationError({'page': ['Página inválida.']})
