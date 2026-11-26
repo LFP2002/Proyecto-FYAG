@@ -85,7 +85,7 @@ for (const [role, label] of [
       user: { id: 7, username: 'Alias de la cuenta real', email: 'cuenta@example.test', role } });
     assert.match(html, /Alias de la cuenta real/);
     assert.ok(html.includes(label));
-    if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo borrador/);
+    if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo presupuesto/);
     else if (role === 'SUPERVISOR_OBRAS') assert.match(html, /Nueva obra/);
     else if (role === 'GERENCIA') assert.match(html, /Dashboard gerencial/);
     else if (role === 'TECNICO') assert.match(html, /Mis obras/);
