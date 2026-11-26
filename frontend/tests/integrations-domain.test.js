@@ -28,7 +28,11 @@ function apiFor(role, calls) {
   const send = async (path, options = {}) => {
     calls.push({ path, options });
     if (path === '/api/alertas/resumen/') return { generado_en: '2026-11-14T10:00:00-03:00', zona_horaria: 'America/Santiago', por_estado: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 }, activas: 1, por_tipo: { [alert.tipo]: { PENDIENTE: 1, ATENDIDA: 0, RESUELTA: 0 } }, sincronizacion: { ultima_correcta_en: null, desactualizada: false } };
-    if (path === '/api/alertas/' || path === '/api/alertas/?page=1') return { count: 1, next: null, previous: null, results: [alert] };
+    if (new URL(path,'http://localhost').pathname === '/api/alertas/') {
+      const q=new URL(path,'http://localhost').searchParams;
+      const visible=(!q.get('estado')||q.get('estado')==='TODAS'||q.get('estado')===alert.estado)&&(!q.get('tipo')||q.get('tipo')===alert.tipo);
+      return {count:visible?1:0,next:null,previous:null,results:visible?[alert]:[]};
+    }
     if (path === '/api/alertas/3/') return alert;
     if (path.startsWith('/api/alertas/3/historial/')) { const page = Number(new URL(path, 'http://localhost').searchParams.get('page') || 1); return { count: 26, next: page === 1 ? '/api/alertas/3/historial/?page=2' : null, previous: page === 2 ? '/api/alertas/3/historial/' : null, results: Array.from({length: page === 1 ? 25 : 1},(_,i)=>({id:(page-1)*25+i+1,alerta:3,tipo:'ATENCION',estado_anterior:'PENDIENTE',estado_nuevo:'ATENDIDA',actor:9,motivo:'Revisión',registrado_en:'2026-11-14T10:00:00-03:00'})) }; }
     if (path === '/api/finanzas/cobranzas/' || path === '/api/finanzas/cobranzas/?page=1') return { count: 0, next: null, previous: null, results: [] };
@@ -182,7 +186,46 @@ test('Alertas carga la página seleccionada del historial y habilita paginación
     const nav=renderer.root.findByProps({'aria-label':'Paginación del historial'});const next=nav.findAllByType('button').find(b=>text(b)==='Siguiente');
     await act(async()=>{next.props.onClick();await flush();});
     assert.ok(calls.some(c=>c.path==='/api/alertas/3/historial/?page=2'));
-    assert.match(text(renderer.toJSON()),/ATENCION/);
+    assert.match(text(renderer.toJSON()),/Alerta atendida/);
+    assert.match(text(renderer.toJSON()),/Usuario #9/);
+    assert.doesNotMatch(text(renderer.toJSON()),/ATENCION/);
+  }finally{await act(async()=>renderer.unmount());}
+});
+
+test('Alertas gerenciales: filtros confirmados, bandeja, retorno y consulta sin mutaciones',async()=>{
+  const {renderer,calls}=await mount(Alertas,'GERENCIA');
+  try{
+    const root=renderer.root,body=()=>text(renderer.toJSON());
+    assert.equal(root.findByProps({id:'alert-filters'}).props.hidden,true);
+    assert.equal(root.findAllByProps({'aria-label':'Paginación de alertas'}).length,0);
+    assert.match(body(),/Prioridad alta/);
+    assert.match(body(),/Responsable: Supervisión/);
+    assert.doesNotMatch(body(),/OBRA_SUSPENDIDA|ID recurso|Atender alerta/);
+    await click(renderer,'Filtros');
+    assert.equal(root.findByProps({id:'alert-filters'}).props.hidden,false);
+    const before=calls.length;
+    await act(async()=>{root.findByProps({id:'alert-type'}).props.onChange({target:{value:'OBRA_SUSPENDIDA'}});await flush();});
+    assert.equal(calls.length,before);
+    await act(async()=>{root.findByProps({id:'alert-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+    assert.match(calls.at(-1).path,/tipo=OBRA_SUSPENDIDA/);
+    await click(renderer,'Obra suspendida');
+    assert.equal(root.findAllByProps({'data-alerta':3}).length,0);
+    assert.match(body(),/Historial de la alerta/);
+    assert.match(body(),/Usuario #9/);
+    await click(renderer,'Volver al listado');
+    assert.equal(root.findByProps({id:'alert-type'}).props.value,'OBRA_SUSPENDIDA');
+    assert.equal(root.findAllByProps({'data-alerta':3}).length,1);
+    await click(renderer,'Resueltas');
+    assert.match(calls.at(-1).path,/estado=RESUELTA/);
+    assert.match(body(),/Sin alertas para estos filtros/);
+    await click(renderer,'Limpiar filtros');
+    assert.match(body(),/Sin alertas resueltas/);
+    const metric=root.findAllByType('button').find(b=>text(b).startsWith('Alertas activas'));
+    assert.ok(metric);
+    await act(async()=>{metric.props.onClick();await flush();});
+    assert.equal(calls.at(-1).path,'/api/alertas/');
+    assert.equal(root.findAllByProps({'data-alerta':3}).length,1);
+    assert.ok(calls.every(c=>!c.options.method||c.options.method==='GET'));
   }finally{await act(async()=>renderer.unmount());}
 });
 
