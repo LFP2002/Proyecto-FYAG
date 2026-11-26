@@ -187,3 +187,10 @@ Estas políticas definen el **contrato autorizado para implementación**, no cap
 
 - Se añadió localmente `frontend/src/pages/Egresos.jsx` para consultar y registrar egresos mediante las rutas existentes, con filtros, paginación, detalle e historial; no realiza transferencias ni deriva egresos de movimientos de inventario o costos de Obras.
 - El alcance implementado es solo frontend y sus contratos disponibles. No se cambió backend, no se ejecutó QA financiero real ni se declara publicación.
+
+## Rediseño de la interfaz de Finanzas — 26-11-2026
+
+- Listado a ancho completo, búsqueda global por concepto, beneficiario o código OB completo, filtros plegables, importes CLP exactos y estados legibles. GET /egresos/ admite buscar (máximo 100 caracteres no vacíos) y resumen=true (total y cantidad de activos en el conjunto filtrado, no en la página). Se excluyen anulados del agregado; sin resumen se conserva la respuesta anterior. Listado y agregado son lecturas separadas, no un cierre contable inmutable.
+- Formulario de pago externo realizado, con obra opcional seleccionada por nombre/código mediante la consulta AF existente de Obras. Se conserva la asociación informativa, sin afectar stock ni costos. Detalle con historial y anulación bajo demanda; motivo, referencia y confirmación obligatorios. Alta idempotente, congelación de payload/UUID ante incertidumbre y relectura del estado vigente; anulación incierta exige reconsulta.
+- Flujo de dinero en pestaña independiente, con período explícito y agregados existentes, no representa saldo bancario ni conciliación. Sin nuevas barras ni gráficos. Gerencia y permisos originales conservados.
+- OpenAPI y pruebas dirigidas actualizados; ejecución local y revisión visual pendientes. Sin merge.
