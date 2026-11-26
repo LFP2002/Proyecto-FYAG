@@ -9,12 +9,13 @@ import { canReadObras, G, emptyFilters, filterErrors, OBRA_STATES, orderingOptio
 import Categories from '../obras/Categories.jsx';
 import NewObra from '../obras/ObraForm.jsx';
 import ObraDetail from '../obras/ObraDetail.jsx';
+import FinanzasObras from '../obras/FinanzasObras.jsx';
 import GerenciaPanel from '../obras/GerenciaPanel.jsx';
 import { Feedback, Field, focusError, ObraStatus, Pager, RefreshButton, useOperational } from '../obras/ui.jsx';
 
 export default function Obras() {
   const {user}=useAuth();
-  return user.role===G?<GerenciaPanel key={user.id}/>:<ObrasOperativas key={user.id+':'+user.role}/>;
+  return user.role===G?<GerenciaPanel key={user.id}/>:user.role==='ADMINISTRATIVO_FINANZAS'?<FinanzasObras key={user.id}/>:<ObrasOperativas key={user.id+':'+user.role}/>;
 }
 function ObrasOperativas() {
   const { user } = useAuth(), api = useOperational();
