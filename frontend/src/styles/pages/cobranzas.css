@@ -159,3 +159,32 @@
  .manager-cob-table td:nth-child(2):not(:has(.manager-cob-late))::before { content:"Vencimiento"; display:block; color:var(--fyag-muted); font-size:.75rem; }
  .manager-cob-action { align-self:center; }
 }
+
+/* Finanzas: foco en saldo, lectura compacta y acciones contextuales. */
+.cobranzas-operativas .cobranzas-search-form {padding:12px 16px; border-top:1px solid var(--fyag-line);}
+.cobranzas-operativas .cobranzas-search {display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.cobranzas-operativas .cobranzas-search label {margin:0;flex:1 1 160px;min-width:0;font-size:.8125rem;font-weight:600;}
+.cobranzas-operativas .cobranzas-search label:first-child {flex:3 1 250px;}
+.cobranzas-operativas .cobranzas-search label input,.cobranzas-operativas .cobranzas-search label select {margin-top:5px;}
+.cobranzas-operativas .cobranzas-search button {display:inline-flex;gap:6px;align-items:center;}
+.cobranzas-operativas .cobranzas-filtros {margin-top:12px;padding:12px 0 0;background:transparent;}
+.cobranzas-operativas [hidden] {display:none!important;}
+.cobranzas-operativas #cobranzas-cartera .commercial-table th:nth-child(n+3):nth-child(-n+5){text-align:right;}
+.cobranzas-operativas #cobranzas-cartera .commercial-table th:nth-child(n+6){text-align:left;}
+.cobranzas-operativas .cobranzas-client {display:block;margin:3px 0;overflow-wrap:anywhere;}
+.cobranzas-operativas .cobranzas-row-actions {display:flex;gap:6px;flex-wrap:wrap;}
+.cobranzas-operativas .saldo[data-overdue=true] {color:#b42318;}
+.cobranzas-operativas .finance-detail {max-width:1100px;margin-inline:auto;}
+.cobranzas-operativas .finance-register-form {max-width:780px;width:100%;margin:12px auto 18px!important;border:1px solid var(--fyag-line);border-radius:8px;padding:16px;background:var(--fyag-bg);}
+.cobranzas-operativas .finance-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start;margin-top:14px;}
+.cobranzas-operativas .finance-fields .form-label {margin:0;min-width:0;}
+.cobranzas-operativas .finance-fields .form-control,.cobranzas-operativas .finance-fields .form-select {margin-top:5px;}
+.cobranzas-operativas .finance-full {grid-column:1/-1;}
+.cobranzas-operativas .finance-form-footer {display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;}
+.cobranzas-operativas .finance-search-row {display:flex;align-items:center;gap:8px;max-width:780px;}
+.cobranzas-operativas .finance-search-row input {flex:1;min-width:0;}
+.cobranzas-operativas .finance-detail .finance-empty {padding:18px 10px;}
+.cobranzas-operativas .finance-detail .finance-correction {background:var(--fyag-bg);}
+.cobranzas-operativas .finance-summary {grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));}
+.cobranzas-operativas .finance-tab-content section[aria-label="Respaldos documentales del documento financiero"] {max-width:780px;margin-inline:auto;}
+@media(max-width:600px){.cobranzas-operativas .finance-fields{grid-template-columns:1fr;}.cobranzas-operativas .finance-register-form{padding:12px;}.cobranzas-operativas .cobranzas-search label{flex-basis:100%!important;}.cobranzas-operativas .finance-search-row{flex-wrap:wrap;}.cobranzas-operativas .finance-form-footer>.btn{flex:1 1 auto;}}
