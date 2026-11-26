@@ -136,7 +136,7 @@ function CobranzasOperativas() {
     </div>
     </div>
     <div id="cobranzas-documentos" className="cobranzas-view" hidden={activeView!=='documentos'}>
-      <FinanceAdmin onChanged={reload} onMutationStart={invalidateFinancial} openRequest={openRequest} onBlockedChange={setFinancialBlocked} initialObra={target?.documentos&&positiveInteger(target.obra)?target.obra:null}/>
+      <FinanceAdmin onChanged={reload} onMutationStart={invalidateFinancial} openRequest={openRequest} onBlockedChange={setFinancialBlocked} initialObra={target?.documentos&&positiveInteger(target.obra)?target.obra:null} initialDocument={target?.documentos&&positiveInteger(target.documento)?target.documento:null}/>
     </div>
   </section>;
 }
