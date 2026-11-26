@@ -59,11 +59,11 @@ test('Finanzas: egresos legibles, filtros globales, detalle y anulación context
 test('Alta con selector de obra conserva UUID y payload ante respuesta incierta',async()=>{
  const ui=await mount({uncertain:true}),r=ui.renderer;
  try{
-   await click(r,'+ Registrar egreso');await change(r,'Monto pagado','150000');await change(r,'Fecha de pago','2026-01-01');await change(r,'Concepto','Compra');await change(r,'Beneficiario','Proveedor');await change(r,'Referencia del respaldo','COMP-2');
+   await click(r,'+ Registrar egreso');await change(r,'Monto pagado','150000,00');await change(r,'Fecha de pago','2026-01-01');await change(r,'Concepto','Compra');await change(r,'Beneficiario','Proveedor');await change(r,'Referencia del respaldo','COMP-2');
    await click(r,'Seleccionar obra');await click(r,'Seleccionar');assert.match(text(r.toJSON()),/OB-000009 · Frigorífico Portal/);
    await submit(r,'Registro de egreso');assert.match(text(r.toJSON()),/El registro no pudo confirmarse/);
    await click(r,'Confirmar registro pendiente');
-   const writes=ui.calls.filter(c=>c.method==='POST');assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.deepEqual(writes[0].headers,writes[1].headers);assert.equal(writes[0].body.obra,9);
+   const writes=ui.calls.filter(c=>c.method==='POST');assert.equal(writes.length,2);assert.deepEqual(writes[0].body,writes[1].body);assert.deepEqual(writes[0].headers,writes[1].headers);assert.equal(writes[0].body.obra,9);assert.equal(writes[0].body.monto,'150000.00');
    assert.equal(ui.rows.length,2);assert.ok(ui.calls.some(c=>c.path===BASE+'7/'));assert.match(text(r.toJSON()),/\$150\.000/);
  }finally{await ui.close();}
 });

@@ -17,8 +17,9 @@ test('acciones de materiales usan claves de idempotencia, cadenas decimales y ru
  const source=read('integrations/InventoryActions.jsx');
  for(const endpoint of ['autorizaciones-entrega/','autorizaciones-devolucion/','entregas/','devoluciones/','valorizaciones/','regularizaciones-iniciales/'])assert.ok(source.includes(endpoint));
  assert.match(source,/clave_idempotencia:form\.key/);
- assert.match(source,/9 enteros y 3 decimales/);
- assert.match(source,/13 enteros y 2 decimales/);
+ assert.match(source,/quantityInput\(value\)/);
+ assert.match(source,/unitCostInput\(value\)/);
+ assert.match(source,/body\[key\]=normalized/);
 });
 
 test('inventario no muestra proyecciones económicas de entregas a Bodeguero',()=>{

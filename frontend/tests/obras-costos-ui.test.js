@@ -61,7 +61,7 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
   try {
     await openExpenses(renderer); await click(renderer,'Registrar gasto');
     await input(renderer, 'obras-gasto-descripcion', 'Cable'); await input(renderer, 'obras-gasto-unidad', 'metro');
-    await input(renderer, 'obras-gasto-cantidad', '2.000'); await input(renderer, 'obras-gasto-costo_unitario_neto', '12.50'); await input(renderer, 'obras-gasto-fecha_gasto', '2026-11-12');
+    await input(renderer, 'obras-gasto-cantidad', '2,000'); await input(renderer, 'obras-gasto-costo_unitario_neto', '12,50'); await input(renderer, 'obras-gasto-fecha_gasto', '2026-11-12');
     await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar material'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/gastos/' && entry.method === 'POST');
     assert.ok(call); assert.equal(call.body.cantidad, '2.000'); assert.equal(call.body.costo_unitario_neto, '12.50');

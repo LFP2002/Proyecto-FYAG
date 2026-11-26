@@ -69,9 +69,9 @@ test('Inventario AF: selección de ingreso real y registro neto confirmado',asyn
  try{
   await click(r,'Valoración');await click(r,'Valorizar ingreso');await click(r,'Seleccionar');
   assert.match(body(),/Tubería de cobre/);
-  await change(r,'Costo de adquisición unitario','8900');await change(r,'Referencia de respaldo','Factura 5300');await submit(r,'Registro de valoración');
+  await change(r,'Costo de adquisición unitario','8900,00');await change(r,'Referencia de respaldo','Factura 5300');await submit(r,'Registro de valoración');
   const writes=ui.calls.filter(c=>c.method==='POST');
-  assert.equal(writes.length,1);assert.equal(writes[0].body.ingreso,6);assert.equal(writes[0].body.costo_unitario_neto,'8900');assert.ok(writes[0].body.clave_idempotencia);
+  assert.equal(writes.length,1);assert.equal(writes[0].body.ingreso,6);assert.equal(writes[0].body.costo_unitario_neto,'8900.00');assert.ok(writes[0].body.clave_idempotencia);
   assert.match(body(),/Operación confirmada/);assert.match(body(),/8\.900/);
   await click(r,'Ver detalle');assert.match(body(),/Costo promedio anterior/);assert.match(body(),/Referencia del ingreso/);
   const valuationSummary=r.root.findByProps({'aria-label':'Resumen de la valoración'});

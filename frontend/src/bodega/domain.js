@@ -1,7 +1,7 @@
 import {normalizeDecimalInput} from '../utils/decimalInput.js';
 export const ROOT='/api/inventario/';
 export const modules={bodega_resumen:'resumen',inventario:'inventario',bodega_movimientos:'movimientos',bodega_entregas:'entregas',bodega_devoluciones:'devoluciones'};
-export const milli=v=>{const normalized=normalizeDecimalInput(v,9,3,{fixed:true});return normalized===null?null:BigInt(normalized.replace('.',''));};
+export const milli=v=>{if(typeof v!=='string'||v!==v.trim())return null;const normalized=normalizeDecimalInput(v,9,3,{fixed:true});return normalized===null?null:BigInt(normalized.replace('.',''));};
 export const decimal=n=>String(n/1000n)+'.'+String(n%1000n).padStart(3,'0');
 export const quantity=v=>{const n=milli(v);return n===null?'—':(n/1000n).toLocaleString('es-CL')+(n%1000n?','+String(n%1000n).padStart(3,'0').replace(/0+$/,''):'');};
 export const amount=(v,unit)=>quantity(v)+(milli(v)===null||!unit?'':' '+unit);

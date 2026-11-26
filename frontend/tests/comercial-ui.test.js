@@ -183,7 +183,7 @@ test('Presupuestos montado: borrador, CRUD líneas, Finanzas, cliente, historial
     await createBudget(renderer);
     const post = b.calls.find((c) => c.path === '/api/presupuestos/' && c.method === 'POST'); assert.deepEqual(post.body, { cliente: 1, descripcion: 'Servicio' });
     await click(renderer, 'Agregar ítem manual');
-    for (const [k, v] of Object.entries({ descripcion: 'Trabajo', cantidad: '0.001', unidad: 'h', precio_unitario: '9999999999999.99' })) await input(renderer, k, v);
+    for (const [k, v] of Object.entries({ descripcion: 'Trabajo', cantidad: '0,001', unidad: 'h', precio_unitario: '9999999999999,99' })) await input(renderer, k, v);
     await submit(renderer); assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');
     const itemPost = b.calls.find((c) => c.path.endsWith('/items/') && c.method === 'POST'); assert.equal(itemPost.body.cantidad, '0.001'); assert.equal(itemPost.body.precio_unitario, '9999999999999.99'); assert.equal(itemPost.body.orden, 1);
     await click(renderer, 'Editar ítem'); await input(renderer, 'unidad', 'u'); await submit(renderer);
@@ -433,7 +433,7 @@ test('ítems: orden automático, sin controles técnicos y subtotal estimado sin
     assert.equal(text(renderer.root.findByProps({'data-testid':'item-estimated-subtotal'})), '$25,53');
     assert.equal(b.budgets[0].items.length,0);
     await input(renderer,'cantidad','0'); await click(renderer,'Guardar ítem');
-    assert.equal(text(renderer.root.findByProps({id:'com-cantidad-error'})), 'Ingresa una cantidad válida');
+    assert.equal(text(renderer.root.findByProps({id:'com-cantidad-error'})), 'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma');
     await input(renderer,'cantidad','1.001'); await click(renderer,'Guardar ítem');
     assert.equal(b.budgets[0].items[0].orden,1);
     assert.equal(text(renderer.root.findByProps({className:'commercial-total'}).findByType('strong')), '$1.234,56');

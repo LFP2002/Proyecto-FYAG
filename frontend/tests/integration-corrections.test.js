@@ -71,7 +71,7 @@ test('Obras elegibles: AF pagina todo el selector y conserva la obra elegida de 
     await change(root,'Obra elegible para facturación','7');const nav=root.findByProps({'aria-label':'Paginación de obras elegibles'});await click(nav,'Siguiente');
     assert.equal(control(root,'Obra elegible para facturación').props.value,'7');assert.ok(control(root,'Obra elegible para facturación').findAllByType('option').some((o)=>o.props.value==='7'));
     assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/obras-elegibles/?page=2'));await change(root,'Obra elegible para facturación','32');await click(root.findByProps({'aria-label':'Paginación de obras elegibles'}),'Anterior');assert.equal(control(root,'Obra elegible para facturación').props.value,'32');
-    for(const [field,value] of Object.entries({'Folio de factura':'00088','Fecha de emisión':'2026-11-10','Fecha de vencimiento':'2026-11-20','Monto neto (CLP)':'100.00','Impuesto (CLP)':'0.00','Monto total (CLP)':'100.00','Referencia del respaldo':'Respaldo sintético'}))await change(root,field,value);
+    for(const [field,value] of Object.entries({'Folio de factura':'00088','Fecha de emisión':'2026-11-10','Fecha de vencimiento':'2026-11-20','Monto neto (CLP)':'100,00','Impuesto (CLP)':'0,00','Monto total (CLP)':'100,00','Referencia del respaldo':'Respaldo sintético'}))await change(root,field,value);
     await submit(root,'Registro de documento externo');const created=backend.calls.find((c)=>c.method==='POST');assert.equal(created.body.obra,32);assert.equal(created.body.monto_total,'100.00');assert.equal(created.body.folio_externo,'00088');assert.match(text(ui.renderer.toJSON()),/relecturas confirmadas/);
   }finally{await ui.close();}
 });
@@ -124,13 +124,13 @@ test('Documento: tres paginaciones independientes y reset completo al cambiar de
     await ui.update({document:doc(12),onClose(){}});assert.ok(backend.calls.some((c)=>c.path==='/api/finanzas/documentos/12/pagos/?page=1'));assert.match(text(root.findByProps({'aria-label':'Paginación: Historial del documento'})),/Página 1/);
   }finally{await ui.close();}
 });
-async function paymentForm(root){if(!root.findAllByProps({'aria-label':'Registro de pago informado'}).length)await click(root,'Registrar pago');for(const [label,value] of Object.entries({'Monto recibido (CLP)':'25.00','Fecha de pago':'2026-11-11','Referencia del pago':'Comprobante sintético','Observaciones':'Observación sintética'}))await change(root,label,value);}
+async function paymentForm(root){if(!root.findAllByProps({'aria-label':'Registro de pago informado'}).length)await click(root,'Registrar pago');for(const [label,value] of Object.entries({'Monto recibido (CLP)':'25,00','Fecha de pago':'2026-11-11','Referencia del pago':'Comprobante sintético','Observaciones':'Observación sintética'}))await change(root,label,value);}
 test('Pago incierto conserva clave y payload inmutables; reintento explícito no duplica y notifica al padre',async()=>{
   const backend=financeBackend();backend.lostPayment=true;let updated=0;const ui=await mount(FinanceDocument,backend.request,'ADMINISTRATIVO_FINANZAS',{document:doc(),onClose(){},onChanged:async()=>{updated+=1;return true;}});
   try{
     await paymentForm(ui.renderer.root);await submit(ui.renderer.root,'Registro de pago informado');assert.equal(backend.payments.length,1);assert.match(text(ui.renderer.toJSON()),/Intención de pago conservada/);
     assert.equal(backend.calls.filter((c)=>c.method==='POST').length,1);await click(ui.renderer.root,'Reintentar misma intención de pago');
-    const writes=backend.calls.filter((c)=>c.method==='POST');assert.equal(writes.length,2);assert.equal(writes[0].headers['Idempotency-Key'],writes[1].headers['Idempotency-Key']);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(typeof writes[1].body.monto,'string');assert.equal(backend.payments.length,1);assert.ok(updated>=1);assert.match(text(ui.renderer.toJSON()),/relecturas confirmadas/);
+    const writes=backend.calls.filter((c)=>c.method==='POST');assert.equal(writes.length,2);assert.equal(writes[0].headers['Idempotency-Key'],writes[1].headers['Idempotency-Key']);assert.deepEqual(writes[0].body,writes[1].body);assert.equal(writes[1].body.monto,'25.00');assert.equal(backend.payments.length,1);assert.ok(updated>=1);assert.match(text(ui.renderer.toJSON()),/relecturas confirmadas/);
   }finally{await ui.close();}
 });
 test('Pago rechazado cambia de clave solamente después de descartar explícitamente la intención',async()=>{
