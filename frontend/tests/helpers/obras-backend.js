@@ -72,7 +72,7 @@ export function obrasBackend(role = S) {
       }
       if (route.endsWith('/mis-obras/')) assertRole([T]);
       let rows = backend.obras.filter((o) => backend.role !== T || backend.allowed.has(o.id));
-      if(route.endsWith('/mis-obras/')&&url.searchParams.has('buscar')){const term=url.searchParams.get('buscar').toLowerCase();rows=rows.filter(o=>[o.codigo,o.cliente_nombre,o.categoria_nombre].some(v=>v.toLowerCase().includes(term)));}
+      if((route.endsWith('/mis-obras/')||backend.role===S)&&url.searchParams.has('buscar')){const term=url.searchParams.get('buscar').toLowerCase();rows=rows.filter(o=>[o.codigo,o.cliente_nombre,o.categoria_nombre,...(backend.role===S?[o.tecnico_nombre]:[])].some(v=>String(v||'').toLowerCase().includes(term)));}
       for (const key of ['estado', 'cliente', 'tecnico_responsable', 'categoria_servicio']) if (url.searchParams.has(key)) rows = rows.filter((o) => String(o[key]) === url.searchParams.get(key));
       for (const [key, comparison] of [['fecha_programada_desde', (a, b) => a >= b], ['fecha_programada_hasta', (a, b) => a <= b]]) if (url.searchParams.has(key)) rows = rows.filter((o) => o.fecha_programada && comparison(o.fecha_programada, url.searchParams.get(key)));
       return paginate(rows.map(project), url);
@@ -84,7 +84,7 @@ export function obrasBackend(role = S) {
       if (!suffix && method === 'GET') return project(obra);
       if (suffix === 'costos/resumen/' && method === 'GET') {
         assertRole([G, S, AF]);
-        const summary = { obra: obra.id, materiales_total: '0.00', otros_total: '0.00', mano_obra_total: '0.00', costo_total: '0.00', costos_validados: backend.control.costos_validados, cortesia_sin_cobro: !!backend.courtesy };
+        const summary = { obra: obra.id, materiales_total: '0.00', otros_total: '0.00', mano_obra_total: '0.00', costo_total: '0.00', ...backend.costTotals, costos_validados: backend.control.costos_validados, cortesia_sin_cobro: !!backend.courtesy };
         if (backend.role !== AF) Object.assign(summary, { materiales_estado: backend.control.materiales_estado, otros_estado: backend.control.otros_estado, materiales_justificacion: backend.control.materiales_justificacion, otros_justificacion: backend.control.otros_justificacion, version_actual: backend.control.version_actual, version_validada: backend.control.version_validada, validado_por: backend.control.validado_por, validado_en: backend.control.validado_en, cortesia_justificacion: backend.courtesy?.justificacion ?? null, provisional: !backend.control.costos_validados || obra.estado === 'SUSPENDIDA' });
         return summary;
       }
