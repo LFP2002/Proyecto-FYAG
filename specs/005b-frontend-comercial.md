@@ -277,3 +277,12 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - En el mismo worktree local se implementaron pantallas frontend para Chat, Solicitudes de materiales, Mermas, Inventario y Egresos, además de estilos de chat/solicitudes/mermas, auditoría visual y el flujo de cambio de contraseña temporal. Cada UI reutiliza los contratos API existentes; esta nota no constituye aprobación de cambios backend, merge ni despliegue.
 - El chat presenta la hora (hora:minuto) de envío y no muestra fecha ni vencimiento del mensaje. Los alias de conversación viven solo en estado de la vista, sin almacenamiento persistente.
 - Validaciones ejecutadas por incrementos se registran en la conversación de trabajo; no se declara aquí una suite completa final para todo el worktree. La autorización de publicación sigue siendo independiente.
+
+## Rediseño de Clientes — 26-11-2026
+
+- Exclusivo de Administrativo/Finanzas. Conserva las rutas, permisos, validaciones y acciones de activación/desactivación de SPEC-003A; sin modificaciones al backend ni al contrato OpenAPI.
+- Listado completo recibido como array desde GET /api/clientes/. Búsqueda local por nombre legal, identificación (incluye RUT sin separadores), contacto, correo y teléfono; insensible a mayúsculas y diacríticos. Filtros combinables por estado y tipo de cliente. Contador de coincidencias sobre el total recibido, sin paginación simulada.
+- Listado sin columna de ID, con contacto y tipo de cliente. Detalle independiente, formularios de alta y edición separados y agrupados en identificación/contacto. Se conservan filtros al regresar al listado. Campos de documento extranjero condicionales, valores legibles y validación original.
+- Diseño adaptable, Bootstrap Icons reutilizados y modo oscuro vigente. Escrituras mantienen reconsulta obligatoria, bloqueo por incertidumbre y ausencia de reenvíos automáticos; actualización accesible también desde el formulario bloqueado.
+- Resumen comercial consolidado (presupuestos, obras y cobranzas por cliente) diferido: no existe contrato consolidado y no se muestran cifras simuladas.
+- Pruebas dirigidas: comercial-ui.test.js y comercial-domain.test.js, más compilación Vite y comprobación visual manual. Ejecución local pendiente; no implica aprobación de CI ni merge.
