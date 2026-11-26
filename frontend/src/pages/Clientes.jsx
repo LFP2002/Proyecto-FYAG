@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { AF, clientPayload, emptyClient, validateClient } from '../comercial/domain.js';
 import { Chip, PageHead } from '../components/ui';
 import { clientPath } from '../comercial/api.js';
-import { Errors, Fields, useCommercial } from '../comercial/ui.jsx';
+import { Errors, useCommercial } from '../comercial/ui.jsx';
 import TecIcon from '../obras/TecIcon.jsx';
 
 const TYPES = [['PERSONA', 'Persona'], ['EMPRESA', 'Empresa']];
@@ -22,7 +22,27 @@ function Heading({ title, sub, children }) {
   return <header className="clientes-heading"><div><h1>{title}</h1>{sub && <p>{sub}</p>}</div><div className="clientes-actions">{children}</div></header>;
 }
 function Status({ row }) { return <Chip cls={row.activo ? 'green' : 'gray'}>{row.activo ? 'Activo' : 'Inactivo'}</Chip>; }
-function Fact({ label, value }) { return <div><dt>{label}</dt><dd>{value || '—'}</dd></div>; }
+function Fact({ label, value }) { return <div><dt>{label}</dt><dd>{value || <span className="clientes-unrecorded">No registrado</span>}</dd></div>; }
+function SectionTitle({ icon, children }) { return <h2 className="clientes-section-title"><TecIcon name={icon}/>{children}</h2>; }
+const FIELD_HINTS = {
+  nombre_legal: 'Nombre completo o razón social', nombre_contacto: 'Nombre de la persona de contacto',
+  correo: 'correo@empresa.cl', telefono: '+56 9 1234 5678', pais_identificacion: 'Ej.: AR',
+  tipo_documento_extranjero: 'Ej.: Pasaporte',
+};
+const FULL_FIELDS = new Set(['numero_identificacion', 'nombre_legal', 'nombre_contacto']);
+function ClientFields({ form, setForm, fields, disabled }) {
+  return <div className="fgrid commercial-fields">{fields.map(([name, label, options]) => {
+    const required = ['nombre_legal', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero'].includes(name);
+    const change = e => setForm(previous => ({ ...previous, [name]: e.target.value }));
+    const id = 'com-' + name;
+    const hint = name === 'numero_identificacion' ? (form.tipo_identificacion === 'RUT' ? '12.345.678-5' : 'Número del documento') : FIELD_HINTS[name];
+    return <div key={name} className={FULL_FIELDS.has(name) ? 'clientes-field-full' : undefined}>
+      <label className="form-label" htmlFor={id}>{label}{required && <span className="clientes-required" aria-hidden="true"> *</span>}</label>
+      {options ? <select id={id} className="form-select" disabled={disabled} value={form[name] ?? ''} onChange={change}>{options.map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select>
+      : <input id={id} className="form-control" disabled={disabled} value={form[name] ?? ''} onChange={change} placeholder={hint} aria-required={required || undefined} type={name === 'telefono' ? 'tel' : 'text'} inputMode={name === 'correo' ? 'email' : undefined} autoComplete={name === 'correo' ? 'email' : name === 'telefono' ? 'tel' : undefined}/>}
+    </div>;
+  })}</div>;
+}
 
 export default function Clientes() {
   const { user } = useAuth();
@@ -103,29 +123,36 @@ function ClientesScreen() {
       ...(form.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' ? [['pais_identificacion', 'País (ISO, dos letras)'], ['tipo_documento_extranjero', 'Tipo de documento extranjero']] : []),
       ['nombre_legal', 'Nombre legal'],
     ];
-    return <section className="commercial-page clientes-page">
+    return <section className="commercial-page clientes-page clientes-compact">
       <div className="clientes-back"><Button icon="back" disabled={disabled} onClick={back}>{selected ? 'Volver al detalle' : 'Volver a clientes'}</Button></div>
       <Heading title={selected ? 'Editar cliente' : 'Nuevo cliente'} sub={selected ? 'Actualiza los datos del cliente.' : 'Completa los datos de identificación y contacto.'}>{api.locked && refreshButton}</Heading>
       {feedback}
       <form className="clientes-form" onSubmit={save}>
-        <section className="card-fyag clientes-panel"><h2>Identificación</h2><Fields form={form} setForm={setForm} fields={identityFields} disabled={locked}/></section>
-        <section className="card-fyag clientes-panel"><h2>Información de contacto</h2><p className="commercial-help">Ingresa al menos un correo o teléfono.</p><Fields form={form} setForm={setForm} fields={ [['nombre_contacto', 'Nombre de contacto'], ['correo', 'Correo electrónico'], ['telefono', 'Teléfono']] } disabled={locked}/></section>
-        <div className="clientes-actions clientes-end"><Button disabled={disabled} onClick={back}>Cancelar</Button><button className="btn btn-fyag-primary clientes-button" type="submit" disabled={disabled}><TecIcon name="check"/><span>Guardar cliente</span></button></div>
+        <section className="card-fyag clientes-panel"><SectionTitle icon="work">Identificación</SectionTitle><ClientFields form={form} setForm={setForm} fields={identityFields} disabled={locked}/></section>
+        <section className="card-fyag clientes-panel"><SectionTitle icon="person">Información de contacto</SectionTitle><ClientFields form={form} setForm={setForm} fields={ [['nombre_contacto', 'Nombre de contacto'], ['correo', 'Correo electrónico'], ['telefono', 'Teléfono']] } disabled={locked}/><p className="commercial-help clientes-contact-note">Ingresa al menos un correo electrónico o teléfono.</p></section>
+        <div className="clientes-actions clientes-end"><small className="clientes-required-note">* Campos obligatorios</small><Button disabled={disabled} onClick={back}>Cancelar</Button><button className="btn btn-fyag-primary clientes-button" type="submit" disabled={disabled}><TecIcon name="check"/><span>Guardar cliente</span></button></div>
       </form>
     </section>;
   }
-  if (selected) return <section className="commercial-page clientes-page">
+  if (selected) return <section className="commercial-page clientes-page clientes-compact">
     <div className="clientes-back"><Button icon="back" disabled={disabled} onClick={back}>Volver a clientes</Button></div>
-    <Heading title={selected.nombre_legal}><Status row={selected}/>{refreshButton}<Button disabled={disabled} onClick={() => { setForm({ ...emptyClient, ...selected }); setMessage(''); api.setError(null); }}>Editar cliente</Button><Button variant={selected.activo ? 'btn-outline-danger' : 'btn-outline-success'} disabled={disabled} onClick={() => void toggle()}>{selected.activo ? 'Desactivar' : 'Activar'}</Button></Heading>
     {feedback}
+    <section className="card-fyag clientes-panel clientes-profile">
+      <div className="clientes-profile-head">
+        <div className="clientes-profile-identity"><div className="clientes-avatar"><TecIcon name={selected.tipo_cliente === 'EMPRESA' ? 'work' : 'person'}/></div>
+          <div><h1>{selected.nombre_legal}</h1><p>{selected.tipo_cliente === 'EMPRESA' ? 'Cliente empresarial' : 'Cliente particular'} · #{selected.id}</p></div>
+        </div><Status row={selected}/>
+      </div>
+      <div className="clientes-actions clientes-profile-actions">{refreshButton}<Button disabled={disabled} onClick={() => { setForm({ ...emptyClient, ...selected }); setMessage(''); api.setError(null); }}>Editar cliente</Button><Button variant={selected.activo ? 'btn-outline-danger' : 'btn-outline-success'} disabled={disabled} onClick={() => void toggle()}>{selected.activo ? 'Desactivar' : 'Activar'}</Button></div>
+    </section>
     <div className="clientes-detail-grid">
-      <section className="card-fyag clientes-panel"><h2>Identificación</h2><dl className="commercial-facts">
+      <section className="card-fyag clientes-panel"><SectionTitle icon="work">Identificación</SectionTitle><dl className="commercial-facts">
         <Fact label="Tipo de cliente" value={typeLabel(selected.tipo_cliente)}/><Fact label="Tipo de identificación" value={idLabel(selected.tipo_identificacion)}/>
         {selected.tipo_identificacion !== 'SIN_IDENTIFICACION' && <Fact label="Número de identificación" value={selected.numero_identificacion}/>}
         {selected.tipo_identificacion === 'DOCUMENTO_EXTRANJERO' && <><Fact label="País" value={selected.pais_identificacion}/><Fact label="Documento extranjero" value={selected.tipo_documento_extranjero}/></>}
         <Fact label="Nombre legal" value={selected.nombre_legal}/>
       </dl></section>
-      <section className="card-fyag clientes-panel"><h2>Información de contacto</h2><dl className="commercial-facts"><Fact label="Contacto" value={selected.nombre_contacto}/><Fact label="Correo electrónico" value={selected.correo}/><Fact label="Teléfono" value={selected.telefono}/></dl></section>
+      <section className="card-fyag clientes-panel"><SectionTitle icon="person">Información de contacto</SectionTitle><dl className="commercial-facts"><Fact label="Contacto" value={selected.nombre_contacto}/><Fact label="Correo electrónico" value={selected.correo}/><Fact label="Teléfono" value={selected.telefono}/></dl></section>
     </div>
   </section>;
 
