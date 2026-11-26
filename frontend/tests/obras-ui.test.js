@@ -406,7 +406,8 @@ test('Supervisor revisa con tarifa string decimal y reconsulta el turno', async 
   const renderer = await mount(b, S);
   try {
     await click(renderer, 'Ver obra'); await click(renderer, 'Turnos'); await click(renderer, 'Revisar turno');
-    await input(renderer, 'motivo', 'Revisión completa'); await input(renderer, 'costo_hora_neto', '8000.00'); await submit(renderer);
+    assert.match(text(renderer.root), /Costo por hora de trabajo/); assert.doesNotMatch(text(renderer.root), /string decimal/);
+    await input(renderer, 'motivo', 'Revisión completa'); await input(renderer, 'costo_hora_neto', '8000'); await submit(renderer);
     const call = b.calls.find((c) => c.path.endsWith('/11/revisar/'));
     assert.deepEqual(call.body, { decision: 'VALIDAR', motivo: 'Revisión completa', costo_hora_neto: '8000.00' });
     assert.equal(b.turnos[0].estado_revision, 'VALIDADO'); assert.equal(buttons(renderer, 'Revisar turno').length, 0);
