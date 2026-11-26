@@ -36,3 +36,14 @@
 @media(max-width:1050px){ .report-manager-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:700px){ .report-waterfall-body { grid-template-columns:1fr; gap:8px; } .report-manager-table { min-width:680px; } }
 @media(max-width:420px){ .report-export-menu { min-width:200px; } .report-manager-kpis .portfolio-kpi strong { font-size:1.25rem; } }
+
+
+/* Finanzas: presentación estable y alineación consistente de los importes. */
+.finance-reportes {width:100%;min-width:0;}
+.finance-reportes .report-filter-form {background:var(--fyag-bg);border:0;border-radius:0;padding:12px 0 0;border-top:1px solid var(--fyag-line);}
+.finance-reportes .report-manager-table :is(th,td).report-num {text-align:right!important;white-space:nowrap;}
+.finance-reportes .report-manager-table :is(th,td):nth-child(4) {text-align:center!important;}
+.finance-reportes .report-manager-table td:first-child {min-width:200px;}
+.finance-reportes .report-manager-table td {padding:12px;}
+.finance-reportes .report-export-menu {background:var(--fyag-card, var(--fyag-bg));}
+.finance-reportes .report-export-menu button:hover,.finance-reportes .report-export-menu button:focus-visible {background:var(--fyag-bg);}
