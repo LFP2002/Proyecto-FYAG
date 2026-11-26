@@ -508,3 +508,18 @@ test('T: navegación propia, consulta global y cierre desde turno actual',async(
   assert.doesNotMatch(text(renderer.root),/Costo mano de obra/);
  }finally{if(renderer)await unmount(renderer);}
 });
+
+test('Supervisor: suspender pide motivo y confirmación; cancelar no cambia estado', async()=>{
+ const b=obrasBackend();b.obras[0].estado='EN_PROCESO';const renderer=await mount(b);
+ const old=window.confirm;let message='';
+ try{
+  await click(renderer,'Ver obra');assert.match(buttons(renderer,'Suspender obra')[0].props.className,/so-danger-action/);
+  await click(renderer,'Suspender obra');assert.equal(renderer.root.findByType('dialog').props['aria-labelledby'],'so-suspend-title');
+  assert.equal(buttons(renderer,'Guardar cambios')[0].props.disabled,true);
+  await input(renderer,'motivo','Pausa operativa');window.confirm=m=>{message=m;return false;};
+  await submit(renderer);assert.match(message,/Podrás reanudar/);assert.equal(b.calls.filter(c=>c.method==='POST').length,0);
+  assert.equal(b.obras[0].estado,'EN_PROCESO');
+  window.confirm=()=>true;await submit(renderer);assert.equal(b.obras[0].estado,'SUSPENDIDA');
+  assert.equal(renderer.root.findAllByType('dialog').length,0);assert.match(buttons(renderer,'Reanudar obra')[0].props.className,/so-positive-action/);
+ }finally{window.confirm=old;await unmount(renderer);}
+});
