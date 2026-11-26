@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils.decorators import method_decorator
+from django.db.models import Count, Q, Value
+from django.db.models.functions import Concat
 from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 
 from . import services_usuarios as services
@@ -70,7 +72,7 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
         return Response(UsuarioLecturaSerializer(user).data, status=code)
 
     def list(self, request):
-        validar_query(request.query_params, {"rol", "activo"})
+        validar_query(request.query_params, {"rol", "activo", "buscar", "resumen"})
         queryset = self.get_queryset()
         if "rol" in request.query_params:
             role = request.query_params["rol"]
@@ -82,8 +84,25 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
             if active not in {"true", "false"}:
                 raise ValidationError({"activo": ["Use true o false."]})
             queryset = queryset.filter(is_active=active == "true")
+        if "buscar" in request.query_params:
+            term = request.query_params["buscar"].strip()
+            if not term or len(term) > 150 or any(ord(c) < 32 for c in term):
+                raise ValidationError({"buscar": ["Ingrese entre 1 y 150 caracteres."]})
+            queryset = queryset.annotate(nombre_completo=Concat("first_name", Value(" "), "last_name")).filter(
+                Q(username__icontains=term) | Q(email__icontains=term) | Q(nombre_completo__icontains=term))
+        resumen = request.query_params.get("resumen")
+        if resumen is not None and resumen != "true":
+            raise ValidationError({"resumen": ["Use true."]})
         pagina = self.paginate_queryset(queryset)
-        return self.get_paginated_response(UsuarioLecturaSerializer(pagina, many=True).data)
+        response = self.get_paginated_response(UsuarioLecturaSerializer(pagina, many=True).data)
+        if resumen == "true":
+            response.data["resumen"] = Usuario.objects.aggregate(
+                total=Count("pk"),
+                activas=Count("pk", filter=Q(is_active=True)),
+                inactivas=Count("pk", filter=Q(is_active=False)),
+                temporales=Count("pk", filter=Q(seguridad_credencial__estado__in=["INICIAL", "RECUPERACION"])),
+            )
+        return sin_cache(response)
 
     @sensitive_variables()
     def _credencial(self, issued, code=200):

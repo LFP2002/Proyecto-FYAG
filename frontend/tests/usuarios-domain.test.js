@@ -77,3 +77,10 @@ test('errores Usuarios públicos por campo y conflicto; no filtra trazas ni secr
     return true;
   });
 });
+
+test('TI contrato de búsqueda, resumen y proyección de credenciales',()=>{
+ assert.equal(usersPath(1,{buscar:'Nombre Apellido',resumen:true}),'/api/usuarios/?page=1&buscar=Nombre+Apellido&resumen=true');
+ assert.throws(()=>usersPath(1,{buscar:'x'.repeat(151)}),{status:400});
+ assert.equal(readUser({...profile,estado_credencial:'INICIAL',cambio_obligatorio:true}).estado_credencial,'INICIAL');
+ assert.throws(()=>readUser({...profile,estado_credencial:'PERSONAL',cambio_obligatorio:true}),{status:502});
+});

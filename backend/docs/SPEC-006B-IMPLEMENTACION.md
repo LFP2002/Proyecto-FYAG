@@ -163,3 +163,7 @@ No se incluye una colección Postman con credenciales: el procedimiento permite 
 ## Paquete
 
 `revision-spec-006b.zip`: archivos nuevos/modificados de esta entrega y este informe, rutas relativas al repositorio. Excluye secretos, `.env`, DB, dependencias, cachés, build dist, `.git`, datos locales de prueba, entregas anteriores y scripts ajenos. Las pruebas automatizadas del código sí se incluyen. Revisión humana antes de cualquier integración.
+
+## Incremento visual TI y búsqueda administrativa
+
+Ver anexo SPEC-018: búsqueda remota y resumen global optativo de cuentas, sin nuevas rutas ni migraciones. La matriz visual histórica de cinco roles se sustituye por descripciones de los seis roles vigentes (no constituye una matriz de autorización). Formularios y pestañas conservan guardas de operaciones sensibles, reconsultas de detalle y entrega única de credencial. Pruebas locales y CI pendientes.

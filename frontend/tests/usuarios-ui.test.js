@@ -27,7 +27,8 @@ function backend() {
     if (method !== 'GET' && failure) throw failure;
     if (path.startsWith('/api/usuarios/?')) {
       const query = new URL(path, 'http://localhost').searchParams;
-      return page(accounts.filter((a) => (!query.has('rol') || a.rol === query.get('rol')) && (!query.has('activo') || String(a.is_active) === query.get('activo'))));
+      const rows=accounts.filter(a=>(!query.has('rol')||a.rol===query.get('rol'))&&(!query.has('activo')||String(a.is_active)===query.get('activo'))&&(!query.has('buscar')||[a.first_name+' '+a.last_name,a.username,a.email].some(v=>v.toLowerCase().includes(query.get('buscar').toLowerCase()))));
+      return {...page(rows),...(query.has('resumen')?{resumen:{total:accounts.length,activas:accounts.filter(a=>a.is_active).length,inactivas:accounts.filter(a=>!a.is_active).length,temporales:accounts.filter(a=>['INICIAL','RECUPERACION'].includes(a.estado_credencial)).length}}:{})};
     }
     if (path === '/api/usuarios/' && method === 'POST') {
       const obj = { ...account(accounts.length + 1), ...options.body };
@@ -59,7 +60,7 @@ async function mount(request, role = 'ADMINISTRADOR_TI', full = false) {
   return { renderer, changeRole: (next) => { session = { ...session, user: { ...session.user, role: next } }; listeners.forEach((fn) => fn()); } };
 }
 async function click(renderer, label) {
-  const button = renderer.root.findAllByType('button').find((b) => text(b) === label);
+  const button = renderer.root.findAllByType('button').find((b) => text(b).trim() === label || b.props['aria-label'] === label);
   assert.ok(button, `Falta botón ${label}`); assert.ok(!button.props.disabled, `${label} deshabilitado`);
   await act(async () => { await button.props.onClick(); await flush(); });
 }
@@ -96,22 +97,20 @@ test('Usuarios consulta, crea inactiva, edita, activa/desactiva, cambia rol y es
     await submit(renderer);
     const post = api.calls.find((c) => c.method === 'POST');
     assert.deepEqual(Object.keys(post.body).sort(), ['email', 'first_name', 'last_name', 'rol', 'username']);
-    assert.doesNotMatch(text(renderer.root), /Credencial temporal generada/);
     assert.equal(api.accounts[2].is_active, false);
-    assert.doesNotMatch(text(renderer.root), /Vence:/);
-    await click(renderer, 'Ver cuenta #3');
+    assert.equal(renderer.root.findAllByProps({label:'Cuentas de usuario'}).length,0);
     assert.match(text(renderer.root), /Credencial temporal generada/);
     assert.match(text(renderer.root), /Vence:/);
     assert.match(text(renderer.root), /A{43}/);
     await click(renderer, 'Ocultar credencial');
     assert.doesNotMatch(text(renderer.root), /Credencial temporal generada/);
-    await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Cuenta preparada'); await submit(renderer);
+    await click(renderer, 'Acceso y seguridad'); await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Cuenta preparada'); await submit(renderer);
     assert.equal(api.accounts[2].is_active, true);
-    await click(renderer, 'Editar perfil'); await input(renderer, 'first_name', 'Nombre actualizado'); await submit(renderer);
+    await click(renderer, 'Perfil'); await click(renderer, 'Editar perfil'); await input(renderer, 'first_name', 'Nombre actualizado'); await submit(renderer);
     assert.equal(api.accounts[2].first_name, 'Nombre actualizado');
     await click(renderer, 'Cambiar rol'); await input(renderer, 'rol', 'ADMINISTRADOR_TI'); await input(renderer, 'motivo', 'Nueva función'); await submit(renderer);
     assert.equal(api.accounts[2].rol, 'ADMINISTRADOR_TI');
-    await click(renderer, 'Restablecer acceso'); await input(renderer, 'motivo', 'Restablecimiento solicitado'); await submit(renderer);
+    await click(renderer, 'Acceso y seguridad'); await click(renderer, 'Restablecer acceso'); await input(renderer, 'motivo', 'Restablecimiento solicitado'); await submit(renderer);
     const reset = api.calls.find((call) => call.path.endsWith('/restablecer-clave/'));
     assert.deepEqual(reset.body, { motivo: 'Restablecimiento solicitado' });
     assert.equal(api.calls.some((call) => call.path.endsWith('/establecer-clave/')), false);
@@ -136,7 +135,7 @@ test('400 conserva perfil sin campo de contraseña; 409 bloquea reenvío hasta r
     assert.equal(renderer.root.findByProps({ id: 'usuario-email' }).props.value, 'nueva@example.test');
     assert.match(text(renderer.root), /Alias obligatorio/);
     await click(renderer, 'Cancelar');
-    await click(renderer, 'Ver cuenta #2'); await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Preparada');
+    await click(renderer, 'Ver cuenta #2'); await click(renderer, 'Acceso y seguridad'); await click(renderer, 'Activar'); await input(renderer, 'motivo', 'Preparada');
     api.setFailure(new ApiError(409, 'Conflicto', null, { code: 'asignaciones_pendientes' }));
     await submit(renderer);
     assert.equal(api.accounts[1].is_active, false);
@@ -154,8 +153,9 @@ test('autooperaciones protegidas en UI y rol ajeno no consulta aun montando Usua
   const api = backend(), { renderer } = await mount(api.request);
   try {
     await click(renderer, 'Ver cuenta #1');
-    assert.ok(renderer.root.findAllByType('button').find((b) => text(b) === 'Desactivar').props.disabled);
     assert.ok(renderer.root.findAllByType('button').find((b) => text(b) === 'Cambiar rol').props.disabled);
+    await click(renderer,'Acceso y seguridad');
+    assert.ok(renderer.root.findAllByType('button').find((b) => text(b) === 'Desactivar').props.disabled);
     assert.equal(renderer.root.findAllByType('button').some((b) => text(b) === 'Establecer contraseña'), false);
     assert.ok(renderer.root.findAllByType('button').some((b) => text(b) === 'Mi contraseña'));
   } finally { await act(async () => renderer.unmount()); }
@@ -197,15 +197,20 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
   };
   const { renderer } = await mount(request);
   try {
+    await click(renderer,'Filtros');
+    const before=calls.length;
     await act(async () => { renderer.root.findByProps({ 'aria-label': 'Filtrar estado' }).props.onChange({ target: { value: 'false' } }); await flush(); });
+    assert.equal(calls.length,before);
+    await act(async()=>{renderer.root.findByProps({id:'ti-filters'}).props.onSubmit({preventDefault(){}});await flush();});
     await click(renderer, 'Siguiente');
-    assert.ok(calls.includes('/api/usuarios/?page=2&activo=false'));
+    assert.ok(calls.includes('/api/usuarios/?page=2&activo=false&resumen=true'));
     await click(renderer, 'Ver cuenta #27');
+    await click(renderer,'Historial');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=1'));
     await click(renderer, 'Siguiente');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=2'));
     await click(renderer, 'Volver a usuarios');
-    assert.equal(calls.at(-1), '/api/usuarios/?page=2&activo=false');
+    assert.equal(calls.at(-1), '/api/usuarios/?page=2&activo=false&resumen=true');
   } finally { await act(async () => renderer.unmount()); }
 });
 
@@ -229,4 +234,23 @@ test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni ref
     assert.equal(api.calls.filter((c) => c.path.includes('/historial/')).length, historyReads, 'no reconsulta con token ya revocado');
     assert.equal(api.calls.filter((c) => c.path.startsWith('/api/auth/refresh/')).length, 0);
   } finally { await act(async () => renderer.unmount()); }
+});
+
+test('TI búsqueda remota, resumen global y credencial real sin estadísticas de página',async()=>{
+ const api=backend();Object.assign(api.accounts[1],{first_name:'Camila',last_name:'Hernández',estado_credencial:'INICIAL',cambio_obligatorio:true});
+ const {renderer}=await mount(api.request);
+ try{
+  assert.match(text(renderer.root),/Camila Hernández/);
+  assert.match(text(renderer.root),/Primer cambio pendiente/);
+  const before=api.calls.length;
+  await act(async()=>renderer.root.findByProps({id:'ti-search'}).props.onChange({target:{value:'Camila Hernández'}}));
+  assert.equal(api.calls.length,before);
+  await act(async()=>{renderer.root.findByProps({className:'ti-search'}).props.onSubmit({preventDefault(){}});await flush();});
+  assert.match(api.calls.at(-1).path,/buscar=Camila\+Hern%C3%A1ndez/);
+  assert.match(text(renderer.root),/1 cuentas coincidentes/);
+  assert.match(text(renderer.root),/Total de cuentas2/);
+  await click(renderer,'Ver cuenta #2');await click(renderer,'Acceso y seguridad');
+  assert.match(text(renderer.root),/Primer cambio pendiente/);
+  assert.equal(renderer.root.findAllByProps({'aria-label':'Páginas del historial'}).length,0);
+ }finally{await act(async()=>renderer.unmount());}
 });

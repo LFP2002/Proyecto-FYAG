@@ -103,6 +103,25 @@ class AdministracionAPITests(AdminBase, APITestCase):
             self.assertEqual(self.client.get("/api/usuarios/?" + query).status_code, 400, query)
         self.assertEqual(self.client.get("/api/usuarios/?page=999").status_code, 404)
 
+    def test_busqueda_global_resumen_y_permisos(self):
+        self.target.first_name, self.target.last_name = "Camila", "Hernández"
+        self.target.save()
+        created = self.client.post("/api/usuarios/", self.new_data(), format="json")
+        self.assertEqual(created.status_code, 201)
+        result = self.client.get("/api/usuarios/", {"buscar": "camila Hernández", "resumen": "true"})
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(result.data["count"], 1)
+        self.assertEqual(result.data["results"][0]["id"], self.target.pk)
+        self.assertEqual(result.data["resumen"], {"total": Usuario.objects.count(),
+            "activas": Usuario.objects.filter(is_active=True).count(),
+            "inactivas": Usuario.objects.filter(is_active=False).count(), "temporales": 1})
+        self.assertNotIn("credencial_temporal", str(result.data))
+        for query in ("buscar=", "buscar=" + "x" * 151, "resumen=false", "resumen=true&resumen=true"):
+            self.assertEqual(self.client.get("/api/usuarios/?" + query).status_code, 400)
+        self.assertNotIn("resumen", self.client.get("/api/usuarios/").data)
+        self.authenticate(self.target)
+        self.assertEqual(self.client.get("/api/usuarios/?buscar=Camila&resumen=true").status_code, 403)
+
     def test_roles_no_ti_denegados_antes_de_revelar_cuentas(self):
         for role in [Usuario.Rol.GERENCIA, Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS, Usuario.Rol.TECNICO, Usuario.Rol.BODEGUERO]:
             user = self.users[role]
