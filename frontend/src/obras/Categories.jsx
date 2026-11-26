@@ -66,7 +66,7 @@ export default function Categories({ onBack }) {
   if (selected) return <CategoryDetail key={`${user.id}:${user.role}:${selected}`} id={selected} onBack={() => { setSelected(null); void read(); }} />;
   return <section>
     <div className="so-heading"><div><h1 className="so-categories-title">Categorías de servicio</h1><p className="commercial-help">Administra las categorías para clasificar las obras.</p></div><button className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked} onClick={onBack}><TecIcon name="back"/> Volver a obras</button></div>
-    <div className="budget-toolbar">{user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { api.setError(null); setErrors({}); setCreating(true); }}>Nueva categoría</button>}
+    <div className="budget-toolbar so-category-toolbar">{user.role === S && <button className="btn btn-fyag-primary" disabled={blocked || creating} onClick={() => { api.setError(null); setErrors({}); setCreating(true); }}>Nueva categoría</button>}
       <Field name="categorias_activo" label="Vigencia" options={[[ '', 'Todas' ], ['true', 'Activas'], ['false', 'Inactivas']]} value={query.activo} onChange={(activo) => setQuery({ page: 1, activo })} disabled={api.busy || creating} />
       <RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(read)} />
     </div>
