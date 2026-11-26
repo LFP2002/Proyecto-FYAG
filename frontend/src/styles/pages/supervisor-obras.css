@@ -95,3 +95,11 @@
  .supervisor-obras .so-cost-total strong {font-size:1.7rem}
  .supervisor-obras .so-tabs {gap:0 12px}
 }
+
+.supervisor-obras.so-create .commercial-section-head h2 {font-size:1.75rem;font-weight:700}
+.supervisor-obras .so-category-detail .commercial-section-head h2.so-category-name {font-size:1.5rem;font-weight:700}
+.supervisor-obras .so-create .obras-form-grid,.supervisor-obras .obras-action-form .obras-form-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
+.supervisor-obras .so-turn {padding:16px}
+.supervisor-obras .so-detail :is(.attachments-panel,section[aria-label='Metadatos de evidencias fotográficas']) {margin:0!important;padding:20px!important}
+.supervisor-obras .so-detail :is(.attachments-panel,section[aria-label='Metadatos de evidencias fotográficas']) h3 {font-size:1.0625rem;font-weight:700}
+@media(max-width:600px){.supervisor-obras.so-create .obras-form-grid,.supervisor-obras .obras-action-form .obras-form-grid {grid-template-columns:minmax(0,1fr)}}
