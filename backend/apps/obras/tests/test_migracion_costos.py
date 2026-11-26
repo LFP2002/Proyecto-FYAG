@@ -42,6 +42,9 @@ class MigracionControlCostosTests(CostosBase, TransactionTestCase):
         for evento in eventos:
             self.assertIsNone(evento.pop("control_id"))
             self.assertIsNone(evento.pop("cortesia_id"))
+            # Los eventos anteriores a la captura de identidad no tienen snapshot.
+            self.assertIsNone(evento.pop("actor_nombre_historico"))
+            self.assertIsNone(evento.pop("actor_username_historico"))
         self.assertEqual(eventos, eventos_antes)
         self.assertFalse(ControlCostosObra.objects.exists())
         resumen = services_costos.resumen_costos(self.obra, self.supervisor)

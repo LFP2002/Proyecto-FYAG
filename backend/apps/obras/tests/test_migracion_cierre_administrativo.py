@@ -55,7 +55,12 @@ class MigracionCierreAdministrativoTests(TurnosBase, TransactionTestCase):
         abierto = TurnoObra.objects.get(pk=abierto.pk)
         self.assertIsNone(abierto.modo_cierre)
         self.assertIsNone(abierto.cerrado_por_id)
-        self.assertEqual(list(TurnoObraEvento.objects.values()), eventos)
+        eventos_actuales = list(TurnoObraEvento.objects.values())
+        for evento in eventos_actuales:
+            # Los eventos anteriores a la captura de identidad no tienen snapshot.
+            self.assertIsNone(evento.pop("actor_nombre_historico"))
+            self.assertIsNone(evento.pop("actor_username_historico"))
+        self.assertEqual(eventos_actuales, eventos)
 
     def test_historicos_sin_evento_duplicados_o_actor_incoherente_detienen_migracion(self):
         for caso in ("sin_evento", "duplicado", "otro_actor"):
