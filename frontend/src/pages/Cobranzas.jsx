@@ -93,7 +93,7 @@ function CobranzasOperativas() {
   }
   async function refresh(){const ok=await reload();if(ok)api.reconcile(async()=>true);}
   if (!['GERENCIA','ADMINISTRATIVO_FINANZAS'].includes(user.role)) return <section><PageHead title="Cobranzas"/><p role="alert">No tienes permiso para consultar cobranzas.</p></section>;
-  return <section className="commercial-page cobranzas-page">
+  return <section className="commercial-page cobranzas-page cobranzas-operativas">
     <PageHead title="Cobranzas" sub="Seguimiento de documentos, pagos y saldos.">
       {activeView==='cartera'&&<button type="button" className="btn btn-outline-secondary cobranzas-refresh" disabled={blocked} onClick={()=>void refresh()}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="bi bi-arrow-counterclockwise" aria-hidden="true"><path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"/><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"/></svg>Actualizar
@@ -112,7 +112,7 @@ function CobranzasOperativas() {
         <div><h2>Documentos vigentes</h2><p>{snapshotKey===currentSnapshotKey&&data?`${data.count} registros · CLP`:'CLP'}</p></div>
         <div className="cobranzas-panel-actions">
           
-          <button type="button" className="btn btn-outline-secondary btn-sm" aria-expanded={filtersOpen} aria-controls="cobranzas-filtros" onClick={()=>setFiltersOpen(open=>!open)}>
+          <button type="button" className="btn btn-outline-secondary btn-sm" aria-expanded={filtersOpen} aria-controls="cobranzas-filtros-avanzados" onClick={()=>setFiltersOpen(open=>!open)}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="bi bi-filter" aria-hidden="true"><path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"/></svg>Filtros{activeFilters>0?` (${activeFilters})`:''}
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="bi bi-chevron-down" aria-hidden="true"><path fillRule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"/></svg>
           </button>
@@ -125,7 +125,7 @@ function CobranzasOperativas() {
           {activeFilters>0&&<button className="btn btn-outline-secondary" type="button" disabled={blocked} onClick={()=>{setDraft({...EMPTY_FILTERS});setFilters({...EMPTY_FILTERS});setPage(1);}}>Limpiar filtros</button>}
         </div>
         {draft.obra&&<p className="commercial-help">Filtro de obra relacionado activo. Puedes quitarlo con «Limpiar filtros».</p>}
-        <div className="cobranzas-filtros" hidden={!filtersOpen}>{['fecha_emision','fecha_vencimiento'].map(field=><React.Fragment key={field}><FilterField title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} desde`} type="date" value={draft[`${field}_desde`]} onChange={v=>change(`${field}_desde`,v)}/><FilterField title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} hasta`} type="date" value={draft[`${field}_hasta`]} onChange={v=>change(`${field}_hasta`,v)}/></React.Fragment>)}
+        <div className="cobranzas-filtros" id="cobranzas-filtros-avanzados" hidden={!filtersOpen}>{['fecha_emision','fecha_vencimiento'].map(field=><React.Fragment key={field}><FilterField title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} desde`} type="date" value={draft[`${field}_desde`]} onChange={v=>change(`${field}_desde`,v)}/><FilterField title={`${field==='fecha_emision'?'Emisión':'Vencimiento'} hasta`} type="date" value={draft[`${field}_hasta`]} onChange={v=>change(`${field}_hasta`,v)}/></React.Fragment>)}
           {draftInvalidDates&&<p className="text-danger" role="alert">Completa cada par de fechas y conserva el orden desde/hasta.</p>}
           <div className="cobranzas-filter-actions"><button type="button" className="btn btn-outline-secondary btn-sm" onClick={()=>setDraft({...EMPTY_FILTERS})}>Limpiar</button><button type="submit" className="btn btn-fyag-primary btn-sm" disabled={blocked||draftInvalidId||draftInvalidDates}>Aplicar filtros</button></div>
         </div>
