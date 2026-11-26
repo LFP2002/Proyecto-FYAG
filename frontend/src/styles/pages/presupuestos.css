@@ -79,3 +79,55 @@
 .budgets-page .manager-budget-back svg { flex:none; }
 .budgets-page .manager-budget-back:hover span { text-decoration:underline; }
 .budgets-page .manager-budget-back:focus-visible { outline:2px solid var(--fyag-primary-light); outline-offset:4px; border-radius:4px; }
+
+/* Presupuestos operativos: búsqueda global, datos generales y edición guiada. */
+.budgets-operational .budget-toolbar { align-items: flex-end; }
+.budgets-operational .budget-toolbar-filters { flex: 1 1 530px; justify-content: flex-end; }
+.budgets-operational .budget-search-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.budgets-operational .budget-toolbar-filters .budget-search-row { flex: 1 1 250px; max-width: 520px; }
+.budgets-operational .budget-search-row input { flex: 1; min-width: 0; }
+.budgets-operational .budget-search-row .btn { white-space: nowrap; }
+.budgets-operational .budget-count { color: var(--fyag-muted); font-size: .8125rem; margin: 0; padding: 12px; border-top: 1px solid var(--fyag-line); }
+.budgets-operational .budget-header-view { width: 100%; max-width: 850px; margin-inline: auto; }
+.budgets-operational .budget-header-view > h2 { font-size: 1.5rem; font-weight: 700; margin: 16px 0 6px; color: var(--fyag-primary); }
+.budgets-operational .budget-header-form { margin: 16px 0 0; }
+.budgets-operational .budget-header-form h3, .budgets-operational .budget-item-form h3, .budgets-operational .budget-commercial-actions h3 { font-size: 1.0625rem; font-weight: 700; color: var(--fyag-primary); margin: 0 0 16px; }
+.budgets-operational .budget-header-form .budget-search-row { margin-bottom: 16px; }
+.budgets-operational .budget-header-form textarea { resize: vertical; }
+.budgets-operational .budget-header-form .commercial-form-actions { justify-content: flex-end; }
+.budgets-operational .budget-progress { display: flex; gap: 6px; margin-top: 20px; }
+.budgets-operational .budget-progress:empty { display: none; }
+.budgets-operational .budget-step { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; text-align: center; font-size: .8125rem; color: var(--fyag-muted); position: relative; overflow-wrap: anywhere; }
+.budgets-operational .budget-step:not(:last-child)::after { content: ''; position: absolute; top: 16px; left: 60%; width: 80%; height: 2px; background: var(--fyag-line); }
+.budgets-operational .budget-step.done::after { background: var(--fyag-green); }
+.budgets-operational .budget-step-dot { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-weight: 700; background: var(--fyag-bg); border: 1px solid var(--fyag-line); z-index: 1; }
+.budgets-operational .budget-step.current { color: var(--fyag-primary); font-weight: 700; }
+.budgets-operational .budget-step.current .budget-step-dot { background: #24527f; color: white; border-color: #24527f; }
+.budgets-operational .budget-step.done .budget-step-dot { color: var(--fyag-green-dark); border-color: var(--fyag-green); }
+.budgets-operational .budget-next { padding: 12px 16px; margin: 16px 0; border-radius: 8px; background: var(--fyag-bg); border: 1px solid var(--fyag-line); }
+.budgets-operational .budget-next strong { color: var(--fyag-primary); }
+.budgets-operational .budget-next p { margin: 4px 0 0; color: var(--fyag-muted); }
+.budgets-operational .budget-add-options { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.budgets-operational .budget-add-options .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.budgets-operational .budget-item-form { max-width: 800px; margin: 0 auto; padding: 8px; min-width: 0; }
+.budgets-operational .budget-item-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.budgets-operational .budget-item-fields > div { min-width: 0; }
+.budgets-operational .budget-item-full { grid-column: 1 / -1; }
+.budgets-operational .budget-item-subtotal { display: flex; flex-direction: column; justify-content: center; background: var(--fyag-bg); border: 1px solid var(--fyag-line); padding: 10px; border-radius: 7px; min-width: 0; overflow-wrap: anywhere; }
+.budgets-operational .budget-order-field { max-width: 200px; margin-top: 10px; }
+.budgets-operational .budget-item-footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--fyag-line); }
+.budgets-operational .budget-commercial-actions { border-top: 1px solid var(--fyag-line); margin-top: 20px; padding-top: 20px; }
+.budgets-operational .budget-commercial-actions .commercial-actions { margin: 0; }
+@media(max-width:767.98px) {
+  .budgets-operational .budget-toolbar-filters { justify-content: flex-start; }
+  .budgets-operational .budget-toolbar-filters .budget-search-row { max-width: none; flex-basis: 100%; }
+  .budgets-operational .budget-step { font-size: .7rem; }
+  .budgets-operational .budget-step:not(:last-child)::after { left: 70%; width: 60%; }
+}
+@media(max-width:575.98px) {
+  .budgets-operational .budget-item-fields { grid-template-columns: minmax(0, 1fr); }
+  .budgets-operational .budget-item-footer .btn, .budgets-operational .budget-add-options .btn { flex: 1 1 100%; }
+  .budgets-operational .budget-step-dot { width: 28px; height: 28px; }
+  .budgets-operational .budget-step:not(:last-child)::after { top: 13px; }
+  .budgets-operational .budget-item-form { padding: 0; }
+}
