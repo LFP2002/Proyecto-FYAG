@@ -1,9 +1,5 @@
-/* Escala visual de Finanzas: títulos equivalentes comparten tamaño.
-   Las unidades rem conservan el ajuste de tipografía de FYAG. */
+/* Colores semánticos exclusivos de Finanzas. */
 :root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] {
-  --af-title-size: 1.75rem;
-  --af-detail-title-size: 1.5rem;
-  --af-section-title-size: 1.0625rem;
   --af-danger-ink: #b34747;
   --af-warning-ink: #966319;
   --af-success-ink: #287751;
@@ -20,31 +16,6 @@
   --af-change-ink: #d2e4f5;
   --af-change-note: #b8cce1;
   --af-table-head: #273747;
-}
-:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content :is(.page-head h1,.clientes-heading h1,header.of-heading h1) {
-  font-size:var(--af-title-size);
-  font-weight:700;
-  line-height:1.25;
-  letter-spacing:0;
-  color:var(--fyag-primary);
-  margin:0 0 4px;
-  overflow-wrap:anywhere;
-}
-:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content :is(.clientes-profile-identity h1,.budget-detail-heading h2,.budgets-operational .budget-header-view > h2,.of-panel .of-heading h1,.manager-work-heading h1,.finance-detail-title h2,.eg-detail-heading h2,.if-record-detail .if-heading h2,.audit-detail h1) {
-  font-size:var(--af-detail-title-size);
-  line-height:1.3;
-  font-weight:700;
-  letter-spacing:0;
-}
-:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content :is(.clientes-panel h2,.commercial-form h2,.commercial-section-head h2,.budget-header-form h3,.budget-item-form h3,.budget-commercial-actions h3,.of-panel > h2,.manager-work-panel h2,.portfolio-list-head h2,.cobranzas-panel-head h2,.finance-detail h4,.finance-egresos .eg-panel h2,.finance-egresos .eg-panel h3,.finance-inventory .if-panel h2,.finance-inventory .if-record-detail h3,.audit-list-head h2,.audit-detail-card h2,.audit-reason h3,.manager-alert-description h2,.finance-alert-attention h2,.report-filter-card h2,.report-waterfall h2,.chat-sidebar-head h2,.chat-head h2) {
-  font-size:var(--af-section-title-size);
-  font-weight:700;
-  line-height:1.35;
-}
-/* El título de ficha tiene precedencia sobre el título de panel. */
-:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .fyag-content .finance-inventory .if-record-detail .if-heading h2 {
-  font-size:var(--af-detail-title-size);
-  line-height:1.3;
 }
 :root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .audit-finance .audit-critical {
   color:var(--af-danger-ink)!important;
