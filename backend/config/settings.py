@@ -20,6 +20,8 @@ from apps.usuarios.correo_config import configurar_correo, configurar_vigencia_r
 BASE_DIR = Path(__file__).resolve().parent.parent
 globals().update(configurar_correo(os.environ))
 FYAG_RECUPERACION_MINUTOS = configurar_vigencia_recuperacion(os.environ)
+# Compatibilidad de desarrollo y QA: salted_hmac usa SECRET_KEY si no hay clave dedicada.
+FYAG_RECUPERACION_HMAC_KEY = None
 try:
     FYAG_VERIFICACION_MINUTOS = int(os.getenv('FYAG_VERIFICACION_MINUTOS', '60'))
     if not 15 <= FYAG_VERIFICACION_MINUTOS <= 1440:

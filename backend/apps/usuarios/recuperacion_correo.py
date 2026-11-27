@@ -38,7 +38,8 @@ def _digest(token):
 def _vinculo(user, credencial):
     datos = (user.pk, user.email, user.correo_verificado_en.isoformat(), user.sesion_version,
              user.rol, user.password, credencial.estado, credencial.personal_previa)
-    return salted_hmac('fyag.027.recuperacion.v1', repr(datos), algorithm='sha256').hexdigest()
+    return salted_hmac('fyag.027.recuperacion.v1', repr(datos),
+                       secret=settings.FYAG_RECUPERACION_HMAC_KEY, algorithm='sha256').hexdigest()
 
 
 def _credencial_elegible(user):

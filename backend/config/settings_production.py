@@ -45,6 +45,7 @@ if role in {'web', 'documents', 'attachments'}:
     os.environ['FYAG_MONGO_PASSWORD'] = secret('mongo_app_password')
 if role == 'web':
     os.environ['FYAG_CHAT_REDIS_PASSWORD'] = secret('redis_chat_password', minimum=32)
+recovery_key = None
 if role in {'web', 'mail'}:
     password = quote(secret('redis_security_password', minimum=32), safe='')
     os.environ['FYAG_SECURITY_REDIS_URL'] = f'rediss://:{password}@redis-seguridad:6379/0'
@@ -54,11 +55,17 @@ if role in {'web', 'mail'}:
     profile = os.environ.get('FYAG_EMAIL_PROFILE', 'deshabilitado')
     if profile == 'smtp':
         os.environ['EMAIL_HOST_PASSWORD'] = secret('smtp_password')
+        recovery_key = secret('recovery_hmac_key')
+        if (not re.fullmatch(r'[0-9a-f]{64}', recovery_key)
+                or recovery_key in {os.environ['DJANGO_SECRET_KEY'], os.environ['JWT_SIGNING_KEY']}):
+            raise ImproperlyConfigured('La clave HMAC de recuperación debe ser independiente y tener 64 caracteres hexadecimales minúsculos.')
     elif profile != 'deshabilitado' or role == 'mail':
         raise ImproperlyConfigured('Producción solo admite correo deshabilitado o SMTP autenticado.')
 
 from .settings import *  # noqa: E402,F403
 
+FYAG_RECUPERACION_HMAC_KEY = recovery_key
+del recovery_key
 FYAG_PRODUCTION_ROLE = role
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True

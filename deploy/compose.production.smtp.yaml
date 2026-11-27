@@ -12,7 +12,7 @@ x-smtp-env: &smtp-env
 services:
   backend:
     environment: *smtp-env
-    secrets: [smtp_password]
+    secrets: [smtp_password, recovery_hmac_key]
     networks: [correo-egress]
   verificacion_correo:
     extends: {file: compose.production.yaml, service: alertas_reconciliador}
@@ -20,10 +20,11 @@ services:
       <<: *smtp-env
       FYAG_PROD_ROLE: mail
     networks: [sql, seguridad, correo-egress]
-    secrets: [postgres_password, redis_security_password, redis_ca, smtp_password]
+    secrets: [postgres_password, redis_security_password, redis_ca, smtp_password, recovery_hmac_key]
 
 networks:
   correo-egress: {}
 
 secrets:
   smtp_password: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/smtp-password'}
+  recovery_hmac_key: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/recovery-hmac-key'}
