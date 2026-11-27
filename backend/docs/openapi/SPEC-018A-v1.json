@@ -452,7 +452,7 @@
         ],
         "responses": {
           "200": {
-            "description": "25 eventos por pagina, orden creado_en/id; snapshots de credenciales vacios",
+            "description": "25 eventos por página, orden ascendente por creado_en/id, con desempate por fuente. Incluye recuperaciones por correo de la cuenta objetivo, sin actor autenticado ni snapshots de credenciales.",
             "content": {
               "application/json": {
                 "schema": {
@@ -477,9 +477,7 @@
                     },
                     "results": {
                       "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Evento"
-                      }
+                      "items": {"oneOf": [{"$ref": "#/components/schemas/Evento"}, {"$ref": "#/components/schemas/EventoRecuperacionCorreo"}]}
                     }
                   }
                 }
@@ -1062,6 +1060,23 @@
             "type": "string",
             "maxLength": 150
           }
+        }
+      },
+      "EventoRecuperacionCorreo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "usuario_objetivo", "actor", "actor_identidad_origen", "tipo", "acceso_anterior", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^RECUPERACION_CORREO_EVENTO:[1-9][0-9]*$"},
+          "usuario_objetivo": {"type": "integer", "minimum": 1},
+          "actor": {"type": "integer", "nullable": true, "enum": [null]},
+          "actor_identidad_origen": {"type": "string", "enum": ["TITULARIDAD_CORREO"]},
+          "tipo": {"type": "string", "enum": ["RECUPERACION_CORREO"]},
+          "acceso_anterior": {"type": "string", "nullable": true, "enum": ["NORMAL", "BLOQUEO_TEMPORAL", "REQUIERE_TI", null]},
+          "motivo": {"type": "string", "enum": [""]},
+          "datos_anteriores": {"type": "object", "maxProperties": 0},
+          "datos_nuevos": {"type": "object", "maxProperties": 0},
+          "creado_en": {"type": "string", "format": "date-time"}
         }
       },
       "Evento": {

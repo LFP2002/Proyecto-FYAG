@@ -12,12 +12,12 @@ from django.db.models.functions import Concat
 from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 
 from . import services_usuarios as services
-from .models import Usuario
+from .models import RecuperacionCorreoEvento, Usuario
 from .permissions import EsAdministradorTIActivo
 from .serializers_usuarios import (
     CambiarClavePropiaSerializer, CrearUsuarioSerializer, EstablecerClaveSerializer,
     MotivoUsuarioSerializer, PerfilUsuarioSerializer, RolUsuarioSerializer,
-    UsuarioEventoSerializer, UsuarioLecturaSerializer,
+    RecuperacionCorreoHistorialSerializer, UsuarioEventoSerializer, UsuarioLecturaSerializer,
 )
 from .services import delete_refresh_cookie, sin_cache
 
@@ -149,8 +149,16 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     def historial(self, request, pk=None):
         target = self.get_object()
         validar_query(request.query_params, set())
-        page = self.paginate_queryset(target.eventos_administrativos.order_by("creado_en", "id"))
-        return self.get_paginated_response(UsuarioEventoSerializer(page, many=True).data)
+        administrativos = target.eventos_administrativos.all()
+        recuperaciones = RecuperacionCorreoEvento.objects.filter(usuario=target)
+        # Una única paginación SQL; el discriminador solo desempata IDs de distintas fuentes.
+        refs = administrativos.order_by().annotate(origen=Value(0)).values_list('creado_en', 'id', 'origen')
+        correo = recuperaciones.annotate(origen=Value(1)).values_list('creado_en', 'id', 'origen')
+        page = self.paginate_queryset(refs.union(correo, all=True).order_by('creado_en', 'id', 'origen'))
+        fuentes = (administrativos, recuperaciones)
+        filas = [fuente.in_bulk([pk for _, pk, origen in page if origen == i]) for i, fuente in enumerate(fuentes)]
+        serializers = (UsuarioEventoSerializer, RecuperacionCorreoHistorialSerializer)
+        return self.get_paginated_response([serializers[origen](filas[origen][pk]).data for _, pk, origen in page])
 
 
 class CambiarClavePropiaView(APIView):

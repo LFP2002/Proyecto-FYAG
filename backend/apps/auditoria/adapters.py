@@ -1,4 +1,4 @@
-"""Registro cerrado de ocho fuentes. No invoca servicios mutadores de dominio."""
+"""Registro cerrado de fuentes. No invoca servicios mutadores de dominio."""
 from dataclasses import dataclass
 
 from django.db.models import Q
@@ -9,7 +9,7 @@ from apps.obras.models import (
     TurnoObraEvento, CostoObraEvento,
 )
 from apps.finanzas.models import FinanzasEvento
-from apps.usuarios.models import UsuarioEvento
+from apps.usuarios.models import RecuperacionCorreoEvento, UsuarioEvento
 
 
 @dataclass(frozen=True)
@@ -17,18 +17,22 @@ class Fuente:
     nombre: str
     modelo: type
     modulo: str
-    actor: str
+    actor: str | None
     recursos: tuple  # (tipo público, columna FK real)
 
     @property
     def tipos(self):
         if self.modelo is PresupuestoEvento:
             return ("CREACION", "CAMBIO_ESTADO")
+        if self.modelo is RecuperacionCorreoEvento:
+            return (RecuperacionCorreoEvento.TIPO,)
         return tuple(self.modelo.Tipo.values)
 
     def consulta(self, filtros, inicio, fin, corte):
         qs = self.modelo.objects.filter(creado_en__gte=inicio, creado_en__lt=fin, creado_en__lte=corte)
         if "actor" in filtros:
+            if self.actor is None:
+                return qs.none()
             qs = qs.filter(**{self.actor: filtros["actor"]})
         if "recurso_tipo" in filtros:
             columna = dict(self.recursos)[filtros["recurso_tipo"]]
@@ -41,7 +45,7 @@ class Fuente:
                 return qs.none()
             if self.modelo is PresupuestoEvento:
                 qs = qs.filter(estado_anterior__isnull=tipo == "CREACION")
-            else:
+            elif self.modelo is not RecuperacionCorreoEvento:
                 qs = qs.filter(tipo=tipo)
         return qs
 
@@ -55,6 +59,8 @@ class Fuente:
         return qs.filter(Q(creado_en__lt=fecha) | Q(creado_en=fecha, pk__lt=pk))
 
     def columnas(self):
+        if self.modelo is RecuperacionCorreoEvento:
+            return ['id', 'creado_en', 'usuario_id', 'acceso_anterior']
         fields = ["id", "creado_en", "motivo", self.actor, *[col for _, col in self.recursos]]
         if self.modelo is PresupuestoEvento:
             fields += ["estado_anterior", "estado_nuevo"]
@@ -67,6 +73,8 @@ class Fuente:
         return fields
 
     def tipo(self, row):
+        if self.modelo is RecuperacionCorreoEvento:
+            return RecuperacionCorreoEvento.TIPO
         if self.modelo is PresupuestoEvento:
             return "CREACION" if row["estado_anterior"] is None else "CAMBIO_ESTADO"
         return row["tipo"]
@@ -87,4 +95,5 @@ FUENTES = {f.nombre: f for f in (
     Fuente("COSTO_OBRA_EVENTO", CostoObraEvento, "OBRAS", "registrado_por_id", (("GASTO", "gasto_id"), ("CONTROL_COSTOS", "control_id"), ("CORTESIA", "cortesia_id"))),
     Fuente("FINANZAS_EVENTO", FinanzasEvento, "FINANZAS", "actor_id", (("DOCUMENTO", "documento_id"), ("CIERRE_SIN_COBRO", "cierre_sin_cobro_id"), ("PAGO", "pago_id"))),
     Fuente("USUARIO_EVENTO", UsuarioEvento, "USUARIOS", "actor_id", (("USUARIO", "usuario_objetivo_id"),)),
+    Fuente(RecuperacionCorreoEvento.FUENTE, RecuperacionCorreoEvento, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
 )}

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui';
 import { useApi } from '../integrations/useApi.js';
-import { AUDIT_MODULES as ROLES, AUDIT_SOURCES as SOURCES, auditSources, validAuditRange } from '../integrations/audit.js';
+import { AUDIT_MODULES as ROLES, AUDIT_SOURCES as SOURCES, auditSources, validAuditRange,
+  ACCESS_STATE_LABELS, RECOVERY_SOURCE, RECOVERY_AUTHORITY, RECOVERY_TYPE } from '../integrations/audit.js';
 
 import { formatCompactCLP, formatCivilDate } from '../utils/format.js';
 
@@ -11,7 +12,8 @@ const LABELS = {COMERCIAL:'Comercial',OBRAS:'Obras',FINANZAS:'Finanzas',USUARIOS
 const FIELDS = {tecnico:'Técnico',tecnico_responsable:'Técnico responsable',categoria_servicio:'Categoría de servicio',descripcion_trabajo:'Descripción del trabajo',referencia_rectificacion_externa:'Referencia de rectificación externa',motivo_reversion:'Motivo de reversión',monto_neto:'Monto neto (CLP)',monto_impuesto:'Impuesto (CLP)',monto_total:'Monto total (CLP)',monto:'Monto (CLP)',costo_hora_neto:'Costo por hora neto (CLP)',costo_unitario_neto:'Costo unitario neto (CLP)',duracion_segundos:'Duración (segundos)',duracion_ajustada_segundos:'Duración ajustada (segundos)'};
 const MONEY = new Set(['monto','monto_neto','monto_impuesto','monto_total','costo_hora_neto','costo_unitario_neto']);
 const ENUM = new Set(['estado','estado_revision','tipo','tipo_documento','rol','role','modo_cierre','origen_registro','materiales_estado','otros_estado','medio']);
-const pretty = v => (Object.hasOwn(LABELS,v)?LABELS[v]:null) || (typeof v==='string'&&v ? v.charAt(0).toUpperCase()+v.slice(1).toLowerCase().replaceAll('_',' ') : '—');
+const RECOVERY_LABELS = {[RECOVERY_SOURCE]:'Recuperaciones por correo', [RECOVERY_TYPE]:'Recuperación por correo', USUARIO:'Usuario'};
+const pretty = v => (Object.hasOwn(LABELS,v)?LABELS[v]:null) || (Object.hasOwn(RECOVERY_LABELS,v)?RECOVERY_LABELS[v]:null) || (typeof v==='string'&&v ? v.charAt(0).toUpperCase()+v.slice(1).toLowerCase().replaceAll('_',' ') : '—');
 const stamp = v => typeof v==='string'&&Number.isFinite(Date.parse(v)) ? new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(v)).replaceAll('-','/') : v;
 function display(key,value){
  if(value===null)return 'Sin valor';
@@ -31,13 +33,15 @@ const TYPES = {
  TURNO_EVENTO:['INICIO','CIERRE','CIERRE_ADMINISTRATIVO','OBSERVACION','SUBSANACION','VALIDACION','CORRECCION'],
  COSTO_OBRA_EVENTO:['ALTA','CORRECCION','DEVOLUCION','ANULACION','DECLARACION','VALIDACION','CORTESIA'],
  FINANZAS_EVENTO:['DOCUMENTO_REGISTRADO','DOCUMENTO_REVERTIDO','SIN_COBRO_REGISTRADO','PAGO_REGISTRADO','PAGO_ANULADO'],
- USUARIO_EVENTO:['CREACION','EDICION','ACTIVACION','DESACTIVACION','CAMBIO_ROL','ESTABLECER_CLAVE','CAMBIO_CLAVE_PROPIA','REEMISION','CAMBIO_INICIAL']
+ USUARIO_EVENTO:['CREACION','EDICION','ACTIVACION','DESACTIVACION','CAMBIO_ROL','ESTABLECER_CLAVE','CAMBIO_CLAVE_PROPIA','REEMISION','CAMBIO_INICIAL'],
+ [RECOVERY_SOURCE]:[RECOVERY_TYPE],
 };
 function Icon({name}){
  const icons={filter:'M6 11.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m-2-4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-4a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5',back:'M15 8a.5.5 0 0 0-.5-.5H2.707l3.647-3.646a.5.5 0 1 0-.708-.708l-4.5 4.5a.5.5 0 0 0 0 .708l4.5 4.5a.5.5 0 1 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8',refresh:'M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2zM8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466',chevron:'M6.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L12.293 8 6.646 2.354a.5.5 0 0 1 0-.708'};
  return <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d={icons[name]}/></svg>;
 }
 function ActorIdentity({event,detail=false}){
+ if(event.actor_identidad_origen===RECOVERY_AUTHORITY) return <strong>Titularidad del correo</strong>;
  const label=event.actor_etiqueta||'Usuario #'+event.actor;
  const username=event.actor_username;
  return <div className="audit-actor"><strong>{label}</strong>{username&&username!==label&&<span className="audit-secondary">{username}</span>}{event.actor_identidad_origen==='ACTUAL'&&<small className="audit-secondary">Identidad actual</small>}{detail&&<span className="audit-secondary">Usuario #{event.actor}{event.actor_identidad_origen==='HISTORICA'?' · Identidad registrada en el evento':''}</span>}</div>;
@@ -75,7 +79,18 @@ function EventDetail({event,onBack,finance=false,supervisor=false}){
  const [showAll,setShowAll]=useState(false);
  const heading=useRef(null);
  useEffect(()=>{heading.current?.focus();},[]);
- const keys=[...new Set([...Object.keys(event.datos_anteriores),...Object.keys(event.datos_nuevos)])];
+  const recovery=event.fuente===RECOVERY_SOURCE;
+  const keys=[...new Set([...Object.keys(event.datos_anteriores),...Object.keys(event.datos_nuevos)])];
+  if(recovery) return <div className="audit-detail">
+    <button type="button" className="audit-back" onClick={onBack}><Icon name="back"/>Volver al historial</button>
+    <h1 tabIndex={-1} ref={heading}>{pretty(event.tipo)}</h1>
+    <section className="card-fyag audit-detail-card"><h2>Información del evento</h2><dl className="audit-facts">
+      <div><dt>Cuenta objetivo</dt><dd>Usuario #{event.recurso_id}</dd></div>
+      <div><dt>Fecha y hora</dt><dd>{stamp(event.creado_en)}</dd></div>
+      <div><dt>Autoridad</dt><dd><ActorIdentity event={event}/></dd></div>
+      {event.datos_anteriores.acceso_estado && <div><dt>Estado de acceso anterior</dt><dd>{ACCESS_STATE_LABELS[event.datos_anteriores.acceso_estado]}</dd></div>}
+    </dl></section>
+  </div>;
  const visibleKeys=supervisor&&!showAll?keys.filter(k=>changedField(event,k)):keys;
  const cell=(obj,key)=>Object.hasOwn(obj,key)?<span title={typeof obj[key]==='string'?obj[key]:undefined}>{supervisor&&key==='validado_por'&&obj[key]===event.actor?(event.actor_etiqueta||event.actor_username||'Usuario #'+event.actor):display(key,obj[key])}</span>:<span className="audit-not-recorded">No registrado</span>;
  return <div className="audit-detail">
@@ -88,13 +103,19 @@ function EventDetail({event,onBack,finance=false,supervisor=false}){
 const RESOURCE_TYPES = ['PRESUPUESTO','OBRA','PARTICIPANTE','CATEGORIA_SERVICIO','TURNO','GASTO','CONTROL_COSTOS','CORTESIA','DOCUMENTO','CIERRE_SIN_COBRO','PAGO','USUARIO'];
 function validEvent(event) {
   const keys = ['id','evento_id','fuente','modulo','recurso_tipo','recurso_id','tipo','actor','actor_etiqueta','actor_username','actor_identidad_origen','motivo','creado_en','datos_anteriores','datos_nuevos'];
+  const recovery = event?.fuente === RECOVERY_SOURCE;
   if (!event || Object.keys(event).some((key) => !keys.includes(key)) || keys.some((key) => !Object.hasOwn(event,key))
-      || typeof event.id !== 'string' || !Number.isSafeInteger(event.evento_id) || !Number.isSafeInteger(event.actor) || !Number.isSafeInteger(event.recurso_id)
+      || typeof event.id !== 'string' || !Number.isSafeInteger(event.evento_id) || !Number.isSafeInteger(event.recurso_id)
       || !SOURCES.includes(event.fuente) || typeof event.modulo !== 'string' || typeof event.recurso_tipo !== 'string' || typeof event.tipo !== 'string'
       || (event.actor_etiqueta !== null && typeof event.actor_etiqueta !== 'string')
       || (event.actor_username !== null && typeof event.actor_username !== 'string')
-      || !['HISTORICA','ACTUAL'].includes(event.actor_identidad_origen) || typeof event.motivo !== 'string' || typeof event.creado_en !== 'string'
+      || typeof event.motivo !== 'string' || typeof event.creado_en !== 'string'
       || !event.datos_anteriores || !event.datos_nuevos || typeof event.datos_anteriores !== 'object' || typeof event.datos_nuevos !== 'object') throw new Error('Evento de auditoría inválido.');
+  if (recovery ? (event.actor !== null || event.actor_username !== null || event.actor_identidad_origen !== RECOVERY_AUTHORITY
+      || event.tipo !== RECOVERY_TYPE || event.modulo !== 'USUARIOS' || event.recurso_tipo !== 'USUARIO'
+      || Object.keys(event.datos_anteriores).some(key => key !== 'acceso_estado' || !Object.hasOwn(ACCESS_STATE_LABELS, event.datos_anteriores[key]))
+      || Object.keys(event.datos_nuevos).length !== 0)
+    : (!Number.isSafeInteger(event.actor) || !['HISTORICA','ACTUAL'].includes(event.actor_identidad_origen))) throw new Error('Evento de auditoría inválido.');
   return event;
 }
 function query(filters) { const p = new URLSearchParams(); for (const [key,value] of Object.entries(filters)) if (value !== '' && !(key==='limit'&&value==='25')) p.set(key,value); return p.size ? `?${p}` : ''; }

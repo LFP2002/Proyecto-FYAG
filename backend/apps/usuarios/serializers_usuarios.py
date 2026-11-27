@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Usuario, UsuarioEvento
+from .models import RecuperacionCorreoEvento, Usuario, UsuarioEvento
 
 
 class ContratoEstrictoSerializer(serializers.Serializer):
@@ -119,3 +119,14 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
         model = UsuarioEvento
         fields = ["id", "usuario_objetivo", "actor", "tipo", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"]
         read_only_fields = fields
+
+
+class RecuperacionCorreoHistorialSerializer(serializers.BaseSerializer):
+    def to_representation(self, obj):
+        return {
+            'id': f'{obj.FUENTE}:{obj.pk}', 'usuario_objetivo': obj.usuario_id,
+            'actor': None, 'actor_identidad_origen': obj.AUTORIDAD, 'tipo': obj.TIPO,
+            'acceso_anterior': obj.acceso_publico(obj.acceso_anterior),
+            'motivo': '', 'datos_anteriores': {}, 'datos_nuevos': {},
+            'creado_en': serializers.DateTimeField().to_representation(obj.creado_en),
+        }

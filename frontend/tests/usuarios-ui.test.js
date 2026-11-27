@@ -201,6 +201,7 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
     const history = url.pathname.endsWith('/historial/');
     if (url.pathname === '/api/usuarios/27/') return account(27);
     const all = history ? Array.from({ length: 26 }, (_, i) => ({ id: i + 1, tipo: 'EDICION', actor: 1, motivo: 'Cambio revisado', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: {}, datos_anteriores: {} })) : Array.from({ length: 26 }, (_, i) => account(i + 2));
+    if (history) all[1] = { id: 'RECUPERACION_CORREO_EVENTO:1', tipo: 'RECUPERACION_CORREO', actor: null, actor_identidad_origen: 'TITULARIDAD_CORREO', usuario_objetivo: 27, acceso_anterior: 'BLOQUEO_TEMPORAL', creado_en: '2026-11-11T12:00:00Z', motivo: '', datos_nuevos: {}, datos_anteriores: {} };
     return { count: 26, results: all.slice((number - 1) * 25, number * 25), next: number === 1 ? `${url.pathname}?page=2` : null, previous: number === 2 ? `${url.pathname}?page=1` : null };
   };
   const { renderer } = await mount(request);
@@ -215,8 +216,12 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
     await click(renderer, 'Ver cuenta #27');
     await click(renderer,'Historial');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=1'));
+    assert.match(text(renderer.root), /Hecho por la cuenta #1/);
+    assert.match(text(renderer.root), /Recuperación por correo.*Titularidad del correo · Cuenta objetivo #27.*Estado de acceso anterior: Bloqueo temporal/);
+    assert.doesNotMatch(text(renderer.root), /cuenta #null/);
     await click(renderer, 'Siguiente');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=2'));
+    assert.doesNotMatch(text(renderer.root), /Titularidad del correo/);
     await click(renderer, 'Volver a usuarios');
     assert.equal(calls.at(-1), '/api/usuarios/?page=2&activo=false&resumen=true');
   } finally { await act(async () => renderer.unmount()); }

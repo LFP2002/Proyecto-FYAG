@@ -223,7 +223,8 @@
           "TURNO_EVENTO",
           "COSTO_OBRA_EVENTO",
           "FINANZAS_EVENTO",
-          "USUARIO_EVENTO"
+          "USUARIO_EVENTO",
+          "RECUPERACION_CORREO_EVENTO"
         ]
       },
       "RecursoTipo": {
@@ -307,8 +308,9 @@
             "type": "string"
           },
           "actor": {
-            "type": "integer",
-            "minimum": 1
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Nulo en recuperación por correo: la autoridad es titularidad del buzón, no una sesión. El filtro actor excluye esos eventos. Buscar la cuenta objetivo por recurso_tipo=USUARIO y recurso_id."
           },
           "actor_etiqueta": {
             "type": [
@@ -325,7 +327,8 @@
             "format": "date-time"
           },
           "datos_anteriores": {
-            "$ref": "#/components/schemas/Snapshot"
+            "$ref": "#/components/schemas/Snapshot",
+            "description": "En RECUPERACION_CORREO_EVENTO (solo TI), contiene únicamente acceso_estado si consta: NORMAL, BLOQUEO_TEMPORAL o REQUIERE_TI."
           },
           "datos_nuevos": {
             "$ref": "#/components/schemas/Snapshot"
@@ -341,9 +344,10 @@
             "type": "string",
             "enum": [
               "HISTORICA",
-              "ACTUAL"
+              "ACTUAL",
+              "TITULARIDAD_CORREO"
             ],
-            "description": "HISTORICA: captura al insertar evento. ACTUAL: datos vigentes de la cuenta para eventos previos a la migración, no certifica nombre histórico."
+            "description": "HISTORICA: captura al insertar evento. ACTUAL: identidad vigente para eventos antiguos. TITULARIDAD_CORREO: tipo RECUPERACION_CORREO, sin actor autenticado ni reemisión TI."
           }
         }
       },

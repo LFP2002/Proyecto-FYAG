@@ -5,6 +5,7 @@ import { PageHead, Table } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { canManageUsers, userPath, usersPath, historyPath, readUser, readUsers, readHistory } from '../usuarios/api.js';
 import { permissionRoles, permissionRows, permissionLevels } from '../usuarios/permissionMatrix.js';
+import { ACCESS_STATE_LABELS, RECOVERY_TYPE } from '../integrations/audit.js';
 
 // Bootstrap Icons v1.13.1 (MIT), twbs/icons; SVG originales incorporados localmente.
 const tiIcons={
@@ -131,7 +132,7 @@ const timestamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Intl.
 const roleTone = { ADMINISTRADOR_TI: 'ti', GERENCIA: 'gerencia', ADMINISTRATIVO_FINANZAS: 'finanzas', SUPERVISOR_OBRAS: 'supervisor', TECNICO: 'tecnico' };
 const HIDDEN_ACCOUNT_CREATION_REASON = 'Aprovisionamiento manual inicial de TI mediante comando Django';
 // Textos del historial de la cuenta, en lenguaje simple (solo presentación).
-const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada', CREACION_CREDENCIAL_TEMPORAL: 'Credencial temporal emitida', REEMISION: 'Credencial temporal reemitida', CAMBIO_INICIAL: 'Contraseña personal establecida', CORREO_SOLICITADO: 'Cambio de correo solicitado', CORREO_VERIFICADO: 'Correo verificado', CORREO_CAMBIADO: 'Nuevo correo confirmado' };
+const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada', CREACION_CREDENCIAL_TEMPORAL: 'Credencial temporal emitida', REEMISION: 'Credencial temporal reemitida', CAMBIO_INICIAL: 'Contraseña personal establecida', CORREO_SOLICITADO: 'Cambio de correo solicitado', CORREO_VERIFICADO: 'Correo verificado', CORREO_CAMBIADO: 'Nuevo correo confirmado', [RECOVERY_TYPE]: 'Recuperación por correo' };
 const fieldLabel = { username: 'Usuario', email: 'Correo', rol: 'Rol', is_active: 'Estado', first_name: 'Nombres', last_name: 'Apellidos' };
 const showValue = (key, value) => (key === 'rol' ? ROLES[value]?.short ?? String(value) : key === 'is_active' ? (value ? 'Activa' : 'Inactiva') : value === '' ? 'sin dato' : String(value));
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
@@ -277,10 +278,11 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
       {mode&&<AccountForm key={account.id+':'+mode} {...{mode,account,api,onSaved}} onCancel={()=>setMode(null)}/>}
     </>}
     {tab==='Historial'&&<section className="card-fyag detalle-historial"><h2>Historial de cambios</h2>
-      <p className="detalle-sub">Cambios administrativos registrados en esta cuenta.</p>
+      <p className="detalle-sub">Cambios administrativos y de seguridad registrados en esta cuenta.</p>
       {history && !history.count && <p>Todavía no hay cambios registrados.</p>}
       <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{eventLabel[event.tipo] || event.tipo}</strong>
-        <p className="detalle-evento-meta">{timestamp(event.creado_en)} · Hecho por la cuenta #{event.actor}</p>
+        <p className="detalle-evento-meta">{timestamp(event.creado_en)} · {event.tipo===RECOVERY_TYPE ? `Titularidad del correo · Cuenta objetivo #${event.usuario_objetivo}` : `Hecho por la cuenta #${event.actor}`}</p>
+        {event.tipo===RECOVERY_TYPE && event.acceso_anterior && <p>Estado de acceso anterior: {ACCESS_STATE_LABELS[event.acceso_anterior]}</p>}
         {event.motivo && event.motivo !== HIDDEN_ACCOUNT_CREATION_REASON && <p className="commercial-long-text">{event.motivo}</p>}
         <dl className="detalle-cambios">{changeRows(event).map(([key, value]) => <div key={key}><dt>{fieldLabel[key]}</dt><dd className="commercial-long-text">{value}</dd></div>)}</dl>
       </li>)}</ol>

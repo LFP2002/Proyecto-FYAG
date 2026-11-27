@@ -32,6 +32,29 @@ const click=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>text
 const change=async(r,label,value)=>{const l=r.root.findAllByType('label').find(l=>text(l).startsWith(label));assert.ok(l,label);const c=l.findAll(n=>['input','select'].includes(n.type))[0];await act(async()=>{c.props.onChange({target:{value}});await flush();});};
 const submit=async(r,label)=>{const f=r.root.findByProps({'aria-label':label});await act(async()=>{f.props.onSubmit({preventDefault(){}});await flush();});};
 const openDetail=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>b.props['aria-label']===label);assert.ok(b,label);await act(async()=>{b.props.onClick();await flush();});};
+test('Auditoría TI: filtro y detalle de recuperación por titularidad del correo',async()=>{
+ const recovery={...base,id:'RECUPERACION_CORREO_EVENTO:8',fuente:'RECUPERACION_CORREO_EVENTO',modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,tipo:'RECUPERACION_CORREO',actor:null,actor_etiqueta:'Titularidad del correo',actor_username:null,actor_identidad_origen:'TITULARIDAD_CORREO',motivo:'',datos_anteriores:{acceso_estado:'REQUIERE_TI'},datos_nuevos:{}};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[recovery]}),r=ui.renderer;
+ try{
+  await click(r,'Filtros');
+  await change(r,'Fuente',recovery.fuente);
+  await change(r,'Tipo',recovery.tipo);
+  await change(r,'Tipo de recurso','USUARIO');
+  await change(r,'Recurso ID','27');
+  await act(async()=>{r.root.findByProps({id:'audit-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+  const query=new URL(ui.calls.at(-1).path,'http://localhost').searchParams;
+  assert.equal(query.get('fuente'),recovery.fuente);
+  assert.equal(query.get('tipo'),recovery.tipo);
+  assert.equal(query.get('recurso_tipo'),'USUARIO');
+  assert.equal(query.get('recurso_id'),'27');
+  assert.match(text(r.toJSON()),/Titularidad del correo/);
+  assert.equal(r.root.findByType('time').props.dateTime,date);
+  await openDetail(r,'Ver detalle de Recuperación por correo Usuario #27');
+  assert.match(text(r.toJSON()),/Cuenta objetivoUsuario #27.*AutoridadTitularidad del correo.*Estado de acceso anteriorRequiere TI/);
+  await click(r,'Volver al historial');
+  assert.match(text(r.toJSON()),/Fuente: Recuperaciones por correo/);
+ }finally{await ui.close();}
+});
 test('Auditoría AF: filtros reales, detalle de reversión y retorno a consulta',async()=>{
  const ui=await mount(),r=ui.renderer,body=()=>text(r.toJSON());
  try{

@@ -1,5 +1,6 @@
 import { ApiError, USER_ROLES } from '../auth/client.js';
 import { validatePage } from '../comercial/api.js';
+import { ACCESS_STATE_LABELS, RECOVERY_SOURCE, RECOVERY_TYPE, RECOVERY_AUTHORITY } from '../integrations/audit.js';
 
 export const canManageUsers = (role) => role === 'ADMINISTRADOR_TI';
 const id = (pk) => {
@@ -65,10 +66,21 @@ export function readHistory(data, pk) {
   const snapshot = (data) => Object.fromEntries(Object.entries(data || {}).filter(([key, value]) => fields.has(key) && typeof value === (key === 'is_active' ? 'boolean' : 'string')));
   const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL', 'CORREO_SOLICITADO', 'CORREO_VERIFICADO', 'CORREO_CAMBIADO'];
   for (const e of page.results) {
+    if (e?.tipo === RECOVERY_TYPE) {
+      if (typeof e.id !== 'string' || !new RegExp(`^${RECOVERY_SOURCE}:[1-9][0-9]*$`).test(e.id)
+          || e.usuario_objetivo !== pk || e.actor !== null || e.actor_identidad_origen !== RECOVERY_AUTHORITY
+          || typeof e.creado_en !== 'string' || (e.acceso_anterior !== null && !Object.hasOwn(ACCESS_STATE_LABELS, e.acceso_anterior))) {
+        throw new ApiError(502, 'Historial de usuarios inesperado.');
+      }
+      continue;
+    }
     if (!e || !Number.isSafeInteger(e.id) || e.id <= 0 || !Number.isSafeInteger(e.actor) || e.actor <= 0
         || !types.includes(e.tipo) || typeof e.motivo !== 'string' || typeof e.creado_en !== 'string') throw new ApiError(502, 'Historial de usuarios inesperado.');
   }
-  return { count: page.count, next: page.next, previous: page.previous, results: page.results.map((e) => ({
+  return { count: page.count, next: page.next, previous: page.previous, results: page.results.map((e) => e.tipo === RECOVERY_TYPE ? ({
+    id: e.id, tipo: e.tipo, actor: null, actor_identidad_origen: RECOVERY_AUTHORITY, usuario_objetivo: pk,
+    acceso_anterior: e.acceso_anterior, motivo: '', creado_en: e.creado_en, datos_anteriores: {}, datos_nuevos: {},
+  }) : ({
     id: e.id, tipo: e.tipo, actor: e.actor, motivo: e.motivo, creado_en: e.creado_en,
     datos_anteriores: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_anteriores),
     datos_nuevos: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_nuevos),

@@ -7,9 +7,7 @@ from apps.finanzas.models import PagoDocumento, CierreSinCobro, FinanzasEvento
 from apps.finanzas.tests.base import FinanzasBase
 from apps.obras import services as obras
 from apps.obras.models import GastoObra, CostoObraEvento, CortesiaObra
-from apps.usuarios import services_usuarios as usuarios
-from apps.usuarios.models import UsuarioEvento
-from apps.usuarios.tests.test_administracion import PASSWORD
+from apps.usuarios.models import Usuario, UsuarioEvento
 from apps.finanzas.validaciones import hoy_santiago
 
 URL = "/api/auditoria/eventos/"
@@ -18,7 +16,8 @@ URL = "/api/auditoria/eventos/"
 class AuditoriaBase(FinanzasBase):
     def preparar_auditoria(self):
         self.preparar_finanzas()  # Operaciones reales de finalización 004B.
-        self.ti = usuarios.aprovisionar_primera_ti({"email": "ti@example.test", "username": "ti", "password": PASSWORD})
+        # Auditoría necesita una cuenta TI, no ejecutar el asistente de instalación.
+        self.ti = Usuario.objects.create_user(email="ti@example.test", username="ti", rol=Usuario.Rol.ADMINISTRADOR_TI)
         PresupuestoEvento.objects.create(presupuesto=self.presupuesto, estado_anterior=None, estado_nuevo="BORRADOR", registrado_por=self.finanzas)
         PresupuestoEvento.objects.create(presupuesto=self.presupuesto, estado_anterior="ENVIADO_CLIENTE", estado_nuevo="APROBADO_CLIENTE", registrado_por=self.finanzas, motivo="Aceptación histórica")
         obras.crear_categoria("Categoría con historia", self.supervisor)

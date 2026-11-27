@@ -173,11 +173,18 @@ class DesafioRecuperacionCorreo(models.Model):
 
 class RecuperacionCorreoEvento(models.Model):
     """Autoridad: titularidad del buzón del usuario, no sesión ni reemisión TI."""
+    FUENTE = 'RECUPERACION_CORREO_EVENTO'
+    TIPO = 'RECUPERACION_CORREO'
+    AUTORIDAD = 'TITULARIDAD_CORREO'
     objects = EventosInmutablesQuerySet.as_manager()
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
     creado_en = models.DateTimeField(auto_now_add=True)
     acceso_anterior = models.CharField(max_length=20, blank=True)
     acceso_version_nueva = models.PositiveBigIntegerField(null=True)
+
+    @staticmethod
+    def acceso_publico(value):
+        return value if value in ('NORMAL', 'BLOQUEO_TEMPORAL', 'REQUIERE_TI') else None
 
     def save(self, *args, **kwargs):
         if not self._state.adding:
