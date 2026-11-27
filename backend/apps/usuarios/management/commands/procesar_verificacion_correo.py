@@ -18,6 +18,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if settings.FYAG_EMAIL_PROFILE == 'deshabilitado':
+            if options['continuo']:
+                self.stdout.write('verificacion_correo_deshabilitada')
+                return
             raise CommandError('El perfil de correo está deshabilitado.')
         while True:
             try:

@@ -47,6 +47,25 @@ services:
       migraciones:
         condition: service_completed_successfully
 
+  verificacion_correo:
+    build:
+      context: ./backend
+    profiles: [smtp]
+    command: [python, manage.py, procesar_verificacion_correo, --continuo]
+    restart: 'on-failure:5'
+    init: true
+    stop_grace_period: 30s
+    env_file: [.env]
+    environment:
+      FYAG_SECURITY_REDIS_URL: redis://:${FYAG_SECURITY_REDIS_PASSWORD:?Configurar secreto Redis de seguridad en el entorno}@redis-seguridad:6379/0
+      MONGO_INITDB_ROOT_USERNAME: ''
+      MONGO_INITDB_ROOT_PASSWORD: ''
+    volumes:
+      - ./backend:/app:ro
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+      redis-seguridad: {condition: service_started}
+
   redis-seguridad:
     image: redis:7.4.7-alpine
     restart: unless-stopped

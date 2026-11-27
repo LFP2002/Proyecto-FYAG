@@ -1,7 +1,7 @@
 # Override opt-in de desarrollo/QA. Nunca combinar con producción.
 services:
   backend:
-    environment:
+    environment: &correo_mailpit
       FYAG_EMAIL_PROFILE: mailpit
       EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
       EMAIL_HOST: mailpit
@@ -12,6 +12,11 @@ services:
       EMAIL_HOST_PASSWORD: ''
       DEFAULT_FROM_EMAIL: avisos@fyag.test
       FYAG_PUBLIC_BASE_URL: ${FYAG_MAILPIT_PUBLIC_BASE_URL:-http://localhost:5173}
+  verificacion_correo:
+    profiles: [mailpit]
+    environment: *correo_mailpit
+    depends_on:
+      mailpit: {condition: service_started}
   mailpit:
     image: axllent/mailpit:v1.27.5
     ports:
