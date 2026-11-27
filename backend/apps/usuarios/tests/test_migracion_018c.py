@@ -25,7 +25,8 @@ class MigracionC1Tests(TransactionTestCase):
             executor.migrate(latest)
             apps = executor.loader.project_state(latest).apps
             after = tuple(list(apps.get_model("usuarios", name).objects.order_by("pk").values()) for name in ("Usuario", "SeguridadCredencial", "UsuarioEvento"))
-            expected = (*before[:2], [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in before[2]])
+            expected = ([dict(row, correo_verificado_en=None, correo_pendiente='') for row in before[0]], before[1],
+                        [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in before[2]])
             self.assertTrue(expected == after)  # No imprimir hashes ni snapshots.
             State = apps.get_model("usuarios", "EstadoAcceso")
             self.assertEqual(State.objects.count(), 2)

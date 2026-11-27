@@ -31,6 +31,8 @@ class Usuario(AbstractUser):
     email = models.EmailField(
         unique=True,
     )
+    correo_verificado_en = models.DateTimeField(null=True, editable=False)
+    correo_pendiente = models.EmailField(blank=True, default='', editable=False)
 
     rol = models.CharField(
         max_length=30,
@@ -115,6 +117,25 @@ class EventosInmutablesQuerySet(models.QuerySet):
         raise ValidationError("El historial administrativo no se puede editar.")
 
 
+class DesafioCorreo(models.Model):
+    class Proposito(models.TextChoices):
+        TITULARIDAD = 'TITULARIDAD', 'Verificar correo vigente'
+        CAMBIO = 'CAMBIO', 'Confirmar correo nuevo'
+
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
+    digest = models.CharField(max_length=64, unique=True, editable=False)
+    email = models.EmailField()
+    proposito = models.CharField(max_length=12, choices=Proposito.choices)
+    emitido_en = models.DateTimeField()
+    vence_en = models.DateTimeField(db_index=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(proposito__in=['TITULARIDAD', 'CAMBIO']), name='correo_proposito_valido'),
+            models.CheckConstraint(condition=models.Q(vence_en__gt=models.F('emitido_en')), name='correo_vigencia_positiva'),
+        ]
+
+
 class UsuarioEvento(models.Model):
     objects = EventosInmutablesQuerySet.as_manager()
     class Tipo(models.TextChoices):
@@ -128,6 +149,9 @@ class UsuarioEvento(models.Model):
         CREACION_CREDENCIAL_TEMPORAL = "CREACION_CREDENCIAL_TEMPORAL", "Emisión inicial temporal"
         REEMISION = "REEMISION", "Restablecimiento temporal por TI"
         CAMBIO_INICIAL = "CAMBIO_INICIAL", "Confirmación de contraseña personal"
+        CORREO_SOLICITADO = 'CORREO_SOLICITADO', 'Solicitud de cambio de correo'
+        CORREO_VERIFICADO = 'CORREO_VERIFICADO', 'Titularidad de correo confirmada'
+        CORREO_CAMBIADO = 'CORREO_CAMBIADO', 'Nuevo correo confirmado'
 
     usuario_objetivo = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="eventos_administrativos")
     actor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="acciones_administrativas")
@@ -143,7 +167,7 @@ class UsuarioEvento(models.Model):
     class Meta:
         ordering = ["creado_en", "id"]
         constraints = [models.CheckConstraint(
-            condition=models.Q(tipo__in=["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA", "CREACION_CREDENCIAL_TEMPORAL", "REEMISION", "CAMBIO_INICIAL"]),
+            condition=models.Q(tipo__in=["CREACION", "EDICION", "ACTIVACION", "DESACTIVACION", "CAMBIO_ROL", "ESTABLECER_CLAVE", "CAMBIO_CLAVE_PROPIA", "CREACION_CREDENCIAL_TEMPORAL", "REEMISION", "CAMBIO_INICIAL", "CORREO_SOLICITADO", "CORREO_VERIFICADO", "CORREO_CAMBIADO"]),
             name="usuarios_evento_tipo_valido",
         )]
 

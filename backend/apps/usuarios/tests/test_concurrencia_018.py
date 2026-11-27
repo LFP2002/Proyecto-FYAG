@@ -113,18 +113,22 @@ class ConcurrenciaCredencialesTests(CredencialesBase, TransactionTestCase):
         self.assertEqual(credenciales.estado_credencial(self.target), "RECUPERACION")
 
     def test_correo_antes_de_consumo_revoca_desafio(self):
+        from .test_verificacion_027 import confirmar, preparar_cambio_sintetico
         issued = self.emit()
         challenge = self.challenge(issued)["desafio"]
-        one, two = self.race(lambda: services.editar_usuario(issued.usuario, {"email": "otro@example.test"}, self.manager),
+        token = preparar_cambio_sintetico(issued.usuario, 'otro@example.test', self.manager)
+        one, two = self.race(lambda: confirmar(token),
                              lambda: credenciales.primer_cambio({"desafio": challenge, "nueva_clave": NEW_PASSWORD}))
         self.assertIsInstance(two, APIException)
 
     def test_consumo_antes_de_correo_preserva_hash_y_revoca_version(self):
+        from .test_verificacion_027 import confirmar, preparar_cambio_sintetico
         issued = self.emit()
         challenge = self.challenge(issued)["desafio"]
         version = issued.usuario.sesion_version
+        token = preparar_cambio_sintetico(issued.usuario, 'otro@example.test', self.manager)
         one, two = self.race(lambda: credenciales.primer_cambio({"desafio": challenge, "nueva_clave": NEW_PASSWORD}),
-                             lambda: services.editar_usuario(issued.usuario, {"email": "otro@example.test"}, self.manager))
+                             lambda: confirmar(token))
         user = Usuario.objects.get(pk=issued.usuario.pk)
         self.assertTrue(user.check_password(NEW_PASSWORD))
         self.assertEqual(user.sesion_version, version + 2)

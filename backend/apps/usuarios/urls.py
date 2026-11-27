@@ -9,9 +9,12 @@ from .views import (
     PrimerCambioView,
 )
 from .views_usuarios import CambiarClavePropiaView
+from .views_verificacion import ReenviarCorreoView, VerificarCorreoView
 
 
 urlpatterns = [
+    path('correo/reenviar/', ReenviarCorreoView.as_view(), name='correo_reenviar'),
+    path('correo/verificar/', VerificarCorreoView.as_view(), name='correo_verificar'),
     path("primer-cambio-clave/", PrimerCambioView.as_view(), name="primer_cambio_clave"),
     path("cambiar-clave/", CambiarClavePropiaView.as_view(), name="cambiar_clave_propia"),
     path(

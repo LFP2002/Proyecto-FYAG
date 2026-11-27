@@ -25,7 +25,7 @@ class InstalacionTests(TransactionTestCase):
             user.objects.create(username='hist', email='hist@qa.test', rol='BODEGUERO', is_active=False)
             before = list(user.objects.values())
             MigrationExecutor(connection).migrate(latest)
-            self.assertTrue(before == list(Usuario.objects.values()))
+            self.assertTrue([dict(row, correo_verificado_en=None, correo_pendiente='') for row in before] == list(Usuario.objects.values()))
             self.assertIsNotNone(InstalacionFYAG.objects.get(pk=1).inicializada_en)
         finally:
             MigrationExecutor(connection).migrate(latest)

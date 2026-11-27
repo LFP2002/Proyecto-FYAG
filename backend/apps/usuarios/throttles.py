@@ -4,6 +4,7 @@ from functools import lru_cache
 from ipaddress import ip_address
 
 from django.conf import settings
+from django.views.decorators.debug import sensitive_variables
 from redis import Redis
 from redis.exceptions import RedisError
 from rest_framework.exceptions import APIException
@@ -62,6 +63,7 @@ class SecurityRateThrottle(BaseThrottle):
     identity_limit = (5, 60)
     identity_field = 'email'
 
+    @sensitive_variables()
     def allow_request(self, request, view):
         prefix = f'{settings.FYAG_SECURITY_REDIS_PREFIX}:{self.operation}'
         keys = [f'{prefix}:ip:{_digest(_remote(request))}']

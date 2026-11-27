@@ -188,7 +188,10 @@ def crear_usuario(data, actor):
     user.save()
     _event(user, actor, UsuarioEvento.Tipo.CREACION, after=_snapshot(user))
     from .credenciales import emitir_temporal
-    return emitir_temporal(user, actor, inicial=True)
+    from .verificacion import emitir, TITULARIDAD
+    issued = emitir_temporal(user, actor, inicial=True)
+    emitir(user, TITULARIDAD)
+    return issued
 
 
 @operacion
@@ -196,18 +199,25 @@ def editar_usuario(target, data, actor):
     actor, user = _admin(actor, target)
     _contract(data, PROFILE)
     changes = {key: value for key, value in _profile(data).items() if value != getattr(user, key)}
-    if not changes:
-        return user
-    before = {key: getattr(user, key) for key in changes}
-    for key, value in changes.items():
-        setattr(user, key, value)
-    _unique(user)
-    fields = list(changes)
-    if "email" in changes:
-        _version(user)
-        fields.append("sesion_version")
-    user.save(update_fields=fields)
-    _event(user, actor, UsuarioEvento.Tipo.EDICION, before=before, after=changes)
+    nuevo = changes.pop('email', None)
+    if nuevo is not None:
+        from django.core.validators import validate_email
+        try:
+            validate_email(nuevo)
+        except DjangoValidationError:
+            raise ValidationError({'email': ['Ingrese una dirección válida.']}) from None
+        if Usuario.objects.exclude(pk=user.pk).filter(email=nuevo).exists():
+            raise ValidationError({'email': ['Ya existe una cuenta con este valor.']})
+    if changes:
+        before = {key: getattr(user, key) for key in changes}
+        for key, value in changes.items():
+            setattr(user, key, value)
+        _unique(user)
+        user.save(update_fields=list(changes))
+        _event(user, actor, UsuarioEvento.Tipo.EDICION, before=before, after=changes)
+    if nuevo is not None:
+        from .verificacion import proponer
+        proponer(user, actor, nuevo)
     return user
 
 
@@ -308,4 +318,6 @@ def aprovisionar_primera_ti(data):
     if not es_personal(user):
         raise ConflictoUsuario("seguridad_no_disponible", "No se pudo confirmar el estado de seguridad inicial.")
     _event(user, user, UsuarioEvento.Tipo.CREACION, "Aprovisionamiento manual inicial de TI mediante comando Django", after=_snapshot(user))
+    from .verificacion import emitir, TITULARIDAD
+    emitir(user, TITULARIDAD)
     return user

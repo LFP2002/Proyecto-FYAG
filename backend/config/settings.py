@@ -19,6 +19,12 @@ from apps.usuarios.correo_config import configurar_correo
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 globals().update(configurar_correo(os.environ))
+try:
+    FYAG_VERIFICACION_MINUTOS = int(os.getenv('FYAG_VERIFICACION_MINUTOS', '60'))
+    if not 15 <= FYAG_VERIFICACION_MINUTOS <= 1440:
+        raise ValueError
+except ValueError:
+    raise ImproperlyConfigured('FYAG_VERIFICACION_MINUTOS debe estar entre 15 y 1440.') from None
 
 # SPEC-018C C1: política ratificada; motor sin conexión a login/JWT/endpoints.
 # Habilitación exclusivamente explícita en tests QA mediante override_settings.

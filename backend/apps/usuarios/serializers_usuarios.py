@@ -90,7 +90,7 @@ class UsuarioLecturaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
+        fields = ["id", "username", "email", "correo_verificado_en", "correo_pendiente", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
         read_only_fields = fields
 
 

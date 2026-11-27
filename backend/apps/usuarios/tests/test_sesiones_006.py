@@ -34,8 +34,9 @@ class SesionesTests(AdminBase, APITestCase):
             self.assert_revoked(access, refresh)
 
     def test_mutaciones_revocan_ambos_tokens(self):
+        from .test_verificacion_027 import confirmar, preparar_cambio_sintetico
         actions = [
-            lambda: services.editar_usuario(self.target, {"email": "otra_identidad@example.test"}, self.manager),
+            lambda: confirmar(preparar_cambio_sintetico(self.target, 'otra_identidad@example.test', self.manager)),
             lambda: services.cambiar_rol(self.target, {"rol": "SUPERVISOR_OBRAS", "motivo": "Nueva función"}, self.manager),
             lambda: restablecer_clave(self.target, {"motivo": "Cambio"}, self.manager),
             lambda: services.actividad_usuario(self.target, {"motivo": "Baja"}, self.manager, activo=False),
