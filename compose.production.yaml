@@ -163,6 +163,7 @@ services:
     environment:
       <<: *worker-env
       FYAG_PROD_ROLE: chat
+      FYAG_CHAT_PURGA_AUTORIZADA: ${FYAG_CHAT_PURGA_AUTORIZADA:-no}
       FYAG_CHAT_RETENCION_DIAS: ${FYAG_CHAT_RETENCION_DIAS:-30}
       FYAG_CHAT_PURGA_INTERVALO: ${FYAG_CHAT_PURGA_INTERVALO:-3600}
     networks: [sql]

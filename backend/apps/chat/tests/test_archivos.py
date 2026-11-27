@@ -181,7 +181,7 @@ class ArchivosTests(ChatBase, TransactionTestCase):
         self.assertEqual(self.client.get(f'{URL}conversaciones/{self.conv.pk}/mensajes/').data['results'], [])
         self.assertEqual(len(self.bytes_publicados()), 1)
         conteo = purgar(dry_run=True)
-        self.assertEqual(conteo['mensajes'], 1)
+        self.assertEqual(conteo['registros']['mensajes']['identificados'], 1)
         self.assertTrue(Mensaje.objects.filter(pk=m.pk).exists())
         purgar(); purgar()
         self.assertFalse(Mensaje.objects.filter(pk=m.pk).exists())
@@ -200,7 +200,7 @@ class ArchivosTests(ChatBase, TransactionTestCase):
         vigente, _ = self.subir(self.conv)
         fuera = self.root/'otros'; fuera.mkdir(); (fuera/'evidencia').write_bytes(b'no borrar')
         with patch('apps.chat.almacen.retirar', side_effect=NoDisponible()):
-            self.assertGreater(purgar()['fallos'], 0)
+            self.assertGreater(purgar()['registros']['retiros']['fallidos'], 0)
         self.assertFalse(Mensaje.objects.filter(pk=m.pk).exists())
         self.assertTrue(Archivo.objects.filter(estado='RETIRAR').exists())
         purgar()

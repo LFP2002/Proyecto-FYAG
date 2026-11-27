@@ -344,6 +344,11 @@ def restore(compose, options, work):
         compose.files(volume, images['postgres'], ('-ec', 'cd /datos && exec tar --compare -f -'),
                       source=work / f'{volume}.tar', label=f'Verificar bytes y metadatos {volume}')
     compose.engines_only()
+    # Explicit single run, with the restricted Chat identity. --lote is also
+    # a fail-closed compatibility guard against pre-AUD-027 implementations.
+    compose.call('run', '--rm', '--no-deps', '-T', 'chat_purgador', 'python', 'manage.py', 'purgar_chat',
+                 '--once', '--lote', '250', label='Purga de Chat previa a reapertura')
+    compose.engines_only()
     compose.reset_redis()
     compose.engines_only()
     print(f'Restauración offline verificada; corte {manifest["frozen_at"]}. No se abrió tráfico.')

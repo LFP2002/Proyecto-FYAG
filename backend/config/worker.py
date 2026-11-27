@@ -20,6 +20,8 @@ HEARTBEAT = Path('/tmp/fyag-worker-ok')
 
 def main():
     role = os.environ['FYAG_PROD_ROLE']
+    if role == 'chat' and os.getenv('FYAG_CHAT_PURGA_AUTORIZADA') != 'CONFIRMADA':
+        raise SystemExit('Purga automática de Chat no autorizada.')
     env, default, command = JOBS[role]
     interval = int(os.getenv(env, default))
     timeout = int(os.getenv('FYAG_WORKER_TIMEOUT', '900'))

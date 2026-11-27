@@ -135,7 +135,8 @@ else:
         denied("DELETE FROM chat_mensajechat WHERE texto='AUD025 vigente'", '23514')
         denied("UPDATE chat_actochat SET huella='' WHERE accion='CONVERSACION'", '23514')
         result = purgar()
-        assert result['mensajes'] == 1 and result['reservas'] == 1 and result['fallos'] == 0, result
+        assert result['estado'] == 'completo' and result['registros']['mensajes']['eliminados'] == 1, result
+        assert result['registros']['reservas']['transferidas'] == 1, result
     elif role in {'documents', 'attachments'}:
         output = StringIO()
         call_command('reconciliar_documentos_mongodb' if role == 'documents' else 'reconciliar_adjuntos_mongodb', stdout=output)

@@ -49,7 +49,7 @@ Base auditada: `87d564bba6d18b274cb7ed009c767e89071b6aec`. Rama local: `fix/audi
 | AUD-024 | Ampliadas exclusiones Git y del contexto Docker backend. Inventario de nombres sensibles y búsqueda acotada de firmas de claves privadas y credenciales no arrojaron candidatos en rastreados; esto no certifica el historial ni detección exhaustiva. Se conserva `.env.example`. |
 | AUD-025 | Implementado y validado en Compose productivo aislado; ver el apartado AUD-025. Instancia actual sin modificaciones. |
 | AUD-026 | Job `pip-audit==2.10.0` con artefactos y sin exclusiones. Auditoría local ejecutada; el workflow GitHub no se ejecutó desde esta rama local. |
-| AUD-027 | Se conserva `FYAG_CHAT_RETENCION_DIAS` (30 por defecto, rango 1–90) y `FYAG_CHAT_PURGA_INTERVALO` (3600 s por defecto). Revisar recuentos usando `python manage.py purgar_chat --dry-run` en QA antes de autorizar `--once` o `--continuo`. Pendiente decidir retención de copias y ensayar recuperación del almacenamiento privado. Sin purga ejecutada. |
+| AUD-027 | Implementado y ensayado en Compose aislado; programación deshabilitada sin autorización. Ver el apartado AUD-027. |
 | AUD-028 | Implementados `/health/live/` (proceso) y `/health/ready/` (SQL con error opaco). Compose comprueba liveness y no espera salud de Redis de chat ni enlaza reinicios a auxiliares. Pendiente observar comportamiento real con el proxy/configuración productivos. |
 
 ### Evidencia de este corte
@@ -152,3 +152,13 @@ Base: `ee984d49e56e46dcd953f458d5d4dc9e3f43fe98`. [Runbook, retención y medici�
 - Segunda restauración en volúmenes nuevos (`fyag-dr-aud023-rto`): incidente simulado `17:35:31.092Z`, **RPO 175,91 s** respecto del corte; restauración offline **37,74 s** y **RTO 64,08 s** hasta proxy saludable y verificación de la aplicación. No se conmutó tráfico real.
 
 Solo Compose aislado y datos sintéticos. Los tiempos no son SLA ni incluyen transferencia externa, aprobación humana, DNS, ni rehabilitación SMTP. No se intervino infraestructura institucional, no se eliminaron volúmenes y no se abordó AUD-027, regresión global, merge ni despliegue.
+
+## AUD-027 — Retención y purga de Chat
+
+Base: `c79e88342b1c7674031a7f7a4efb94a0146371ea`. [Operación y límites](RETENCION-CHAT.md). Se recorren todos los lotes por clave dentro del corte, con transacciones acotadas y sin bloquear las conversaciones atendidas por otros procesos. Un retiro fallido conserva su tumba SQL y no detiene lotes posteriores. Los informes separan identificados, eliminados, pendientes y fallidos; un ciclo fallido o pendiente no se acredita como éxito. No cambió la matriz de privilegios AUD-025.
+
+- PostgreSQL 18.6 y archivos privados reales en Compose aislado. El [smoke](../deploy/tests/smoke_chat_aud027.py) preparó siete mensajes caducados, un vigente y una reserva antigua. Se comprobó el valor por defecto de 30 días, se aceptaron 1 y 90 y se rechazaron 0 y 91. El worker continuo se negó a arrancar sin autorización explícita. `--dry-run --lote 2` identificó siete mensajes y una reserva sin modificar filas ni bytes.
+- Una transacción concurrente bloqueó una conversación con cuatro caducados; otros lotes avanzaron. Una obstrucción real del filesystem causó un retiro fallido con tumba persistida. La CLI en el rol Chat terminó con código **1**, aunque eliminó otros cuatro archivos de la cola. Tras reinicio, retirando la obstrucción y ejecutando otro contenedor efímero, el reintento terminó completo. Solo quedó el vigente y su archivo; el replay de un acto caducado devolvió `409` sin republicar.
+- Respaldo AUD-023 con los caducados aún presentes (**9,17 s**). En otro proyecto con volúmenes nuevos, la restauración y purga offline (**40,48 s**) eliminaron los siete mensajes y sus archivos antes de abrir tráfico, conservaron los recibos mínimos y dejaron intacto el vigente. No se alteraron copias anteriores ni se aprobó una política de retención de copias.
+
+Solo pruebas dirigidas con datos sintéticos; sin intervención institucional, regresión global, merge ni despliegue.
