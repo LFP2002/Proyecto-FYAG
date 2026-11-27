@@ -31,9 +31,9 @@ jobs:
   production-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    env:
-      LAB: ${{ runner.temp }}/fyag-production-ci
     steps:
+      - name: Definir directorio privado del laboratorio
+        run: echo "LAB=$RUNNER_TEMP/fyag-production-ci" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
