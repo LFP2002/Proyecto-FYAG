@@ -4,7 +4,7 @@
 > **Rama:** `fix/auditoria-tecnica-final`, base `87d564bba6d18b274cb7ed009c767e89071b6aec`.
 > **Dependencias:** SPEC-002A/002B, 006B, 006C, 018, 018C (C1–C3) y contrato vigente de chat.
 
-**Incrementos implementados:** [verificación voluntaria](../backend/docs/SPEC-027-VERIFICACION.md), [primera TI](../backend/docs/SPEC-027-SETUP.md) y [recuperación por correo verificado](../backend/docs/SPEC-027-RECUPERACION.md). No se habilitan la obligatoriedad, la recuperación TI por infraestructura ni los bloqueos productivos.
+**Incrementos implementados:** [verificación voluntaria](../backend/docs/SPEC-027-VERIFICACION.md), [primera TI](../backend/docs/SPEC-027-SETUP.md), [recuperación por correo verificado](../backend/docs/SPEC-027-RECUPERACION.md) y [recuperación excepcional TI por infraestructura](../backend/docs/SPEC-027-RECUPERACION-TI.md). No se habilitan la obligatoriedad ni los bloqueos productivos.
 
 ## 1. Objetivo y alcance
 

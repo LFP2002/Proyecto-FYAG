@@ -7,11 +7,16 @@ export const AUDIT_MODULES = {
 export const MODULE_SOURCES = {
   COMERCIAL: ['PRESUPUESTO_EVENTO'],
   OBRAS: ['OBRA_EVENTO', 'PARTICIPANTE_EVENTO', 'CATEGORIA_SERVICIO_EVENTO', 'TURNO_EVENTO', 'COSTO_OBRA_EVENTO'],
-  FINANZAS: ['FINANZAS_EVENTO'], USUARIOS: ['USUARIO_EVENTO', 'RECUPERACION_CORREO_EVENTO'],
+  FINANZAS: ['FINANZAS_EVENTO'], USUARIOS: ['USUARIO_EVENTO', 'RECUPERACION_CORREO_EVENTO', 'RECUPERACION_TI_EVENTO'],
 };
 export const RECOVERY_SOURCE = 'RECUPERACION_CORREO_EVENTO';
 export const RECOVERY_TYPE = 'RECUPERACION_CORREO';
 export const RECOVERY_AUTHORITY = 'TITULARIDAD_CORREO';
+export const INFRA_SOURCE = 'RECUPERACION_TI_EVENTO';
+export const INFRA_TYPE = 'RECUPERACION_TI_INFRA';
+export const INFRA_AUTHORITY = 'INFRAESTRUCTURA';
+export const validInfraDetails = (data) => !!data && Object.keys(data).length === 2
+  && ['operador', 'referencia'].every(key => Object.hasOwn(data, key) && typeof data[key] === 'string' && data[key].length > 0);
 export const ACCESS_STATE_LABELS = Object.freeze({NORMAL:'Normal', BLOQUEO_TEMPORAL:'Bloqueo temporal', REQUIERE_TI:'Requiere TI'});
 export const AUDIT_SOURCES = Object.values(MODULE_SOURCES).flat();
 export function auditSources(role, module = '') {

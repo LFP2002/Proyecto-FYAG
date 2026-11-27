@@ -9,7 +9,7 @@ from apps.obras.models import (
     TurnoObraEvento, CostoObraEvento,
 )
 from apps.finanzas.models import FinanzasEvento
-from apps.usuarios.models import RecuperacionCorreoEvento, UsuarioEvento
+from apps.usuarios.models import RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento, UsuarioEvento
 
 
 @dataclass(frozen=True)
@@ -24,8 +24,8 @@ class Fuente:
     def tipos(self):
         if self.modelo is PresupuestoEvento:
             return ("CREACION", "CAMBIO_ESTADO")
-        if self.modelo is RecuperacionCorreoEvento:
-            return (RecuperacionCorreoEvento.TIPO,)
+        if issubclass(self.modelo, RecuperacionEvento):
+            return (self.modelo.TIPO,)
         return tuple(self.modelo.Tipo.values)
 
     def consulta(self, filtros, inicio, fin, corte):
@@ -45,7 +45,7 @@ class Fuente:
                 return qs.none()
             if self.modelo is PresupuestoEvento:
                 qs = qs.filter(estado_anterior__isnull=tipo == "CREACION")
-            elif self.modelo is not RecuperacionCorreoEvento:
+            elif not issubclass(self.modelo, RecuperacionEvento):
                 qs = qs.filter(tipo=tipo)
         return qs
 
@@ -59,8 +59,9 @@ class Fuente:
         return qs.filter(Q(creado_en__lt=fecha) | Q(creado_en=fecha, pk__lt=pk))
 
     def columnas(self):
-        if self.modelo is RecuperacionCorreoEvento:
-            return ['id', 'creado_en', 'usuario_id', 'acceso_anterior']
+        if issubclass(self.modelo, RecuperacionEvento):
+            columnas = ['id', 'creado_en', 'usuario_id', 'acceso_anterior']
+            return columnas + (['operador', 'referencia', 'motivo'] if self.modelo is RecuperacionTIEvento else [])
         fields = ["id", "creado_en", "motivo", self.actor, *[col for _, col in self.recursos]]
         if self.modelo is PresupuestoEvento:
             fields += ["estado_anterior", "estado_nuevo"]
@@ -73,8 +74,8 @@ class Fuente:
         return fields
 
     def tipo(self, row):
-        if self.modelo is RecuperacionCorreoEvento:
-            return RecuperacionCorreoEvento.TIPO
+        if issubclass(self.modelo, RecuperacionEvento):
+            return self.modelo.TIPO
         if self.modelo is PresupuestoEvento:
             return "CREACION" if row["estado_anterior"] is None else "CAMBIO_ESTADO"
         return row["tipo"]
@@ -96,4 +97,5 @@ FUENTES = {f.nombre: f for f in (
     Fuente("FINANZAS_EVENTO", FinanzasEvento, "FINANZAS", "actor_id", (("DOCUMENTO", "documento_id"), ("CIERRE_SIN_COBRO", "cierre_sin_cobro_id"), ("PAGO", "pago_id"))),
     Fuente("USUARIO_EVENTO", UsuarioEvento, "USUARIOS", "actor_id", (("USUARIO", "usuario_objetivo_id"),)),
     Fuente(RecuperacionCorreoEvento.FUENTE, RecuperacionCorreoEvento, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
+    Fuente(RecuperacionTIEvento.FUENTE, RecuperacionTIEvento, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
 )}

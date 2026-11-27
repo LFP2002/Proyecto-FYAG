@@ -452,7 +452,7 @@
         ],
         "responses": {
           "200": {
-            "description": "25 eventos por página, orden ascendente por creado_en/id, con desempate por fuente. Incluye recuperaciones por correo de la cuenta objetivo, sin actor autenticado ni snapshots de credenciales.",
+            "description": "25 eventos por página, orden ascendente por creado_en/id, con desempate por fuente. Incluye recuperaciones por correo e infraestructura de la cuenta objetivo, sin actor autenticado ni snapshots de credenciales.",
             "content": {
               "application/json": {
                 "schema": {
@@ -477,7 +477,7 @@
                     },
                     "results": {
                       "type": "array",
-                      "items": {"oneOf": [{"$ref": "#/components/schemas/Evento"}, {"$ref": "#/components/schemas/EventoRecuperacionCorreo"}]}
+                      "items": {"oneOf": [{"$ref": "#/components/schemas/Evento"}, {"$ref": "#/components/schemas/EventoRecuperacionCorreo"}, {"$ref": "#/components/schemas/EventoRecuperacionTI"}]}
                     }
                   }
                 }
@@ -1060,6 +1060,23 @@
             "type": "string",
             "maxLength": 150
           }
+        }
+      },
+      "EventoRecuperacionTI": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "usuario_objetivo", "actor", "actor_identidad_origen", "tipo", "acceso_anterior", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^RECUPERACION_TI_EVENTO:[1-9][0-9]*$"},
+          "usuario_objetivo": {"type": "integer", "minimum": 1},
+          "actor": {"type": "integer", "nullable": true, "enum": [null]},
+          "actor_identidad_origen": {"type": "string", "enum": ["INFRAESTRUCTURA"]},
+          "tipo": {"type": "string", "enum": ["RECUPERACION_TI_INFRA"]},
+          "acceso_anterior": {"type": "string", "nullable": true, "enum": ["NORMAL", "BLOQUEO_TEMPORAL", "REQUIERE_TI", null]},
+          "motivo": {"type": "string", "minLength": 1, "maxLength": 500},
+          "datos_anteriores": {"type": "object", "maxProperties": 0},
+          "datos_nuevos": {"type": "object", "additionalProperties": false, "required": ["operador", "referencia"], "properties": {"operador": {"type": "string", "minLength": 1, "maxLength": 120}, "referencia": {"type": "string", "minLength": 1, "maxLength": 120}}},
+          "creado_en": {"type": "string", "format": "date-time"}
         }
       },
       "EventoRecuperacionCorreo": {

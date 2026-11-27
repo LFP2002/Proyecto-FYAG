@@ -1,7 +1,7 @@
 """SPEC-018 A: locks Usuario -> Seguridad; el reset adquiere antes el mutex TI.
 
 Ausencia o incoherencia de estado implica denegación, nunca PERSONAL implícito.
-Solo alta HTTP y reset TI emiten credenciales temporales. No hay lockouts.
+La emisión temporal comparte el cambio de credencial entre alta y recuperaciones autorizadas.
 """
 import hashlib
 import secrets
@@ -89,6 +89,17 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
             and not any(ti.pk != user.pk for ti in disponibles)):
             raise ConflictoUsuario("recuperacion_qa_protegida", "Debe permanecer otra recuperadora QA personal disponible.")
         access = bloquear_estado_recuperacion(user)
+    emitida = guardar_temporal(user, state, inicial=inicial)
+    event = services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)
+    if access is not None:
+        from .recuperacion_c2 import confirmar_recuperacion
+        confirmar_recuperacion(user, actor, access, event)
+    return emitida
+
+
+@sensitive_variables()
+def guardar_temporal(user, state, *, inicial=False):
+    """Solo callers autorizados con locks de usuario y credencial y estado validado."""
     credential = secrets.token_urlsafe(32)  # 256 bits; no depende de identidad/reloj.
     now = timezone.now()
     state.personal_previa = not inicial and (state.estado == 'PERSONAL' or state.personal_previa)
@@ -101,10 +112,6 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
         _version(user)
     user.save(update_fields=["password", "sesion_version"])
     state.save()
-    event = services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)
-    if access is not None:
-        from .recuperacion_c2 import confirmar_recuperacion
-        confirmar_recuperacion(user, actor, access, event)
     return CredencialEmitida(user, credential, state.vence_en)
 
 

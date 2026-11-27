@@ -44,7 +44,7 @@ test('Auditoría: calendario real, rango inclusivo 366 días y defaults civiles 
   assert.equal(validAuditRange({desde:'',hasta:'0001-01-01'},'2026-11-17'),false);
 });
 test('Auditoría: matriz coincide con permissions.POR_ROL, Supervisor no hereda categorías',async()=>{
-  const expected={GERENCIA:['PRESUPUESTO_EVENTO','OBRA_EVENTO','PARTICIPANTE_EVENTO','CATEGORIA_SERVICIO_EVENTO','TURNO_EVENTO','COSTO_OBRA_EVENTO','FINANZAS_EVENTO'],SUPERVISOR_OBRAS:['OBRA_EVENTO','PARTICIPANTE_EVENTO','TURNO_EVENTO','COSTO_OBRA_EVENTO'],ADMINISTRATIVO_FINANZAS:['FINANZAS_EVENTO'],ADMINISTRADOR_TI:['USUARIO_EVENTO','RECUPERACION_CORREO_EVENTO'],TECNICO:[],BODEGUERO:[]};
+  const expected={GERENCIA:['PRESUPUESTO_EVENTO','OBRA_EVENTO','PARTICIPANTE_EVENTO','CATEGORIA_SERVICIO_EVENTO','TURNO_EVENTO','COSTO_OBRA_EVENTO','FINANZAS_EVENTO'],SUPERVISOR_OBRAS:['OBRA_EVENTO','PARTICIPANTE_EVENTO','TURNO_EVENTO','COSTO_OBRA_EVENTO'],ADMINISTRATIVO_FINANZAS:['FINANZAS_EVENTO'],ADMINISTRADOR_TI:['USUARIO_EVENTO','RECUPERACION_CORREO_EVENTO','RECUPERACION_TI_EVENTO'],TECNICO:[],BODEGUERO:[]};
   for(const [role,sources] of Object.entries(expected)){
     assert.deepEqual(auditSources(role),sources);const calls=[];
     const ui=await mount(Auditoria,async(path)=>{calls.push(path);return {results:[],next_cursor:null,has_more:false,fecha_corte:'2026-11-17T12:00:00Z',zona_horaria:'America/Santiago'};},role);

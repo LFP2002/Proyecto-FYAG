@@ -171,16 +171,18 @@ class DesafioRecuperacionCorreo(models.Model):
     vence_en = models.DateTimeField(db_index=True)
 
 
-class RecuperacionCorreoEvento(models.Model):
-    """Autoridad: titularidad del buzón del usuario, no sesión ni reemisión TI."""
-    FUENTE = 'RECUPERACION_CORREO_EVENTO'
-    TIPO = 'RECUPERACION_CORREO'
-    AUTORIDAD = 'TITULARIDAD_CORREO'
+class RecuperacionEvento(models.Model):
     objects = EventosInmutablesQuerySet.as_manager()
     usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
     creado_en = models.DateTimeField(auto_now_add=True)
     acceso_anterior = models.CharField(max_length=20, blank=True)
     acceso_version_nueva = models.PositiveBigIntegerField(null=True)
+
+    class Meta:
+        abstract = True
+
+    def detalle_infraestructura(self):
+        return {}
 
     @staticmethod
     def acceso_publico(value):
@@ -193,6 +195,28 @@ class RecuperacionCorreoEvento(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError('El historial de seguridad es inmutable.')
+
+
+class RecuperacionCorreoEvento(RecuperacionEvento):
+    """Autoridad: titularidad del buzón del usuario, no sesión ni reemisión TI."""
+    FUENTE = 'RECUPERACION_CORREO_EVENTO'
+    TIPO = 'RECUPERACION_CORREO'
+    AUTORIDAD = 'TITULARIDAD_CORREO'
+    ETIQUETA = 'Titularidad del correo'
+    motivo = ''
+
+
+class RecuperacionTIEvento(RecuperacionEvento):
+    FUENTE = 'RECUPERACION_TI_EVENTO'
+    TIPO = 'RECUPERACION_TI_INFRA'
+    AUTORIDAD = 'INFRAESTRUCTURA'
+    ETIQUETA = 'Operador de infraestructura'
+    operador = models.CharField(max_length=120)
+    referencia = models.CharField(max_length=120)
+    motivo = models.CharField(max_length=500)
+
+    def detalle_infraestructura(self):
+        return {'operador': self.operador, 'referencia': self.referencia}
 
 
 class UsuarioEvento(models.Model):

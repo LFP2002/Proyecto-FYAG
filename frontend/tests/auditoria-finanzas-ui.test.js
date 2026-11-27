@@ -32,6 +32,21 @@ const click=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>text
 const change=async(r,label,value)=>{const l=r.root.findAllByType('label').find(l=>text(l).startsWith(label));assert.ok(l,label);const c=l.findAll(n=>['input','select'].includes(n.type))[0];await act(async()=>{c.props.onChange({target:{value}});await flush();});};
 const submit=async(r,label)=>{const f=r.root.findByProps({'aria-label':label});await act(async()=>{f.props.onSubmit({preventDefault(){}});await flush();});};
 const openDetail=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>b.props['aria-label']===label);assert.ok(b,label);await act(async()=>{b.props.onClick();await flush();});};
+test('Auditoría TI: recuperación excepcional muestra autoridad, operador y autorización',async()=>{
+ const event={...base,id:'RECUPERACION_TI_EVENTO:8',fuente:'RECUPERACION_TI_EVENTO',modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,tipo:'RECUPERACION_TI_INFRA',actor:null,actor_etiqueta:'Operador de infraestructura',actor_username:null,actor_identidad_origen:'INFRAESTRUCTURA',motivo:'Incidente autorizado',datos_anteriores:{acceso_estado:'REQUIERE_TI'},datos_nuevos:{operador:'operador.qa',referencia:'AUT-027'}};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[event]}),r=ui.renderer;
+ try{
+  await click(r,'Filtros');
+  await change(r,'Fuente',event.fuente);
+  await change(r,'Tipo',event.tipo);
+  await act(async()=>{r.root.findByProps({id:'audit-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+  const query=new URL(ui.calls.at(-1).path,'http://localhost').searchParams;
+  assert.equal(query.get('fuente'),event.fuente);
+  assert.equal(query.get('tipo'),event.tipo);
+  await openDetail(r,'Ver detalle de Recuperación TI por infraestructura Usuario #27');
+  assert.match(text(r.toJSON()),/AutoridadOperador de infraestructura.*Operadoroperador\.qa.*Referencia de autorizaciónAUT-027.*Incidente autorizado.*Estado de acceso anteriorRequiere TI/);
+ }finally{await ui.close();}
+});
 test('Auditoría TI: filtro y detalle de recuperación por titularidad del correo',async()=>{
  const recovery={...base,id:'RECUPERACION_CORREO_EVENTO:8',fuente:'RECUPERACION_CORREO_EVENTO',modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,tipo:'RECUPERACION_CORREO',actor:null,actor_etiqueta:'Titularidad del correo',actor_username:null,actor_identidad_origen:'TITULARIDAD_CORREO',motivo:'',datos_anteriores:{acceso_estado:'REQUIERE_TI'},datos_nuevos:{}};
  const ui=await mount({role:'ADMINISTRADOR_TI',rows:[recovery]}),r=ui.renderer;

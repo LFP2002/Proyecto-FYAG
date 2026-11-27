@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 
 from apps.finanzas.serializers_documentos import FinanzasEventoSerializer
-from apps.usuarios.models import RecuperacionCorreoEvento
+from apps.usuarios.models import RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento
 from apps.usuarios.serializers_usuarios import UsuarioEventoSerializer
 from .adapters import FUENTES
 
@@ -152,11 +152,13 @@ def normalizar_evento(fuente, row, rol):
     base = {"id": f"{fuente.nombre}:{row['id']}", "evento_id": row["id"], "fuente": fuente.nombre,
             "modulo": fuente.modulo, "recurso_tipo": recurso, "recurso_id": pk, "tipo": fuente.tipo(row),
             "creado_en": row["creado_en"]}
-    if fuente.modelo is RecuperacionCorreoEvento:
-        anterior = RecuperacionCorreoEvento.acceso_publico(row['acceso_anterior'])
-        return {**base, 'actor': None, 'actor_etiqueta': 'Titularidad del correo', 'actor_username': None,
-                'actor_identidad_origen': RecuperacionCorreoEvento.AUTORIDAD, 'motivo': '',
-                'datos_anteriores': {'acceso_estado': anterior} if anterior else {}, 'datos_nuevos': {}}
+    if issubclass(fuente.modelo, RecuperacionEvento):
+        registro = fuente.modelo(**row)
+        anterior = registro.acceso_publico(registro.acceso_anterior)
+        return {**base, 'actor': None, 'actor_etiqueta': registro.ETIQUETA, 'actor_username': None,
+                'actor_identidad_origen': registro.AUTORIDAD, 'motivo': registro.motivo,
+                'datos_anteriores': {'acceso_estado': anterior} if anterior else {},
+                'datos_nuevos': registro.detalle_infraestructura()}
     antes, despues = snapshots(fuente, row, rol, recurso)
     historico = row["actor_username_historico"] is not None
     relacion = fuente.actor.removesuffix("_id")
@@ -187,7 +189,7 @@ class EventoPublicoSerializer(serializers.Serializer):
     actor = serializers.IntegerField(allow_null=True)
     actor_etiqueta = serializers.CharField(allow_null=True)
     actor_username = serializers.CharField(allow_null=True)
-    actor_identidad_origen = serializers.ChoiceField(choices=['HISTORICA', 'ACTUAL', RecuperacionCorreoEvento.AUTORIDAD])
+    actor_identidad_origen = serializers.ChoiceField(choices=['HISTORICA', 'ACTUAL', RecuperacionCorreoEvento.AUTORIDAD, RecuperacionTIEvento.AUTORIDAD])
     motivo = serializers.CharField(allow_blank=True)
     creado_en = FechaSantiago()
     datos_anteriores = serializers.JSONField()
