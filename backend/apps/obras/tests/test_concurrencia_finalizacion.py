@@ -2,7 +2,7 @@ from django.test import TransactionTestCase
 from django.utils import timezone
 
 from apps.obras import services, services_costos as costos, services_gastos as gastos, services_turnos as turnos
-from apps.obras.exceptions import CostosIncompletos, EstadoIncompatible
+from apps.obras.exceptions import CostosIncompletos, EstadoIncompatible, VersionCostosObsoleta
 from apps.obras.models import CierreCostosObra
 from . import test_concurrencia_gastos
 from .test_finalizacion import FinalizacionBase
@@ -15,6 +15,11 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
         self.setUpTestData()
         self.preparar()
 
+    def cierre_revisado(self):
+        from apps.obras.services_finalizacion import finalizar_obra
+        datos = self.revision("Cierre revisado")
+        return lambda: finalizar_obra(self.obra, datos, self.supervisor)
+
     def escenario(self, *, material=False):
         self.obra = self.otra_obra()
         self.url = f"/api/obras/{self.obra.pk}/gastos/"
@@ -22,7 +27,7 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
 
     def test_dos_finalizaciones_un_solo_cierre_y_evento(self):
         self.completa()
-        primero, segundo = self.en_orden(self.finalizar, self.finalizar)
+        primero, segundo = self.en_orden(self.cierre_revisado(), self.cierre_revisado())
         self.assertEqual(primero.estado, "FINALIZADA")
         self.assertIsInstance(segundo, EstadoIncompatible)
         self.assertEqual(CierreCostosObra.objects.filter(obra=self.obra).count(), 1)
@@ -39,13 +44,13 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
                         "costo_unitario_neto": "13000.00", "motivo": "Corrección de factura",
                     }, self.supervisor))
                     if finalizar_primero:
-                        primero, segundo = self.en_orden(self.finalizar, modificar)
+                        primero, segundo = self.en_orden(self.cierre_revisado(), modificar)
                         self.assertEqual(primero.estado, "FINALIZADA")
                         self.assertIsInstance(segundo, EstadoIncompatible)
                         self.assertEqual(CierreCostosObra.objects.get(obra=self.obra).costo_total, 39250)
                     else:
-                        _, segundo = self.en_orden(modificar, self.finalizar)
-                        self.assertIsInstance(segundo, CostosIncompletos)
+                        _, segundo = self.en_orden(modificar, self.cierre_revisado())
+                        self.assertIsInstance(segundo, VersionCostosObsoleta)
                         self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
                         self.assertFalse(self.control().costos_validados)
 
@@ -56,12 +61,12 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
                 "duracion_ajustada_segundos": 1800, "motivo": "Duración contrastada",
             }, self.supervisor)
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, modificar)
+                primero, segundo = self.en_orden(self.cierre_revisado(), modificar)
                 self.assertEqual(primero.estado, "FINALIZADA")
                 self.assertIsInstance(segundo, EstadoIncompatible)
             else:
-                _, segundo = self.en_orden(modificar, self.finalizar)
-                self.assertIsInstance(segundo, CostosIncompletos)
+                _, segundo = self.en_orden(modificar, self.cierre_revisado())
+                self.assertIsInstance(segundo, VersionCostosObsoleta)
                 self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
 
     def test_finalizar_frente_revision_pendiente_no_valida_implicitamente(self):
@@ -72,13 +77,13 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
             self.marcar_validado()
             revisar = lambda: self.revisar(turno)
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, revisar)
+                primero, segundo = self.en_orden(self.cierre_revisado(), revisar)
                 self.assertIsInstance(primero, CostosIncompletos)
                 self.assertEqual(segundo.estado_revision, "VALIDADO")
             else:
-                primero, segundo = self.en_orden(revisar, self.finalizar)
+                primero, segundo = self.en_orden(revisar, self.cierre_revisado())
                 self.assertEqual(primero.estado_revision, "VALIDADO")
-                self.assertIsInstance(segundo, CostosIncompletos)
+                self.assertIsInstance(segundo, VersionCostosObsoleta)
             self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
 
     def test_finalizar_frente_nueva_validacion_ambos_ordenes(self):
@@ -86,12 +91,12 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
             _, gasto = self.escenario(material=True)
             gastos.editar_gasto(self.obra, gasto.pk, {"observacion": "Respaldo", "motivo": "Nueva evidencia"}, self.supervisor)
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, self.validar)
+                primero, segundo = self.en_orden(self.cierre_revisado(), self.validar)
                 self.assertIsInstance(primero, CostosIncompletos)
                 self.assertTrue(segundo["costos_validados"])
                 self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
             else:
-                primero, segundo = self.en_orden(self.validar, self.finalizar)
+                primero, segundo = self.en_orden(self.validar, self.cierre_revisado())
                 self.assertTrue(primero["costos_validados"])
                 self.assertEqual(segundo.estado, "FINALIZADA")
                 self.assertEqual(CierreCostosObra.objects.filter(obra=self.obra).count(), 1)
@@ -101,11 +106,11 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
             self.escenario()
             suspender = lambda: services.suspender_obra(self.obra, self.supervisor, "Pausa")
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, suspender)
+                primero, segundo = self.en_orden(self.cierre_revisado(), suspender)
                 self.assertEqual(primero.estado, "FINALIZADA")
                 self.assertIsInstance(segundo, EstadoIncompatible)
             else:
-                primero, segundo = self.en_orden(suspender, self.finalizar)
+                primero, segundo = self.en_orden(suspender, self.cierre_revisado())
                 self.assertEqual(primero.estado, "SUSPENDIDA")
                 self.assertIsInstance(segundo, EstadoIncompatible)
                 self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
@@ -115,12 +120,12 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
             self.escenario()
             reasignar = lambda: services.cambiar_tecnico(self.obra, self.otro_tecnico.pk, self.supervisor, "Nuevo principal")
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, reasignar)
+                primero, segundo = self.en_orden(self.cierre_revisado(), reasignar)
                 self.assertEqual(primero.estado, "FINALIZADA")
                 self.assertIsInstance(segundo, EstadoIncompatible)
             else:
-                _, segundo = self.en_orden(reasignar, self.finalizar)
-                self.assertIsInstance(segundo, CostosIncompletos)
+                _, segundo = self.en_orden(reasignar, self.cierre_revisado())
+                self.assertIsInstance(segundo, VersionCostosObsoleta)
                 self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())
 
     def test_finalizar_frente_rectificacion_cortesia_ambos_ordenes(self):
@@ -132,10 +137,10 @@ class ConcurrenciaFinalizacionTests(FinalizacionBase, TransactionTestCase):
                 "justificacion": "Atención excepcional documentada", "motivo": "Respaldo adicional",
             }, self.supervisor)
             if finalizar_primero:
-                primero, segundo = self.en_orden(self.finalizar, rectificar)
+                primero, segundo = self.en_orden(self.cierre_revisado(), rectificar)
                 self.assertEqual(primero.estado, "FINALIZADA")
                 self.assertIsInstance(segundo, EstadoIncompatible)
             else:
-                _, segundo = self.en_orden(rectificar, self.finalizar)
-                self.assertIsInstance(segundo, CostosIncompletos)
+                _, segundo = self.en_orden(rectificar, self.cierre_revisado())
+                self.assertIsInstance(segundo, VersionCostosObsoleta)
                 self.assertFalse(CierreCostosObra.objects.filter(obra=self.obra).exists())

@@ -39,5 +39,6 @@ class MigracionMateriales025B(TransactionTestCase):
         self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), cabecera)
         self.assertEqual(PresupuestoItem.objects.values().get(pk=item.pk),
                          dict(linea, articulo_id=None, codigo_articulo=''))
-        self.assertEqual(list(PresupuestoEvento.objects.filter(presupuesto_id=presupuesto.pk).values()), historial)
+        self.assertEqual(list(PresupuestoEvento.objects.filter(presupuesto_id=presupuesto.pk).values()),
+                         [dict(e, actor_nombre_historico=None, actor_username_historico=None) for e in historial])
         self.assertEqual(PresupuestoItem.objects.get(pk=item.pk).subtotal, Decimal('21250.00'))

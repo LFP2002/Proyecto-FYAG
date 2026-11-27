@@ -188,7 +188,7 @@ class ObrasAPIContratoTests(ObrasAPIBase):
             with self.subTest(accion=nombre):
                 respuesta = self.client.post(
                     f"/api/obras/{obra.pk}/{nombre}/",
-                    {"motivo": "Intento"}, format="json",
+                    {"motivo": "Intento", **({"version_costos_esperada": 0} if nombre == "finalizar" else {})}, format="json",
                 )
                 self.assertEqual(respuesta.status_code, 409 if nombre == "finalizar" else 404)
         for metodo in ("put", "delete"):

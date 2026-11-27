@@ -21,7 +21,9 @@ class MigracionEgresosTests(EgresosBase, PagosBase, TransactionTestCase):
         executor = MigrationExecutor(connection)
         hojas = executor.loader.graph.leaf_nodes()
         try:
-            executor.migrate([('finanzas', '0002_pagos_cobranzas')])
+            # Los servicios actuales requieren el esquema vigente. Generar la
+            # historia real antes de retroceder; usar modelos históricos para
+            # inspeccionar las filas en 0002, nunca servicios actuales allí.
             self.setUpTestData()
             self.preparar_pagos()
             pagos.registrar_pago(self.doc.pk, self.pago_data(), self.finanzas, str(uuid4()))
@@ -36,6 +38,15 @@ class MigracionEgresosTests(EgresosBase, PagosBase, TransactionTestCase):
             self.assertTrue(antes[PagoDocumento])
             self.assertTrue(antes[CierreCostosObra])
             self.assertTrue(antes[MovimientoInventario])
+            anterior = ('finanzas', '0002_pagos_cobranzas')
+            executor = MigrationExecutor(connection)
+            executor.migrate([anterior])
+            historicos = executor.loader.project_state([anterior]).apps
+            for m in (DocumentoCobro, PagoDocumento, FinanzasEvento):
+                viejo = historicos.get_model('finanzas', m.__name__)
+                campos = [f.attname for f in viejo._meta.concrete_fields]
+                self.assertEqual(list(viejo.objects.order_by('pk').values(*campos)),
+                                 [{k: fila[k] for k in campos} for fila in antes[m]], m.__name__)
             executor = MigrationExecutor(connection)
             executor.migrate(hojas)
             for m, filas in antes.items():
