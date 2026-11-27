@@ -90,6 +90,7 @@ def iniciar_turno(referencia, datos, usuario):
     turno.full_clean(validate_constraints=False)
     models.Model.save(turno, force_insert=True)
     _evento(turno, "INICIO", actor, "Inicio de turno por el técnico", {})
+    base._revalidar_actor(usuario, base.TECNICO)
     return turno
 
 
@@ -147,6 +148,7 @@ def finalizar_turno(referencia, turno_id, datos, usuario, *, fotos=(), archivos_
     turno.save()
     _adjuntar(turno, actor, fotos, archivos_creados)
     _evento(turno, "CIERRE", actor, "Cierre de turno por el técnico", antes)
+    base._revalidar_actor(usuario, base.TECNICO)
     return turno
 
 
@@ -182,6 +184,7 @@ def cerrar_administrativamente(referencia, turno_id, datos, usuario):
     _pendiente(turno)
     turno.save()
     _evento(turno, "CIERRE_ADMINISTRATIVO", actor, motivo, antes)
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return turno
 
 
@@ -206,6 +209,7 @@ def subsanar_turno(referencia, turno_id, datos, usuario, *, fotos=(), archivos_c
     _pendiente(turno)
     turno.save()
     _evento(turno, "SUBSANACION", actor, "Subsanación aportada por el técnico", antes)
+    base._revalidar_actor(usuario, base.TECNICO)
     return turno
 
 
@@ -236,6 +240,7 @@ def revisar_turno(referencia, turno_id, datos, usuario):
     turno.observacion_revision = motivo
     turno.save()
     _evento(turno, "VALIDACION" if decision == "VALIDAR" else "OBSERVACION", actor, motivo, antes)
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return turno
 
 
@@ -270,4 +275,5 @@ def corregir_turno(referencia, turno_id, datos, usuario):
     _pendiente(turno)
     turno.save()
     _evento(turno, "CORRECCION", actor, motivo, antes)
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return turno

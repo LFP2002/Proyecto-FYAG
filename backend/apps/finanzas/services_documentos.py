@@ -4,10 +4,13 @@ from functools import wraps
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 from rest_framework.exceptions import APIException, AuthenticationFailed, NotFound, PermissionDenied, ValidationError
 
 from apps.comercial.models import Presupuesto
 from apps.obras.models import Obra, CierreCostosObra, CortesiaObra
+from apps.usuarios.acceso import sesion_operativa
+from apps.usuarios.configuracion_c2 import relaciones_seguridad
 from apps.usuarios.models import Usuario
 from .models import DocumentoCobro, CierreSinCobro, FinanzasEvento, PagoDocumento
 from .serializers_documentos import DocumentoCrearSerializer, DocumentoRevertirSerializer, SinCobroCrearSerializer
@@ -40,12 +43,15 @@ def operacion(func):
 
 
 def actor_financiero(actor):
-    if not isinstance(actor, Usuario) or actor.pk is None:
+    if not isinstance(actor, Usuario) or actor.pk is None or actor._state.adding:
         raise PermissionDenied("Operación no autorizada.")
-    actual = Usuario.objects.filter(pk=actor.pk, is_active=True, rol=Usuario.Rol.ADMINISTRATIVO_FINANZAS).first()
-    if actual is None:
+    actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(
+        pk=actor.pk, is_active=True, rol=Usuario.Rol.ADMINISTRATIVO_FINANZAS,
+    ).first()
+    if actual is None or actor.rol != actual.rol:
         raise PermissionDenied("Operación no autorizada.")
-    if actual.sesion_version != actor.sesion_version:
+    if (actual.sesion_version != actor.sesion_version
+            or not constant_time_compare(actual.password, actor.password) or not sesion_operativa(actual)):
         raise AuthenticationFailed("Sesión no disponible.")
     return actual
 
@@ -97,10 +103,10 @@ def evento(**kwargs):
 
 @operacion
 def registrar_documento(payload, actor):
-    actor = actor_financiero(actor)
+    actor_financiero(actor)
     data = datos(DocumentoCrearSerializer, payload)
     obra = obra_bloqueada(data.pop("obra"))
-    actor = actor_financiero(actor)  # Releer después de cualquier espera por raíz.
+    actual = actor_financiero(actor)  # Releer después de cualquier espera por raíz.
     elegibilidad(obra)
     if CierreSinCobro.objects.filter(obra=obra).exists():
         raise ConflictoFinanciero("sin_cobro_ya_registrado", "La Obra tiene cierre administrativo sin cobro.")
@@ -114,23 +120,24 @@ def registrar_documento(payload, actor):
         raise ConflictoFinanciero("presupuesto_inconsistente", "La Obra tiene precios comerciales pendientes.")
     if data["monto_neto"] != neto:
         raise ConflictoFinanciero("monto_no_coincide", "El neto documental no coincide con el presupuesto aprobado.")
-    documento = DocumentoCobro.objects.create(obra=obra, registrado_por=actor, **data)
+    documento = DocumentoCobro.objects.create(obra=obra, registrado_por=actual, **data)
+    actual = actor_financiero(actor)  # La unicidad por tipo/folio puede esperar otra raíz.
     snapshot = {key: (format(value, ".2f") if key.startswith("monto_") else value.isoformat() if key.startswith("fecha_") else value) for key, value in data.items()}
     snapshot.update(obra=obra.pk, estado="VIGENTE")
-    evento(documento=documento, tipo="DOCUMENTO_REGISTRADO", actor=actor, datos_nuevos=snapshot)
+    evento(documento=documento, tipo="DOCUMENTO_REGISTRADO", actor=actual, datos_nuevos=snapshot)
     return documento
 
 
 @operacion
 def revertir_documento(pk, payload, actor):
-    actor = actor_financiero(actor)
+    actor_financiero(actor)
     data = datos(DocumentoRevertirSerializer, payload)
     obra_id = DocumentoCobro.objects.filter(pk=identificador(pk)).values_list("obra_id", flat=True).first()
     if obra_id is None:
         raise NotFound("Documento no encontrado.")
     obra = obra_bloqueada(obra_id)
-    actor = actor_financiero(actor)
     documento = DocumentoCobro.objects.select_for_update().get(pk=pk)
+    actor = actor_financiero(actor)
     if documento.obra_id != obra.pk:
         raise ConflictoFinanciero("origen_inconsistente", "La referencia de origen cambió.")
     if documento.estado != "VIGENTE":
@@ -151,7 +158,7 @@ def revertir_documento(pk, payload, actor):
 
 @operacion
 def registrar_sin_cobro(obra_id, payload, actor):
-    actor = actor_financiero(actor)
+    actor_financiero(actor)
     data = datos(SinCobroCrearSerializer, payload)
     obra = obra_bloqueada(obra_id)
     actor = actor_financiero(actor)

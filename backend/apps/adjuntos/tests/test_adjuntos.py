@@ -31,6 +31,7 @@ from apps.adjuntos.exceptions import ContenidoRechazado, ScannerNoDisponible
 from apps.adjuntos.models import AdjuntoDocumento
 from apps.documentos import mongo
 from apps.finanzas.tests.base import FinanzasBase
+from apps.finanzas.tests.test_concurrencia import CarrerasPostgreSQL
 from apps.obras.models import Obra, ObraParticipante
 from apps.obras.tests.test_turnos import TurnosBase, foto, png_comprimido
 from apps.usuarios.models import Usuario
@@ -90,6 +91,16 @@ class AdjuntosBase(TurnosBase, TransactionTestCase):
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class AdjuntosAPITests(AdjuntosBase):
+    def test_subida_revocada_tras_lock_de_obra_no_publica(self):
+        _, respuesta = CarrerasPostgreSQL.race(
+            self, lambda: Obra.objects.select_for_update().get(pk=self.obra.pk), self.subir,
+            tras_espera=lambda: Usuario.objects.filter(pk=self.supervisor.pk).update(
+                sesion_version=self.supervisor.sesion_version + 1),
+        )
+        self.assertEqual(respuesta.status_code, 401)
+        self.assertFalse(AdjuntoDocumento.objects.exists())
+        self.assertFalse(list(settings.ADJUNTOS_ROOT.glob('archivos/*')))
+
     def test_contrato_openapi_postman_referencias_y_vocabularios(self):
         schema = json.loads((settings.BASE_DIR/"docs/openapi/SPEC-012B-v1.json").read_text(encoding="utf-8"))
         self.assertEqual(sum(method in {"get", "post", "patch"} for item in schema["paths"].values() for method in item), 8)

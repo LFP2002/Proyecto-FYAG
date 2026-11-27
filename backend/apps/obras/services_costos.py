@@ -399,6 +399,7 @@ def registrar_cortesia(referencia, datos, usuario):
     cortesia.autorizado_en = timezone.now()
     cortesia.save()
     control = invalidar(obra, actor, motivo or "Autorización excepcional sin cobro")
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     _evento(control, "CORTESIA", actor, motivo or "Autorización excepcional sin cobro", antes,
             cortesia=cortesia, nuevos=_snapshot_cortesia(cortesia))
     return _snapshot_cortesia(cortesia)

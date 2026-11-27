@@ -206,6 +206,7 @@ def crear_gasto(obra, datos, usuario):
     gasto.full_clean()
     gasto.save()
     _evento(gasto, "ALTA", actor, "Alta de gasto registrada por el Supervisor", {})
+    base._revalidar_actor(usuario, base.SUPERVISOR)  # Incluye el lock de control de costos del evento.
     return gasto
 
 
@@ -269,6 +270,7 @@ def editar_gasto(obra, referencia, datos, usuario):
         "fecha_gasto", "referencia_respaldo", "observacion", "actualizado_en",
     ])
     _evento(gasto, "CORRECCION", actor, motivo, anteriores)
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto
 
 
@@ -310,6 +312,7 @@ def devolver_gasto(obra, referencia, datos, usuario):
         gasto, "DEVOLUCION", actor, motivo, anteriores,
         devolucion={"cantidad": str(cantidad), "fecha": fecha.isoformat()},
     )
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto
 
 
@@ -342,4 +345,5 @@ def anular_gasto(obra, referencia, datos, usuario):
             "motivo": motivo,
         },
     )
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto

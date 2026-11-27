@@ -99,6 +99,7 @@ def _actor_019f(usuario, token=None):
 
 def _revalidar_actor(usuario, rol, token=None):
     """Releer seguridad sin reemplazar la identidad que inició la operación."""
+    from django.utils.crypto import constant_time_compare
     from rest_framework.exceptions import AuthenticationFailed
     from apps.usuarios.acceso import sesion_operativa
     from apps.usuarios.authentication import identificador_sesion, validar_sesion
@@ -109,7 +110,7 @@ def _revalidar_actor(usuario, rol, token=None):
         raise PermisoDenegado()
     actual = Modelo.objects.select_related(*relaciones_seguridad()).filter(pk=usuario.pk).first()
     if (actual is None or not actual.is_active or actual.sesion_version != usuario.sesion_version
-            or actual.password != usuario.password or not sesion_operativa(actual)):
+            or not constant_time_compare(actual.password, usuario.password) or not sesion_operativa(actual)):
         raise AuthenticationFailed('Sesión no disponible.', code='sesion_revocada')
     if token is not None:
         if identificador_sesion(token) != usuario.pk:
@@ -287,7 +288,7 @@ def crear_obra(datos, usuario):
         fecha_programada=fecha, creado_por=actor,
     )
     if tecnico is not None:
-        _activar_participante(obra, tecnico, actor, motivo)
+        _activar_participante(obra, tecnico, usuario, motivo)
     _evento_obra(
         obra, ObraEvento.Tipo.CREACION, actor, None,
         nuevos=_snapshot(obra), motivo=motivo,
@@ -373,10 +374,11 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
         previo = ObraParticipante.objects.select_for_update().get(
             obra=obra, tecnico_id=anterior,
         )
+        actor = _revalidar_actor(usuario, SUPERVISOR)
         if previo.activo:
             _desactivar_participante(previo, actor, motivo)
     if nuevo is not None:
-        _activar_participante(obra, nuevo, actor, motivo, permitir_activo=True)
+        _activar_participante(obra, nuevo, usuario, motivo, permitir_activo=True)
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_TECNICO, actor, obra.estado,
         previos={"tecnico_responsable": anterior},
@@ -384,6 +386,7 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
     )
     from .services_costos import invalidar
     invalidar(obra, actor, motivo)
+    _revalidar_actor(usuario, SUPERVISOR)
     return obra
 
 
@@ -438,11 +441,12 @@ def _evento_participante(participante, tipo, actor, motivo, anteriores):
     )
 
 
-def _activar_participante(obra, tecnico, actor, motivo, *, permitir_activo=False):
+def _activar_participante(obra, tecnico, usuario, motivo, *, permitir_activo=False):
     # Caller ya bloqueó Presupuesto -> Obra -> técnico. La Obra serializa altas.
     participante = ObraParticipante.objects.select_for_update().filter(
         obra=obra, tecnico=tecnico,
     ).first()
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     creado = participante is None
     if participante and participante.activo:
         if permitir_activo:
@@ -491,9 +495,10 @@ def asignar_participante(referencia, datos, usuario):
     motivo = _motivo(datos["motivo"], obligatorio=True)
     tecnico = _tecnico_elegible(datos["tecnico"], campo="tecnico")
     actor = _revalidar_actor(usuario, SUPERVISOR)
-    resultado = _activar_participante(obra, tecnico, actor, motivo)
+    resultado = _activar_participante(obra, tecnico, usuario, motivo)
     from .services_costos import invalidar
     invalidar(obra, actor, motivo)
+    _revalidar_actor(usuario, SUPERVISOR)
     return resultado
 
 
@@ -517,6 +522,7 @@ def desasignar_participante(referencia, participante_id, usuario, motivo):
     resultado = _desactivar_participante(participante, actor, motivo)
     from .services_costos import invalidar
     invalidar(obra, actor, motivo)
+    _revalidar_actor(usuario, SUPERVISOR)
     return resultado
 
 
@@ -578,6 +584,7 @@ def crear_categoria(nombre, usuario):
     actor = _actor_categoria(usuario)
     nombre = _texto(nombre, "nombre", maximo=100)
     categoria = CategoriaServicio.objects.create(nombre=nombre, creado_por=actor)
+    actor = _actor_categoria(usuario)
     _categoria_evento(
         categoria, CategoriaServicioEvento.Tipo.CREACION, actor,
         nuevos={"nombre": categoria.nombre, "activo": categoria.activo},
@@ -598,6 +605,7 @@ def renombrar_categoria(referencia, nombre, usuario, motivo=""):
     anterior = categoria.nombre
     categoria.nombre = nuevo
     categoria.save(update_fields=["nombre", "actualizado_en"])
+    actor = _actor_categoria(usuario)  # El índice de nombre puede esperar otra fila.
     _categoria_evento(
         categoria, CategoriaServicioEvento.Tipo.EDICION, actor,
         previos={"nombre": anterior}, nuevos={"nombre": nuevo}, motivo=motivo,
@@ -632,9 +640,11 @@ def activar_categoria(referencia, usuario, motivo=""):
 
 
 def _actor_categoria(usuario):
+    from django.utils.crypto import constant_time_compare
     from apps.usuarios.acceso import sesion_operativa
     actor = _actor_autorizado(usuario, SUPERVISOR)
-    if actor.sesion_version != usuario.sesion_version or not sesion_operativa(actor):
+    if (usuario.rol != actor.rol or actor.sesion_version != usuario.sesion_version
+            or not constant_time_compare(actor.password, usuario.password) or not sesion_operativa(actor)):
         raise PermisoDenegado()
     return actor
 

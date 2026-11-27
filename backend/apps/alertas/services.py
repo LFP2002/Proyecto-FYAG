@@ -128,14 +128,14 @@ def obtener(actor, pk):
 
 @transaction.atomic
 def atender(actor, pk, motivo):
-    actor = revalidar(actor, escritura=True)
+    revalidar(actor, escritura=True)
     if type(motivo) is not str or not 1 <= len(motivo.strip()) <= 2000:
         raise ValidationError({"motivo": "Indique un texto de 1 a 2000 caracteres."})
     alerta = obtener(actor, pk)
     bloquear(alerta.tipo, alerta.recurso_id)
     # El rol/sesión puede cambiar mientras esperamos al reconciliador.
-    actor = revalidar(actor, escritura=True)
     alerta = visibles(actor.rol).select_for_update().filter(pk=pk).first()
+    actor = revalidar(actor, escritura=True)
     if alerta is None:
         raise NotFound("Alerta no encontrada.")
     if alerta.es_legada:

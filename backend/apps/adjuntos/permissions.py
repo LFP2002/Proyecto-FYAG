@@ -1,3 +1,4 @@
+from django.utils.crypto import constant_time_compare
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
 from rest_framework.permissions import BasePermission
 from rest_framework_simplejwt.exceptions import TokenError
@@ -13,7 +14,8 @@ def actor_actual(actor, token=None):
     from apps.usuarios.configuracion_c2 import relaciones_seguridad
     from apps.usuarios.acceso import acceso_permitido
     actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(pk=actor.pk).first()
-    if actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version:
+    if (actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version
+            or not constant_time_compare(actual.password, actor.password)):
         raise AuthenticationFailed("Sesión no disponible.")
     if not es_personal(actual) or not acceso_permitido(actual):
         raise AuthenticationFailed("Sesión no disponible.")
@@ -23,7 +25,7 @@ def actor_actual(actor, token=None):
         except TokenError:
             raise AuthenticationFailed("Sesión no disponible.") from None
         validar_sesion(token, actual)
-    if actual.rol not in {"GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS", "TECNICO"}:
+    if actual.rol != actor.rol or actual.rol not in {"GERENCIA", "SUPERVISOR_OBRAS", "ADMINISTRATIVO_FINANZAS", "TECNICO"}:
         raise PermissionDenied("Sin acceso a adjuntos de negocio.")
     return actual
 
@@ -41,14 +43,14 @@ def miembro(actor, obra_id):
 
 class PuedeOperarAdjuntos(BasePermission):
     def has_permission(self, request, view):
-        request.user = actor_actual(request.user, request.auth)
+        actor = actor_actual(request.user, request.auth)
         tipo = view.kwargs.get("tipo")
         if tipo:
-            autorizar_tipo(request.user, tipo, request.method == "POST")
+            autorizar_tipo(actor, tipo, request.method == "POST")
             if request.method in {"HEAD", "OPTIONS"}:
                 from .services import parent
-                parent(tipo, entero_ascii(view.kwargs["id"], "id"), request.user)
-        elif request.method == "PATCH" and request.user.rol == "GERENCIA":
+                parent(tipo, entero_ascii(view.kwargs["id"], "id"), actor)
+        elif request.method == "PATCH" and actor.rol == "GERENCIA":
             raise PermissionDenied("Gerencia tiene acceso de lectura.")
         elif "id" in view.kwargs:
             from .services import autorizado

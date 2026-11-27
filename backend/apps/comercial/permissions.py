@@ -1,3 +1,4 @@
+from django.utils.crypto import constant_time_compare
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 
@@ -16,10 +17,11 @@ def revalidar_escritura(usuario):
     if (
         actual is None or not actual.is_active
         or actual.sesion_version != usuario.sesion_version
+        or not constant_time_compare(actual.password, usuario.password)
         or not sesion_operativa(actual)
     ):
         raise AuthenticationFailed("Sesión no disponible.")
-    if actual.rol != Usuario.Rol.ADMINISTRATIVO_FINANZAS:
+    if actual.rol != Usuario.Rol.ADMINISTRATIVO_FINANZAS or usuario.rol != actual.rol:
         raise PermissionDenied("Operación comercial exclusiva de Finanzas.")
     return actual
 

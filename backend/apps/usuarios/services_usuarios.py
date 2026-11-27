@@ -72,9 +72,10 @@ def _admin(actor, target=None):
         Q(rol__in=[G, TI], is_active=True) | Q(pk__in=[actor.pk, target_id]),
     ).order_by("pk")}
     actual = accounts.get(actor.pk)
-    if not actual or not actual.is_active or actual.rol != TI:
+    if not actual or not actual.is_active or actual.rol != TI or actor.rol != TI:
         raise PermissionDenied("Operación no autorizada.")
-    if actual.sesion_version != actor.sesion_version:
+    from django.utils.crypto import constant_time_compare
+    if actual.sesion_version != actor.sesion_version or not constant_time_compare(actual.password, actor.password):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(actual):
@@ -287,7 +288,9 @@ def cambiar_clave_propia(data, actor):
         user = Usuario.objects.select_for_update().get(pk=actor.pk)
     except Usuario.DoesNotExist:
         raise AuthenticationFailed("Sesión no disponible.") from None
-    if not user.is_active or user.sesion_version != actor.sesion_version:
+    from django.utils.crypto import constant_time_compare
+    if (not user.is_active or user.rol != actor.rol or user.sesion_version != actor.sesion_version
+            or not constant_time_compare(user.password, actor.password)):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(user):

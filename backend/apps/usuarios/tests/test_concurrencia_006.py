@@ -7,7 +7,9 @@ from django.db import close_old_connections, connection, transaction
 from django.test import TransactionTestCase, override_settings
 from rest_framework.exceptions import APIException
 from rest_framework_simplejwt.exceptions import TokenError
+from django.contrib.auth.hashers import make_password
 
+from apps.finanzas.tests.test_concurrencia import CarrerasPostgreSQL
 from apps.obras import services as obras
 from apps.obras import services_turnos as turnos
 from apps.obras.exceptions import ErrorObras
@@ -75,6 +77,18 @@ class ConcurrenciaTests(BaseObras, TransactionTestCase):
 
     def deactivate(self):
         return usuarios.actividad_usuario(self.tecnico, {"motivo": "Baja"}, self.ti, activo=False)
+
+    def test_baja_revocada_por_hash_durante_lock_admin(self):
+        def bloquear():
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_advisory_xact_lock(%s)', [usuarios.ADMIN_MUTEX])
+
+        _, resultado = CarrerasPostgreSQL.race(self, bloquear, self.deactivate,
+            tras_espera=lambda: Usuario.objects.filter(pk=self.ti.pk).update(password=make_password(PASSWORD)))
+        self.assertEqual(getattr(resultado, 'status_code', None), 401)
+        self.tecnico.refresh_from_db()
+        self.assertTrue(self.tecnico.is_active)
+        self.assertFalse(UsuarioEvento.objects.filter(usuario_objetivo=self.tecnico).exists())
 
     def demote(self):
         return usuarios.cambiar_rol(self.tecnico, {"rol": "SUPERVISOR_OBRAS", "motivo": "Cambio"}, self.ti)

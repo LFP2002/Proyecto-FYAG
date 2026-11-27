@@ -7,10 +7,13 @@ from unittest.mock import patch
 from django.db import close_old_connections, connection
 from django.test import TransactionTestCase
 from django.utils import timezone
+from rest_framework.exceptions import AuthenticationFailed
 
+from apps.finanzas.tests.test_concurrencia import CarrerasPostgreSQL
 from apps.obras import services, services_gastos
 from apps.obras.exceptions import DatosInvalidos, ErrorObras, EstadoIncompatible
-from apps.obras.models import CostoObraEvento, GastoObra, Obra
+from apps.obras.models import ControlCostosObra, CostoObraEvento, GastoObra, Obra
+from apps.usuarios.models import Usuario
 from .test_gastos import GastosBase
 
 
@@ -86,6 +89,21 @@ class ConcurrenciaGastosTests(GastosBase, TransactionTestCase):
         self.assertEqual(gasto.cantidad_devuelta, Decimal("1.000"))
         self.assertEqual(gasto.eventos.filter(tipo="DEVOLUCION").count(), 1)
         self.assertEqual(gasto.eventos.count(), 2)
+
+    def test_anulacion_revocada_en_control_costos_revierte_gasto_y_evento(self):
+        gasto = self.crear_ok()
+        control = ControlCostosObra.objects.get(obra=self.obra)
+        _, resultado = CarrerasPostgreSQL.race(
+            self, lambda: ControlCostosObra.objects.select_for_update().get(pk=control.pk),
+            lambda: services_gastos.anular_gasto(self.obra, gasto.pk, {'motivo': 'Corrección'}, self.supervisor),
+            tras_espera=lambda: Usuario.objects.filter(pk=self.supervisor.pk).update(
+                sesion_version=self.supervisor.sesion_version + 1),
+        )
+        self.assertIsInstance(resultado, AuthenticationFailed)
+        gasto.refresh_from_db()
+        self.assertTrue(gasto.vigente)
+        self.assertEqual(list(gasto.eventos.values_list('tipo', flat=True)), ['ALTA'])
+        self.assertEqual(ControlCostosObra.objects.get(pk=control.pk).version_actual, control.version_actual)
 
     def test_anulacion_frente_a_devolucion_en_ambos_ordenes(self):
         for anulacion_primero in (True, False):
