@@ -65,3 +65,44 @@ test('Gerencia mantiene filtros y presentación original',async()=>{
   assert.equal(r.root.findAllByProps({'aria-label':'Filtrar eventos financieros'}).length,0);
  }finally{await ui.close();}
 });
+
+const validationEvent={...base,id:'COSTO_OBRA_EVENTO:31',evento_id:31,fuente:'COSTO_OBRA_EVENTO',modulo:'OBRAS',recurso_tipo:'CONTROL_COSTOS',recurso_id:6,tipo:'VALIDACION',actor:3,actor_etiqueta:'supervisor',actor_username:'supervisor',actor_identidad_origen:'HISTORICA',motivo:'Revisión completa',datos_anteriores:{materiales_estado:'CON_REGISTROS',otros_estado:'CON_REGISTROS',costos_validados:false,validado_por:null,validado_en:null},datos_nuevos:{materiales_estado:'CON_REGISTROS',otros_estado:'CON_REGISTROS',costos_validados:true,validado_por:3,validado_en:date}};
+test('Auditoría Supervisor: alcance de Obras, filtros y cambios efectivos con detalle completo opcional',async()=>{
+ const ui=await mount({role:'SUPERVISOR_OBRAS',rows:[validationEvent]}),r=ui.renderer,body=()=>text(r.toJSON());
+ try{
+  assert.match(body(),/Auditoría de obras/);
+  assert.match(body(),/Validación de costos/);
+  assert.equal(r.root.findAllByType('label').some(l=>text(l).startsWith('Módulo')),false);
+  const resource=r.root.findAllByType('label').find(l=>text(l).startsWith('Recurso')).findByType('select');
+  assert.deepEqual(resource.findAllByType('option').map(o=>o.props.value),['','OBRA','PARTICIPANTE','TURNO','GASTO','CONTROL_COSTOS','CORTESIA']);
+  await change(r,'Recurso','CONTROL_COSTOS');
+  await change(r,'Tipo de evento','VALIDACION');
+  await submit(r,'Filtrar eventos de obras');
+  assert.ok(ui.calls.some(c=>c.path.includes('tipo=VALIDACION')&&c.path.includes('recurso_tipo=CONTROL_COSTOS')));
+  await openDetail(r,'Ver detalle de Validación Control de costos #6');
+  assert.match(body(),/Costos validadosNo→Sí/);
+  assert.match(body(),/3 campos con cambios/);
+  assert.doesNotMatch(body(),/Estado de materiales/);
+  assert.match(body(),/Revisión completa/);
+  assert.match(body(),/Identidad registrada en el evento/);
+  await click(r,'Mostrar todos los valores');
+  assert.match(body(),/Estado de materiales/);
+  assert.match(body(),/Estado de otros gastos/);
+  await click(r,'Solo cambios');
+  assert.doesNotMatch(body(),/Estado de materiales/);
+  await click(r,'Volver al historial');
+  assert.match(body(),/Filtros aplicados/);
+  assert.ok(ui.calls.every(c=>c.method==='GET'));
+ }finally{await ui.close();}
+});
+test('Auditoría Supervisor: sin resultados y sin diferencias entre valores',async()=>{
+ const empty=await mount({role:'SUPERVISOR_OBRAS',rows:[]});
+ try{assert.match(text(empty.renderer.toJSON()),/No hay eventos para mostrar/);}finally{await empty.close();}
+ const ui=await mount({role:'SUPERVISOR_OBRAS',rows:[{...validationEvent,datos_nuevos:validationEvent.datos_anteriores}]});
+ try{
+  await openDetail(ui.renderer,'Ver detalle de Validación Control de costos #6');
+  assert.match(text(ui.renderer.toJSON()),/Sin cambios entre valores/);
+  await click(ui.renderer,'Mostrar todos los valores');
+  assert.match(text(ui.renderer.toJSON()),/Estado de materiales/);
+ }finally{await ui.close();}
+});
