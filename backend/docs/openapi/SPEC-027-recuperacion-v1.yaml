@@ -1,0 +1,66 @@
+openapi: 3.1.0
+info:
+  title: FYAG — Recuperación por correo verificado
+  version: '1.0'
+security: []
+paths:
+  /api/auth/recuperacion/solicitar/:
+    post:
+      summary: Solicitar recuperación asincrónica sin revelar elegibilidad
+      description: 30 solicitudes por IP y 3 por correo normalizado por hora. No sustituye enlaces vigentes.
+      parameters: [{ $ref: '#/components/parameters/CSRF' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+      responses:
+        '202':
+          description: Respuesta genérica, no prueba entrega ni existencia de cuenta.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [detail]
+                properties:
+                  detail: {const: 'Si el correo electrónico corresponde a una cuenta habilitada para recuperación, recibirás las instrucciones para restablecer tu contraseña.'}
+        '400': {description: Entrada inválida}
+        '403': {description: CSRF inválido}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Redis no disponible o cola saturada}
+  /api/auth/recuperacion/confirmar/:
+    post:
+      summary: Consumir enlace de recuperación de un uso
+      description: Vigencia de 15 minutos por defecto; FYAG_RECUPERACION_MINUTOS permite un entero de 5 a 30. Revoca sesiones anteriores sin crear una nueva. En QA C2 y producción opt-in, limpia el bloqueo de una cuenta elegible. 30 intentos por IP y 5 por valor de token por minuto.
+      parameters: [{ $ref: '#/components/parameters/CSRF' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, nueva_clave, confirmacion]
+              properties:
+                token: {type: string, pattern: '^[A-Za-z0-9_-]{43}$', writeOnly: true}
+                nueva_clave: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+                confirmacion: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+      responses:
+        '204': {description: Restablecida; sin JWT ni cookie de sesión}
+        '400': {description: Enlace inválido, vencido, usado o incompatible; o error de validación de contraseña}
+        '403': {description: CSRF inválido}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Redis no disponible}
+components:
+  parameters:
+    CSRF:
+      name: X-CSRFToken
+      in: header
+      required: true
+      description: Obtener en GET /api/auth/csrf/ y conservar la cookie del mismo origen.
+      schema: {type: string}

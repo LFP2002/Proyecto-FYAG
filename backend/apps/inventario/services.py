@@ -85,8 +85,10 @@ def crear_articulo(data, actor):
     contrato(data, {"codigo", "nombre", "descripcion", "unidad", "activo"}, {"codigo", "nombre", "unidad"})
     fields = _campos(data)
     _codigo_unico(fields["codigo"])
-    actor = revalidar(actor, escritura=True)
-    return ArticuloInventario.objects.create(**fields, creado_por=actor, actualizado_por=actor)
+    actual = revalidar(actor, escritura=True)
+    articulo = ArticuloInventario.objects.create(**fields, creado_por=actual, actualizado_por=actual)
+    revalidar(actor, escritura=True)
+    return articulo
 
 
 @transaction.atomic
@@ -113,7 +115,7 @@ def editar_articulo(pk, data, actor):
 
 @transaction.atomic
 def registrar_ingreso(data, actor):
-    actor = revalidar(actor, escritura=True)
+    revalidar(actor, escritura=True)
     contrato(data, {"articulo", "cantidad", "clave_idempotencia", "referencia", "motivo"}, {"articulo", "cantidad", "clave_idempotencia"})
     pk, amount = identificador(data["articulo"]), cantidad(data["cantidad"])
     try:
@@ -127,7 +129,7 @@ def registrar_ingreso(data, actor):
     lock = int.from_bytes(hashlib.sha256(key.bytes).digest()[:4], "big", signed=True)
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(1900, %s)", [lock])
-    actor = revalidar(actor, escritura=True)
+    revalidar(actor, escritura=True)
     previous = MovimientoInventario.objects.filter(clave_idempotencia=key).first()
     if previous is not None:
         if previous.tipo != 'INGRESO' or (previous.articulo_id, previous.cantidad, previous.actor_id, previous.referencia, previous.motivo) != (pk, amount, actor.pk, reference, reason):
@@ -137,7 +139,7 @@ def registrar_ingreso(data, actor):
         raise ConflictoInventario("idempotencia_conflictiva", "Clave ya utilizada para una operación diferente.")
     article = _articulo(pk)
     stock = ExistenciaInventario.objects.select_for_update().filter(articulo=article).first()
-    actor = revalidar(actor, escritura=True)
+    actual = revalidar(actor, escritura=True)
     if stock is None:
         raise ConflictoInventario("existencia_no_disponible", "Existencia ausente; no se reconstruye automáticamente.")
     if not article.activo:
@@ -146,5 +148,6 @@ def registrar_ingreso(data, actor):
         raise ConflictoInventario("saldo_fuera_rango", "El ingreso excedería el saldo máximo.")
     # Trigger valida snapshots y actualiza saldo. No hay una segunda suma en Python.
     movement = MovimientoInventario.objects.create(articulo=article, clave_idempotencia=key, cantidad=amount,
-        saldo_anterior=stock.saldo, saldo_posterior=stock.saldo + amount, actor=actor, referencia=reference, motivo=reason)
+        saldo_anterior=stock.saldo, saldo_posterior=stock.saldo + amount, actor=actual, referencia=reference, motivo=reason)
+    revalidar(actor, escritura=True)
     return movement, True

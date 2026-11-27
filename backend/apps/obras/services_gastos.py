@@ -195,6 +195,7 @@ def crear_gasto(obra, datos, usuario):
     referencia = _texto_opcional(datos, "referencia_respaldo", 500)
     observacion = _texto_opcional(datos, "observacion", 2000)
     _fecha_ordinaria(fecha, obra)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     gasto = GastoObra(
         obra=obra, tipo=tipo, descripcion=descripcion, unidad=unidad,
         cantidad=cantidad, cantidad_devuelta=Decimal("0.000"),
@@ -205,6 +206,7 @@ def crear_gasto(obra, datos, usuario):
     gasto.full_clean()
     gasto.save()
     _evento(gasto, "ALTA", actor, "Alta de gasto registrada por el Supervisor", {})
+    base._revalidar_actor(usuario, base.SUPERVISOR)  # Incluye el lock de control de costos del evento.
     return gasto
 
 
@@ -262,11 +264,13 @@ def editar_gasto(obra, referencia, datos, usuario):
         # La fecha real de cada devolución vive en su evento, no en el gasto.
         _validar_fechas_de_devolucion(gasto)
     gasto.full_clean()
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     gasto.save(update_fields=[
         "tipo", "descripcion", "unidad", "cantidad", "costo_unitario_neto",
         "fecha_gasto", "referencia_respaldo", "observacion", "actualizado_en",
     ])
     _evento(gasto, "CORRECCION", actor, motivo, anteriores)
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto
 
 
@@ -302,11 +306,13 @@ def devolver_gasto(obra, referencia, datos, usuario):
     anteriores = _snapshot(gasto)
     gasto.cantidad_devuelta = acumulada
     gasto.full_clean()
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     gasto.save(update_fields=["cantidad_devuelta", "actualizado_en"])
     _evento(
         gasto, "DEVOLUCION", actor, motivo, anteriores,
         devolucion={"cantidad": str(cantidad), "fecha": fecha.isoformat()},
     )
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto
 
 
@@ -322,6 +328,7 @@ def anular_gasto(obra, referencia, datos, usuario):
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     anteriores = _snapshot(gasto)
     gasto.vigente = False
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     gasto.anulado_por = actor
     gasto.anulado_en = timezone.now()
     gasto.motivo_anulacion = motivo
@@ -338,4 +345,5 @@ def anular_gasto(obra, referencia, datos, usuario):
             "motivo": motivo,
         },
     )
+    base._revalidar_actor(usuario, base.SUPERVISOR)
     return gasto

@@ -223,7 +223,10 @@
           "TURNO_EVENTO",
           "COSTO_OBRA_EVENTO",
           "FINANZAS_EVENTO",
-          "USUARIO_EVENTO"
+          "USUARIO_EVENTO",
+          "RECUPERACION_CORREO_EVENTO",
+          "RECUPERACION_TI_EVENTO",
+          "EVENTO_ACCESO"
         ]
       },
       "RecursoTipo": {
@@ -307,8 +310,9 @@
             "type": "string"
           },
           "actor": {
-            "type": "integer",
-            "minimum": 1
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Nulo en recuperaciones por correo o infraestructura, sin sesión. El filtro actor excluye esos eventos. Buscar la cuenta objetivo por recurso_tipo=USUARIO y recurso_id."
           },
           "actor_etiqueta": {
             "type": [
@@ -325,10 +329,12 @@
             "format": "date-time"
           },
           "datos_anteriores": {
-            "$ref": "#/components/schemas/Snapshot"
+            "$ref": "#/components/schemas/Snapshot",
+            "description": "En recuperaciones por correo o infraestructura (solo TI), contiene únicamente acceso_estado si consta: NORMAL, BLOQUEO_TEMPORAL o REQUIERE_TI."
           },
           "datos_nuevos": {
-            "$ref": "#/components/schemas/Snapshot"
+            "$ref": "#/components/schemas/Snapshot",
+            "description": "En RECUPERACION_TI_EVENTO contiene solo operador y referencia de autorización, sin credenciales."
           },
           "actor_username": {
             "type": [
@@ -341,9 +347,12 @@
             "type": "string",
             "enum": [
               "HISTORICA",
-              "ACTUAL"
+              "ACTUAL",
+              "TITULARIDAD_CORREO",
+              "INFRAESTRUCTURA",
+              "SISTEMA"
             ],
-            "description": "HISTORICA: captura al insertar evento. ACTUAL: datos vigentes de la cuenta para eventos previos a la migración, no certifica nombre histórico."
+            "description": "HISTORICA: captura al insertar evento. ACTUAL: identidad vigente para eventos antiguos. TITULARIDAD_CORREO e INFRAESTRUCTURA no representan una sesión autenticada. INFRAESTRUCTURA corresponde a RECUPERACION_TI_INFRA (solo TI)."
           }
         }
       },

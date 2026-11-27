@@ -1,8 +1,12 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from . import health
+
 
 urlpatterns = [
+    path("health/live/", health.live, name="health_live"),
+    path("health/ready/", health.ready, name="health_ready"),
     path('api/chat/', include('apps.chat.urls')),
     path("api/inventario/", include("apps.inventario.urls")),
     path("admin/", admin.site.urls),

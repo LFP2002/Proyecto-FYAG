@@ -17,8 +17,8 @@ class LoginSerializer(TokenObtainPairSerializer):
 
     @sensitive_variables()
     def validate(self, attrs):
-        from .configuracion_c2 import habilitado
-        if habilitado():
+        from .configuracion_c2 import bloqueos_activos
+        if bloqueos_activos():
             from .autenticacion_c2 import verificar_acceso
             def emitir(user):
                 from .credenciales import iniciar_cambio
@@ -58,8 +58,8 @@ class LoginSerializer(TokenObtainPairSerializer):
             }
 
     def to_internal_value(self, data):
-        from .configuracion_c2 import habilitado
-        if habilitado() and (not isinstance(data, dict) or not isinstance(data.get("email"), str)
+        from .configuracion_c2 import bloqueos_activos
+        if bloqueos_activos() and (not isinstance(data, dict) or not isinstance(data.get("email"), str)
                             or not isinstance(data.get("password"), str) or len(data["password"]) > 4096):
             from rest_framework.exceptions import ValidationError
             raise ValidationError({"non_field_errors": ["Se requiere email y password de texto válidos."]})
@@ -77,8 +77,8 @@ class VersionedRefreshSerializer(TokenRefreshSerializer):
                 user = get_user_model().objects.select_for_update().get(pk=identifier)
             except (get_user_model().DoesNotExist, ValueError, OverflowError):
                 raise InvalidToken("Sesión no disponible.") from None
-            from .configuracion_c2 import habilitado
-            if habilitado():
+            from .configuracion_c2 import bloqueos_activos
+            if bloqueos_activos():
                 from .models import EstadoAcceso, SeguridadCredencial, Usuario
                 credential = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
                 access = EstadoAcceso.objects.select_for_update().filter(usuario=user).first()

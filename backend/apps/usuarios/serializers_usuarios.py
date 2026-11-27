@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Usuario, UsuarioEvento
+from .models import EventoAcceso, Usuario, UsuarioEvento
 
 
 class ContratoEstrictoSerializer(serializers.Serializer):
@@ -79,8 +79,8 @@ class UsuarioLecturaSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         result = super().to_representation(instance)
-        from .configuracion_c2 import habilitado
-        if habilitado():
+        from .configuracion_c2 import bloqueos_activos
+        if bloqueos_activos():
             from .acceso import estado_acceso
             state = estado_acceso(instance)
             result["estado_acceso"] = state
@@ -90,7 +90,7 @@ class UsuarioLecturaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ["id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
+        fields = ["id", "username", "email", "correo_verificado_en", "correo_pendiente", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio"]
         read_only_fields = fields
 
 
@@ -110,12 +110,37 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
                 and type(value) is (bool if key == "is_active" else str)}
 
     def get_datos_anteriores(self, obj):
+        recuperacion = getattr(obj, 'recuperacionacceso', None)
+        if recuperacion is not None:
+            return {'acceso_estado': recuperacion.estado_anterior}
         return self._publico(obj, "datos_anteriores")
 
     def get_datos_nuevos(self, obj):
+        if getattr(obj, 'recuperacionacceso', None) is not None:
+            return {'acceso_estado': 'NORMAL'}
         return self._publico(obj, "datos_nuevos")
 
     class Meta:
         model = UsuarioEvento
         fields = ["id", "usuario_objetivo", "actor", "tipo", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"]
         read_only_fields = fields
+
+
+class RecuperacionHistorialSerializer(serializers.BaseSerializer):
+    def to_representation(self, obj):
+        return {
+            'id': f'{obj.FUENTE}:{obj.pk}', 'usuario_objetivo': obj.usuario_id,
+            'actor': None, 'actor_identidad_origen': obj.AUTORIDAD, 'tipo': obj.TIPO,
+            'acceso_anterior': obj.acceso_publico(obj.acceso_anterior),
+            'motivo': obj.motivo, 'datos_anteriores': {}, 'datos_nuevos': obj.detalle_infraestructura(),
+            'creado_en': serializers.DateTimeField().to_representation(obj.creado_en),
+        }
+
+
+class AccesoHistorialSerializer(serializers.BaseSerializer):
+    def to_representation(self, obj):
+        anterior, nuevo = EventoAcceso.ESTADOS[obj.tipo]
+        return {'id': f'{obj.FUENTE}:{obj.pk}', 'usuario_objetivo': obj.usuario_id, 'tipo': obj.tipo,
+                'actor': None, 'actor_identidad_origen': 'SISTEMA', 'motivo': '',
+                'datos_anteriores': {'acceso_estado': anterior}, 'datos_nuevos': {'acceso_estado': nuevo},
+                'creado_en': serializers.DateTimeField().to_representation(obj.creado_en)}

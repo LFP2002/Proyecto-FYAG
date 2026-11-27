@@ -1,0 +1,322 @@
+# Standalone: always pass -f and --env-file with the independent production configuration.
+x-restart: &restart
+  restart: unless-stopped
+  logging:
+    driver: local
+    options: {max-size: 10m, max-file: '5'}
+x-app: &app
+  <<: *restart
+  image: fyag/backend-production:${FYAG_RELEASE:-local}
+  build: {context: ./backend, dockerfile: Dockerfile.production}
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:mode=1777]
+  stop_grace_period: 30s
+x-db-env: &db-env
+  POSTGRES_DB: ${FYAG_POSTGRES_DB:-fyag}
+x-app-env: &app-env
+  <<: *db-env
+  FYAG_PUBLIC_HOST: ${FYAG_PUBLIC_HOST:?DNS público requerido}
+  FYAG_HTTPS_PORT: ${FYAG_HTTPS_PORT:-443}
+x-security-env: &security-env
+  FYAG_EMAIL_PROFILE: deshabilitado
+  FYAG_BLOQUEOS_PERFIL: ${FYAG_BLOQUEOS_PERFIL:-deshabilitado}
+  FYAG_BLOQUEOS_AUTORIZACION: ${FYAG_BLOQUEOS_AUTORIZACION:-}
+  FYAG_BLOQUEOS_ENTREGA_SMTP: ${FYAG_BLOQUEOS_ENTREGA_SMTP:-}
+  FYAG_BLOQUEOS_AUTORIZACION_REMITENTE: ${FYAG_BLOQUEOS_AUTORIZACION_REMITENTE:-}
+  FYAG_BLOQUEOS_CORREO_TI: ${FYAG_BLOQUEOS_CORREO_TI:-}
+  FYAG_BLOQUEOS_DOMINIO: ${FYAG_BLOQUEOS_DOMINIO:-}
+x-worker-env: &worker-env
+  <<: *app-env
+  FYAG_WORKER_TIMEOUT: ${FYAG_WORKER_TIMEOUT:-900}
+x-worker: &worker
+  <<: *app
+  command: [python, -m, config.worker]
+  depends_on:
+    migraciones: {condition: service_completed_successfully}
+  healthcheck:
+    test: [CMD, python, -m, config.worker, health]
+    interval: 15s
+    timeout: 3s
+    retries: 3
+    start_period: 30s
+x-mongo-env: &mongo-env
+  FYAG_MONGO_USER: ${FYAG_MONGO_APP_USER:-fyag_documentos}
+
+services:
+  proxy:
+    <<: *restart
+    image: fyag/proxy-production:${FYAG_RELEASE:-local}
+    build: {context: ./frontend, dockerfile: Dockerfile.production}
+    environment:
+      FYAG_PUBLIC_HOST: ${FYAG_PUBLIC_HOST:?DNS público requerido}
+      FYAG_HTTPS_PORT: ${FYAG_HTTPS_PORT:-443}
+    ports:
+      - '${FYAG_BIND_ADDRESS:-127.0.0.1}:${FYAG_HTTP_PORT:-80}:8080'
+      - '${FYAG_BIND_ADDRESS:-127.0.0.1}:${FYAG_HTTPS_PORT:-443}:8443'
+    networks: [edge]
+    secrets: [web_cert, web_key]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - type: volume
+        source: proxy_socket
+        target: /run/fyag
+        read_only: true
+        volume: {nocopy: true}
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8081/']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  backend:
+    <<: *app
+    environment:
+      <<: [*app-env, *mongo-env, *security-env]
+      FYAG_PROD_ROLE: web
+      FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
+      FYAG_CHAT_RETENCION_DIAS: ${FYAG_CHAT_RETENCION_DIAS:-30}
+    networks: [sql, documentos, seguridad, chat, scanner]
+    secrets: [postgres_web_password, mongo_app_password, django_secret, jwt_signing_key, redis_security_password, redis_chat_password, redis_ca]
+    volumes:
+      - proxy_socket:/run/fyag
+      - evidencias:/var/lib/fyag/evidencias
+      - adjuntos:/var/lib/fyag/adjuntos
+      - archivos_chat:/var/lib/fyag/chat
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -m, config.production_server, live]
+      interval: 10s
+      timeout: 4s
+      retries: 4
+      start_period: 15s
+
+  operaciones_seguridad:
+    <<: *app
+    restart: 'no'
+    profiles: [operacion-seguridad]
+    environment:
+      <<: [*app-env, *security-env]
+      FYAG_PROD_ROLE: security
+    command: [python, -m, config.security_cli]
+    networks: [sql, seguridad]
+    secrets: [postgres_security_password, django_secret, redis_security_password, redis_ca]
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+
+  migraciones:
+    <<: *app
+    restart: 'no'
+    environment:
+      <<: *app-env
+      FYAG_PROD_ROLE: migration
+    command: [python, -m, config.production_migrate]
+    networks: [sql]
+    secrets: [postgres_migration_password]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  alertas_reconciliador:
+    <<: *worker
+    environment:
+      <<: *worker-env
+      FYAG_PROD_ROLE: alerts
+      FYAG_ALERTAS_INTERVALO_SEGUNDOS: ${FYAG_ALERTAS_INTERVALO_SEGUNDOS:-60}
+    networks: [sql]
+    secrets: [postgres_alerts_password]
+
+  documentos_reconciliador:
+    <<: *worker
+    environment:
+      <<: [*worker-env, *mongo-env]
+      FYAG_PROD_ROLE: documents
+      FYAG_DOCUMENTOS_INTERVALO: ${FYAG_DOCUMENTOS_INTERVALO:-60}
+    networks: [sql, documentos]
+    secrets: [postgres_documents_password, mongo_app_password]
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+      mongodb: {condition: service_healthy}
+
+  adjuntos_reconciliador:
+    <<: *worker
+    environment:
+      <<: [*worker-env, *mongo-env]
+      FYAG_PROD_ROLE: attachments
+      FYAG_ADJUNTOS_INTERVALO: ${FYAG_ADJUNTOS_INTERVALO:-60}
+    networks: [sql, documentos]
+    secrets: [postgres_attachments_password, mongo_app_password]
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+      mongodb: {condition: service_healthy}
+
+  chat_purgador:
+    <<: *worker
+    profiles: [chat-mantenimiento]
+    environment:
+      <<: *worker-env
+      FYAG_PROD_ROLE: chat
+      FYAG_CHAT_PURGA_AUTORIZADA: ${FYAG_CHAT_PURGA_AUTORIZADA:-no}
+      FYAG_CHAT_RETENCION_DIAS: ${FYAG_CHAT_RETENCION_DIAS:-30}
+      FYAG_CHAT_PURGA_INTERVALO: ${FYAG_CHAT_PURGA_INTERVALO:-3600}
+    networks: [sql]
+    secrets: [postgres_chat_password]
+    volumes: [archivos_chat:/var/lib/fyag/chat]
+
+  postgres:
+    <<: *restart
+    image: fyag/postgres-production:${FYAG_RELEASE:-local}
+    build: {context: ./deploy, dockerfile: postgres.Dockerfile}
+    environment:
+      <<: *db-env
+      POSTGRES_USER: ${FYAG_POSTGRES_USER:-fyag}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    networks: [sql]
+    secrets: [postgres_password, postgres_migration_password, postgres_web_password, postgres_security_password,
+              postgres_alerts_password, postgres_documents_password, postgres_attachments_password,
+              postgres_chat_password, postgres_mail_password]
+    volumes: [postgres:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h 127.0.0.1']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mongodb:
+    <<: *restart
+    image: fyag/mongo-production:${FYAG_RELEASE:-local}
+    build: {context: ., dockerfile: deploy/mongo.Dockerfile}
+    environment:
+      <<: *mongo-env
+      MONGO_INITDB_ROOT_USERNAME: ${FYAG_MONGO_ROOT_USER:-fyag_bootstrap}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_root_password
+    networks: [documentos]
+    secrets: [mongo_app_password, mongo_root_password]
+    volumes: [mongo:/data/db, mongo_config:/data/configdb]
+    healthcheck:
+      test: [CMD, sh, /usr/local/bin/fyag-mongo, health]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  redis-seguridad:
+    <<: *restart
+    image: redis:7.4.7-alpine
+    user: redis
+    networks: [seguridad]
+    secrets: [redis_security_password, redis_cert, redis_key, redis_ca]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    volumes: [redis_security:/data]
+    mem_limit: 256m
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        password=$$(cat /run/secrets/redis_security_password)
+        printf '%s' "$$password" | grep -Eq '^[0-9a-fA-F]{64}$$'
+        umask 077
+        printf 'requirepass %s\n' "$$password" >/tmp/auth.conf
+        exec redis-server /tmp/auth.conf --port 0 --tls-port 6379 --tls-protocols 'TLSv1.2 TLSv1.3' \
+          --tls-cert-file /run/secrets/redis_cert --tls-key-file /run/secrets/redis_key \
+          --tls-ca-cert-file /run/secrets/redis_ca --tls-auth-clients no --protected-mode yes --appendonly yes \
+          --appendfsync everysec --save '' --maxmemory 96mb --maxmemory-policy noeviction
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$(cat /run/secrets/redis_security_password)" redis-cli --tls --cacert /run/secrets/redis_ca --sni redis-seguridad -h redis-seguridad ping | grep -qx PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    <<: *restart
+    image: redis:7.4.7-alpine
+    user: redis
+    networks: [chat]
+    secrets: [redis_chat_password]
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    mem_limit: 256m
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        password=$$(cat /run/secrets/redis_chat_password)
+        printf '%s' "$$password" | grep -Eq '^[0-9a-fA-F]{64}$$'
+        umask 077
+        printf 'requirepass %s\n' "$$password" >/tmp/auth.conf
+        exec redis-server /tmp/auth.conf --protected-mode yes --save '' --appendonly no --maxmemory 96mb --maxmemory-policy noeviction
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$(cat /run/secrets/redis_chat_password)" redis-cli ping | grep -qx PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  clamav:
+    <<: *restart
+    image: clamav/clamav:1.5.4-debian
+    networks: [scanner, firmas]
+    volumes: [clamav:/var/lib/clamav]
+    environment:
+      CLAMD_CONF_StreamMaxLength: 9M
+      CLAMD_CONF_MaxFileSize: 9M
+      CLAMD_CONF_MaxScanSize: 32M
+      CLAMD_CONF_MaxScanTime: 10000
+      CLAMD_CONF_MaxRecursion: 8
+      CLAMD_CONF_AlertExceedsMax: 'yes'
+      CLAMD_CONF_AlertEncrypted: 'yes'
+      CLAMD_CONF_MaxThreads: 2
+    mem_limit: 2g
+    cpus: 2
+    healthcheck:
+      test: [CMD, clamdcheck.sh]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+networks:
+  edge: {}
+  sql: {internal: true}
+  documentos: {internal: true}
+  seguridad: {internal: true}
+  chat: {internal: true}
+  scanner: {internal: true}
+  firmas: {}
+
+volumes:
+  proxy_socket:
+  postgres:
+  mongo:
+  mongo_config:
+  redis_security:
+  clamav:
+  evidencias:
+  adjuntos:
+  archivos_chat:
+
+secrets:
+  postgres_password: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/postgres-password'}
+  postgres_migration_password: {file: '${FYAG_SECRET_DIR}/postgres-migration-password'}
+  postgres_web_password: {file: '${FYAG_SECRET_DIR}/postgres-web-password'}
+  postgres_security_password: {file: '${FYAG_SECRET_DIR}/postgres-security-password'}
+  postgres_alerts_password: {file: '${FYAG_SECRET_DIR}/postgres-alerts-password'}
+  postgres_documents_password: {file: '${FYAG_SECRET_DIR}/postgres-documents-password'}
+  postgres_attachments_password: {file: '${FYAG_SECRET_DIR}/postgres-attachments-password'}
+  postgres_chat_password: {file: '${FYAG_SECRET_DIR}/postgres-chat-password'}
+  postgres_mail_password: {file: '${FYAG_SECRET_DIR}/postgres-mail-password'}
+  mongo_app_password: {file: '${FYAG_SECRET_DIR}/mongo-app-password'}
+  mongo_root_password: {file: '${FYAG_SECRET_DIR}/mongo-root-password'}
+  django_secret: {file: '${FYAG_SECRET_DIR}/django-secret'}
+  jwt_signing_key: {file: '${FYAG_SECRET_DIR}/jwt-signing-key'}
+  redis_security_password: {file: '${FYAG_SECRET_DIR}/redis-security-password'}
+  redis_chat_password: {file: '${FYAG_SECRET_DIR}/redis-chat-password'}
+  redis_cert: {file: '${FYAG_SECRET_DIR}/redis-cert.pem'}
+  redis_key: {file: '${FYAG_SECRET_DIR}/redis-key.pem'}
+  redis_ca: {file: '${FYAG_SECRET_DIR}/redis-ca.pem'}
+  web_cert: {file: '${FYAG_SECRET_DIR}/web-fullchain.pem'}
+  web_key: {file: '${FYAG_SECRET_DIR}/web-key.pem'}

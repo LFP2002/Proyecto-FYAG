@@ -1,4 +1,4 @@
-"""Verificación única y transaccional; habilitada exclusivamente en QA C2."""
+"""Verificación única y transaccional de la política ratificada SPEC-018C."""
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, identify_hasher, make_password
 from django.core.exceptions import ImproperlyConfigured
@@ -10,9 +10,9 @@ from django.views.decorators.debug import sensitive_variables
 
 from .acceso import acceso_permitido, estado_acceso
 from .bloqueos import EstadoAccesoNoDisponible, aplicar_verificacion_bloqueada
-from .configuracion_c2 import habilitado, relaciones_seguridad
+from .configuracion_c2 import habilitado, perfil_bloqueos, relaciones_seguridad
 from .credenciales import estado_coherente, limpiar_desafio
-from .models import EstadoAcceso, SeguridadCredencial, Usuario
+from .models import DesafioCorreo, DesafioRecuperacionCorreo, EstadoAcceso, SeguridadCredencial, Usuario
 from .politica_bloqueos import EstadoPolitica, Senal, calcular_transicion
 from .services_usuarios import ADMIN_MUTEX, ConflictoUsuario, _version
 
@@ -49,6 +49,13 @@ def preflight_qa():
     recuperadoras_qa(exigir_dos=True)
 
 
+def exigir_respaldo_para_temporal_qa(user):
+    """Caller ya validó habilitado() y mantiene ADMIN_MUTEX hasta el commit."""
+    disponibles = recuperadoras_qa()
+    if user.pk in settings.BLOQUEOS_C2_TI_QA_IDS and not any(ti.pk != user.pk for ti in disponibles):
+        raise ConflictoUsuario("recuperacion_qa_protegida", "Debe permanecer otra recuperadora QA personal disponible.")
+
+
 def _snapshot_vigente(snapshot, user, credential):
     previous = getattr(snapshot, "seguridad_credencial", None)
     return (constant_time_compare(user.password, snapshot.password)
@@ -59,11 +66,14 @@ def _snapshot_vigente(snapshot, user, credential):
 
 @sensitive_variables()
 def verificar_acceso(identifier, password, request, *, emitir=None):
-    if not habilitado():
-        raise ImproperlyConfigured("Verificador C2 invocado sin habilitación QA.")
+    perfil = perfil_bloqueos()
+    if perfil == 'deshabilitado':
+        raise ImproperlyConfigured("Verificador invocado con bloqueos deshabilitados.")
+    qa = perfil == 'qa_c2'
     if not isinstance(identifier, str) or not isinstance(password, str) or not password or len(password) > 4096:
         return None
-    recuperadoras_qa()
+    if qa:
+        recuperadoras_qa()
     snapshot = Usuario.objects.select_related(*relaciones_seguridad()).filter(email=identifier).first()
     if snapshot is None:
         make_password(password)  # Trabajo dummy; nunca se persiste ni cuenta.
@@ -78,7 +88,7 @@ def verificar_acceso(identifier, password, request, *, emitir=None):
         return None  # Hash inutilizable/ausente no acredita una clave incorrecta.
     try:
         with transaction.atomic():
-            if snapshot.rol == "ADMINISTRADOR_TI":
+            if qa and snapshot.rol == "ADMINISTRADOR_TI":
                 with connection.cursor() as cursor:
                     cursor.execute("SELECT pg_advisory_xact_lock(%s)", [ADMIN_MUTEX])
                 accounts = {u.pk: u for u in Usuario.objects.select_for_update().filter(
@@ -99,7 +109,7 @@ def verificar_acceso(identifier, password, request, *, emitir=None):
                 return None
             planned = calcular_transicion(EstadoPolitica(state.estado, tuple(state.fallos_en), tuple(state.ciclos_en),
                 state.bloqueo_inicio, state.bloqueado_hasta), Senal.CLAVE_CORRECTA if valid else Senal.CLAVE_INCORRECTA, now)
-            if not valid and user.rol == "ADMINISTRADOR_TI" and any(t.startswith("BLOQUEO") for t, _ in planned.eventos):
+            if qa and not valid and user.rol == "ADMINISTRADOR_TI" and any(t.startswith("BLOQUEO") for t, _ in planned.eventos):
                 # Bajo mutex; no se bloquea la última recuperadora utilizable.
                 if not any(u.pk != user.pk for u in recuperadoras_qa()):
                     return None
@@ -114,6 +124,9 @@ def verificar_acceso(identifier, password, request, *, emitir=None):
                 user.save(update_fields=["sesion_version"])
                 limpiar_desafio(credential)
                 credential.save(update_fields=["desafio_digest", "desafio_vence_en", "desafio_version"])
+                if not qa:
+                    DesafioCorreo.objects.filter(usuario=user, proposito='CAMBIO').delete()
+                    DesafioRecuperacionCorreo.objects.filter(usuario=user).delete()
             if not valid or result.estado.estado != "NORMAL":
                 return None  # Commit de fallos antes del 401 del serializer.
             return emitir(user) if emitir else user

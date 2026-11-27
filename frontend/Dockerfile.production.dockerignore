@@ -1,0 +1,14 @@
+**
+!package.json
+!package-lock.json
+!index.html
+!vite.config.js
+!src/
+!src/**
+!licenses/
+!licenses/**
+!deploy/
+!deploy/**
+**/.env*
+**/*.key
+**/*.pem

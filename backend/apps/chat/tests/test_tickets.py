@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from apps.chat import tickets
 from apps.chat.models import TicketChat, CanalChat
+from apps.finanzas.tests.test_concurrencia import CarrerasPostgreSQL
 from apps.usuarios.models import Usuario
 from .base import ChatBase, URL
 
@@ -37,6 +38,21 @@ class TicketsPostgreSQL(ChatBase, TransactionTestCase):
         with self.assertRaises(tickets.Denegado):
             tickets.consumir(ticket, tickets.admitir('127.0.0.1'))
         self.assertEqual(CanalChat.objects.filter(usuario=self.actor).count(), 1)
+
+    def test_renovacion_revocada_durante_espera_no_extiende_canal(self):
+        ticket, _ = tickets.emitir(self.actor)
+        canal_id = tickets.admitir('127.0.0.1')
+        identidad = tickets.consumir(ticket, canal_id)
+        anterior = CanalChat.objects.get(pk=canal_id).vence_en
+
+        def renovar():
+            with self.assertRaises(tickets.Denegado):
+                tickets.verificar(identidad, canal_id, renovar=True)
+
+        CarrerasPostgreSQL.race(self, lambda: CanalChat.objects.select_for_update().get(pk=canal_id), renovar,
+            tras_espera=lambda: Usuario.objects.filter(pk=self.actor.pk).update(
+                sesion_version=self.actor.sesion_version + 1))
+        self.assertEqual(CanalChat.objects.get(pk=canal_id).vence_en, anterior)
 
     def test_expirado_y_password_cambiado(self):
         pasado = timezone.now()-timedelta(seconds=60)

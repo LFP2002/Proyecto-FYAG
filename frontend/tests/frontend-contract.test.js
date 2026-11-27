@@ -29,6 +29,23 @@ function fontPreferenceOnly(text) {
   return text;
 }
 
+// El asistente inicial solo persiste las mismas dos preferencias no sensibles.
+// Comprobar también la validación del valor, sin excluir el archivo del análisis.
+function setupPreferenceOnly(text) {
+  const accesses = [
+    "globalThis.localStorage?.getItem('fyag.theme')",
+    "globalThis.localStorage?.getItem('fyag.font-level')",
+    "globalThis.localStorage?.setItem('fyag.theme', dark ? 'dark' : 'light')",
+    "globalThis.localStorage?.setItem('fyag.font-level', level)",
+  ];
+  assert.match(text, /function saveFont\(level\) \{\s*if \(!\/\^\[0-3\]\$\/\.test\(level\)\) return;/);
+  for (const access of accesses) {
+    assert.equal(text.split(access).length, 2, 'Acceso autorizado a preferencia del asistente');
+    text = text.replace(access, '');
+  }
+  return text;
+}
+
 async function allSource(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return (await Promise.all(entries.map(async (entry) => {
@@ -36,8 +53,9 @@ async function allSource(directory) {
     if (entry.isDirectory()) return allSource(path);
     if (!/\.[jt]sx?$/.test(entry.name)) return '';
     const text = await readFile(path, 'utf8');
-    return path === join(root, 'components', 'layouts', 'DesktopLayout.jsx')
-      ? fontPreferenceOnly(text) : text;
+    if (path === join(root, 'components', 'layouts', 'DesktopLayout.jsx')) return fontPreferenceOnly(text);
+    if (path === join(root, 'components', 'InicioInstalacion.jsx')) return setupPreferenceOnly(text);
+    return text;
   }))).join('\n');
 }
 
@@ -82,6 +100,30 @@ test('excepción de almacenamiento visual es estricta y no permite tokens', asyn
   assert.throws(() => fontPreferenceOnly(unsafeWrite));
 });
 
+test('el asistente inicial solo guarda preferencias visuales y rechaza persistencia de tokens', async () => {
+  const setup = await source('components/InicioInstalacion.jsx');
+  const forbidden = /localStorage|sessionStorage|indexedDB|document\.cookie/;
+  assert.doesNotMatch(setupPreferenceOnly(setup), forbidden);
+  for (const unsafe of [
+    "localStorage.setItem('token', accessToken);",
+    "sessionStorage.setItem('token', accessToken);",
+    "indexedDB.open('tokens');",
+    "document.cookie = token;",
+  ]) assert.match(setupPreferenceOnly(setup + '\n' + unsafe), forbidden);
+  const themeWrite = "globalThis.localStorage?.setItem('fyag.theme', dark ? 'dark' : 'light')";
+  const fontWrite = "globalThis.localStorage?.setItem('fyag.font-level', level)";
+  for (const [before, after] of [
+    [themeWrite, "globalThis.localStorage?.setItem('fyag.theme', accessToken)"],
+    [fontWrite, "globalThis.localStorage?.setItem('token', level)"],
+    [fontWrite, "globalThis.localStorage?.setItem('fyag.font-level', accessToken)"],
+    ["if (!/^[0-3]$/.test(level)) return;", ""],
+  ]) {
+    const mutated = setup.replace(before, after);
+    assert.notEqual(mutated, setup);
+    assert.throws(() => setupPreferenceOnly(mutated));
+  }
+});
+
 test('imports respetan exactamente las mayúsculas de app y login en Linux', async () => {
   assert.match(await source('main.jsx'), /from '\.\/app\.jsx'/);
   assert.match(await source('app.jsx'), /from '\.\/components\/login\.jsx'/);
@@ -97,7 +139,7 @@ test('login vacío sin selector y con estados de envío y error accesibles', asy
   assert.match(login, /role="alert"/);
   assert.match(login, /disabled=\{busy\}/);
   assert.doesNotMatch(login, /<select|selectedRole/);
-  assert.doesNotMatch(await source('components/Shell/RoleSwitch.jsx'), /<select|switchRole/);
+  assert.doesNotMatch(await source('components/Shell/SideNav.jsx'), /switchRole|selectedRole/);
 });
 
 test('sesión separada de navegación y sin acciones de negocio locales', async () => {
@@ -122,7 +164,8 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /mod === 'dashboard'.*GERENCIA/s);
   assert.match(app, /mod === 'reportes'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
   assert.match(app, /mod === 'cobranzas'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
-  assert.doesNotMatch(await source('pages/TecnicoApp.jsx'), /saveNota|addAvance|Guardar registro/);
+  assert.match(app, /mod\s*===\s*'mis_turnos'\s*&&\s*user.role\s*===\s*'TECNICO'\s*\?\s*MisTurnos/);
+  assert.doesNotMatch(await source('pages/Obras.jsx'), /saveNota|addAvance|Guardar registro/);
 });
 
 test('menús usan seis roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {

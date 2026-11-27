@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';
 import { AF, G, actionsFor, canRead, clientPayload, emptyClient, emptyItem, itemPayload, money, needsReason, validDecimal, validRut, validateClient, validateItem } from '../src/comercial/domain.js';
 import { budgetPath, clientPath, itemPath, pagePath, validatePage } from '../src/comercial/api.js';
 import { createScope } from '../src/comercial/scope.js';
+
+test('una conciliación iniciada antes de una escritura incierta no la desbloquea', async () => {
+  const scope = createScope(), gate = deferred();
+  const pending = scope.reconcile(() => gate.promise);
+  await assert.rejects(scope.write(() => { throw new ApiError(409, 'Conflicto'); }, () => {}));
+  gate.resolve(true);
+  assert.equal(await pending, false);
+  assert.equal(scope.locked, true);
+  assert.equal(await scope.reconcile(async () => true), true);
+  assert.equal(scope.locked, false);
+});
+
+test('un callback de escritura que finaliza tras invalidar el scope no confirma éxito', async () => {
+  const scope = createScope(), started = deferred(), finish = deferred();
+  const pending = scope.write(async () => ({}), async () => { started.resolve(); await finish.promise; });
+  await started.promise;
+  scope.dispose();
+  finish.resolve();
+  assert.equal(await pending, false);
+});
 import { ApiError } from '../src/auth/client.js';
 import { isCatalogUnit, OTHER_UNIT, UNIT_GROUPS } from '../src/comercial/units.js';
 
@@ -127,7 +147,7 @@ for (const status of [0, 409, 500, 502]) test(`resultado ${status}: no reenvía 
   await assert.rejects(scope.write(() => { calls++; throw new ApiError(status, 'Error'); }, () => {}));
   assert.ok(scope.locked);
   assert.equal(await scope.write(() => { calls++; }, () => {}), false); assert.equal(calls, 1);
-  scope.reconciled(); await scope.write(() => { calls++; return {}; }, () => {}); assert.equal(calls, 2);
+  await scope.reconcile(async () => true); await scope.write(() => { calls++; return {}; }, () => {}); assert.equal(calls, 2);
 });
 for (const status of [400, 401, 403, 404, 405, 429]) test(`error ${status}: libera envío sin reintentar escritura`, async () => {
   const scope = createScope(); let calls = 0;

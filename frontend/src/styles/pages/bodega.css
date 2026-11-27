@@ -12,6 +12,7 @@
 .bodega-kpi span{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.8125rem;color:var(--fyag-muted)}
 .bodega-kpi strong{font-size:1.65rem;font-variant-numeric:tabular-nums}
 .bodega-kpi .bodega-icon{font-size:1.25rem;color:var(--fyag-blue)}
+.bodega-kpi span{overflow-wrap:anywhere}
 .bodega-kpi-warning{border-left-color:var(--fyag-red)}
 .bodega-kpi-warning .bodega-icon{color:var(--fyag-red)}
 .bodega-quick,.bodega-summary-grid,.bodega-pending-grid,.bodega-form-grid,.bodega-fields{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}

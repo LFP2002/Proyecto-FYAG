@@ -14,9 +14,20 @@ from datetime import timedelta
 from pathlib import Path
 import os
 from django.core.exceptions import ImproperlyConfigured
+from apps.usuarios.correo_config import configurar_correo, configurar_vigencia_recuperacion
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+globals().update(configurar_correo(os.environ))
+FYAG_RECUPERACION_MINUTOS = configurar_vigencia_recuperacion(os.environ)
+# Compatibilidad de desarrollo y QA: salted_hmac usa SECRET_KEY si no hay clave dedicada.
+FYAG_RECUPERACION_HMAC_KEY = None
+try:
+    FYAG_VERIFICACION_MINUTOS = int(os.getenv('FYAG_VERIFICACION_MINUTOS', '60'))
+    if not 15 <= FYAG_VERIFICACION_MINUTOS <= 1440:
+        raise ValueError
+except ValueError:
+    raise ImproperlyConfigured('FYAG_VERIFICACION_MINUTOS debe estar entre 15 y 1440.') from None
 
 # SPEC-018C C1: política ratificada; motor sin conexión a login/JWT/endpoints.
 # Habilitación exclusivamente explícita en tests QA mediante override_settings.
@@ -40,6 +51,12 @@ BLOQUEOS_C2_RECUPERACION_QA_CONFIRMADA = os.getenv("FYAG_C2_RECUPERACION_QA", ""
 BLOQUEOS_C2_RIESGO_DOS_QA_ACEPTADO = os.getenv("FYAG_C2_RIESGO_DOS_QA", "") == "ACEPTADO"
 BLOQUEOS_C2_RESPUESTAS = os.getenv("FYAG_C2_RESPUESTAS", "")
 BLOQUEOS_C2_SESIONES_TEMPORALES = os.getenv("FYAG_C2_SESIONES_TEMPORALES", "")
+FYAG_BLOQUEOS_PERFIL = os.getenv('FYAG_BLOQUEOS_PERFIL', 'deshabilitado')
+FYAG_BLOQUEOS_AUTORIZACION = os.getenv('FYAG_BLOQUEOS_AUTORIZACION', '')
+FYAG_BLOQUEOS_ENTREGA_SMTP = os.getenv('FYAG_BLOQUEOS_ENTREGA_SMTP', '')
+FYAG_BLOQUEOS_AUTORIZACION_REMITENTE = os.getenv('FYAG_BLOQUEOS_AUTORIZACION_REMITENTE', '')
+FYAG_BLOQUEOS_CORREO_TI = os.getenv('FYAG_BLOQUEOS_CORREO_TI', '')
+FYAG_BLOQUEOS_DOMINIO = os.getenv('FYAG_BLOQUEOS_DOMINIO', '')
 
 
 # Quick-start development settings - unsuitable for production
@@ -154,6 +171,7 @@ DATABASES = {
         "PASSWORD": os.environ["POSTGRES_PASSWORD"],
         "HOST": os.getenv("POSTGRES_HOST", "postgres"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        "OPTIONS": {"connect_timeout": 3},
     }
 }
 
@@ -291,11 +309,12 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_THROTTLE_RATES": {
-        "login_ip": "20/min",
-        "login_email": "5/min",
         "refresh_ip": "30/min",
     },
 }
+
+FYAG_SECURITY_REDIS_URL = os.getenv('FYAG_SECURITY_REDIS_URL', '')
+FYAG_SECURITY_REDIS_PREFIX = 'fyag:seguridad:v1'
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
@@ -332,5 +351,10 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = FYAG_BLOQUEOS_PERFIL == 'produccion'
+SESSION_COOKIE_SECURE = SECURE_SSL_REDIRECT and not DEBUG
+# Solo en una instalación con proxy que elimina y reemplaza esta cabecera.
+if SECURE_SSL_REDIRECT and os.getenv('FYAG_PROXY_TLS_CONFIABLE') == 'CONFIRMADO':
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Strict"

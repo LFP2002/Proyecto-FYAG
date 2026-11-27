@@ -59,9 +59,9 @@ export const PRE_E = {
   PENDIENTE_FINANZAS: ['Pendiente de Finanzas', 'amber'],
   APROBADO_FINANZAS: ['Aprobado por Finanzas', 'blue'],
   RECHAZADO_FINANZAS: ['Rechazado por Finanzas', 'red'],
-  PENDIENTE_GERENCIA: ['Pendiente de Finanzas (legado)', 'amber'],
-  APROBADO_GERENCIA: ['Aprobado por Finanzas (legado)', 'blue'],
-  RECHAZADO_GERENCIA: ['Rechazado por Finanzas (legado)', 'red'],
+  PENDIENTE_GERENCIA: ['Pendiente de Gerencia (histórico)', 'amber'],
+  APROBADO_GERENCIA: ['Aprobado por Gerencia (histórico)', 'blue'],
+  RECHAZADO_GERENCIA: ['Rechazado por Gerencia (histórico)', 'red'],
   ENVIADO_CLIENTE: ['Enviado al cliente', 'blue'],
   APROBADO_CLIENTE: ['Aceptado por el cliente', 'green'],
   RECHAZADO_CLIENTE: ['Rechazado por el cliente', 'red'],
@@ -70,16 +70,3 @@ export const PRE_E = {
 
 export const OBRA_CHIP = { 'En proceso': 'green', Finalizada: 'amber', Suspendida: 'red', Cancelada: 'gray' };
 export const PAGO_CHIP = { Facturado: 'amber', Pagado: 'green', Anulado: 'gray' };
-
-export const MATRIX = [
-  ['Dashboard e indicadores', 'Total', '—', '—', '—'],
-  ['Clientes', '—', 'Total', '—', '—'],
-  ['Presupuestos', '—', 'Crea y gestiona', 'Elabora y envía sus presupuestos', '—'],
-  ['Obras', 'Lectura', '—', 'Crea y edita', 'Solo asignadas'],
-  ['Costos y horas', 'Lectura', '—', 'Registra', '—'],
-  ['Cobranzas y pagos', 'Lectura', 'Total', '—', '—'],
-  ['Alertas', 'Lectura', 'Atiende las propias', 'Atiende las propias', '—'],
-  ['Reportes', 'Total', 'Cobranza', '—', '—'],
-  ['Usuarios y roles', '—', '—', '—', '—'],
-  ['Registro de avances', '—', '—', 'Lectura', 'Registra']
-].map((row) => [...row, row[0] === 'Usuarios y roles' ? 'Total' : '—']);

@@ -40,11 +40,11 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   let loginFlight = null;
   let logoutFlight = null;
   let restoreFlight = null;
-  let snapshot = Object.freeze({ status: 'restoring', user: null, notice: null });
+  let snapshot = Object.freeze({ status: 'restoring', user: null, notice: null, sessionEpoch: epoch });
   const listeners = new Set();
 
   function emit(status, user = null, notice = null) {
-    snapshot = Object.freeze({ status, user, notice });
+    snapshot = Object.freeze({ status, user, notice, sessionEpoch: epoch });
     listeners.forEach((listener) => listener());
   }
 
@@ -59,7 +59,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     emit('anonymous', null, notice);
   }
 
-  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal, responseType } = {}) {
+  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal, responseType, expectedStatus } = {}) {
     // No enviar credenciales a URLs externas, ni seguir redirecciones de API.
     if (typeof path !== 'string' || !path.startsWith('/api/') || path.includes('\\') || path.startsWith('/api//')
         || !new URL(path, 'https://request.invalid').pathname.startsWith('/api/')) {
@@ -112,9 +112,11 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
           if (path.startsWith('/api/chat/')) {
             for (const field of ['archivo','texto','body','clave_idempotencia','ultimo_mensaje_id','participantes','destinatario','titulo']) allowed.add(field);
           }
-          if (path.startsWith('/api/usuarios/')) {
-            for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
-          }
+           if (path.startsWith('/api/usuarios/')) {
+             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
+           }
+           if (path === '/api/auth/setup/') allowed.add('password');
+           if (path === '/api/auth/recuperacion/confirmar/') allowed.add('nueva_clave');
           const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
           for (const [key, value] of Object.entries(data || {})) {
             const values = Array.isArray(value) ? value : [value];
@@ -133,6 +135,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       }
       throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });
     }
+    if (expectedStatus && response.status !== expectedStatus) throw new ApiError(502, 'El servidor devolvió una respuesta inesperada.');
     if (response.status === 204) return null;
     if (wantsBlob) {
       try {
@@ -332,10 +335,33 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     }
   }
 
+  async function submitEmailVerification(action, value) {
+    const paths = { enviar: ['/api/auth/correo/reenviar/', 'email'], confirmar: ['/api/auth/correo/verificar/', 'token'] };
+    if (!Object.hasOwn(paths, action)) throw new ApiError(400, 'Operación no válida.');
+    const [path, field] = paths[action];
+    const protection = await csrfToken({ force: true });
+    return http(path, { method: 'POST', body: { [field]: value }, csrfToken: protection });
+  }
+
+  async function submitInitialSetup(body) {
+    const protection = await csrfToken({ force: true });
+    return http('/api/auth/setup/', { method: 'POST', body, csrfToken: protection, expectedStatus: 201 });
+  }
+
+  async function submitPasswordRecovery(action, body) {
+    if (!['solicitar', 'confirmar'].includes(action)) throw new ApiError(400, 'Operación no válida.');
+    const protection = await csrfToken({ force: true });
+    return http(`/api/auth/recuperacion/${action}/`, { method: 'POST', body, csrfToken: protection });
+  }
+
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
+    submitEmailVerification,
+    initialSetupStatus: ({ signal } = {}) => http('/api/auth/setup/estado/', { signal, expectedStatus: 200 }),
+    submitInitialSetup,
+    submitPasswordRecovery,
   });
 }
 

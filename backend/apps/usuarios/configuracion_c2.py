@@ -26,4 +26,22 @@ def habilitado():
 
 
 def relaciones_seguridad():
-    return ("seguridad_credencial", "estado_acceso") if habilitado() else ("seguridad_credencial",)
+    return ("seguridad_credencial", "estado_acceso") if bloqueos_activos() else ("seguridad_credencial",)
+
+
+def perfil_bloqueos():
+    perfil = settings.FYAG_BLOQUEOS_PERFIL
+    qa = habilitado()
+    if perfil not in {'deshabilitado', 'qa_c2', 'produccion'} or (perfil == 'qa_c2' and not qa) or (qa and perfil == 'produccion'):
+        raise ImproperlyConfigured('Perfiles de bloqueo incompatibles o inválidos.')
+    # El selector QA histórico sigue siendo válido con sus guardas originales.
+    if qa:
+        return 'qa_c2'
+    if perfil == 'produccion':
+        from .preflight_bloqueos import validar_configuracion_productiva
+        validar_configuracion_productiva()
+    return perfil
+
+
+def bloqueos_activos():
+    return perfil_bloqueos() != 'deshabilitado'

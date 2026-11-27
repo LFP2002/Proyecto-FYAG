@@ -278,13 +278,14 @@ class CredencialesTests(CredencialesBase, APITestCase):
             services.cambiar_clave_propia({"clave_actual": issued.credencial_temporal, "nueva_clave": NEW_PASSWORD}, user)
 
     def test_correo_revoca_desafio_y_noop_lo_preserva(self):
+        from .test_verificacion_027 import confirmar, preparar_cambio_sintetico
         issued = self.emit()
         challenge = self.challenge(issued)
         services.editar_usuario(issued.usuario, {"email": issued.usuario.email.upper()}, self.manager)
         credenciales.primer_cambio({"desafio": challenge["desafio"], "nueva_clave": NEW_PASSWORD})
         issued = self.reset(issued.usuario)
         challenge = self.challenge(issued)
-        services.editar_usuario(issued.usuario, {"email": "actualizado@example.test"}, self.manager)
+        confirmar(preparar_cambio_sintetico(issued.usuario, 'actualizado@example.test', self.manager))
         with self.assertRaises(APIException):
             credenciales.primer_cambio({"desafio": challenge["desafio"], "nueva_clave": NEW_PASSWORD})
 
@@ -415,7 +416,8 @@ class ConfiguracionTTLTests(SimpleTestCase):
             self.assertIsNotNone(resolve(path.replace("{id}", "1")))
         definitions = schema["components"]["schemas"]
         self.assertEqual(set(definitions["Alta"]["properties"]), set(CrearUsuarioSerializer().fields))
-        self.assertEqual(set(definitions["Usuario"]["properties"]), set(UsuarioLecturaSerializer().fields))
+        self.assertEqual(set(definitions["Usuario"]["properties"]) | {'correo_pendiente', 'correo_verificado_en'},
+                         set(UsuarioLecturaSerializer().fields))  # Delta en SPEC-027-verificacion-v1.
         self.assertEqual(set(definitions["LoginRestringido"]["properties"]), {"estado", "desafio", "desafio_vence_en", "csrfToken"})
         self.assertTrue(schema["paths"]["/api/usuarios/{id}/establecer-clave/"]["post"]["deprecated"])
         self.assertNotIn("password", definitions["Alta"]["properties"])

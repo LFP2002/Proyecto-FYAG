@@ -105,18 +105,26 @@ class AprovisionamientoTests(TestCase):
         self.assertEqual(Usuario.objects.count(), 1)
 
     def test_validadores_rollback_y_no_promover_cuenta_existente(self):
-        gerencia = Usuario.objects.create_user(username="g", email="g@example.test", rol="GERENCIA")
         with self.assertRaises(ValidationError):
             services.aprovisionar_primera_ti(self.data(password="123"))
-        with self.assertRaises(ValidationError):
+        self.assertFalse(Usuario.objects.exists())
+        gerencia = Usuario.objects.create_user(username="g", email="g@example.test", rol="GERENCIA")
+        with self.assertRaises(services.ConflictoUsuario):
             services.aprovisionar_primera_ti(self.data(email=gerencia.email))
-        with patch("apps.usuarios.services_usuarios._event", side_effect=RuntimeError("controlado")):
-            with self.assertRaises(RuntimeError):
-                services.aprovisionar_primera_ti(self.data())
+        with self.assertRaises(services.ConflictoUsuario):
+            services.aprovisionar_primera_ti(self.data())
         self.assertEqual(Usuario.objects.count(), 1)
         gerencia.refresh_from_db()
         self.assertEqual(gerencia.rol, "GERENCIA")
         self.assertFalse(UsuarioEvento.objects.exists())
+
+    def test_rollback_del_evento_no_inicializa(self):
+        from apps.usuarios.models import InstalacionFYAG
+        with patch("apps.usuarios.services_usuarios._event", side_effect=RuntimeError("controlado")):
+            with self.assertRaises(RuntimeError):
+                services.aprovisionar_primera_ti(self.data())
+        self.assertFalse(Usuario.objects.exists())
+        self.assertIsNone(InstalacionFYAG.objects.get(pk=1).inicializada_en)
 
     def test_comando_interactivo_sin_secretos_y_no_repetible(self):
         output = StringIO()
@@ -172,6 +180,11 @@ class ProteccionesConcurrenciaTests(BaseObras, TransactionTestCase):
         self.assertIsInstance(one, Usuario)
         self.assertEqual(two.detail["code"], "ultima_gerencia")
 
+
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+class AprovisionamientoConcurrenciaTests(TransactionTestCase):
+    race = concurrencia.ConcurrenciaTests.race
+
     def test_comandos_concurrentes_solo_crean_una_primera_ti(self):
         def run(suffix):
             try:
@@ -198,7 +211,9 @@ class MigracionTITests(BaseObras, TransactionTestCase):
         executor.migrate(previous)
         try:
             old = executor.loader.project_state(previous).apps
-            self.assertEqual(list(old.get_model("usuarios", "Usuario").objects.order_by("pk").values()), before)
+            old_fields = [field.attname for field in old.get_model("usuarios", "Usuario")._meta.concrete_fields]
+            self.assertTrue(list(old.get_model("usuarios", "Usuario").objects.order_by("pk").values()) ==
+                            [{field: row[field] for field in old_fields} for row in before])
             executor = MigrationExecutor(connection)
             executor.migrate(latest)
             self.assertEqual(list(Usuario.objects.order_by("pk").values()), before)

@@ -4,3 +4,6 @@
 .login-title { margin: 8px 0 0; text-align: center; font-size: 28px; color: var(--fyag-primary); }
 .login-sub { margin: 4px 0 8px; text-align: center; color: var(--fyag-muted); }
 .login-foot { margin: 18px 0 0; text-align: center; font-size: 12px; color: var(--fyag-muted); }
+.setup-page { padding: clamp(12px, 4vw, 24px); }
+.setup-page .login-card { max-width: 30rem; padding: clamp(16px, 5vw, 32px); overflow-wrap: anywhere; }
+.setup-page .login-title { font-size: 1.75rem; }

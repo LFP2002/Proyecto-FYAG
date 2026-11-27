@@ -1,0 +1,10 @@
+{
+  "info": {"name": "FYAG SPEC-027 — Verificación QA", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "variable": [{"key":"api","value":"http://127.0.0.1:8000"},{"key":"email_qa","value":"verificacion@qa.test"},{"key":"csrf","value":""},{"key":"token_mailpit","value":""}],
+  "item": [
+    {"name":"01 CSRF","request":{"method":"GET","url":"{{api}}/api/auth/csrf/"},"event":[{"listen":"test","script":{"exec":["pm.test('CSRF 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('csrf', pm.response.json().csrfToken);"]}}]},
+    {"name":"02 Reenvío sintético","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-CSRFToken","value":"{{csrf}}"}],"body":{"mode":"raw","raw":"{\"email\":\"{{email_qa}}\"}"},"url":"{{api}}/api/auth/correo/reenviar/"},"event":[{"listen":"test","script":{"exec":["pm.test('202 opaco', () => { pm.response.to.have.status(202); pm.expect(pm.response.json().detail).to.eql('Si corresponde verificar esa dirección, recibirás las instrucciones por correo.'); });"]}}]},
+    {"name":"03 Confirmar token de Mailpit","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-CSRFToken","value":"{{csrf}}"}],"body":{"mode":"raw","raw":"{\"token\":\"{{token_mailpit}}\"}"},"url":"{{api}}/api/auth/correo/verificar/"},"event":[{"listen":"test","script":{"exec":["pm.test('204 sin sesión nueva', () => { pm.response.to.have.status(204); pm.expect(pm.response.headers.has('Set-Cookie')).to.eql(false); });"]}}]},
+    {"name":"04 Reutilización denegada","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-CSRFToken","value":"{{csrf}}"}],"body":{"mode":"raw","raw":"{\"token\":\"{{token_mailpit}}\"}"},"url":"{{api}}/api/auth/correo/verificar/"},"event":[{"listen":"test","script":{"exec":["pm.test('400 token usado', () => pm.response.to.have.status(400));","pm.collectionVariables.unset('token_mailpit');"]}}]}
+  ]
+}

@@ -3,11 +3,12 @@ import { authClient } from './client';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children, client = authClient }) {
+export function AuthProvider({ children, client = authClient, restoreSession = true }) {
   const session = useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
-  useEffect(() => { void client.restore(); }, [client]);
+  useEffect(() => { if (restoreSession) void client.restore(); }, [client, restoreSession]);
+  const status = !restoreSession && session.status === 'restoring' ? 'anonymous' : session.status;
   return (
-    <AuthContext.Provider value={{ ...session, login: client.login, logout: client.logout, request: client.request,
+    <AuthContext.Provider value={{ ...session, status, login: client.login, logout: client.logout, request: client.request,
         completeFirstPasswordChange: client.completeFirstPasswordChange,
         sessionInvalidatedByEmailChange: client.sessionInvalidatedByEmailChange }}>
       {children}

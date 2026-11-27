@@ -31,13 +31,13 @@ const Bodega = lazy(() => import('./pages/Bodega.jsx'));
 
 const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 
-export default function App() {
+export default function App({ setupCreated }) {
   const { status, user } = useAuth();
   const { mod } = useApp();
   if (status === 'restoring') {
     return <main className="login-page"><div className="login-card" role="status">Restaurando sesión…</div></main>;
   }
-  if (status !== 'authenticated' || !user) return <Login />;
+  if (status !== 'authenticated' || !user) return <Login setupCreated={setupCreated} />;
 
   const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
   const Page = warehouse ? Bodega : mod==='mis_turnos'&&user.role==='TECNICO'?MisTurnos: mod === 'inventario' ? Inventario

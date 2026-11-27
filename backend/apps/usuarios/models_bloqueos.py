@@ -62,6 +62,10 @@ class EventosAccesoQuerySet(models.QuerySet):
 class EventoAcceso(models.Model):
     """Sin JSON, texto libre, IP, hashes, contraseñas o tokens. Separado de TI."""
     objects = EventosAccesoQuerySet.as_manager()
+    FUENTE = 'EVENTO_ACCESO'
+    TIPOS_PUBLICOS = ('BLOQUEO_TEMPORAL', 'BLOQUEO_TI', 'EXPIRACION')
+    ESTADOS = {'BLOQUEO_TEMPORAL': ('NORMAL', 'BLOQUEO_TEMPORAL'),
+               'BLOQUEO_TI': ('NORMAL', 'REQUIERE_TI'), 'EXPIRACION': ('BLOQUEO_TEMPORAL', 'NORMAL')}
 
     class Tipo(models.TextChoices):
         BLOQUEO_TEMPORAL = "BLOQUEO_TEMPORAL", "Ciclo temporal (cinco fallos)"
@@ -126,3 +130,21 @@ class RecuperacionAcceso(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("El desbloqueo TI es inmutable.")
+
+
+class ActivacionBloqueos(models.Model):
+    """Constancia append-only de infraestructura; no contiene secretos ni datos de usuarios."""
+    objects = EventosAccesoQuerySet.as_manager()
+    creado_en = models.DateTimeField(auto_now_add=True)
+    autorizacion = models.CharField(max_length=120, unique=True)
+    entrega_smtp = models.CharField(max_length=120)
+    autorizacion_remitente = models.CharField(max_length=120)
+    huella_configuracion = models.CharField(max_length=64)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError('La constancia de activación es inmutable.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('La constancia de activación es inmutable.')

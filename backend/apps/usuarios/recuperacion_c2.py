@@ -14,7 +14,7 @@ def bloquear_estado_recuperacion(user):
     return state
 
 
-def confirmar_recuperacion(user, actor, state, event):
+def normalizar_acceso(state):
     previous, version = state.estado, state.version
     state.estado = "NORMAL"
     state.intentos = 0
@@ -23,5 +23,10 @@ def confirmar_recuperacion(user, actor, state, event):
     state.version += 1
     state.actualizado_en = timezone.now()
     state.save()
+    return previous, version
+
+
+def confirmar_recuperacion(user, actor, state, event):
+    previous, version = normalizar_acceso(state)
     RecuperacionAcceso.objects.create(usuario=user, actor=actor, reemision=event,
         estado_anterior=previous, version_anterior=version, version_nueva=state.version, creado_en=state.actualizado_en)

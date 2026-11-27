@@ -17,7 +17,7 @@ class CarrerasPostgreSQL:
         self.setUpTestData()
         self.preparar_finanzas()
 
-    def race(self, first, second):
+    def race(self, first, second, *, tras_espera=None):
         ready, release, started = Event(), Event(), Event()
         pids = {}
 
@@ -35,6 +35,8 @@ class CarrerasPostgreSQL:
                         ready.set()
                         if not release.wait(10):
                             raise AssertionError("No se liberó primera transacción")
+                        if tras_espera is not None:
+                            tras_espera()
                     return result
                 started.set()
                 return action()

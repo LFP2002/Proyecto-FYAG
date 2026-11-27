@@ -260,8 +260,15 @@ class PagosTests(PagosBase, TestCase):
             self.assertEqual(self.client.get(path).status_code, 401)
 
     def test_jwt_revocado_y_actor_persistido(self):
+        from unittest.mock import patch
+        from django.test import override_settings
+        from apps.usuarios import verificacion
+
         ti = Usuario.objects.create_user(username="ti", email="ti@example.test", rol="ADMINISTRADOR_TI")
-        services_usuarios.editar_usuario(self.finanzas, {"email": "revocado@example.test"}, ti)
+        # Desde SPEC-027 la propuesta no cambia la cuenta ni revoca la sesión.
+        with override_settings(FYAG_EMAIL_PROFILE="mailpit"), patch.object(verificacion, "enviar_desafio_despues_commit") as envio, patch.object(verificacion, "avisar_cambio_despues_commit"):
+            services_usuarios.editar_usuario(self.finanzas, {"email": "revocado@example.test"}, ti)
+            verificacion.confirmar(envio.call_args.args[2])
         self.assertEqual(self.pagar().status_code, 401)
         self.finanzas.refresh_from_db()
         self.autenticar(self.finanzas)

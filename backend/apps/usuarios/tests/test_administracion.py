@@ -57,7 +57,7 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertTrue(user.check_password(credential))
         self.assertNotEqual(user.password, credential)
         self.assertEqual(user.sesion_version, 1)
-        self.assertEqual(set(result.data), {"id", "username", "email", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio", "credencial_temporal", "credencial_vence_en"})
+        self.assertEqual(set(result.data), {"id", "username", "email", "correo_verificado_en", "correo_pendiente", "first_name", "last_name", "rol", "is_active", "date_joined", "estado_credencial", "cambio_obligatorio", "credencial_temporal", "credencial_vence_en"})
         self.assertEqual(list(user.eventos_administrativos.values_list("tipo", flat=True)), ["CREACION", "CREACION_CREDENCIAL_TEMPORAL"])
         login = self.client.post("/api/auth/login/", {"email": user.email, "password": credential}, format="json")
         self.assertEqual(login.status_code, 401)
@@ -153,8 +153,9 @@ class AdministracionAPITests(AdminBase, APITestCase):
         for field in ["rol", "password", "is_active", "is_staff", "is_superuser", "groups", "user_permissions", "sesion_version", "date_joined", "last_login"]:
             self.assertEqual(self.client.patch(self.url, {field: 1}, format="json").status_code, 400, field)
 
-    def test_editar_correo_propio_ti_normaliza_revoca_tokens_y_audita(self):
-        """La respuesta PATCH confirma el cambio, pero toda credencial anterior queda obsoleta."""
+    @override_settings(FYAG_EMAIL_PROFILE='mailpit', EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', FYAG_PUBLIC_BASE_URL='https://fyag.test')
+    def test_editar_correo_propio_ti_revoca_solo_al_confirmar(self):
+        from django.core import mail
         target = self.manager
         own_url = f"/api/usuarios/{target.pk}/"
         original_email = target.email
@@ -166,13 +167,17 @@ class AdministracionAPITests(AdminBase, APITestCase):
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
         self.assertFalse(target.eventos_administrativos.exists())
 
-        changed = self.client.patch(own_url, {"email": " NUEVO.TI@EXAMPLE.TEST "}, format="json")
+        with self.captureOnCommitCallbacks(execute=True):
+            changed = self.client.patch(own_url, {"email": " NUEVO.TI@EXAMPLE.TEST "}, format="json")
         self.assertEqual(changed.status_code, 200, changed.data)
-        self.assertEqual(changed.data["email"], "nuevo.ti@example.test")
+        self.assertEqual(changed.data["email"], original_email)
+        self.assertEqual(changed.data["correo_pendiente"], "nuevo.ti@example.test")
+        self.assertEqual(self.client.get('/api/auth/me/').status_code, 200)
+        token = mail.outbox[-1].body.split('#token=', 1)[1].split()[0]
+        self.assertEqual(self.client.post('/api/auth/correo/verificar/', {'token': token}, format='json').status_code, 204)
         target.refresh_from_db()
         self.assertEqual(target.sesion_version, 2)
-        evento = target.eventos_administrativos.get()
-        self.assertEqual(evento.tipo, "EDICION")
+        evento = target.eventos_administrativos.get(tipo='CORREO_CAMBIADO')
         self.assertEqual(evento.actor_id, target.pk)
         self.assertEqual(evento.datos_anteriores, {"email": original_email})
         self.assertEqual(evento.datos_nuevos, {"email": "nuevo.ti@example.test"})
@@ -260,11 +265,13 @@ class AdministracionAPITests(AdminBase, APITestCase):
             with self.assertRaises(RuntimeError):
                 services.crear_usuario(self.new_data(), self.manager)
             with self.assertRaises(RuntimeError):
-                services.editar_usuario(self.target, {"email": "cambiado@example.test"}, self.manager)
-            with self.assertRaises(RuntimeError):
                 restablecer_clave(self.target, {"motivo": "Cambio"}, self.manager)
+        with patch('apps.usuarios.verificacion._event', side_effect=RuntimeError('fallo controlado')):
+            with self.assertRaises(RuntimeError):
+                services.editar_usuario(self.target, {"email": "cambiado@example.test"}, self.manager)
         self.assertEqual(Usuario.objects.count(), before)
         self.target.refresh_from_db()
+        self.assertFalse(self.target.correo_pendiente)
         self.assertEqual(self.target.sesion_version, 1)
         self.assertTrue(self.target.check_password(PASSWORD))
         self.assertEqual(UsuarioEvento.objects.count(), 0)

@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 ARG REQUIREMENTS_FILE=requirements.txt
-COPY requirements*.txt ./
+COPY requirements*.txt constraints-runtime.txt ./
 
 RUN pip install --no-cache-dir -r ${REQUIREMENTS_FILE}
 

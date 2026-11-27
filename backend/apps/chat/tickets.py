@@ -142,8 +142,16 @@ def verificar(identidad, canal_id, *, renovar=False, conversacion_id=None, mensa
     ahora = timezone.now()
     canales = CanalChat.objects.filter(pk=canal_id, usuario=user, vence_en__gt=ahora)
     if renovar:
-        if not canales.update(vence_en=ahora+timedelta(seconds=30)):
+        canal = canales.select_for_update().first()
+        ahora = timezone.now()
+        if canal is None or canal.vence_en <= ahora:
             raise Denegado()
+        actual = _usuario(identidad.usuario_id)
+        if (actual.rol != user.rol or actual.sesion_version != identidad.sesion_version
+                or not constant_time_compare(_firma(actual), identidad.password_firma)):
+            raise Denegado()
+        canal.vence_en = ahora+timedelta(seconds=30)
+        canal.save(update_fields=['vence_en'])
     elif not canales.exists():
         raise Denegado()
     if conversacion_id is not None:

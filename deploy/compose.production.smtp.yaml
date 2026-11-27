@@ -1,0 +1,34 @@
+# Opt-in: always combine with compose.production.yaml; use institutional SMTP only after approval.
+x-smtp-env: &smtp-env
+  FYAG_EMAIL_PROFILE: smtp
+  EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+  EMAIL_HOST: ${FYAG_SMTP_HOST:?SMTP requerido}
+  EMAIL_PORT: ${FYAG_SMTP_PORT:-587}
+  EMAIL_HOST_USER: ${FYAG_SMTP_USER:?Cuenta SMTP requerida}
+  DEFAULT_FROM_EMAIL: ${FYAG_SMTP_FROM:?Remitente requerido}
+  EMAIL_USE_TLS: ${FYAG_SMTP_STARTTLS:-false}
+  EMAIL_USE_SSL: ${FYAG_SMTP_IMPLICIT_TLS:-false}
+
+services:
+  backend:
+    environment: *smtp-env
+    secrets: [smtp_password, recovery_hmac_key]
+    networks: [correo-egress]
+  operaciones_seguridad:
+    environment: *smtp-env
+    secrets: [smtp_password]
+    networks: [correo-egress]
+  verificacion_correo:
+    extends: {file: compose.production.yaml, service: alertas_reconciliador}
+    environment:
+      <<: *smtp-env
+      FYAG_PROD_ROLE: mail
+    networks: [sql, seguridad, correo-egress]
+    secrets: !override [postgres_mail_password, redis_security_password, redis_ca, smtp_password, recovery_hmac_key]
+
+networks:
+  correo-egress: {}
+
+secrets:
+  smtp_password: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/smtp-password'}
+  recovery_hmac_key: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/recovery-hmac-key'}

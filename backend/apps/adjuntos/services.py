@@ -24,7 +24,7 @@ def registrar(actor, adjunto, evento, resultado, correlacion):
         "evento": evento, "resultado": resultado, "correlacion": correlacion}, sort_keys=True))
 
 
-def parent(tipo, ident, actor, escribir=False, bloquear=False, estado=True):
+def parent(tipo, ident, actor, escribir=False, bloquear=False, estado=True, token=None):
     autorizar_tipo(actor, tipo, escribir)
     if tipo == "RESPALDO_FACTURA":
         doc = DocumentoCobro.objects.filter(pk=ident).first()
@@ -45,6 +45,8 @@ def parent(tipo, ident, actor, escribir=False, bloquear=False, estado=True):
             doc = DocumentoCobro.objects.select_for_update().get(pk=ident)
             if doc.obra_id != obra.pk:
                 raise ConflictoAdjunto("origen_inconsistente")
+        actor = actor_actual(actor, token)
+        autorizar_tipo(actor, tipo, escribir)
     miembro(actor, obra.pk)
     if escribir and estado:
         if doc is not None and doc.estado != "VIGENTE":
@@ -112,7 +114,7 @@ def _replay(existente, huella):
 def subir(actor, tipo, destino, key, data, correlacion, token=None):
     if connection.in_atomic_block or not connection.get_autocommit():
         raise ConflictoAdjunto("transaccion_no_admitida")
-    actor = preflight(actor, tipo, destino, key, token)
+    preflight(actor, tipo, destino, key, token)
     publicacion = None
     confirmado = False
     try:
@@ -138,12 +140,13 @@ def subir(actor, tipo, destino, key, data, correlacion, token=None):
                 with connection.cursor() as cur:
                     cur.execute("SET LOCAL lock_timeout = '5s'")
                     cur.execute("SELECT pg_advisory_xact_lock(%s)", [lock])
-                actor = actor_actual(actor, token)
-                parent(tipo, destino, actor, escribir=True, bloquear=True, estado=False)
+                actor_actual(actor, token)
+                parent(tipo, destino, actor, escribir=True, bloquear=True, estado=False, token=token)
                 existente = AdjuntoDocumento.objects.filter(clave_idempotencia=key).first()
                 if existente:
                     return _replay(existente, huella)
-                parent(tipo, destino, actor, escribir=True)
+                actual = actor_actual(actor, token)
+                parent(tipo, destino, actual, escribir=True)
                 fk = {"documento_cobro_id" if tipo == "RESPALDO_FACTURA" else "obra_id": destino}
                 if AdjuntoDocumento.objects.filter(tipo=tipo, **fk).count() >= 10:
                     raise ConflictoAdjunto("limite_adjuntos")
@@ -152,9 +155,10 @@ def subir(actor, tipo, destino, key, data, correlacion, token=None):
                 publicacion = key_interna
                 adjunto = AdjuntoDocumento.objects.create(tipo=tipo, **fk, nombre_visible=visible,
                     clave_interna=key_interna, mime=mime, tamano_bytes=size, sha256=sha,
-                    registrado_por=actor, clave_idempotencia=key, huella_solicitud=huella)
+                    registrado_por=actual, clave_idempotencia=key, huella_solicitud=huella)
+                actual = actor_actual(actor, token)
             confirmado = True  # Commit exterior terminado, antes de liberar staging.
-        registrar(actor, adjunto.pk, "subida_adjunto", "disponible", correlacion)
+        registrar(actual, adjunto.pk, "subida_adjunto", "disponible", correlacion)
         return adjunto, True
     except BaseException:
         if publicacion is not None and not confirmado:

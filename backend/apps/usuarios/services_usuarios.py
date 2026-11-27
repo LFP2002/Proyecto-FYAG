@@ -4,7 +4,12 @@ Nunca bloquear Obras/Presupuestos/Turnos después de un Usuario. Los EXISTS de
 dependencias se ejecutan bajo lock del técnico, compartido con asignar/iniciar.
 """
 from functools import wraps
+from datetime import timedelta
+from hashlib import sha256
+from secrets import compare_digest, token_urlsafe
+import re
 from django.conf import settings
+from django.utils import timezone
 from django.views.decorators.debug import sensitive_variables
 
 from django.contrib.auth.password_validation import validate_password
@@ -13,7 +18,7 @@ from django.db import connection, IntegrityError, transaction
 from django.db.models import Q
 from rest_framework.exceptions import APIException, AuthenticationFailed, NotFound, PermissionDenied, ValidationError
 
-from .models import Usuario, UsuarioEvento
+from .models import EventoInstalacionFYAG, InstalacionFYAG, Usuario, UsuarioEvento
 
 G = Usuario.Rol.GERENCIA
 TI = Usuario.Rol.ADMINISTRADOR_TI
@@ -67,9 +72,10 @@ def _admin(actor, target=None):
         Q(rol__in=[G, TI], is_active=True) | Q(pk__in=[actor.pk, target_id]),
     ).order_by("pk")}
     actual = accounts.get(actor.pk)
-    if not actual or not actual.is_active or actual.rol != TI:
+    if not actual or not actual.is_active or actual.rol != TI or actor.rol != TI:
         raise PermissionDenied("Operación no autorizada.")
-    if actual.sesion_version != actor.sesion_version:
+    from django.utils.crypto import constant_time_compare
+    if actual.sesion_version != actor.sesion_version or not constant_time_compare(actual.password, actor.password):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(actual):
@@ -188,7 +194,10 @@ def crear_usuario(data, actor):
     user.save()
     _event(user, actor, UsuarioEvento.Tipo.CREACION, after=_snapshot(user))
     from .credenciales import emitir_temporal
-    return emitir_temporal(user, actor, inicial=True)
+    from .verificacion import emitir, TITULARIDAD
+    issued = emitir_temporal(user, actor, inicial=True)
+    emitir(user, TITULARIDAD)
+    return issued
 
 
 @operacion
@@ -196,18 +205,25 @@ def editar_usuario(target, data, actor):
     actor, user = _admin(actor, target)
     _contract(data, PROFILE)
     changes = {key: value for key, value in _profile(data).items() if value != getattr(user, key)}
-    if not changes:
-        return user
-    before = {key: getattr(user, key) for key in changes}
-    for key, value in changes.items():
-        setattr(user, key, value)
-    _unique(user)
-    fields = list(changes)
-    if "email" in changes:
-        _version(user)
-        fields.append("sesion_version")
-    user.save(update_fields=fields)
-    _event(user, actor, UsuarioEvento.Tipo.EDICION, before=before, after=changes)
+    nuevo = changes.pop('email', None)
+    if nuevo is not None:
+        from django.core.validators import validate_email
+        try:
+            validate_email(nuevo)
+        except DjangoValidationError:
+            raise ValidationError({'email': ['Ingrese una dirección válida.']}) from None
+        if Usuario.objects.exclude(pk=user.pk).filter(email=nuevo).exists():
+            raise ValidationError({'email': ['Ya existe una cuenta con este valor.']})
+    if changes:
+        before = {key: getattr(user, key) for key in changes}
+        for key, value in changes.items():
+            setattr(user, key, value)
+        _unique(user)
+        user.save(update_fields=list(changes))
+        _event(user, actor, UsuarioEvento.Tipo.EDICION, before=before, after=changes)
+    if nuevo is not None:
+        from .verificacion import proponer
+        proponer(user, actor, nuevo)
     return user
 
 
@@ -272,7 +288,9 @@ def cambiar_clave_propia(data, actor):
         user = Usuario.objects.select_for_update().get(pk=actor.pk)
     except Usuario.DoesNotExist:
         raise AuthenticationFailed("Sesión no disponible.") from None
-    if not user.is_active or user.sesion_version != actor.sesion_version:
+    from django.utils.crypto import constant_time_compare
+    if (not user.is_active or user.rol != actor.rol or user.sesion_version != actor.sesion_version
+            or not constant_time_compare(user.password, actor.password)):
         raise AuthenticationFailed("Sesión no disponible.")
     from .credenciales import es_personal
     if not es_personal(user):
@@ -290,25 +308,75 @@ def cambiar_clave_propia(data, actor):
     return user
 
 
-@operacion
-def aprovisionar_primera_ti(data):
-    """Solo CLI de confianza; no se publica en HTTP ni modifica cuentas existentes.
+_AUTORIDAD_CLI = object()
+_CLAVE_INSTALACION = re.compile(r'[A-Za-z0-9_-]{43}')
 
-    Bloquea incluso con cero filas TI: dos ejecuciones no pueden crear dos
-    primeras cuentas. Una TI inactiva también exige recuperación, no rebootstrap.
-    """
+
+def _bloquear_instalacion(*, cli=False):
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", [ADMIN_MUTEX])
-    if Usuario.objects.filter(rol=TI).exists():
-        raise ConflictoUsuario("ti_ya_aprovisionada", "Ya existe una cuenta TI; utilice la administración o el procedimiento de recuperación.")
-    _contract(data, PROFILE | {"password"}, {"email", "username", "password"})
-    user = Usuario(**_profile(data), rol=TI.value, is_active=True)
-    _password(data["password"], user, "password")
-    user.set_password(data["password"])
+    rows = InstalacionFYAG.objects.select_for_update()
+    return rows.get_or_create(pk=1)[0] if cli else rows.filter(pk=1).first()
+
+
+def _nueva(instalacion):
+    return instalacion is not None and instalacion.inicializada_en is None and not Usuario.objects.exists()
+
+
+def instalacion_pendiente():
+    return _nueva(InstalacionFYAG.objects.filter(pk=1).only('inicializada_en').first())
+
+
+@sensitive_variables()
+@operacion
+def emitir_clave_instalacion(operador, referencia):
+    if not all(isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_.@-]{1,64}', value)
+               for value in (operador, referencia)):
+        raise ValidationError('Indique identificadores de operador y referencia válidos, no secretos.')
+    instalacion = _bloquear_instalacion()
+    if not _nueva(instalacion):
+        raise ConflictoUsuario("ti_ya_aprovisionada", "La instalación ya fue inicializada; no se puede repetir el aprovisionamiento.")
+    tipos = EventoInstalacionFYAG.Tipo
+    tipo = tipos.RENOVACION if instalacion.clave_digest else tipos.EMISION
+    clave = token_urlsafe(32)
+    vence = timezone.now() + timedelta(minutes=30)
+    instalacion.clave_digest, instalacion.clave_vence_en = sha256(clave.encode()).hexdigest(), vence
+    instalacion.save(update_fields=['clave_digest', 'clave_vence_en'])
+    EventoInstalacionFYAG.objects.create(tipo=tipo, operador=operador, referencia=referencia)
+    return clave, vence
+
+
+@sensitive_variables()
+@operacion
+def aprovisionar_primera_ti(data, *, clave_instalacion=_AUTORIDAD_CLI):
+    """El único caller sin clave es la CLI interactiva de infraestructura."""
+    cli = clave_instalacion is _AUTORIDAD_CLI
+    instalacion = _bloquear_instalacion(cli=cli)
+    nueva = _nueva(instalacion)
+    if cli:
+        if not nueva:
+            raise ConflictoUsuario('ti_ya_aprovisionada', 'La instalación ya fue inicializada; no se puede repetir el aprovisionamiento.')
+    elif (not nueva or not instalacion.clave_digest or instalacion.clave_vence_en <= timezone.now()
+          or not isinstance(clave_instalacion, str) or not _CLAVE_INSTALACION.fullmatch(clave_instalacion)
+          or not compare_digest(instalacion.clave_digest, sha256(clave_instalacion.encode()).hexdigest())):
+        raise ConflictoUsuario('setup_no_autorizado', 'No se autorizó el aprovisionamiento inicial.')
+    required = {'email', 'username', 'password'} if cli else PROFILE | {'password'}
+    _contract(data, PROFILE | {'password'}, required)
+    user = Usuario(**_profile(data), rol=TI.value, is_active=True, is_staff=False, is_superuser=False)
+    if not cli and not (user.first_name and user.last_name):
+        raise ValidationError('Nombre y apellidos son obligatorios.')
+    _password(data['password'], user, 'password')
+    user.set_password(data['password'])
     _unique(user)
     user.save()
     from .credenciales import es_personal
     if not es_personal(user):
         raise ConflictoUsuario("seguridad_no_disponible", "No se pudo confirmar el estado de seguridad inicial.")
-    _event(user, user, UsuarioEvento.Tipo.CREACION, "Aprovisionamiento manual inicial de TI mediante comando Django", after=_snapshot(user))
+    # El trigger 0012 marca la primera inserción; el de 0015 limpia la clave,
+    # incluso cuando la inserción se realiza por otra vía. Ambos son transaccionales.
+    tipos = EventoInstalacionFYAG.Tipo
+    EventoInstalacionFYAG.objects.create(tipo=tipos.INICIALIZACION_CLI if cli else tipos.INICIALIZACION_WEB)
+    _event(user, user, UsuarioEvento.Tipo.CREACION, 'Aprovisionamiento inicial por infraestructura (sin sesión autenticada).', after=_snapshot(user))
+    from .verificacion import emitir, TITULARIDAD
+    emitir(user, TITULARIDAD)
     return user

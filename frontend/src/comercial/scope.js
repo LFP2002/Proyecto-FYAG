@@ -15,12 +15,19 @@ function bounded(operation, signal) {
 }
 export function createScope({ timeoutMs = 30000 } = {}) {
   let alive = true, writing = false, uncertain = false;
+  let writeGeneration = 0;
   const controllers = new Set();
   const generations = new Map();
   return {
     get locked() { return writing || uncertain; },
     get uncertain() { return uncertain; },
-    reconciled() { uncertain = false; },
+    async reconcile(operation) {
+      if (!alive || writing) return false;
+      const generation = writeGeneration;
+      if (!await operation() || !alive || writing || generation !== writeGeneration) return false;
+      uncertain = false;
+      return true;
+    },
     cancelRead(key) { generations.set(key, (generations.get(key) || 0) + 1); },
     dispose() { alive = false; controllers.forEach((c) => c.abort()); },
     async read(key, operation, apply) {
@@ -39,6 +46,7 @@ export function createScope({ timeoutMs = 30000 } = {}) {
     async write(operation, apply) {
       if (!alive || writing || uncertain) return false;
       writing = true;
+      writeGeneration += 1;
       const controller = new AbortController(); controllers.add(controller);
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -46,7 +54,7 @@ export function createScope({ timeoutMs = 30000 } = {}) {
         if (alive) {
           try { await apply(result); }
           catch (error) { uncertain = true; throw error; }
-          return true;
+          return alive;
         }
         return false;
       } catch (error) {

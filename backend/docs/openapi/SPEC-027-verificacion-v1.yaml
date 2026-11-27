@@ -1,0 +1,101 @@
+openapi: 3.1.0
+info:
+  title: FYAG — Verificación de correo
+  version: '1.0'
+  description: Incremento de verificación voluntaria. No emite sesiones ni cambia actividad, roles o credenciales temporales.
+paths:
+  /api/auth/correo/reenviar/:
+    post:
+      summary: Solicitar enlace para la dirección de acceso vigente
+      description: Respuesta idéntica para direcciones registradas, desconocidas o previamente verificadas. No confirma entrega. Redis limita 30 solicitudes por IP y 3 por dirección por hora.
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+      responses:
+        '202':
+          description: Solicitud recibida, sin garantía de envío.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [detail]
+                properties:
+                  detail: {const: 'Si corresponde verificar esa dirección, recibirás las instrucciones por correo.'}
+        '400': {description: JSON o dirección inválida}
+        '403': {description: CSRF inválido}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Almacenamiento de seguridad no disponible o cola saturada}
+  /api/auth/correo/verificar/:
+    post:
+      summary: Confirmar titularidad o nueva dirección
+      description: Token de un uso; 60 minutos por defecto. Se consume únicamente en POST. No emite sesión. Límite Redis de 30 por IP y 5 por token por minuto.
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: {type: string, pattern: '^[A-Za-z0-9_-]{43}$', writeOnly: true}
+      responses:
+        '204': {description: Confirmado, sin cookie de autenticación ni JWT}
+        '400': {description: Token inválido, usado, obsoleto, vencido o dirección no disponible}
+        '403': {description: CSRF inválido}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Almacenamiento de seguridad no disponible}
+  /api/usuarios/{id}/:
+    patch:
+      summary: Editar perfil y proponer nueva dirección (TI)
+      description: Delta sobre SPEC-006B/006C. El correo vigente conserva su sesión y acceso hasta confirmar la nueva dirección; entonces se revocan las sesiones anteriores. Repetir el mismo correo pendiente solicita reenvío, sujeto a cooldown.
+      security: [{bearer: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer, minimum: 1}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+                username: {type: string, maxLength: 150}
+                first_name: {type: string, maxLength: 150}
+                last_name: {type: string, maxLength: 150}
+      responses:
+        '200':
+          description: Perfil; campos añadidos también en altas y proyecciones TI.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email, correo_pendiente, correo_verificado_en]
+                properties:
+                  email: {type: string, format: email}
+                  correo_pendiente: {type: string, description: 'Dirección propuesta o cadena vacía'}
+                  correo_verificado_en: {type: [string, 'null'], format: date-time}
+        '400': {description: Datos inválidos o correo ya registrado}
+        '401': {description: Sin sesión válida}
+        '403': {description: Sin autorización TI}
+components:
+  parameters:
+    Csrf:
+      in: header
+      name: X-CSRFToken
+      description: Obtener en GET /api/auth/csrf/ y conservar su cookie de la misma sesión de navegador.
+      required: true
+      schema: {type: string}
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}

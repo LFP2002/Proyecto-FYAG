@@ -39,7 +39,11 @@ function backend() {
     const obj = accounts.find((a) => a.id === Number(match[1]));
     const action = match[2];
     if (action.startsWith('historial/')) return page(events.filter((e) => e.usuario_objetivo === obj.id));
-    if (method === 'PATCH') Object.assign(obj, options.body);
+    if (method === 'PATCH') {
+      const { email, ...profile } = options.body;
+      Object.assign(obj, profile);
+      if (email && email !== obj.email) Object.assign(obj, { correo_pendiente: email, correo_verificado_en: null });
+    }
     if (action === 'activar/') obj.is_active = true;
     if (action === 'desactivar/') obj.is_active = false;
     if (action === 'cambiar-rol/') obj.rol = options.body.rol;
@@ -197,6 +201,8 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
     const history = url.pathname.endsWith('/historial/');
     if (url.pathname === '/api/usuarios/27/') return account(27);
     const all = history ? Array.from({ length: 26 }, (_, i) => ({ id: i + 1, tipo: 'EDICION', actor: 1, motivo: 'Cambio revisado', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: {}, datos_anteriores: {} })) : Array.from({ length: 26 }, (_, i) => account(i + 2));
+    if (history) all[1] = { id: 'RECUPERACION_CORREO_EVENTO:1', tipo: 'RECUPERACION_CORREO', actor: null, actor_identidad_origen: 'TITULARIDAD_CORREO', usuario_objetivo: 27, acceso_anterior: 'BLOQUEO_TEMPORAL', creado_en: '2026-11-11T12:00:00Z', motivo: '', datos_nuevos: {}, datos_anteriores: {} };
+    if (history) all[25] = { id: 'RECUPERACION_TI_EVENTO:1', tipo: 'RECUPERACION_TI_INFRA', actor: null, actor_identidad_origen: 'INFRAESTRUCTURA', usuario_objetivo: 27, acceso_anterior: 'REQUIERE_TI', creado_en: '2026-11-11T12:00:00Z', motivo: 'Incidente autorizado', datos_nuevos: { operador: 'operador.qa', referencia: 'AUT-027' }, datos_anteriores: {} };
     return { count: 26, results: all.slice((number - 1) * 25, number * 25), next: number === 1 ? `${url.pathname}?page=2` : null, previous: number === 2 ? `${url.pathname}?page=1` : null };
   };
   const { renderer } = await mount(request);
@@ -211,14 +217,19 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
     await click(renderer, 'Ver cuenta #27');
     await click(renderer,'Historial');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=1'));
+    assert.match(text(renderer.root), /Hecho por la cuenta #1/);
+    assert.match(text(renderer.root), /Recuperación por correo.*Titularidad del correo · Cuenta objetivo #27.*Estado de acceso anterior: Bloqueo temporal/);
+    assert.doesNotMatch(text(renderer.root), /cuenta #null/);
     await click(renderer, 'Siguiente');
     assert.ok(calls.includes('/api/usuarios/27/historial/?page=2'));
+    assert.doesNotMatch(text(renderer.root), /Titularidad del correo/);
+    assert.match(text(renderer.root), /Recuperación TI por infraestructura.*Operador de infraestructura · Cuenta objetivo #27.*operador\.qa.*AUT-027.*Requiere TI.*Incidente autorizado/);
     await click(renderer, 'Volver a usuarios');
     assert.equal(calls.at(-1), '/api/usuarios/?page=2&activo=false&resumen=true');
   } finally { await act(async () => renderer.unmount()); }
 });
 
-test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni refresh obsoleto', async () => {
+test('TI propone correo propio: conserva la sesión y muestra la dirección pendiente', async () => {
   const api = backend();
   const { renderer } = await mount(api.request, 'ADMINISTRADOR_TI', true);
   try {
@@ -228,14 +239,13 @@ test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni ref
     await submit(renderer);
     assert.equal(api.accounts[0].first_name, 'Nombre actualizado');
     assert.ok(renderer.root.findAllByType('button').some((b) => text(b) === 'Editar perfil'), 'editar nombre no revoca sesión');
-    const historyReads = api.calls.filter((c) => c.path.includes('/historial/')).length;
     await click(renderer, 'Editar perfil');
     await input(renderer, 'email', 'nuevo@example.test');
     await submit(renderer);
-    assert.equal(api.accounts[0].email, 'nuevo@example.test');
-    assert.match(text(renderer.root), /Correo actualizado correctamente/);
-    assert.match(text(renderer.root), /Correo electrónico/);
-    assert.equal(api.calls.filter((c) => c.path.includes('/historial/')).length, historyReads, 'no reconsulta con token ya revocado');
+    assert.equal(api.accounts[0].email, 'cuenta1@example.test');
+    assert.equal(api.accounts[0].correo_pendiente, 'nuevo@example.test');
+    assert.match(text(renderer.root), /Nueva dirección pendiente: nuevo@example.test/);
+    assert.match(text(renderer.root), /Editar perfil/);
     assert.equal(api.calls.filter((c) => c.path.startsWith('/api/auth/refresh/')).length, 0);
   } finally { await act(async () => renderer.unmount()); }
 });

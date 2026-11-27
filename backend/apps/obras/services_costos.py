@@ -146,6 +146,7 @@ def declarar_rubros(referencia, datos, usuario):
     if snapshot(control) == antes:
         return antes
     motivo = base._motivo(motivo, obligatorio=True)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     _incrementar(control)
     control.save()
     _evento(control, "DECLARACION", actor, motivo, antes)
@@ -392,11 +393,13 @@ def registrar_cortesia(referencia, datos, usuario):
         raise DatosInvalidos({"motivo": ["Explique la rectificación con un motivo distinto de la justificación."]})
     if cortesia is None:
         cortesia = CortesiaObra(obra=obra)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     cortesia.justificacion = justificacion
     cortesia.autorizado_por = actor
     cortesia.autorizado_en = timezone.now()
     cortesia.save()
     control = invalidar(obra, actor, motivo or "Autorización excepcional sin cobro")
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     _evento(control, "CORTESIA", actor, motivo or "Autorización excepcional sin cobro", antes,
             cortesia=cortesia, nuevos=_snapshot_cortesia(cortesia))
     return _snapshot_cortesia(cortesia)

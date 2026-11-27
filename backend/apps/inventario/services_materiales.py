@@ -238,6 +238,7 @@ def _operar(tipo, data, key, huella, actor):
         extras = {'origen': 'BODEGA_019B', 'operacion_material': op.pk}
         if tipo == 'DEVOLUCION':
             gasto = GastoObra.objects.select_for_update().get(pk=original.gasto_id)
+            actual = revalidar(actor, tipo, escritura=True)
             antes = gastos._snapshot(gasto)
             gasto.cantidad_devuelta += q
             gasto.save(update_fields=['cantidad_devuelta', 'actualizado_en'])

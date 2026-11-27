@@ -32,6 +32,57 @@ const click=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>text
 const change=async(r,label,value)=>{const l=r.root.findAllByType('label').find(l=>text(l).startsWith(label));assert.ok(l,label);const c=l.findAll(n=>['input','select'].includes(n.type))[0];await act(async()=>{c.props.onChange({target:{value}});await flush();});};
 const submit=async(r,label)=>{const f=r.root.findByProps({'aria-label':label});await act(async()=>{f.props.onSubmit({preventDefault(){}});await flush();});};
 const openDetail=async(r,label)=>{const b=r.root.findAllByType('button').find(b=>b.props['aria-label']===label);assert.ok(b,label);await act(async()=>{b.props.onClick();await flush();});};
+test('Auditoría TI: recuperación excepcional muestra autoridad, operador y autorización',async()=>{
+ const event={...base,id:'RECUPERACION_TI_EVENTO:8',fuente:'RECUPERACION_TI_EVENTO',modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,tipo:'RECUPERACION_TI_INFRA',actor:null,actor_etiqueta:'Operador de infraestructura',actor_username:null,actor_identidad_origen:'INFRAESTRUCTURA',motivo:'Incidente autorizado',datos_anteriores:{acceso_estado:'REQUIERE_TI'},datos_nuevos:{operador:'operador.qa',referencia:'AUT-027'}};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[event]}),r=ui.renderer;
+ try{
+  await click(r,'Filtros');
+  await change(r,'Fuente',event.fuente);
+  await change(r,'Tipo',event.tipo);
+  await act(async()=>{r.root.findByProps({id:'audit-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+  const query=new URL(ui.calls.at(-1).path,'http://localhost').searchParams;
+  assert.equal(query.get('fuente'),event.fuente);
+  assert.equal(query.get('tipo'),event.tipo);
+  await openDetail(r,'Ver detalle de Recuperación TI por infraestructura Usuario #27');
+  assert.match(text(r.toJSON()),/AutoridadOperador de infraestructura.*Operadoroperador\.qa.*Referencia de autorizaciónAUT-027.*Incidente autorizado.*Estado de acceso anteriorRequiere TI/);
+ }finally{await ui.close();}
+});
+test('Auditoría TI: filtro y detalle de recuperación por titularidad del correo',async()=>{
+ const recovery={...base,id:'RECUPERACION_CORREO_EVENTO:8',fuente:'RECUPERACION_CORREO_EVENTO',modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,tipo:'RECUPERACION_CORREO',actor:null,actor_etiqueta:'Titularidad del correo',actor_username:null,actor_identidad_origen:'TITULARIDAD_CORREO',motivo:'',datos_anteriores:{acceso_estado:'REQUIERE_TI'},datos_nuevos:{}};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[recovery]}),r=ui.renderer;
+ try{
+  await click(r,'Filtros');
+  await change(r,'Fuente',recovery.fuente);
+  await change(r,'Tipo',recovery.tipo);
+  await change(r,'Tipo de recurso','USUARIO');
+  await change(r,'Recurso ID','27');
+  await act(async()=>{r.root.findByProps({id:'audit-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+  const query=new URL(ui.calls.at(-1).path,'http://localhost').searchParams;
+  assert.equal(query.get('fuente'),recovery.fuente);
+  assert.equal(query.get('tipo'),recovery.tipo);
+  assert.equal(query.get('recurso_tipo'),'USUARIO');
+  assert.equal(query.get('recurso_id'),'27');
+  assert.match(text(r.toJSON()),/Titularidad del correo/);
+  assert.equal(r.root.findByType('time').props.dateTime,date);
+  await openDetail(r,'Ver detalle de Recuperación por correo Usuario #27');
+  assert.match(text(r.toJSON()),/Cuenta objetivoUsuario #27.*AutoridadTitularidad del correo.*Estado de acceso anteriorRequiere TI/);
+  await click(r,'Volver al historial');
+  assert.match(text(r.toJSON()),/Fuente: Recuperaciones por correo/);
+ }finally{await ui.close();}
+});
+test('Auditoría TI: vencimiento del sistema y desbloqueo administrativo',async()=>{
+ const common={...base,modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,datos_anteriores:{acceso_estado:'BLOQUEO_TEMPORAL'},datos_nuevos:{acceso_estado:'NORMAL'}};
+ const expiration={...common,id:'EVENTO_ACCESO:8',fuente:'EVENTO_ACCESO',tipo:'EXPIRACION',actor:null,actor_etiqueta:'Sistema',actor_username:null,actor_identidad_origen:'SISTEMA',motivo:''};
+ const reset={...common,id:'USUARIO_EVENTO:9',evento_id:9,fuente:'USUARIO_EVENTO',tipo:'REEMISION',actor_etiqueta:'TI QA',actor_username:'ti'};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[expiration,reset]}),r=ui.renderer;
+ try{
+  await openDetail(r,'Ver detalle de Vencimiento del bloqueo Usuario #27');
+  assert.match(text(r.toJSON()),/AutoridadSistema.*Estado de acceso anteriorBloqueo temporal.*Estado de acceso nuevoNormal/);
+  await click(r,'Volver al historial');
+  await openDetail(r,'Ver detalle de Reemisión de credencial Usuario #27');
+  assert.match(text(r.toJSON()),/Estado de accesoBloqueo temporalNormal/);
+ }finally{await ui.close();}
+});
 test('Auditoría AF: filtros reales, detalle de reversión y retorno a consulta',async()=>{
  const ui=await mount(),r=ui.renderer,body=()=>text(r.toJSON());
  try{

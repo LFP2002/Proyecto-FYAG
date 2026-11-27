@@ -26,7 +26,8 @@ class MigracionCredencialesTests(TransactionTestCase):
             executor = MigrationExecutor(connection)
             executor.migrate(latest)
             apps = executor.loader.project_state(latest).apps
-            self.assertTrue(list(apps.get_model("usuarios", "Usuario").objects.order_by("pk").values()) == before)
+            self.assertTrue(list(apps.get_model("usuarios", "Usuario").objects.order_by("pk").values()) == [
+                dict(row, correo_verificado_en=None, correo_pendiente='') for row in before])
             # 0011 agrega atribución histórica nula a las filas anteriores.
             expected_events = [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in events]
             self.assertEqual(list(apps.get_model("usuarios", "UsuarioEvento").objects.values()), expected_events)
@@ -68,7 +69,9 @@ class MigracionCredencialesTests(TransactionTestCase):
             State = apps.get_model("usuarios", "SeguridadCredencial")
             Event = apps.get_model("usuarios", "UsuarioEvento")
             after = (list(User.objects.order_by("pk").values()), list(State.objects.values()), list(Event.objects.values()))
-            expected = (*before[:2], [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in before[2]])
+            expected = ([dict(row, correo_verificado_en=None, correo_pendiente='') for row in before[0]],
+                        [dict(row, personal_previa=False) for row in before[1]],
+                        [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in before[2]])
             self.assertTrue(after == expected)
             self.assertFalse(State.objects.filter(usuario_id=absent.pk).exists())
             new = User.objects.create(email="qa_nueva@example.test", username="qa_nueva", rol="TECNICO", password=hashed)

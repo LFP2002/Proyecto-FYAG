@@ -17,7 +17,7 @@ from .exceptions import NoDisponible
 
 
 @contextmanager
-def directorio(nombre, *, crear=True):
+def directorio(nombre, *, crear=True, ausente_ok=False):
     root = Path(settings.CHAT_ARCHIVOS_ROOT)
     fd = target = None
     try:
@@ -46,6 +46,11 @@ def directorio(nombre, *, crear=True):
                 pass
         target = os.open(nombre, flags, dir_fd=fd)
         yield target
+    except FileNotFoundError:
+        if ausente_ok and target is None:
+            yield None
+        else:
+            raise NoDisponible() from None
     except OSError:
         raise NoDisponible() from None
     finally:
@@ -96,11 +101,33 @@ def retirar(key, *, publicado=True):
             try:
                 # unlink de la entrada bajo dirfd: nunca seguir un symlink.
                 os.unlink(nombre, dir_fd=fd)
-                os.fsync(fd)
             except FileNotFoundError:
                 pass
             except OSError:
                 raise NoDisponible() from None
+            try:
+                # También en reintentos: un unlink anterior pudo fallar al sincronizar.
+                os.fsync(fd)
+            except OSError:
+                raise NoDisponible() from None
+
+
+def claves_staging():
+    """Solo nombres UUID, sin recorrer todos los mensajes publicados en SQL."""
+    with directorio('staging', crear=False, ausente_ok=True) as fd:
+        if fd is None:
+            return
+        try:
+            with os.scandir(fd) as entries:
+                for entry in entries:
+                    try:
+                        key = UUID(entry.name)
+                    except ValueError:
+                        continue
+                    if key.hex == entry.name:
+                        yield key
+        except OSError:
+            raise NoDisponible() from None
 
 
 def copia_verificada(archivo):

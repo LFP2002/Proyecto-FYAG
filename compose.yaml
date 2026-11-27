@@ -7,6 +7,14 @@ services:
         REQUIREMENTS_FILE: requirements-test.txt
 
     container_name: fyag_backend
+    restart: unless-stopped
+
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health/live/', timeout=2).close()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
     command: daphne -b 0.0.0.0 -p 8000 --verbosity 0 --websocket_connect_timeout 5 --websocket-max-message-size 1024 --websocket-max-frame-size 1024 config.asgi:application
 
@@ -23,6 +31,7 @@ services:
       FYAG_CLAMD_HOST: clamav
       FYAG_CHAT_REDIS_HOST: redis
       FYAG_CHAT_REDIS_PASSWORD: ${FYAG_CHAT_REDIS_PASSWORD:?Configurar secreto Redis local}
+      FYAG_SECURITY_REDIS_URL: redis://:${FYAG_SECURITY_REDIS_PASSWORD:?Configurar secreto Redis de seguridad en el entorno}@redis-seguridad:6379/0
       MONGO_INITDB_ROOT_USERNAME: ""
       MONGO_INITDB_ROOT_PASSWORD: ""
 
@@ -33,12 +42,41 @@ services:
       - .env
 
     depends_on:
-      redis:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       migraciones:
         condition: service_completed_successfully
+
+  verificacion_correo:
+    build:
+      context: ./backend
+    profiles: [smtp]
+    command: [python, manage.py, procesar_verificacion_correo, --continuo]
+    restart: 'on-failure:5'
+    init: true
+    stop_grace_period: 30s
+    env_file: [.env]
+    environment:
+      FYAG_SECURITY_REDIS_URL: redis://:${FYAG_SECURITY_REDIS_PASSWORD:?Configurar secreto Redis de seguridad en el entorno}@redis-seguridad:6379/0
+      MONGO_INITDB_ROOT_USERNAME: ''
+      MONGO_INITDB_ROOT_PASSWORD: ''
+    volumes:
+      - ./backend:/app:ro
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+      redis-seguridad: {condition: service_started}
+
+  redis-seguridad:
+    image: redis:7.4.7-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      REDIS_PASSWORD: ${FYAG_SECURITY_REDIS_PASSWORD:?Configurar secreto Redis de seguridad en el entorno}
+    command:
+      - /bin/sh
+      - -ec
+      - 'exec redis-server --protected-mode yes --save "" --appendonly no --maxmemory 64mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"'
+    tmpfs: [/data]
 
   # Transporte efímero privado: sin puertos host, archivos ni persistencia.
   redis:
@@ -113,7 +151,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
-      - "${POSTGRES_HOST_PORT}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT}:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql

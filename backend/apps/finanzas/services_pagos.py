@@ -49,13 +49,14 @@ def registrar_pago(documento_id, payload, actor, clave):
     La colisión de UUID entre raíces distintas se resuelve tras rollback de toda
     la transacción perdedora. Nunca bloquear un Pago de otra raíz para recuperar.
     """
-    actor = base.actor_financiero(actor)
+    base.actor_financiero(actor)
     documento_id = base.identificador(documento_id)
     clave = clave_uuid(clave)
     data = base.datos(PagoCrearSerializer, payload)
     fingerprint = huella(documento_id, data)
     previo = recuperar(clave, fingerprint)
     if previo is not None:
+        base.actor_financiero(actor)
         return previo, False
     try:
         return _registrar(documento_id, data, actor, clave, fingerprint)
@@ -75,7 +76,7 @@ def registrar_pago(documento_id, payload, actor, clave):
 @base.operacion
 def _registrar(documento_id, data, actor, clave, fingerprint):
     documento = documento_bloqueado(documento_id)
-    actor = base.actor_financiero(actor)
+    actual = base.actor_financiero(actor)
     previo = recuperar(clave, fingerprint)
     if previo is not None:
         return previo, False
@@ -88,19 +89,20 @@ def _registrar(documento_id, data, actor, clave, fingerprint):
     _, saldo = saldo_documento(documento)
     if data["monto"] > saldo:
         raise base.ConflictoFinanciero("monto_excede_saldo", "El pago excede el saldo disponible.")
-    pago = PagoDocumento.objects.create(documento=documento, registrado_por=actor, clave_idempotencia=clave, huella_solicitud=fingerprint, **data)
-    base.evento(pago=pago, tipo="PAGO_REGISTRADO", actor=actor,
+    pago = PagoDocumento.objects.create(documento=documento, registrado_por=actual, clave_idempotencia=clave, huella_solicitud=fingerprint, **data)
+    actual = base.actor_financiero(actor)
+    base.evento(pago=pago, tipo="PAGO_REGISTRADO", actor=actual,
                 datos_nuevos={"documento": documento.pk, **{key: format(value, ".2f") if key == "monto" else value.isoformat() if key == "fecha_pago" else value for key, value in data.items()}, "activo": True})
     return pago, True
 
 
 @base.operacion
 def anular_pago(documento_id, pago_id, payload, actor):
-    actor = base.actor_financiero(actor)
+    base.actor_financiero(actor)
     data = base.datos(PagoAnularSerializer, payload)
     documento = documento_bloqueado(documento_id)
-    actor = base.actor_financiero(actor)
     pago = PagoDocumento.objects.select_for_update().filter(pk=base.identificador(pago_id), documento=documento).first()
+    actor = base.actor_financiero(actor)
     if pago is None:
         raise NotFound("Pago no encontrado en el documento.")
     if not pago.activo:

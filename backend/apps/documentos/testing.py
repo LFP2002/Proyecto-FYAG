@@ -1,6 +1,8 @@
 """Runner explícito de QA: jamás usa Mongo de desarrollo para ejecutar tests."""
 import os
 from tempfile import TemporaryDirectory
+from unittest import TextTestResult
+from uuid import uuid4
 
 from django.conf import settings
 from django.test.runner import DiscoverRunner
@@ -10,6 +12,9 @@ from . import mongo
 
 
 class DocumentalTestRunner(DiscoverRunner):
+    def get_resultclass(self):
+        return super().get_resultclass() or SecurityTestResult
+
     def setup_test_environment(self, **kwargs):
         conf = {**settings.DOCUMENTOS_MONGO, "host": os.getenv("FYAG_MONGO_TEST_HOST", "mongodb_test"),
             "puerto": int(os.getenv("FYAG_MONGO_TEST_PORT", "27017")), "db": "fyag_documentos_test",
@@ -40,3 +45,16 @@ class DocumentalTestRunner(DiscoverRunner):
             mongo.cerrar()
             self.documental_settings.disable()
             self.adjuntos_temporal.cleanup()
+
+
+class SecurityTestResult(TextTestResult):
+    def startTest(self, test):
+        self.security_namespace = override_settings(FYAG_SECURITY_REDIS_PREFIX=f'fyag:qa:{uuid4().hex}')
+        self.security_namespace.enable()
+        super().startTest(test)
+
+    def stopTest(self, test):
+        try:
+            super().stopTest(test)
+        finally:
+            self.security_namespace.disable()

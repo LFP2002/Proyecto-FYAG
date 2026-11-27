@@ -2,7 +2,7 @@
 from rest_framework.permissions import BasePermission
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, ValidationError
 
-from apps.usuarios.models import Usuario
+from apps.usuarios.models import EventoAcceso, RecuperacionCorreoEvento, RecuperacionTIEvento, Usuario
 from .adapters import FUENTES
 
 OBRAS = {name for name, f in FUENTES.items() if f.modulo == "OBRAS"}
@@ -11,7 +11,7 @@ POR_ROL = {
     # El historial de categorías está reservado a Gerencia en el origen.
     "SUPERVISOR_OBRAS": OBRAS - {"CATEGORIA_SERVICIO_EVENTO"},
     "ADMINISTRATIVO_FINANZAS": {"FINANZAS_EVENTO"},
-    "ADMINISTRADOR_TI": {"USUARIO_EVENTO"},
+    "ADMINISTRADOR_TI": {"USUARIO_EVENTO", RecuperacionCorreoEvento.FUENTE, RecuperacionTIEvento.FUENTE, EventoAcceso.FUENTE},
 }
 
 

@@ -61,6 +61,7 @@ def guardar_cliente(datos, instancia=None, *, usuario=None):
                 setattr(cliente, campo, valor)
             validar_cliente(cliente)
             cliente.save()
+            revalidar_escritura(usuario)  # El índice de identificación puede esperar otra fila.
             return cliente
     except IntegrityError as exc:
         diagnostico = getattr(exc.__cause__, "diag", None)

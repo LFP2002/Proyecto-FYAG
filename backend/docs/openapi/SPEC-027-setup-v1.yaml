@@ -1,0 +1,78 @@
+openapi: 3.1.0
+info:
+  title: FYAG — Aprovisionamiento inicial TI
+  version: '1.0'
+  description: Solo para una instalación nunca inicializada y sin usuarios. La autorización se emite fuera de HTTP.
+security: []
+paths:
+  /api/auth/setup/estado/:
+    get:
+      summary: Consultar estado mínimo de instalación
+      description: No informa si se emitió una clave, su vencimiento ni si es utilizable. 60 consultas por IP por minuto.
+      responses:
+        '200':
+          description: Estado informativo, no autoriza el alta. No almacenable en caché.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [pendiente]
+                properties:
+                  pendiente: {type: boolean}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Redis de seguridad no disponible}
+  /api/auth/setup/:
+    post:
+      summary: Crear la primera cuenta ADMINISTRADOR_TI
+      description: Crea una TI activa con contraseña personal sin privilegios Django ni sesión automática. 10 intentos por IP y 5 por dirección normalizada cada 15 minutos. El envío de verificación voluntaria tras el commit no condiciona el éxito.
+      parameters:
+        - in: header
+          name: X-CSRFToken
+          required: true
+          description: Obtener de GET /api/auth/csrf/ y conservar su cookie CSRF del mismo origen.
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [first_name, last_name, username, email, password, password_confirm, clave_instalacion]
+              properties:
+                first_name: {type: string, minLength: 1, maxLength: 150}
+                last_name: {type: string, minLength: 1, maxLength: 150}
+                username: {type: string, minLength: 1, maxLength: 150}
+                email: {type: string, format: email, maxLength: 254}
+                password: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+                password_confirm: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+                clave_instalacion:
+                  type: string
+                  writeOnly: true
+                  description: La clave emitida tiene 43 caracteres Base64URL sin relleno; una cadena vacía o de formato incorrecto se rechaza como no autorizada, no como error de esquema.
+      responses:
+        '201':
+          description: Inicialización confirmada y clave consumida. Sin JWT ni cookie de sesión.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [detail]
+                properties:
+                  detail: {const: 'Cuenta TI creada. Ya puedes iniciar sesión.'}
+        '400': {description: Campos inválidos, no permitidos o confirmación de contraseña distinta}
+        '403': {description: CSRF inválido}
+        '409':
+          description: No autorizado; misma respuesta para instalación cerrada y clave vacía, incorrecta, vencida, renovada o usada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, detail]
+                properties:
+                  code: {const: setup_no_autorizado}
+                  detail: {type: string}
+        '429': {description: Límite excedido; consultar Retry-After}
+        '503': {description: Redis de seguridad no disponible}

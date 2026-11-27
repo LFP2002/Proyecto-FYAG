@@ -1,4 +1,5 @@
 """021: autorización persistida, también para callers de dominio sin HTTP."""
+from django.utils.crypto import constant_time_compare
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
@@ -12,12 +13,12 @@ def revalidar(actor, *, escritura=False):
         raise PermissionDenied("Operación financiera no autorizada.")
     actual = Usuario.objects.select_related(*relaciones_seguridad()).filter(pk=actor.pk).first()
     if (actual is None or not actual.is_active or actual.sesion_version != actor.sesion_version
-        or not sesion_operativa(actual)):
+        or not constant_time_compare(actual.password, actor.password) or not sesion_operativa(actual)):
         raise AuthenticationFailed("Sesión no disponible.")
     roles = {Usuario.Rol.ADMINISTRATIVO_FINANZAS}
     if not escritura:
         roles.add(Usuario.Rol.GERENCIA)
-    if actual.rol not in roles:
+    if actual.rol not in roles or actual.rol != actor.rol:
         raise PermissionDenied("Operación financiera no autorizada.")
     return actual
 

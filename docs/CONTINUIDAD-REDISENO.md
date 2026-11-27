@@ -1,5 +1,7 @@
 # FYAG — Continuidad del rediseño
 
+> Archivo histórico. Sus ramas, instrucciones de desarrollo y pendientes describen los cortes originales. Para operar o preparar la entrega, usar [README](../README.md), [arquitectura vigente](ARQUITECTURA.md) y [lista de verificación](ENTREGA-PRODUCCION.md).
+
 ## SPEC-019F — integración de materiales y cierre
 
 - Rama de trabajo: `feature/spec-019f-integracion-materiales`, base `ad334f4`. Contrato: [SPEC-019F](../specs/019f-integracion-presupuesto-materiales-cierre.md); detalle ejecutable y compatibilidad: [nota técnica](../backend/docs/SPEC-019F-integracion-materiales.md).
