@@ -41,7 +41,7 @@ def enviar_desafio_despues_commit(proposito, destinatario, token, minutos):
 
 
 @sensitive_variables()
-def avisar_cambio_despues_commit(destinatario):
+def _avisar_despues_commit(destinatario, asunto, plantilla):
     if settings.FYAG_EMAIL_PROFILE == 'deshabilitado' or (
             settings.FYAG_EMAIL_PROFILE == 'mailpit' and not destinatario.lower().endswith('.test')):
         return
@@ -49,12 +49,19 @@ def avisar_cambio_despues_commit(destinatario):
     @sensitive_variables()
     def enviar():
         try:
-            mensaje = EmailMultiAlternatives('Cambio de correo confirmado — FYAG',
-                render_to_string('seguridad/correo_cambiado.txt'), to=[destinatario])
-            mensaje.attach_alternative(render_to_string('seguridad/correo_cambiado.html'), 'text/html')
+            mensaje = EmailMultiAlternatives(asunto, render_to_string(f'seguridad/{plantilla}.txt'), to=[destinatario])
+            mensaje.attach_alternative(render_to_string(f'seguridad/{plantilla}.html'), 'text/html')
             if mensaje.send(fail_silently=False) != 1:
                 _logger.warning('correo_seguridad_no_aceptado')
         except (SMTPException, OSError, ValueError):
             _logger.warning('correo_seguridad_no_aceptado')
 
     transaction.on_commit(enviar)
+
+
+def avisar_cambio_despues_commit(destinatario):
+    _avisar_despues_commit(destinatario, 'Cambio de correo confirmado — FYAG', 'correo_cambiado')
+
+
+def avisar_recuperacion_despues_commit(destinatario):
+    _avisar_despues_commit(destinatario, 'Contraseña restablecida — FYAG', 'clave_restablecida')

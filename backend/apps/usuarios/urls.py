@@ -11,9 +11,12 @@ from .views import (
 from .views_usuarios import CambiarClavePropiaView
 from .views_verificacion import ReenviarCorreoView, VerificarCorreoView
 from .views_setup import SetupEstadoView, SetupView
+from .views_recuperacion import ConfirmarRecuperacionView, SolicitarRecuperacionView
 
 
 urlpatterns = [
+    path('recuperacion/solicitar/', SolicitarRecuperacionView.as_view(), name='recuperacion_solicitar'),
+    path('recuperacion/confirmar/', ConfirmarRecuperacionView.as_view(), name='recuperacion_confirmar'),
     path('setup/estado/', SetupEstadoView.as_view(), name='setup_estado'),
     path('setup/', SetupView.as_view(), name='setup_primera_ti'),
     path('correo/reenviar/', ReenviarCorreoView.as_view(), name='correo_reenviar'),

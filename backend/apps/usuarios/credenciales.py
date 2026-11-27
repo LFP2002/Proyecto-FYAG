@@ -91,6 +91,7 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
         access = bloquear_estado_recuperacion(user)
     credential = secrets.token_urlsafe(32)  # 256 bits; no depende de identidad/reloj.
     now = timezone.now()
+    state.personal_previa = not inicial and (state.estado == 'PERSONAL' or state.personal_previa)
     state.estado = SeguridadCredencial.Estado.INICIAL if inicial else SeguridadCredencial.Estado.RECUPERACION
     state.emitida_en = now
     state.vence_en = now + timedelta(seconds=settings.CREDENCIAL_TEMPORAL_TTL_SECONDS)
@@ -163,6 +164,7 @@ def primer_cambio(data):
     _version(user)
     user.save(update_fields=["password", "sesion_version"])
     state.estado = SeguridadCredencial.Estado.PERSONAL
+    state.personal_previa = False
     state.emitida_en = state.vence_en = None
     limpiar_desafio(state)
     state.save()

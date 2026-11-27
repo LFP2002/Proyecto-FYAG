@@ -69,7 +69,8 @@ class MigracionCredencialesTests(TransactionTestCase):
             State = apps.get_model("usuarios", "SeguridadCredencial")
             Event = apps.get_model("usuarios", "UsuarioEvento")
             after = (list(User.objects.order_by("pk").values()), list(State.objects.values()), list(Event.objects.values()))
-            expected = ([dict(row, correo_verificado_en=None, correo_pendiente='') for row in before[0]], before[1],
+            expected = ([dict(row, correo_verificado_en=None, correo_pendiente='') for row in before[0]],
+                        [dict(row, personal_previa=False) for row in before[1]],
                         [{**event, "actor_nombre_historico": None, "actor_username_historico": None} for event in before[2]])
             self.assertTrue(after == expected)
             self.assertFalse(State.objects.filter(usuario_id=absent.pk).exists())

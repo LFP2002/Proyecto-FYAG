@@ -233,6 +233,29 @@ class WebSocketReal(ChatBase, TransactionTestCase):
                     Usuario.objects.filter(pk=self.actor.pk).update(**{campo: value})
                     self.cerrado(ws, 4401)
 
+    def test_recuperacion_correo_revoca_socket_y_ticket_pendiente(self):
+        from secrets import token_urlsafe
+        from apps.usuarios.models import DesafioRecuperacionCorreo
+        from apps.usuarios.recuperacion_correo import _digest, _vinculo, confirmar
+
+        self.actor.correo_verificado_en = timezone.now()
+        self.actor.save(update_fields=['correo_verificado_en'])
+        secret = token_urlsafe(32)
+        clave = 'Nueva-clave-qa-WebSocket-981!'
+        self.prohibidos.extend([secret, clave])
+        DesafioRecuperacionCorreo.objects.create(usuario=self.actor, digest=_digest(secret),
+            vinculo=_vinculo(self.actor, SeguridadCredencial.objects.get(usuario=self.actor)),
+            vence_en=timezone.now() + timedelta(minutes=15))
+        with self.abrir() as ws:
+            self.autenticar_socket(ws)
+            status, data = self.http(URL + 'conexion/', data={})
+            self.assertEqual(status, 201)
+            confirmar(secret, clave)
+            self.cerrado(ws, 4401)
+            with self.abrir(1) as nuevo:
+                nuevo.send(json.dumps({'tipo': 'autenticar', 'ticket': data['ticket']}))
+                self.cerrado(nuevo, 4401)
+
     def test_evento_inyectado_ajeno_no_autoriza(self):
         conv = self.directa(); mensaje = self.enviar(conv)
         with self.abrir(1) as ws:

@@ -163,6 +163,31 @@ class DesafioCorreo(models.Model):
         ]
 
 
+class DesafioRecuperacionCorreo(models.Model):
+    """Propósito exclusivo de recuperación; nunca aceptado como verificación."""
+    usuario = models.OneToOneField(Usuario, on_delete=models.CASCADE)
+    digest = models.CharField(max_length=64, unique=True, editable=False)
+    vinculo = models.CharField(max_length=64, editable=False)
+    vence_en = models.DateTimeField(db_index=True)
+
+
+class RecuperacionCorreoEvento(models.Model):
+    """Autoridad: titularidad del buzón del usuario, no sesión ni reemisión TI."""
+    objects = EventosInmutablesQuerySet.as_manager()
+    usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    acceso_anterior = models.CharField(max_length=20, blank=True)
+    acceso_version_nueva = models.PositiveBigIntegerField(null=True)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError('El historial de seguridad es inmutable.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('El historial de seguridad es inmutable.')
+
+
 class UsuarioEvento(models.Model):
     objects = EventosInmutablesQuerySet.as_manager()
     class Tipo(models.TextChoices):
@@ -234,9 +259,12 @@ class SeguridadCredencial(models.Model):
     desafio_digest = models.CharField(max_length=64, null=True, unique=True, editable=False)
     desafio_vence_en = models.DateTimeField(null=True, editable=False)
     desafio_version = models.PositiveBigIntegerField(null=True, editable=False)
+    personal_previa = models.BooleanField(default=False, db_default=False, editable=False)
 
     class Meta:
         constraints = [
+            models.CheckConstraint(name='credencial_personal_previa_reemision', condition=(
+                models.Q(personal_previa=False) | models.Q(estado='RECUPERACION'))),
             models.CheckConstraint(name="credencial_estado_coherente", condition=(
                 models.Q(estado="PERSONAL", emitida_en__isnull=True, vence_en__isnull=True,
                          desafio_digest__isnull=True, desafio_vence_en__isnull=True, desafio_version__isnull=True)

@@ -25,28 +25,28 @@ return 1
 """
 
 
-def _queue():
+def _queue(suffix):
     url = settings.FYAG_SECURITY_REDIS_URL
     if not url.startswith(('redis://', 'rediss://')):
         raise LimitesNoDisponibles()
-    return _client(url), f'{settings.FYAG_SECURITY_REDIS_PREFIX}:verificacion:solicitudes'
+    return _client(url), f'{settings.FYAG_SECURITY_REDIS_PREFIX}:{suffix}:solicitudes'
 
 
-def encolar_reenvio(email):
+def encolar_reenvio(email, *, cola='verificacion'):
     # Mismo trabajo y respuesta para toda dirección: aquí no se consulta Usuario.
     if settings.FYAG_EMAIL_PROFILE == 'deshabilitado':
         return
     try:
-        redis, key = _queue()
+        redis, key = _queue(cola)
         if redis.eval(_ENQUEUE, 1, key, f'{int(time())}:{email}') != 1:
             raise LimitesNoDisponibles()
     except (RedisError, ValueError, OSError):
         raise LimitesNoDisponibles() from None
 
 
-def procesar_reenvio():
+def consumir_solicitud(cola, procesar):
     try:
-        redis, key = _queue()
+        redis, key = _queue(cola)
         raw = redis.lpop(key)
     except (RedisError, ValueError, OSError):
         raise LimitesNoDisponibles() from None
@@ -58,11 +58,19 @@ def procesar_reenvio():
     except (UnicodeError, ValueError):
         return True
     if fresco:
-        with transaction.atomic():
-            user = Usuario.objects.select_for_update().filter(email=email).first()
-            if user:
-                emitir(user, TITULARIDAD)
+        procesar(email)
     return True
+
+
+@transaction.atomic
+def _reenviar(email):
+    user = Usuario.objects.select_for_update().filter(email=email).first()
+    if user:
+        emitir(user, TITULARIDAD)
+
+
+def procesar_reenvio():
+    return consumir_solicitud('verificacion', _reenviar)
 
 
 @sensitive_variables()
