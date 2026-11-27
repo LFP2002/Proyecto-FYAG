@@ -1,31 +1,33 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
+import ModuleBoundary, { ModuleLoading } from './components/ModuleBoundary.jsx';
 import { useAuth } from './auth/AuthContext';
 import Login from './components/login.jsx';
 import DesktopLayout from './components/layouts/DesktopLayout';
-import TecnicoApp from './pages/TecnicoApp';
 import PendingIntegration from './components/PendingIntegration';
 import { useApp } from './context/AppContext';
-import Clientes from './pages/Clientes';
-import Presupuestos from './pages/Presupuestos';
 import { canRead } from './comercial/domain.js';
-import Obras from './pages/Obras';
-import MisTurnos from './pages/MisTurnos.jsx';
-import Usuarios from './pages/Usuarios';
 import { canReadObras } from './obras/domain.js';
-import Alertas from './pages/Alertas.jsx';
-import Cobranzas from './pages/Cobranzas.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Reportes from './pages/Reportes.jsx';
-import Auditoria from './pages/Auditoria.jsx';
-import Inventario from './pages/Inventario.jsx';
-import Solicitudes from './pages/Solicitudes.jsx';
-import Mermas from './pages/Mermas.jsx';
-import BodegaMermas from './pages/BodegaMermas.jsx';
-import TecnicoMateriales from './pages/TecnicoMateriales.jsx';
-import Egresos from './pages/Egresos.jsx';
-import Chat from './pages/Chat.jsx';
-import Bodega from './pages/Bodega.jsx';
 import { modules as warehouseModules } from './bodega/domain.js';
+
+// Una instancia lazy estable por pantalla; se importa tras elegir el módulo.
+const Clientes = lazy(() => import('./pages/Clientes.jsx'));
+const Presupuestos = lazy(() => import('./pages/Presupuestos.jsx'));
+const Obras = lazy(() => import('./pages/Obras.jsx'));
+const MisTurnos = lazy(() => import('./pages/MisTurnos.jsx'));
+const Usuarios = lazy(() => import('./pages/Usuarios.jsx'));
+const Alertas = lazy(() => import('./pages/Alertas.jsx'));
+const Cobranzas = lazy(() => import('./pages/Cobranzas.jsx'));
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const Reportes = lazy(() => import('./pages/Reportes.jsx'));
+const Auditoria = lazy(() => import('./pages/Auditoria.jsx'));
+const Inventario = lazy(() => import('./pages/Inventario.jsx'));
+const Solicitudes = lazy(() => import('./pages/Solicitudes.jsx'));
+const Mermas = lazy(() => import('./pages/Mermas.jsx'));
+const BodegaMermas = lazy(() => import('./pages/BodegaMermas.jsx'));
+const TecnicoMateriales = lazy(() => import('./pages/TecnicoMateriales.jsx'));
+const Egresos = lazy(() => import('./pages/Egresos.jsx'));
+const Chat = lazy(() => import('./pages/Chat.jsx'));
+const Bodega = lazy(() => import('./pages/Bodega.jsx'));
 
 const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 
@@ -51,5 +53,7 @@ export default function App() {
           : mod === 'reportes' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Reportes
             : mod === 'cobranzas' && ['GERENCIA', 'ADMINISTRATIVO_FINANZAS'].includes(user.role) ? Cobranzas
               : canRead(user.role, mod) ? ({ clientes: Clientes, presupuestos: Presupuestos })[mod] : null;
-  return <div className="app-root"><DesktopLayout>{Page ? <Page key={`${user.id}:${user.role}:${warehouse?'bodega':mod}`} /> : <PendingIntegration />}</DesktopLayout></div>;
+  // Bodega conserva su identidad entre secciones.
+  const pageKey = `${user.id}:${user.role}:${warehouse?'bodega':mod}`;
+  return <div className="app-root"><DesktopLayout>{Page ? <ModuleBoundary key={pageKey}><Suspense fallback={<ModuleLoading/>}><Page key={pageKey}/></Suspense></ModuleBoundary> : <PendingIntegration />}</DesktopLayout></div>;
 }

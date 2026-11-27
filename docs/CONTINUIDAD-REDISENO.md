@@ -106,3 +106,7 @@ Bandeja pendiente por defecto, contadores globales, búsqueda y filtro de tipo e
 Escala institucional común sin excluir Supervisor: módulo 1.75rem, ficha 1.5rem, panel 1.0625rem, peso 700 y familia IBM Plex Sans heredada de la aplicación. Se mantienen subtítulos contextuales, valores KPI, encabezados de filas y jerarquía de chat. Tarjetas de filtro `portfolio-kpi`, `si-kpi`, `ss-kpi`: selección por tinte semántico (7% claro, 16% oscuro), foco visible azul separado, sin contorno de selección. Indicadores no interactivos, pestañas y navegación conservan su función visual. Pendiente revisión visual por rol, modo y tamaño de fuente.
 
 Pestañas de sección compartidas: altura mínima 44px, tipografía .875rem/600, subrayado activo de 3px en azul institucional; se mantienen filtros tipo pastilla, tarjetas de navegación de Bodega (no representan selección persistente) y estados de flujo. Chat sin encabezado general adicional para preservar superficie de conversación; decisión visual pendiente si se desea homologarlo con los demás módulos.
+
+
+## Rendimiento — carga diferida del frontend
+React.lazy/Suspense por pantalla de negocio; login, shell y reglas de selección de rutas intactos. Bodega conserva su identidad compartida. Límite de error por módulo, recuperación explícita. CSS global para impedir cambios de cascada según navegación. Sin nuevas dependencias ni aumento del umbral de Vite. Referencia anterior: 910,80 kB de JS minificado. Pendiente medir la compilación y validar recorridos por rol.

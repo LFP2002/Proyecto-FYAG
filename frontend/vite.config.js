@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // JavaScript por módulo; CSS global para conservar la cascada.
+  build: { cssCodeSplit: false },
   server: {
     port: 5173,
     // Mantener Host y Origin del navegador coherentes para CSRF en Django.
