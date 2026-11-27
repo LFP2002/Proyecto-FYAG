@@ -7,6 +7,14 @@ services:
         REQUIREMENTS_FILE: requirements-test.txt
 
     container_name: fyag_backend
+    restart: unless-stopped
+
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health/live/', timeout=2).close()"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
 
     command: daphne -b 0.0.0.0 -p 8000 --verbosity 0 --websocket_connect_timeout 5 --websocket-max-message-size 1024 --websocket-max-frame-size 1024 config.asgi:application
 
@@ -33,8 +41,6 @@ services:
       - .env
 
     depends_on:
-      redis:
-        condition: service_healthy
       postgres:
         condition: service_healthy
       migraciones:
@@ -113,7 +119,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
-      - "${POSTGRES_HOST_PORT}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT}:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql
