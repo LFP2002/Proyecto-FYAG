@@ -19,7 +19,7 @@ class CostosMixin:
     @action(detail=True, methods=["post"], url_path="costos/validar", parser_classes=[JSONParser])
     def validar_costos(self, request, pk=None):
         obra = self.get_object()
-        return Response(services_costos.validar_costos(obra, self._datos(), request.user))
+        return Response(services_costos.validar_costos(obra, self._datos(), request.user, token=request.auth))
 
     @action(detail=True, methods=["get"], url_path="costos/resumen")
     def resumen_costos(self, request, pk=None):

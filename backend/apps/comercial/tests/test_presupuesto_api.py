@@ -307,10 +307,10 @@ class PresupuestoCabeceraAPITests(PresupuestoAPIBase):
     def test_salida_solo_campos_publicos(self):
         respuesta = self.client.get(self.detalle())
         self.assertEqual(set(respuesta.data), {
-            "id", "codigo", "cliente", "descripcion", "estado",
+            "id", "codigo", "cliente", "cliente_nombre", "descripcion", "estado",
             "requiere_aprobacion_gerencia", "presupuesto_origen", "creado_por",
             "politica_aprobacion",
-            "creado_en", "actualizado_en", "moneda", "monto_neto", "items",
+            "creado_en", "actualizado_en", "moneda", "monto_neto", "items", "version_comercial",
         })
         self.assertIsInstance(respuesta.data["creado_por"], int)
         self.assertIsInstance(respuesta.data["cliente"], int)

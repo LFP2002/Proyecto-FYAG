@@ -15,7 +15,7 @@ from .serializers_documentos import DocumentoLecturaSerializer, FinanzasEventoSe
 from .serializers_pagos import PagoLecturaSerializer, PagoRegistroSerializer
 from .services_documentos import ConflictoFinanciero
 from .validaciones import LIMITE
-from .views_documentos import FinanzasPaginacion, documentos_lectura, pk_url, query_estricta
+from .views_documentos import FinanzasPaginacion, documentos_lectura, pk_url, query_estricta, filtrar_busqueda
 
 
 def documento_lectura(value):
@@ -97,8 +97,8 @@ class PagosHistorialView(FinanzasAPIView):
 
 
 def cartera_filtrada(params):
-    query_estricta(params, {"estado", "cliente", "obra", "fecha_vencimiento_desde", "fecha_vencimiento_hasta", "fecha_emision_desde", "fecha_emision_hasta"})
-    qs = documentos_lectura().filter(estado="VIGENTE")
+    query_estricta(params, {"estado", "cliente", "obra", "fecha_vencimiento_desde", "fecha_vencimiento_hasta", "fecha_emision_desde", "fecha_emision_hasta", "buscar"})
+    qs = filtrar_busqueda(documentos_lectura().filter(estado="VIGENTE"), params)
     if "estado" in params:
         if params["estado"] not in ESTADOS_COBRANZA:
             raise ValidationError({"estado": "Estado de cobranza no permitido."})

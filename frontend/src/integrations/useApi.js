@@ -77,7 +77,18 @@ export function safePage(link, path, filters = null) {
           : path === '/api/reportes/cobranzas/'
             ? ['desde','hasta','cliente','estado']
             : path === '/api/finanzas/cobranzas/'
-            ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta']
+            ? ['estado','cliente','obra','fecha_vencimiento_desde','fecha_vencimiento_hasta','fecha_emision_desde','fecha_emision_hasta','buscar']
+             : ['/api/finanzas/documentos/','/api/finanzas/obras-elegibles/'].includes(path) ? ['buscar']
+             : path==='/api/finanzas/obras-resumen/' ? ['buscar','estado','situacion_financiera','cliente_nombre','categoria_nombre','responsable_nombre','fecha_programada_desde','fecha_programada_hasta','ordering']
+             : path === '/api/finanzas/cobranzas/supervision-gerencial/' ? ['vista','buscar','desde','hasta']
+             : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
+             : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
+             : path === '/api/inventario/mermas-bodega/' ? ['vista','buscar','estado','tipo','articulo']
+             : path === '/api/inventario/mermas-supervisor/' ? ['estado','buscar','tipo']
+             : path === '/api/inventario/solicitudes-supervisor/' ? ['estado','buscar']
+             : path === '/api/inventario/disponibilidad/' ? ['seccion','buscar','stock','vista']
+             : path === '/api/inventario/finanzas/' ? ['seccion','buscar','filtro','tipo','desde','hasta']
+             : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
              : path === '/api/documentos-metadata/' ? ['obra'] : [];
     const allowed = new Set(['page', ...pathFilters]);
     if ([...url.searchParams.keys()].some((key) => !allowed.has(key))
@@ -90,7 +101,7 @@ export function safePage(link, path, filters = null) {
     const datePair=(from,to)=>{const a=value(from),b=value(to);if(!!a!==!!b)return false;return !a||civilRange(a,b);};
     if(path==='/api/alertas/'){
       if(value('estado')&&!['PENDIENTE','ATENDIDA','RESUELTA','TODAS'].includes(value('estado')))throw new Error('invalid');
-      if(value('tipo')&&!['PRESUPUESTO_PENDIENTE_GERENCIA','OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION','COBRANZA_VENCIDA'].includes(value('tipo')))throw new Error('invalid');
+      if(value('tipo')&&!['PRESUPUESTO_PENDIENTE_FINANZAS','OBRA_SUSPENDIDA','TURNO_PENDIENTE_REVISION','COBRANZA_VENCIDA'].includes(value('tipo')))throw new Error('invalid');
       if(value('recurso_tipo')&&!['PRESUPUESTO','OBRA','TURNO','DOCUMENTO'].includes(value('recurso_tipo')))throw new Error('invalid');
       if((value('recurso_id')&&!value('recurso_tipo'))||(value('recurso_id')&&!validId(value('recurso_id')))||!datePair('desde','hasta'))throw new Error('invalid');
     }
@@ -106,6 +117,33 @@ export function safePage(link, path, filters = null) {
       if((value('cliente')&&!validId(value('cliente')))||(value('obra')&&!validId(value('obra')))||!datePair('fecha_emision_desde','fecha_emision_hasta')||!datePair('fecha_vencimiento_desde','fecha_vencimiento_hasta'))throw new Error('invalid');
       if(value('estado')&&!['PENDIENTE','PARCIAL','PAGADA','VENCIDA'].includes(value('estado')))throw new Error('invalid');
     }
+    if(path==='/api/finanzas/cobranzas/supervision-gerencial/'){
+      if(!datePair('desde','hasta')||(value('vista')&&!['atencion','vigentes','documentos'].includes(value('vista')))||(value('buscar')||'').length>100)throw new Error('invalid');
+    }
+    if(path==='/api/finanzas/egresos/'){
+      if(!datePair('desde','hasta')||(value('buscar')||'').length>100||(value('obra')&&!validId(value('obra')))||(value('activo')&&!['true','false'].includes(value('activo')))||(value('resumen')&&value('resumen')!=='true')||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
+    }
+    if(path==='/api/finanzas/egresos/supervision-gerencial/'){
+      if(!value('desde')||!datePair('desde','hasta')||(value('vista')&&!['activos','anulados','todos'].includes(value('vista')))||(value('buscar')||'').length>100||(value('categoria')&&!['MATERIALES','TRANSPORTE','SERVICIOS','ARRIENDO','OTROS'].includes(value('categoria')))||(value('medio')&&!['TRANSFERENCIA','EFECTIVO','TARJETA','OTRO'].includes(value('medio'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/mermas-bodega/'){
+      if((value('vista')&&value('vista')!=='finanzas')||(value('buscar')&&(value('vista')!=='finanzas'||value('buscar').length>150))||(value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('tipo')&&!['DANO','VENCIMIENTO','EXTRAVIO','DIFERENCIA_CONTEO','OTRA'].includes(value('tipo')))||(value('articulo')&&!validId(value('articulo'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/mermas-supervisor/' && ((value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('buscar')||'').length>150||(value('tipo')&&!['CORTE_NO_REUTILIZABLE','DANO_EN_OBRA','EXTRAVIO_EN_OBRA','OTRA'].includes(value('tipo')))))throw new Error('invalid');
+    if(path==='/api/inventario/solicitudes-supervisor/' && ((value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('buscar')||'').length>150))throw new Error('invalid');
+    if(path==='/api/inventario/disponibilidad/'){
+      const section=value('seccion')||'disponibilidad';
+      if(!['disponibilidad','pendientes','historial'].includes(section)||(value('buscar')||'').length>150||(value('stock')&&(section!=='disponibilidad'||!['con_stock','sin_stock'].includes(value('stock'))))||(value('vista')&&(section!=='historial'||!['entregas','devoluciones','por_recibir'].includes(value('vista')))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/finanzas/'){
+      const section=value('seccion')||'inventario';
+      if(!['inventario','movimientos','valoraciones','regularizaciones','ingresos','historicos'].includes(section)||(value('buscar')||'').length>150||!datePair('desde','hasta')||(value('filtro')&&(section!=='inventario'||!['sin_stock','pendiente'].includes(value('filtro'))))||((value('tipo')||value('desde'))&&section!=='movimientos')||(value('tipo')&&!['INGRESO','SALIDA','DEVOLUCION','MERMA'].includes(value('tipo'))))throw new Error('invalid');
+    }
+    if(path==='/api/inventario/supervision-gerencial/'){
+      const stock=(value('seccion')||'existencias')==='existencias',state=value('estado');
+      if(!['existencias','mermas'].includes(value('seccion')||'existencias')||(value('buscar')||'').length>100||(value('filtro')&&!(stock?['sin_stock','pendiente']:['bodega','obra']).includes(value('filtro')))||(state&&!['APROBADA','PENDIENTE','RECHAZADA'].includes(state))||!datePair('desde','hasta')||(stock&&(state||value('desde')))||(!stock&&value('articulo'))||(value('articulo')&&!validId(value('articulo')))||(state==='PENDIENTE'&&value('desde')))throw new Error('invalid');
+    }
+    if((value('buscar')||'').length>150 && ['/api/finanzas/cobranzas/','/api/finanzas/documentos/','/api/finanzas/obras-elegibles/','/api/finanzas/obras-resumen/'].includes(path))throw new Error('invalid');
     if(path==='/api/documentos-metadata/'&&!validId(value('obra')))throw new Error('invalid');
     return page;
   } catch { throw new ApiError(502, 'El servidor devolvió una página no segura.'); }

@@ -51,6 +51,29 @@ test('cliente autenticado soporta multipart sin forzar Content-Type y respuesta 
   assert.equal(await image.text(), 'imagen');
 });
 
+test('login con credencial temporal solo habilita primer cambio y no consulta /me', async () => {
+  const challenge = 'T'.repeat(43), calls = [];
+  const client = createAuthClient({ fetchImpl: async (path, options) => {
+    calls.push({ path, ...options });
+    if (path === '/api/auth/csrf/') return json({ csrfToken: 'csrf-inicial' });
+    if (path === '/api/auth/login/') return json({ estado: 'CAMBIO_OBLIGATORIO', desafio: challenge, desafio_vence_en: '2026-11-25T12:05:00Z', csrfToken: 'csrf-rotado' });
+    if (path === '/api/auth/primer-cambio-clave/') return json({ estado: 'CLAVE_PERSONAL_CONFIRMADA', login_requerido: true });
+    throw new Error(`Ruta no esperada: ${path}`);
+  } });
+  await client.login(credentials);
+  assert.equal(client.getSnapshot().status, 'password-change-required');
+  assert.equal(client.getSnapshot().user, null);
+  assert.deepEqual(calls.map(call => call.path), ['/api/auth/csrf/', '/api/auth/login/']);
+  await client.completeFirstPasswordChange('clave-personal-de-prueba');
+  assert.equal(client.getSnapshot().status, 'anonymous');
+  assert.equal(client.getSnapshot().user, null);
+  assert.deepEqual(calls.map(call => call.path), ['/api/auth/csrf/', '/api/auth/login/', '/api/auth/primer-cambio-clave/']);
+  assert.deepEqual(JSON.parse(calls[2].body), { desafio: challenge, nueva_clave: 'clave-personal-de-prueba' });
+  assert.equal(calls[2].headers.get('X-CSRFToken'), 'csrf-rotado');
+  assert.equal(calls[2].headers.get('Authorization'), null);
+  assert.equal(client.getSnapshot().notice, 'Contraseña personal confirmada. Inicia sesión con tu nueva contraseña.');
+});
+
 test('login real: normaliza email, no altera password y confirma identidad con /me', async () => {
   const { client, calls } = backend();
   assert.equal(client.getSnapshot().status, 'restoring');
@@ -371,4 +394,34 @@ test('correo propio confirmado invalida sesión local sin refresh y comunica nue
   await assert.rejects(client.request('/api/obras/'), { status: 401 });
   assert.equal(calls.length, before, 'no se utiliza access ni refresh revocados');
   assert.equal(client.sessionInvalidatedByEmailChange(), false);
+});
+
+test('aprobación comercial conserva errores públicos 400 y 409 solo en su ruta', async () => {
+  const path = '/api/presupuestos/12/aprobar-finanzas/';
+  let status = 400;
+  const payload = () => status === 400
+    ? {version_comercial_esperada:['Revise la versión comercial.'], monto_neto:['El monto neto debe ser positivo.'], interno:['No público']}
+    : {code:'version_comercial_obsoleta', detail:'Los datos comerciales cambiaron.'};
+  const {client,calls} = backend({
+    [path]: () => json(payload(), status),
+    '/api/presupuestos/12/': () => json(payload(), status),
+  });
+  await client.login(credentials);
+  await assert.rejects(client.request(path,{method:'POST',body:{}}), error => {
+    assert.equal(error.status,400);
+    assert.deepEqual(error.fieldErrors,{version_comercial_esperada:['Revise la versión comercial.'],monto_neto:['El monto neto debe ser positivo.']});
+    return true;
+  });
+  await assert.rejects(client.request('/api/presupuestos/12/'), error => {
+    assert.deepEqual(error.fieldErrors,{}); return true;
+  });
+  status = 409;
+  await assert.rejects(client.request(path,{method:'POST',body:{}}), error => {
+    assert.equal(error.status,409); assert.equal(error.code,'version_comercial_obsoleta');
+    assert.deepEqual(error.fieldErrors,{detail:['Los datos comerciales cambiaron.']}); return true;
+  });
+  await assert.rejects(client.request('/api/presupuestos/12/'), error => {
+    assert.equal(error.code,null); return true;
+  });
+  assert.equal(calls.filter(c=>c.path===path).length,2);
 });

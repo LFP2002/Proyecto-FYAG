@@ -10,12 +10,17 @@ export const useApp = () => useContext(Ctx);
 export function AppProvider({ children }) {
   const { user } = useAuth();
   const [selection, setSelection] = useState(null);
-  useEffect(() => { setSelection(null); }, [user?.id, user?.role]);
+  const [navigationTarget,setNavigationTarget]=useState(null);
+  const [navigationBlocked,setNavigationBlocked]=useState(false);
+  useEffect(() => { setSelection(null); setNavigationTarget(null); setNavigationBlocked(false); }, [user?.id, user?.role]);
   const role = user?.role;
   const allowed = NAV[role] || [];
   const mod = allowed.includes(selection) ? selection : DEFMOD[role];
-  const go = (next) => {
-    if (user && allowed.includes(next)) setSelection(next);
+  const go = (next, target = null) => {
+    if (user && !navigationBlocked && allowed.includes(next)) {
+      setNavigationTarget(target && role==='ADMINISTRATIVO_FINANZAS' ? {module:next, ...target} : null);
+      setSelection(next);
+    }
   };
-  return <Ctx.Provider value={{ role, mod, go }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ role, mod, go, navigationTarget: role==='ADMINISTRATIVO_FINANZAS'&&navigationTarget?.module===mod?navigationTarget:null, navigationBlocked, setNavigationBlocked }}>{children}</Ctx.Provider>;
 }

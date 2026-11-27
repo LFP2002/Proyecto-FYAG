@@ -1,10 +1,16 @@
 # SPEC-008 — Auditoría global federada, exclusivamente de lectura
 
-**Estado: especificada para implementación por OpenCode; NO implementada ni integrada.** Este documento forma parte del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26) (solo documentación). **No existe** `/api/auditoria/eventos/` en `main`. El contrato público se congela antes de programar el frontend. La programación, migraciones, pruebas ejecutables y commits de código corresponden a OpenCode, sujeto a revisión.
+**Estado de integración por reconciliar:** esta SPEC se originó como contrato documental del [PR #26](https://github.com/LFP2002/Proyecto-FYAG/pull/26). El checkout local actual contiene una ruta `/api/auditoria/eventos/`, pero esta revisión no verifica su integración/publicación efectiva en `main`, su despliegue ni la conformidad integral con este contrato. No modificar el contrato API por las notas frontend siguientes.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- Se añadió localmente una presentación visual de Auditoría en `frontend/src/pages/Auditoria.jsx` y `frontend/src/styles/pages/auditoria.css`, reutilizando el consumo y los permisos de la pantalla existente sin cambiar el contrato de esta SPEC.
+- Se limitaron los cambios a importación de estilos, clases/agrupación JSX y placeholders visuales; filtros, cursor, consultas y controles de acceso no se redefinieron.
+- Este seguimiento no acredita la aprobación del contrato API, E2E con backend ni publicación. La autoridad de esquema y permisos permanece en esta SPEC y el código backend vigente.
 
 ## 1. Estado, contexto comprobado y precedencia
 
-Proyecto FYAG (Django 5, DRF, PostgreSQL, autenticación JWT versionada). `main` ya contiene eventos por dominio, sus permisos y endpoints de historial independientes, pero `apps.auditoria` no tiene API registrada en `backend/config/urls.py`. Esta SPEC añade únicamente una **lectura federada**; su implementación no depende de MongoDB ni sustituye la auditoría por origen.
+Proyecto FYAG (Django 5, DRF, PostgreSQL, autenticación JWT versionada). Los eventos por dominio tienen permisos e historiales independientes. El registro de la ruta global de esta SPEC debe verificarse contra la rama/commit efectivamente integrado y OpenAPI; la presencia en el checkout local por sí sola no acredita publicación. El contrato define únicamente una **lectura federada**; su implementación no depende de MongoDB ni sustituye la auditoría por origen.
 
 **Precedencia:** prevalecen las restricciones de identidad y acceso de SPEC-002A/002B y SPEC-006B/006C, y las reglas de proyección de SPEC-003, SPEC-004/004B y SPEC-007. Una divergencia se documenta y revisa antes de codificar, nunca se resuelve entregando más información.
 
@@ -177,3 +183,9 @@ No hay escrituras, correcciones, eliminación de eventos, generación de eventos
 - Durante la revisión local, `backend/config/urls.py` y `backend/apps/auditoria/urls.py` contienen la ruta `/api/auditoria/eventos/` y una vista `EventosAuditoriaView`, aunque el estado de esta SPEC afirma que no existe en `main`. Esto es una discrepancia entre el texto documental y el checkout verificado; no se declara aquí qué versión se desplegó ni se altera el contrato congelado.
 - Antes de implementar UI, el responsable/backend debe reconciliar el estado de SPEC, la integración efectiva del backend/OpenAPI y autorización del contrato frontend. No se inventó pantalla ni esquema.
 - Suites frontend locales ejecutadas en el worktree: 159 aprobadas; build aprobado. No hay cobertura E2E de Auditoría ni Frontend CI en este registro.
+
+## Anexo 008 — atribución laboral de actores (v1.1.0)
+
+Prevalece sobre la restricción anterior de actor_etiqueta y ausencia de migraciones. Gerencia, Supervisión, Finanzas y TI pueden ver exclusivamente la identidad laboral mínima de los actores de eventos ya autorizados por POR_ROL. Sin acceso adicional a Usuarios ni a eventos de otras fuentes. La respuesta conserva actor (ID), actor_etiqueta (nombre y apellido o alias), añade actor_username (alias) y actor_identidad_origen (HISTORICA o ACTUAL). No se añaden correo, rol del actor, credenciales ni datos privados; las proyecciones existentes permanecen intactas. No se inventan actores de sistema: las ocho fuentes actuales requieren FK de usuario.
+
+Se añaden dos campos nulos y no editables a las ocho tablas de eventos, con triggers PostgreSQL que capturan nombre laboral y alias en cada INSERT, en la misma transacción, también para inserciones masivas. Se impiden modificaciones de la atribución y FK del actor mediante UPDATE. No se crean tablas, no se reescriben eventos existentes, ni se reconstruyen nombres antiguos: para ellos se presenta la identidad actual de la cuenta, marcada explícitamente ACTUAL. Si la cuenta carece de nombre se usa el alias. Las cuentas inactivas conservan su atribución. El JOIN se limita a columnas laborales en las consultas acotadas existentes, sin N+1 ni escrituras en GET; paginación, corte, permisos y orden intactos. En el detalle se conserva ID y procedencia. Migraciones reversibles en esquema (una reversión elimina los campos históricos nuevos; respaldar antes). OpenAPI 1.1.0. Validar migraciones, esquema, pruebas de roles, identidad tras cambio de nombre, datos legados y regresiones de dominios afectados.

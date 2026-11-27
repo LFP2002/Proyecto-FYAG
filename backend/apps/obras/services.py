@@ -93,6 +93,29 @@ def _actor_autorizado(usuario, rol):
     return actual
 
 
+def _actor_019f(usuario, token=None):
+    """Releer seguridad sin reemplazar la identidad que inició la operación."""
+    from rest_framework.exceptions import AuthenticationFailed
+    from apps.usuarios.acceso import sesion_operativa
+    from apps.usuarios.authentication import identificador_sesion, validar_sesion
+    from apps.usuarios.configuracion_c2 import relaciones_seguridad
+
+    Modelo = get_user_model()
+    if not isinstance(usuario, Modelo) or usuario.pk is None:
+        raise PermisoDenegado()
+    actual = Modelo.objects.select_related(*relaciones_seguridad()).filter(pk=usuario.pk).first()
+    if (actual is None or not actual.is_active or actual.sesion_version != usuario.sesion_version
+            or actual.password != usuario.password or not sesion_operativa(actual)):
+        raise AuthenticationFailed('Sesión no disponible.', code='sesion_revocada')
+    if token is not None:
+        if identificador_sesion(token) != usuario.pk:
+            raise AuthenticationFailed('Sesión no disponible.', code='sesion_revocada')
+        validar_sesion(token, actual)
+    if actual.rol != SUPERVISOR:
+        raise PermisoDenegado()
+    return actual
+
+
 def _campos_validos(datos, permitidos, obligatorios=()):
     if not isinstance(datos, Mapping):
         raise DatosInvalidos()
@@ -244,6 +267,8 @@ def crear_obra(datos, usuario):
     presupuesto = _presupuesto_bloqueado(datos["presupuesto"])
     if presupuesto.estado != Presupuesto.Estado.APROBADO_CLIENTE:
         raise EstadoIncompatible()
+    if presupuesto.items.filter(precio_unitario__isnull=True).exists():
+        raise EstadoIncompatible('El presupuesto tiene precios comerciales pendientes.')
     if Obra.objects.filter(presupuesto_id=presupuesto.pk).exists():
         raise PresupuestoUtilizado()
     categoria = _categoria_elegible(datos["categoria_servicio"])
@@ -356,9 +381,10 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
 
 
 @_operacion
-def iniciar_obra(referencia, usuario, motivo):
-    actor = _actor_autorizado(usuario, SUPERVISOR)
+def iniciar_obra(referencia, usuario, motivo, *, token=None):
+    _actor_019f(usuario, token)
     obra = _obra_bloqueada(referencia)
+    _actor_019f(usuario, token)
     if obra.estado != Obra.Estado.PLANIFICADA:
         raise EstadoIncompatible()
     motivo = _motivo(motivo, obligatorio=True)
@@ -367,10 +393,14 @@ def iniciar_obra(referencia, usuario, motivo):
             "tecnico_responsable": ["Asigne un técnico antes de iniciar."]
         })
     _tecnico_elegible(obra.tecnico_responsable_id)
+    actor = _actor_019f(usuario, token)
     anterior = obra.estado
     obra.estado = Obra.Estado.EN_PROCESO
     obra.iniciado_en = timezone.now()
     obra.save(update_fields=["estado", "iniciado_en", "actualizado_en"])
+    from .materials_plan import autorizar_prevision
+    autorizar_prevision(obra, usuario, motivo, token=token)
+    _actor_019f(usuario, token)
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_ESTADO, actor, anterior,
         previos={"estado": anterior, "iniciado_en": None},

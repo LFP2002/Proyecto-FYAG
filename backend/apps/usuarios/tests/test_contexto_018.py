@@ -66,6 +66,7 @@ class ContextoTemporalTests(CredencialesBase, APITestCase):
         issued.usuario.seguridad_credencial.delete()
         self.assertIsNone(authenticate(request=login_request(), email=issued.usuario.email, password=issued.credencial_temporal))
 
+    @override_settings(JWT_REFRESH_COOKIE_SECURE=True, CSRF_COOKIE_SECURE=True)
     def test_cors_csrf_y_cookies_en_api_separada(self):
         with override_settings(CORS_ALLOWED_ORIGINS=["https://app.example.test"], CSRF_TRUSTED_ORIGINS=["https://app.example.test"]):
             client = APIClient(enforce_csrf_checks=True)

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.comercial.proyecciones import neto_aprobado
 from apps.obras.serializers import ObraLecturaSerializer
 from .filtros import ZONA
 
@@ -84,4 +85,4 @@ class ObraActivaSerializer(ObraLecturaSerializer):
         return {name: fields[name] for name in self.PUBLICOS}
 
     def get_presupuesto_neto(self, obj):
-        return format(obj.presupuesto.monto_neto, ".2f")
+        return format(neto_aprobado(obj.presupuesto), ".2f")

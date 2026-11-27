@@ -1,71 +1,1061 @@
 {
   "openapi": "3.1.0",
-  "info": {"title": "FYAG Beta — SPEC-023A Chat REST temporal", "version": "1.0.0", "description": "PostgreSQL oficial. Los seis roles usan chat, sin privilegios TI/Gerencia/staff sobre conversaciones ajenas. JWT vigente, actividad, sesion_version, credencial PERSONAL y bloqueo operativo persistidos. Membresía SQL; tercero/inexistente mismo 404. Sin WebSockets, Redis ni /conexion/. Grupos fijos de 3–20. Mensajes inmutables; caducan 30 días por defecto, configurable 1–90 para nuevas publicaciones. Expirados fuera de GET/descargas/contadores antes de purga. Todo privado/no-store y Vary Authorization, nosniff. No representar texto como HTML/Markdown; frontend debe usar textContent. Cuerpos/queries cerrados, Unicode NFC trim sin controles, fechas UTC del servidor. Límites técnicos por usuario/IP: conversación 10/30, mensaje 60/180, archivo 10/30 por minuto; configurables por settings. IP REMOTE_ADDR, no se confía en X-Forwarded-For."},
-  "servers": [{"url": "/"}],
-  "security": [{"bearerAuth": []}],
+  "info": {
+    "title": "FYAG Beta — SPEC-023A Chat REST temporal",
+    "version": "1.1.0",
+    "description": "PostgreSQL oficial. Los seis roles usan chat, sin privilegios TI/Gerencia/staff sobre conversaciones ajenas. JWT vigente, actividad, sesion_version, credencial PERSONAL y bloqueo operativo persistidos. Membresía SQL; tercero/inexistente mismo 404. Sin WebSockets, Redis ni /conexion/. Grupos fijos de 3–20. Mensajes inmutables; caducan 30 días por defecto, configurable 1–90 para nuevas publicaciones. Expirados fuera de GET/descargas/contadores antes de purga. Todo privado/no-store y Vary Authorization, nosniff. No representar texto como HTML/Markdown; frontend debe usar textContent. Cuerpos/queries cerrados, Unicode NFC trim sin controles, fechas UTC del servidor. Límites técnicos por usuario/IP: conversación 10/30, mensaje 60/180, archivo 10/30 por minuto; configurables por settings. IP REMOTE_ADDR, no se confía en X-Forwarded-For."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "paths": {
     "/api/chat/usuarios/": {
-      "get": {"operationId": "directorioChat", "description": "Cuentas elegibles distintas del actor: solo id/nombre/rol, sin email ni estado de seguridad. Filtro antes de paginar, ID ASC, 25 por página.", "parameters": [{"$ref": "#/components/parameters/Page"}, {"name": "buscar", "in": "query", "schema": {"type": "string", "minLength": 1, "maxLength": 100}}], "responses": {"200": {"$ref": "#/components/responses/Directorio"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "get": {
+        "operationId": "directorioChat",
+        "description": "Cuentas elegibles distintas del actor: solo id/nombre/rol, sin email ni estado de seguridad. Filtro antes de paginar, ID ASC, 25 por página.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Directorio"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/conversaciones/": {
-      "get": {"operationId": "listarConversacionesChat", "description": "Solo conversaciones propias, ID ASC, 25. no_leidos cuenta mensajes vigentes de otros autores por encima del watermark propio.", "parameters": [{"$ref": "#/components/parameters/Page"}], "responses": {"200": {"$ref": "#/components/responses/Conversaciones"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}},
-      "post": {"operationId": "crearConversacionChat", "description": "Sin queries. DIRECTA única por par no ordenado calculado por servidor; una pareja existente devuelve 200 sin crear otra, aunque UUID sea nueva. GRUPAL: lista de 2–19 destinatarios distintos, excluye actor; servidor añade creador. Nueva UUID con mismos miembros grupales crea otro grupo. Misma UUID/autor/acción y carga normalizada: mismo resultado; otra carga 409. 201 solo conversación nueva, 200 replay o pareja ya existente. No edición de título o miembros.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/CrearDirecta"}, {"$ref": "#/components/schemas/CrearGrupo"}]}}}}, "responses": {"201": {"$ref": "#/components/responses/Conversacion"}, "200": {"$ref": "#/components/responses/Conversacion"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "429": {"$ref": "#/components/responses/Limite"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "get": {
+        "operationId": "listarConversacionesChat",
+        "description": "Solo conversaciones propias, ID ASC, 25. no_leidos cuenta mensajes vigentes de otros autores por encima del watermark propio.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Conversaciones"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "crearConversacionChat",
+        "description": "Sin queries. DIRECTA única por par no ordenado calculado por servidor; una pareja existente devuelve 200 sin crear otra, aunque UUID sea nueva. GRUPAL: lista de 2–19 destinatarios distintos, excluye actor; servidor añade creador. Nueva UUID con mismos miembros grupales crea otro grupo. Misma UUID/autor/acción y carga normalizada: mismo resultado; otra carga 409. 201 solo conversación nueva, 200 replay o pareja ya existente. No edición de título o miembros.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/CrearDirecta"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CrearGrupo"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Conversacion"
+          },
+          "201": {
+            "$ref": "#/components/responses/Conversacion"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Limite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/conversaciones/{id}/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "get": {"operationId": "detalleConversacionChat", "description": "Ficha, miembros mínimos, no_leidos y watermark del actor; nunca cursores de otros. Membresía fija. Sin queries.", "responses": {"200": {"$ref": "#/components/responses/Detalle"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "operationId": "detalleConversacionChat",
+        "description": "Ficha, miembros mínimos, no_leidos y watermark del actor; nunca cursores de otros. Membresía fija. Sin queries.",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Detalle"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/conversaciones/{id}/mensajes/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "get": {"operationId": "historialChat", "description": "Solo vigentes, ID DESC, máximo 25; antes_id exclusivo. siguiente_antes_id null al acabar. No admite page ni otros filtros. Frontend invierte visualmente el orden si desea; al refrescar iniciar sin cursor y deduplicar por ID.", "parameters": [{"name": "antes_id", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}}], "responses": {"200": {"$ref": "#/components/responses/Historial"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}},
-      "post": {"operationId": "publicarTextoChat", "description": "Solo texto plano no vacío hasta 2000 caracteres. Sin queries, edición, fechas/autor/vence del cliente ni eventos externos. UUID de mensajes comparte namespace por autor con subida de archivos. 201 inicial, 200 replay sin efecto nuevo. Reintento caducado: 409 mensaje_caducado, nunca republica. Conservar misma UUID para reintentos por respuesta perdida.", "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PublicarTexto"}}}}, "responses": {"201": {"$ref": "#/components/responses/Mensaje"}, "200": {"$ref": "#/components/responses/Mensaje"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "429": {"$ref": "#/components/responses/Limite"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "operationId": "historialChat",
+        "description": "Solo vigentes, ID DESC, máximo 25; antes_id exclusivo. siguiente_antes_id null al acabar. No admite page ni otros filtros. Frontend invierte visualmente el orden si desea; al refrescar iniciar sin cursor y deduplicar por ID.",
+        "parameters": [
+          {
+            "name": "antes_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Historial"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "publicarTextoChat",
+        "description": "Solo texto plano no vacío hasta 2000 caracteres. Sin queries, edición, fechas/autor/vence del cliente ni eventos externos. UUID de mensajes comparte namespace por autor con subida de archivos. 201 inicial, 200 replay sin efecto nuevo. Reintento caducado: 409 mensaje_caducado, nunca republica. Conservar misma UUID para reintentos por respuesta perdida.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicarTexto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Mensaje"
+          },
+          "201": {
+            "$ref": "#/components/responses/Mensaje"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Limite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/conversaciones/{id}/archivos/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "post": {"operationId": "publicarArchivoChat", "description": "Mensaje con un archivo y texto opcional. FormData: no fijar boundary manual desde navegador. Idempotency-Key obligatorio en encabezado; prohibido en body. JPEG/PNG hasta 5MiB, estáticos, <=2048x2048, normalizados sin metadatos ni escalado; PDF hasta 8MiB, estructural, no cifrado/activo/embebidos. DOCX/XLSX deshabilitados por falta de validador OOXML seguro; formatos restantes rechazados. MIME detectado del contenido, no del declarado. ClamAV INSTREAM original y normalizado, fail-closed; malware/estructura 400, límite 413, scanner/storage 503. Misma UUID+texto+nombre normalizados y hash de bytes originales: replay 200, sin segundo objeto confirmado. Si falla limpieza tras commit, devuelve éxito confirmado y recolector reintenta. Sin queries.", "parameters": [{"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"$ref": "#/components/schemas/UUID"}}], "requestBody": {"required": true, "content": {"multipart/form-data": {"schema": {"type": "object", "additionalProperties": false, "required": ["archivo"], "properties": {"archivo": {"type": "string", "format": "binary"}, "texto": {"type": "string", "maxLength": 2000}}}}}}, "responses": {"201": {"$ref": "#/components/responses/Mensaje"}, "200": {"$ref": "#/components/responses/Mensaje"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "413": {"$ref": "#/components/responses/Error"}, "429": {"$ref": "#/components/responses/Limite"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "operationId": "publicarArchivoChat",
+        "description": "Mensaje con un archivo y texto opcional. FormData: no fijar boundary manual desde navegador. Idempotency-Key obligatorio en encabezado; prohibido en body. JPEG/PNG hasta 5MiB, estáticos, <=2048x2048, normalizados sin metadatos ni escalado; PDF hasta 8MiB, estructural, no cifrado/activo/embebidos. DOCX/XLSX deshabilitados por falta de validador OOXML seguro; formatos restantes rechazados. MIME detectado del contenido, no del declarado. ClamAV INSTREAM original y normalizado, fail-closed; malware/estructura 400, límite 413, scanner/storage 503. Misma UUID+texto+nombre normalizados y hash de bytes originales: replay 200, sin segundo objeto confirmado. Si falla limpieza tras commit, devuelve éxito confirmado y recolector reintenta. Sin queries.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/UUID"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "archivo"
+                ],
+                "properties": {
+                  "archivo": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "texto": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Mensaje"
+          },
+          "201": {
+            "$ref": "#/components/responses/Mensaje"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Limite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/conversaciones/{id}/leido/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "post": {"operationId": "marcarLeidoChat", "description": "Avance monotónico del actor, no recepción individual por destinatario. ID debe existir, estar vigente y pertenecer a la conversación. Una marca menor válida no retrocede el watermark. Sin queries ni UUID (actualización monotónica naturalmente idempotente).", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["ultimo_mensaje_id"], "properties": {"ultimo_mensaje_id": {"$ref": "#/components/schemas/Id"}}}}}}, "responses": {"200": {"$ref": "#/components/responses/Leido"}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "409": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "operationId": "marcarLeidoChat",
+        "description": "Avance monotónico del actor, no recepción individual por destinatario. ID debe existir, estar vigente y pertenecer a la conversación. Una marca menor válida no retrocede el watermark. Sin queries ni UUID (actualización monotónica naturalmente idempotente).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ultimo_mensaje_id"
+                ],
+                "properties": {
+                  "ultimo_mensaje_id": {
+                    "$ref": "#/components/schemas/Id"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Leido"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/api/chat/archivos/{id}/descargar/": {
-      "parameters": [{"$ref": "#/components/parameters/Id"}],
-      "get": {"operationId": "descargarArchivoChat", "description": "Reautoriza membresía y vigencia; verifica tamaño/SHA256 desde handle protegido, copia privada estable ante purga. Sin URL pública ni rutas internas. Vencido/ajeno/inexistente mismo 404; ausente/alterado/scanner no interviene en descarga: 503 cerrado. Sin queries. Descarga iniciada vigente puede terminar desde copia privada aunque el recolector retire origen después.", "responses": {"200": {"description": "Bytes verificados, Content-Disposition attachment con nombre saneado", "headers": {"Content-Disposition": {"schema": {"type": "string"}}, "Cache-Control": {"$ref": "#/components/headers/Cache"}, "Vary": {"$ref": "#/components/headers/Vary"}, "X-Content-Type-Options": {"$ref": "#/components/headers/Nosniff"}}, "content": {"image/jpeg": {"schema": {"type": "string", "format": "binary"}}, "image/png": {"schema": {"type": "string", "format": "binary"}}, "application/pdf": {"schema": {"type": "string", "format": "binary"}}}}, "400": {"$ref": "#/components/responses/Error"}, "401": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}, "405": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}}
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "operationId": "descargarArchivoChat",
+        "description": "Reautoriza membresía y vigencia; verifica tamaño/SHA256 desde handle protegido, copia privada estable ante purga. Sin URL pública ni rutas internas. Vencido/ajeno/inexistente mismo 404; ausente/alterado/scanner no interviene en descarga: 503 cerrado. Sin queries. Descarga iniciada vigente puede terminar desde copia privada aunque el recolector retire origen después.",
+        "responses": {
+          "200": {
+            "description": "Bytes verificados, Content-Disposition attachment con nombre saneado",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/Cache"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              },
+              "X-Content-Type-Options": {
+                "$ref": "#/components/headers/Nosniff"
+              }
+            },
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "components": {
-    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},
-    "parameters": {"Id": {"name": "id", "in": "path", "required": true, "schema": {"$ref": "#/components/schemas/Id"}, "description": "Positivo canónico, sin ceros iniciales"}, "Page": {"name": "page", "in": "query", "schema": {"$ref": "#/components/schemas/Id"}, "description": "Página de 25, positiva canónica; inexistente 404; vacía/repetida/desconocida 400"}},
-    "headers": {"Cache": {"schema": {"const": "private, no-store"}}, "Vary": {"schema": {"type": "string"}, "description": "Incluye Authorization"}, "Nosniff": {"schema": {"const": "nosniff"}}, "Replay": {"schema": {"enum": ["true", "false"]}}},
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        },
+        "description": "Positivo canónico, sin ceros iniciales"
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "$ref": "#/components/schemas/Id"
+        },
+        "description": "Página de 25, positiva canónica; inexistente 404; vacía/repetida/desconocida 400"
+      }
+    },
+    "headers": {
+      "Cache": {
+        "schema": {
+          "const": "private, no-store"
+        }
+      },
+      "Vary": {
+        "schema": {
+          "type": "string"
+        },
+        "description": "Incluye Authorization"
+      },
+      "Nosniff": {
+        "schema": {
+          "const": "nosniff"
+        }
+      },
+      "Replay": {
+        "schema": {
+          "enum": [
+            "true",
+            "false"
+          ]
+        }
+      }
+    },
     "schemas": {
-      "Id": {"type": "integer", "format": "int64", "minimum": 1, "maximum": 9223372036854775807},
-      "IdNullable": {"type": ["integer", "null"], "format": "int64", "minimum": 1},
-      "UUID": {"type": "string", "format": "uuid", "pattern": "^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"},
-      "Texto": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "Unicode NFC trim, sin controles/surrogates. Texto plano, nunca HTML ejecutable"},
-      "Usuario": {"type": "object", "additionalProperties": false, "required": ["id", "nombre", "rol"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "nombre": {"type": "string"}, "rol": {"enum": ["GERENCIA", "ADMINISTRATIVO_FINANZAS", "SUPERVISOR_OBRAS", "TECNICO", "ADMINISTRADOR_TI", "BODEGUERO"]}}},
-      "CrearDirecta": {"type": "object", "additionalProperties": false, "required": ["tipo", "destinatario", "clave_idempotencia"], "properties": {"tipo": {"const": "DIRECTA"}, "destinatario": {"$ref": "#/components/schemas/Id"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "CrearGrupo": {"type": "object", "additionalProperties": false, "required": ["tipo", "titulo", "participantes", "clave_idempotencia"], "properties": {"tipo": {"const": "GRUPAL"}, "titulo": {"type": "string", "minLength": 1, "maxLength": 100}, "participantes": {"type": "array", "minItems": 2, "maxItems": 19, "uniqueItems": true, "items": {"$ref": "#/components/schemas/Id"}}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "Conversacion": {"type": "object", "additionalProperties": false, "required": ["id", "tipo", "titulo", "creador", "creado_en", "no_leidos"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "tipo": {"enum": ["DIRECTA", "GRUPAL"]}, "titulo": {"type": "string", "maxLength": 100}, "creador": {"$ref": "#/components/schemas/Id"}, "creado_en": {"type": "string", "format": "date-time"}, "no_leidos": {"type": "integer", "minimum": 0}}},
-      "Detalle": {"type": "object", "additionalProperties": false, "required": ["id", "tipo", "titulo", "creador", "creado_en", "no_leidos", "participantes", "ultimo_leido_mensaje_id"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "tipo": {"enum": ["DIRECTA", "GRUPAL"]}, "titulo": {"type": "string", "maxLength": 100}, "creador": {"$ref": "#/components/schemas/Id"}, "creado_en": {"type": "string", "format": "date-time"}, "no_leidos": {"type": "integer", "minimum": 0}, "participantes": {"type": "array", "minItems": 2, "maxItems": 20, "items": {"$ref": "#/components/schemas/Usuario"}}, "ultimo_leido_mensaje_id": {"$ref": "#/components/schemas/IdNullable"}}},
-      "PublicarTexto": {"type": "object", "additionalProperties": false, "required": ["texto", "clave_idempotencia"], "properties": {"texto": {"$ref": "#/components/schemas/Texto"}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "Archivo": {"type": "object", "additionalProperties": false, "required": ["id", "nombre", "mime", "tamano_bytes"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "nombre": {"type": "string", "maxLength": 150}, "mime": {"enum": ["image/jpeg", "image/png", "application/pdf"]}, "tamano_bytes": {"type": "integer", "minimum": 1, "maximum": 8388608}}},
-      "Mensaje": {"type": "object", "additionalProperties": false, "required": ["id", "conversacion", "autor", "texto", "creado_en", "vence_en", "archivo", "clave_idempotencia"], "properties": {"id": {"$ref": "#/components/schemas/Id"}, "conversacion": {"$ref": "#/components/schemas/Id"}, "autor": {"$ref": "#/components/schemas/Id"}, "texto": {"type": "string", "maxLength": 2000}, "creado_en": {"type": "string", "format": "date-time"}, "vence_en": {"type": "string", "format": "date-time"}, "archivo": {"oneOf": [{"$ref": "#/components/schemas/Archivo"}, {"type": "null"}]}, "clave_idempotencia": {"$ref": "#/components/schemas/UUID"}}},
-      "PaginaUsuarios": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Usuario"}}}},
-      "PaginaConversaciones": {"type": "object", "required": ["count", "next", "previous", "results"], "properties": {"count": {"type": "integer", "minimum": 0}, "next": {"type": ["string", "null"]}, "previous": {"type": ["string", "null"]}, "results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Conversacion"}}}},
-      "Historial": {"type": "object", "additionalProperties": false, "required": ["results", "siguiente_antes_id"], "properties": {"results": {"type": "array", "maxItems": 25, "items": {"$ref": "#/components/schemas/Mensaje"}}, "siguiente_antes_id": {"$ref": "#/components/schemas/IdNullable"}}},
-      "Leido": {"type": "object", "additionalProperties": false, "required": ["ultimo_leido_mensaje_id"], "properties": {"ultimo_leido_mensaje_id": {"$ref": "#/components/schemas/Id"}}},
-      "Error": {"type": "object", "description": "detail/code o errores por campo; sin SQL, rutas privadas ni contenido. Conflictos: idempotencia_conflictiva, mensaje_caducado, estado_incompatible."}
+      "Id": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 1,
+        "maximum": 9223372036854776000
+      },
+      "IdNullable": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "int64",
+        "minimum": 1
+      },
+      "UUID": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$"
+      },
+      "Texto": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000,
+        "description": "Unicode NFC trim, sin controles/surrogates. Texto plano, nunca HTML ejecutable"
+      },
+      "Usuario": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "nombre",
+          "rol"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "rol": {
+            "enum": [
+              "GERENCIA",
+              "ADMINISTRATIVO_FINANZAS",
+              "SUPERVISOR_OBRAS",
+              "TECNICO",
+              "ADMINISTRADOR_TI",
+              "BODEGUERO"
+            ]
+          }
+        }
+      },
+      "CrearDirecta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tipo",
+          "destinatario",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "tipo": {
+            "const": "DIRECTA"
+          },
+          "destinatario": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "CrearGrupo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tipo",
+          "titulo",
+          "participantes",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "tipo": {
+            "const": "GRUPAL"
+          },
+          "titulo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "participantes": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 19,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "Conversacion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tipo",
+          "titulo",
+          "creador",
+          "creado_en",
+          "no_leidos",
+          "ultimo_mensaje"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "tipo": {
+            "enum": [
+              "DIRECTA",
+              "GRUPAL"
+            ]
+          },
+          "titulo": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "creador": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "no_leidos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ultimo_mensaje": {
+            "$ref": "#/components/schemas/VistaPrevia"
+          }
+        }
+      },
+      "Detalle": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tipo",
+          "titulo",
+          "creador",
+          "creado_en",
+          "no_leidos",
+          "participantes",
+          "ultimo_leido_mensaje_id",
+          "ultimo_mensaje"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "tipo": {
+            "enum": [
+              "DIRECTA",
+              "GRUPAL"
+            ]
+          },
+          "titulo": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "creador": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "no_leidos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "participantes": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/Usuario"
+            }
+          },
+          "ultimo_leido_mensaje_id": {
+            "$ref": "#/components/schemas/IdNullable"
+          },
+          "ultimo_mensaje": {
+            "$ref": "#/components/schemas/VistaPrevia"
+          }
+        }
+      },
+      "PublicarTexto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "texto",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "texto": {
+            "$ref": "#/components/schemas/Texto"
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "Archivo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "nombre",
+          "mime",
+          "tamano_bytes"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "mime": {
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "application/pdf"
+            ]
+          },
+          "tamano_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8388608
+          }
+        }
+      },
+      "Mensaje": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "conversacion",
+          "autor",
+          "texto",
+          "creado_en",
+          "vence_en",
+          "archivo",
+          "clave_idempotencia"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "conversacion": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "autor": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "texto": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vence_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archivo": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Archivo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clave_idempotencia": {
+            "$ref": "#/components/schemas/UUID"
+          }
+        }
+      },
+      "PaginaUsuarios": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Usuario"
+            }
+          }
+        }
+      },
+      "PaginaConversaciones": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Conversacion"
+            }
+          }
+        }
+      },
+      "Historial": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "results",
+          "siguiente_antes_id"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Mensaje"
+            }
+          },
+          "siguiente_antes_id": {
+            "$ref": "#/components/schemas/IdNullable"
+          }
+        }
+      },
+      "Leido": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ultimo_leido_mensaje_id"
+        ],
+        "properties": {
+          "ultimo_leido_mensaje_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "detail/code o errores por campo; sin SQL, rutas privadas ni contenido. Conflictos: idempotencia_conflictiva, mensaje_caducado, estado_incompatible."
+      },
+      "VistaPrevia": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "autor",
+          "texto",
+          "creado_en",
+          "vence_en"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "autor": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "texto": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Primeros 120 caracteres del mensaje vigente; vacío si solo contiene adjunto."
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vence_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
     },
     "responses": {
-      "Directorio": {"description": "Directorio mínimo elegible", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaUsuarios"}}}},
-      "Conversaciones": {"description": "Scope SQL propio", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginaConversaciones"}}}},
-      "Conversacion": {"description": "Conversación nueva o existente, metadata actual", "headers": {"Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Conversacion"}}}},
-      "Detalle": {"description": "Ficha y miembros autorizados", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}},
-      "Historial": {"description": "Cursor estable de mensajes vigentes", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Historial"}}}},
-      "Mensaje": {"description": "Mensaje original confirmado o replay vigente", "headers": {"Idempotency-Replayed": {"$ref": "#/components/headers/Replay"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Mensaje"}}}},
-      "Leido": {"description": "Watermark monotónico propio", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Leido"}}}},
-      "Error": {"description": "Error controlado: datos 400, sesión 401, scope/inexistencia/caducidad 404, método 405, conflicto 409, tamaño 413, disponibilidad 503. Nunca detalles internos.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
-      "Limite": {"description": "Límite técnico por usuario/IP, también entre procesos; reintentar tras Retry-After", "headers": {"Retry-After": {"schema": {"type": "integer", "minimum": 1}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+      "Directorio": {
+        "description": "Directorio mínimo elegible",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PaginaUsuarios"
+            }
+          }
+        }
+      },
+      "Conversaciones": {
+        "description": "Scope SQL propio",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PaginaConversaciones"
+            }
+          }
+        }
+      },
+      "Conversacion": {
+        "description": "Conversación nueva o existente, metadata actual",
+        "headers": {
+          "Idempotency-Replayed": {
+            "$ref": "#/components/headers/Replay"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Conversacion"
+            }
+          }
+        }
+      },
+      "Detalle": {
+        "description": "Ficha y miembros autorizados",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Detalle"
+            }
+          }
+        }
+      },
+      "Historial": {
+        "description": "Cursor estable de mensajes vigentes",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Historial"
+            }
+          }
+        }
+      },
+      "Mensaje": {
+        "description": "Mensaje original confirmado o replay vigente",
+        "headers": {
+          "Idempotency-Replayed": {
+            "$ref": "#/components/headers/Replay"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Mensaje"
+            }
+          }
+        }
+      },
+      "Leido": {
+        "description": "Watermark monotónico propio",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Leido"
+            }
+          }
+        }
+      },
+      "Error": {
+        "description": "Error controlado: datos 400, sesión 401, scope/inexistencia/caducidad 404, método 405, conflicto 409, tamaño 413, disponibilidad 503. Nunca detalles internos.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Limite": {
+        "description": "Límite técnico por usuario/IP, también entre procesos; reintentar tras Retry-After",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
     }
   }
 }

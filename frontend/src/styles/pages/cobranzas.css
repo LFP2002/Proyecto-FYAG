@@ -1,1 +1,247 @@
-/* Los estilos de esta página ya están cubiertos por dashboard.css, ui.css y presupuestos.css */
+/* Cobranzas: presentación compacta, sin alterar los contratos financieros. */
+.commercial-page.cobranzas-page { max-width:none; margin-inline:auto; display:flex; flex-direction:column; gap:16px; }
+.cobranzas-page > * { margin-bottom:0 !important; min-width:0; }
+.commercial-page.cobranzas-page .page-head { display:flex; flex-direction:row; justify-content:space-between; align-items:center; margin:0; flex-wrap:wrap; gap:12px; }
+.commercial-page.cobranzas-page .page-head > .d-flex { margin-inline-start:auto; }
+.cobranzas-page .page-head h1 { margin:0; font-size:1.75rem; font-weight:700; letter-spacing:-.015em; color:var(--fyag-primary); }
+.cobranzas-page .page-head .sub { margin:4px 0 0; color:var(--fyag-muted); }
+.cobranzas-refresh,.cobranzas-panel-actions .btn { display:inline-flex; align-items:center; gap:6px; }
+.cobranzas-tabs { display:flex; flex-wrap:wrap; gap:18px; border-bottom:1px solid var(--fyag-line); }
+.cobranzas-tabs button { background:transparent; border:0; border-bottom:3px solid transparent; padding:10px 2px; color:var(--fyag-muted); font:inherit; font-weight:600; min-height:44px; }
+.cobranzas-tabs button[aria-pressed=true] { color:var(--fyag-primary-light); border-bottom-color:var(--fyag-primary-light); }
+.cobranzas-view { display:flex; flex-direction:column; gap:14px; min-width:0; }
+.cobranzas-page [hidden] { display:none !important; }
+.cobranzas-panel-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; padding:12px 16px; }
+.cobranzas-panel-head h2 { margin:0; color:var(--fyag-primary); font-size:1rem; font-weight:700; }
+.cobranzas-panel-head p { margin:3px 0 0; font-size:.75rem; color:var(--fyag-muted); }
+.cobranzas-panel-actions,.cobranzas-filter-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.cobranzas-filtros { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr)); gap:12px; padding:14px 16px; background:#f8fafc; border-top:1px solid var(--fyag-line); border-bottom:1px solid var(--fyag-line); }
+.cobranzas-filtros .form-label { display:flex; flex-direction:column; gap:5px; margin:0; font-size:.75rem; font-weight:600; color:var(--fyag-text); min-width:0; }
+.cobranzas-filtros :is(.form-control,.form-select) { min-height:40px; min-width:0; width:100%; border-radius:6px; font-size:.875rem; font-weight:400; }
+.cobranzas-filtros > p,.cobranzas-filter-actions { grid-column:1/-1; margin:0; }
+.cobranzas-filter-actions { justify-content:flex-end; }
+.cobranzas-page .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr)); gap:10px; margin:0; }
+.cobranzas-page .kpi { min-width:0; background:#fff; border:1px solid var(--fyag-line); border-radius:9px; padding:12px 14px; }
+.cobranzas-page .kpi-l { font-size:.75rem; font-weight:600; text-transform:none; letter-spacing:0; color:var(--fyag-muted); }
+.cobranzas-page .kpi-v { margin-top:5px; font-size:1.375rem; font-weight:700; letter-spacing:-.015em; font-variant-numeric:tabular-nums; color:var(--fyag-primary); overflow-wrap:anywhere; }
+.cobranzas-page .kpi-alert .kpi-v { color:#b42318; }
+.cobranzas-page .card-fyag { border-radius:9px; box-shadow:0 1px 2px #1428460d; }
+.cobranzas-page .table-responsive { max-width:100%; }
+.cobranzas-page .commercial-table th { background:#f6f9fc; color:var(--fyag-muted); font-size:.75rem; font-weight:600; letter-spacing:0; text-transform:none; padding:10px; white-space:nowrap; }
+.cobranzas-page .commercial-table td { padding:10px; font-size:.8125rem; }
+.cobranzas-page .commercial-table td:first-child .btn-link { font-weight:600; text-decoration:none; }
+.cobranzas-page #cobranzas-cartera .commercial-table th:nth-child(n+6):nth-child(-n+10) { text-align:right; }
+.cobranzas-page .commercial-table td.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.cobranzas-page .commercial-table td.saldo { font-weight:600; }
+.cobranzas-page .commercial-empty { display:flex; flex-direction:column; align-items:center; gap:5px; margin:0; padding:30px 16px; text-align:center; color:var(--fyag-muted); font-size:.8125rem; }
+.cobranzas-page .commercial-empty strong { color:var(--fyag-primary); font-size:.9375rem; }
+.cobranzas-estado { display:inline-flex; padding:3px 9px; border-radius:6px; font-size:.75rem; font-weight:500; background:#eef1f4; color:#4b5563; }
+.cobranzas-estado[data-estado="PARCIAL"] { background:#fdeedd; color:#8a4a07; }
+.cobranzas-estado[data-estado="PAGADA"] { background:#e3f4ea; color:#14633a; }
+.cobranzas-estado[data-estado="VENCIDA"] { background:#fde8e8; color:#9b1c1c; }
+.cobranzas-estado[data-estado="PENDIENTE"] { background:#e4eefb; color:#1b4f8f; }
+.cobranzas-page .commercial-pager { font-size:.8125rem; color:var(--fyag-muted); flex-wrap:wrap; }
+.cobranzas-page .commercial-pager .btn { min-height:36px; padding:0 12px; border-radius:6px; font-weight:600; }
+.cobranzas-page .commercial-pager .btn:disabled { background:#f6f9fc; border-color:var(--fyag-line); color:#6b7785; opacity:1; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] { margin:0 !important; padding:16px !important; display:flex; flex-direction:column; gap:14px; min-width:0; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] h3 { margin:0; font-size:1.125rem; font-weight:700; color:var(--fyag-primary); }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] > .d-flex > .d-flex { flex-wrap:wrap; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] .btn { min-height:36px; padding:6px 12px; border-radius:6px; font-size:.8125rem; font-weight:600; }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] .btn-outline-secondary { background:#fff; border-color:#c3cfdb; color:var(--fyag-primary-light); }
+.cobranzas-page section[aria-label="Administración de documentos financieros"] > form { margin:0 !important; }
+.cobranzas-page form[aria-label="Consulta del estado financiero de una obra"] { display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; padding:12px; border:1px solid var(--fyag-line); border-radius:8px; background:#f8fafc; }
+.cobranzas-page form[aria-label="Consulta del estado financiero de una obra"] .form-label { display:flex; flex-direction:column; gap:5px; margin:0; flex:0 1 290px; min-width:0; font-size:.8125rem; font-weight:600; color:var(--fyag-text); }
+.cobranzas-page form[aria-label="Consulta del estado financiero de una obra"] .btn-outline-secondary { background:var(--fyag-primary-light); border-color:var(--fyag-primary-light); color:#fff; margin:0 !important; min-height:38px; }
+.cobranzas-page form[aria-label="Consulta del estado financiero de una obra"] p { flex:1 0 100%; margin:0; font-size:.75rem; line-height:1.5; color:var(--fyag-muted); }
+.cobranzas-page .commercial-help { margin:0; font-size:.75rem; line-height:1.5; color:var(--fyag-muted); }
+@media(max-width:600px) {
+  .cobranzas-page .kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .cobranzas-page .kpi:last-child { grid-column:1/-1; }
+  .cobranzas-page .kpi { padding:10px; }
+  .cobranzas-page .cobranzas-tabs { gap:12px; }
+  .cobranzas-page form[aria-label="Consulta del estado financiero de una obra"] .form-label { flex-basis:100%; }
+}
+
+/* Detalle financiero: una sección visible a la vez, con actividad legible. */
+.cobranzas-estado[data-estado="REVERTIDO"] { background:#fbe9e5; color:#9a352a; }
+.cobranzas-estado[data-estado="VIGENTE"] { background:#e3f4ea; color:#14633a; }
+.finance-detail { display:flex; flex-direction:column; gap:12px; min-width:0; }
+.finance-detail-toolbar,.finance-detail-title,.finance-history-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+.finance-detail-toolbar .btn { display:inline-flex; align-items:center; gap:6px; min-height:36px; }
+.finance-detail-title { justify-content:flex-start; }
+.finance-detail-title h2 { margin:0; font-size:1.55rem; font-weight:700; color:var(--fyag-primary); }
+.finance-detail-sub { margin:0; color:var(--fyag-muted); overflow-wrap:anywhere; }
+.finance-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr)); gap:16px; padding:18px; margin:0; }
+.finance-summary > div { min-width:0; }
+.finance-summary dt { color:var(--fyag-muted); font-size:.8125rem; font-weight:500; }
+.finance-summary dd { margin:5px 0 8px; font-weight:600; overflow-wrap:anywhere; }
+.finance-summary dd.finance-amount { font-size:1.5rem; font-variant-numeric:tabular-nums; color:var(--fyag-primary); }
+.finance-summary small { color:var(--fyag-muted); }
+.finance-detail .finance-tab-content { padding:18px; min-width:0; }
+.finance-detail [hidden] { display:none !important; }
+.finance-detail h4 { font-size:1rem; font-weight:700; color:var(--fyag-primary); margin:0 0 12px; }
+.finance-history-head { margin-bottom:16px; }
+.finance-history-head h4 { margin:0; }
+.finance-history-head > span,.finance-event-meta { font-size:.8125rem; color:var(--fyag-muted); }
+.finance-timeline { list-style:none; margin:0; padding:0 0 0 7px; }
+.finance-timeline li { position:relative; border-left:2px solid #d9e2ec; padding:0 0 22px 20px; overflow-wrap:anywhere; }
+.finance-timeline li:last-child { padding-bottom:0; }
+.finance-timeline li::before { content:""; position:absolute; left:-6px; top:5px; width:10px; height:10px; border-radius:50%; background:#388267; box-shadow:0 0 0 3px #fff; }
+.finance-timeline li[data-type="DOCUMENTO_REVERTIDO"]::before,.finance-timeline li[data-type="PAGO_ANULADO"]::before { background:#b84b3f; }
+.finance-event-meta { margin-top:4px; }
+.finance-event-reason { margin-top:9px; background:#f5f7fa; border-radius:6px; padding:10px 12px; color:var(--fyag-text); }
+.finance-event-reason p { margin:4px 0 0; white-space:pre-wrap; }
+.finance-empty { display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; color:var(--fyag-muted); padding:28px 10px; }
+.finance-empty strong { color:var(--fyag-primary); }
+.finance-payments { list-style:none; margin:0; padding:0; }
+.finance-payments li { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:12px 0; border-bottom:1px solid var(--fyag-line); }
+.finance-payments li > div { flex:1 1 180px; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.finance-payments li > div span { color:var(--fyag-muted); font-size:.8125rem; }
+.finance-detail .commercial-form { margin:0 0 18px; }
+.finance-detail .finance-correction { margin:18px 0 0; padding:14px; border:1px solid #e3b3af; border-radius:8px; background:#fffafa; }
+.finance-detail .finance-correction .form-label { display:block; max-width:100%; margin-bottom:10px; }
+@media(max-width:600px) { .finance-summary { padding:12px; gap:12px; } .finance-detail .finance-tab-content { padding:12px; } }
+
+/* Supervisión gerencial, misma escala y distribución de Obras y Presupuestos. */
+.manager-cobranzas .portfolio-green { --tone:#20AC73; }
+.manager-cobranzas .portfolio-kpi small,.manager-cob-amount small { font-size:.8125rem; color:var(--fyag-muted); }
+.manager-cobranzas .portfolio-kpi strong,.manager-cob-amount strong { overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.manager-cob-amount { display:flex; flex-direction:column; gap:3px; text-align:right; min-width:0; }
+.manager-cob-amount strong { color:var(--fyag-primary); font-size:1.15rem; }
+.manager-cobranzas .commercial-donut-layout { max-width:620px; }
+.manager-cobranzas .commercial-acceptance-legend { max-width:300px; flex-basis:210px; }
+.manager-cobranzas .commercial-acceptance-legend strong { overflow-wrap:anywhere; }
+.manager-cobranzas .manager-budget-back { display:inline-flex; align-items:center; gap:7px; background:transparent; border:0; color:var(--fyag-primary-light); padding:6px 0; min-height:36px; font:inherit; font-weight:600; }
+.manager-cobranzas .manager-budget-back:hover { text-decoration:underline; }
+.manager-cobranzas .manager-facts { margin:0; }
+.manager-cobranzas .manager-work-tabs button[aria-pressed=true] { opacity:1; }
+.manager-cobranzas .portfolio-context span { overflow-wrap:anywhere; }
+
+/* Listado gerencial compacto, sin limitar el ancho del módulo. */
+.manager-cobranzas #manager-cob-list { scroll-margin-top:16px; }
+.manager-cobranzas .manager-cob-filter-toggle { display:inline-flex; gap:6px; align-items:center; min-height:36px; }
+.manager-cobranzas .manager-cob-filter-form { margin:0; padding:12px; background:#f6f9fc; border:1px solid var(--fyag-line); border-radius:8px; }
+.manager-cobranzas .manager-cob-applied { overflow-wrap:anywhere; }
+.manager-cob-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.875rem; }
+.manager-cob-table th { padding:10px 12px; background:#f6f9fc; color:var(--fyag-muted); font-size:.8125rem; font-weight:600; text-align:left; }
+.manager-cob-table th:nth-child(1) { width:47%; }
+.manager-cob-table th:nth-child(2) { width:27%; }
+.manager-cob-table th:nth-child(3) { width:auto; }
+.manager-cob-table th:last-child { width:54px; }
+.manager-cob-table td { padding:13px 12px; border-bottom:1px solid var(--fyag-line); vertical-align:middle; overflow-wrap:anywhere; }
+.manager-cob-table tbody tr:last-child td { border-bottom:0; }
+.manager-cob-table tbody tr:hover { background:#f8fafc; }
+.manager-cob-client,.manager-cob-title { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.manager-cob-client strong { color:var(--fyag-primary); font-weight:600; }
+.manager-cob-meta { margin-top:3px; font-size:.8125rem; color:var(--fyag-muted); }
+.manager-cob-late { color:#a62631; font-weight:600; }
+.manager-cob-table .manager-cob-num,.manager-cob-action { text-align:right; }
+.manager-cob-num strong { font-variant-numeric:tabular-nums; color:var(--fyag-primary); }
+.manager-cob-detail { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--fyag-line); border-radius:7px; background:#fff; color:var(--fyag-primary-light); }
+.manager-cob-detail:hover { background:#e4eefb; }
+.manager-cob-detail:focus-visible,.manager-cobranzas #manager-cob-list:focus-visible { outline:2px solid #3478DC; outline-offset:2px; }
+.manager-cob-progress { display:flex; flex-direction:column; gap:10px; padding:14px 16px; }
+.manager-cob-progress-head,.manager-cob-progress-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:center; }
+.manager-cob-progress-head h2 { font-size:1rem; margin:0; font-weight:700; }
+.manager-cob-progress-head strong { color:var(--fyag-primary); font-variant-numeric:tabular-nums; }
+.manager-cob-progress-track { height:10px; border-radius:5px; background:#ECA321; overflow:hidden; }
+.manager-cob-progress-track.is-overdue { background:#E34D59; }
+.manager-cob-progress-track span { display:block; background:#20AC73; height:100%; }
+.manager-cob-progress-legend { font-size:.8125rem; color:var(--fyag-muted); }
+@media(max-width:700px) {
+ .manager-cob-table,.manager-cob-table tbody { display:block; }
+ .manager-cob-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .manager-cob-table tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 36px; gap:6px 8px; padding:12px 0; border-bottom:1px solid var(--fyag-line); }
+ .manager-cob-table tr:last-child { border:0; }
+ .manager-cob-table td { display:block; padding:0; border:0; }
+ .manager-cob-table td:first-child { grid-column:1/-1; }
+ .manager-cob-table td:nth-child(2) { align-self:center; }
+ .manager-cob-table td:nth-child(2):not(:has(.manager-cob-late))::before { content:"Vencimiento"; display:block; color:var(--fyag-muted); font-size:.75rem; }
+ .manager-cob-action { align-self:center; }
+}
+
+/* Finanzas: foco en saldo, lectura compacta y acciones contextuales. */
+.cobranzas-operativas .cobranzas-search-form {padding:12px 16px; border-top:1px solid var(--fyag-line);}
+.cobranzas-operativas .cobranzas-search {display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.cobranzas-operativas .cobranzas-search label {margin:0;flex:1 1 160px;min-width:0;font-size:.8125rem;font-weight:600;}
+.cobranzas-operativas .cobranzas-search label:first-child {flex:3 1 250px;}
+.cobranzas-operativas .cobranzas-search label input,.cobranzas-operativas .cobranzas-search label select {margin-top:5px;}
+.cobranzas-operativas .cobranzas-search button {display:inline-flex;gap:6px;align-items:center;}
+.cobranzas-operativas .cobranzas-filtros {margin-top:12px;padding:12px 0 0;background:transparent;}
+.cobranzas-operativas [hidden] {display:none!important;}
+.cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table :is(th,td):nth-child(n+3):nth-child(-n+5) {text-align:right;}
+/* Alineación explícita de encabezados y celdas, incluidos estilos globales de tablas. */
+.cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table :is(th,td):nth-child(6) {text-align:center!important;white-space:nowrap;}
+.cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table :is(th,td):nth-child(7) {text-align:left!important;width:1%;}
+.cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table td:first-child .btn-link {min-height:0;line-height:1.5;}
+.cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table td:nth-child(7) .cobranzas-row-actions {justify-content:flex-start;min-width:220px;flex-wrap:nowrap;}
+@media(max-width:767.98px) {
+  .cobranzas-operativas #cobranzas-cartera .cobranzas-operational-table td:nth-child(7) .cobranzas-row-actions {min-width:0;flex-wrap:wrap;}
+}
+.cobranzas-operativas .cobranzas-client {display:block;margin:3px 0;overflow-wrap:anywhere;}
+.cobranzas-operativas .cobranzas-row-actions {display:flex;gap:6px;flex-wrap:wrap;}
+.cobranzas-operativas .saldo[data-overdue=true] {color:#b42318;}
+.cobranzas-operativas .finance-detail {
+  /* Los márgenes automáticos en un hijo flex eliminan el estiramiento implícito. */
+  width:100%;max-width:none;min-width:0;align-self:stretch;margin-inline:0;box-sizing:border-box;
+  container-type:inline-size;
+}
+.cobranzas-operativas .finance-detail > :is(.finance-summary,.finance-tabs,.finance-tab-content,.finance-detail-toolbar) {width:100%;min-width:0;box-sizing:border-box;}
+.cobranzas-operativas .finance-detail .finance-tab-content {min-height:220px;}
+.cobranzas-operativas .finance-register-form {max-width:780px;width:100%;margin:12px auto 18px!important;border:1px solid var(--fyag-line);border-radius:8px;padding:16px;background:var(--fyag-bg);}
+.cobranzas-operativas .finance-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start;margin-top:14px;}
+.cobranzas-operativas .finance-fields .form-label {margin:0;min-width:0;}
+.cobranzas-operativas .finance-fields .form-control,.cobranzas-operativas .finance-fields .form-select {margin-top:5px;}
+.cobranzas-operativas .finance-full {grid-column:1/-1;}
+.cobranzas-operativas .finance-form-footer {display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;}
+.cobranzas-operativas .finance-search-row {display:flex;align-items:center;gap:8px;max-width:780px;}
+.cobranzas-operativas .finance-search-row input {flex:1;min-width:0;}
+.cobranzas-operativas .finance-detail .finance-empty {padding:18px 10px;}
+.cobranzas-operativas .finance-detail .finance-correction {background:var(--fyag-bg);}
+.cobranzas-operativas .finance-detail .finance-summary {grid-template-columns:repeat(5,minmax(0,1fr));align-items:start;}
+@container (max-width: 890px) {
+  .cobranzas-operativas .finance-detail .finance-summary {grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@container (max-width: 540px) {
+  .cobranzas-operativas .finance-detail .finance-summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .cobranzas-operativas .finance-detail .finance-tab-content {min-height:0;}
+}
+@container (max-width: 320px) {
+  .cobranzas-operativas .finance-detail .finance-summary {grid-template-columns:minmax(0,1fr);}
+}
+.cobranzas-operativas .finance-tab-content section[aria-label="Respaldos documentales del documento financiero"] {width:100%;max-width:none;margin:0;}
+@media(max-width:600px){.cobranzas-operativas .finance-fields{grid-template-columns:1fr;}.cobranzas-operativas .finance-register-form{padding:12px;}.cobranzas-operativas .cobranzas-search label{flex-basis:100%!important;}.cobranzas-operativas .finance-search-row{flex-wrap:wrap;}.cobranzas-operativas .finance-form-footer>.btn{flex:1 1 auto;}}
+
+
+/* Detalle AF: una superficie por pestaña, sin tarjetas anidadas. */
+.cobranzas-operativas .finance-payments-heading {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+.cobranzas-operativas .finance-payments-heading h4 {margin:0;}
+.cobranzas-operativas .finance-detail .finance-register-form {
+  max-width:none;width:100%;margin:0 0 20px!important;padding:16px 0 20px;
+  background:transparent;border:0;border-bottom:1px solid var(--fyag-line);border-radius:0;box-shadow:none;
+}
+.cobranzas-operativas .finance-detail .finance-register-form h4 {margin:0 0 6px;}
+.cobranzas-operativas .finance-detail .finance-register-form .finance-fields {grid-template-columns:repeat(4,minmax(0,1fr));}
+.cobranzas-operativas .finance-detail .finance-correction {
+  background:transparent;border:0;border-top:1px solid var(--fyag-line);
+  border-radius:0;padding:18px 0 0;margin:18px 0 0!important;
+}
+.cobranzas-operativas .finance-reversal-action {display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--fyag-line);}
+.cobranzas-operativas .finance-reversal-action p {margin:0;}
+.cobranzas-operativas .finance-payments-list {min-width:0;}
+.cobranzas-operativas .finance-payments li:last-child {border-bottom:0;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form {
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 12px;margin:16px 0 20px!important;
+  padding:0 0 16px;border-bottom:1px solid var(--fyag-line);
+}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > :is(label,p) {grid-column:1/-1;margin:0;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > button {margin-top:0!important;align-self:stretch;}
+.cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form > input {min-width:0;width:100%;}
+@container (max-width: 950px) {
+  .cobranzas-operativas .finance-detail .finance-register-form .finance-fields {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@container (max-width: 540px) {
+  .cobranzas-operativas .finance-detail .finance-register-form .finance-fields,
+  .cobranzas-operativas .finance-tab-content .attachments-panel > form.commercial-form {grid-template-columns:minmax(0,1fr);}
+  .cobranzas-operativas .finance-reversal-action {justify-content:flex-start;}
+}

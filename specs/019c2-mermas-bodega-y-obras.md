@@ -129,3 +129,19 @@ El usuario aprobó explícitamente:
 Se adopta como decisión técnica complementaria de mínima segregación de funciones para MB que **Bodeguero reporta y Administrativo/Finanzas aprueba o rechaza**, manteniendo Gerencia en solo lectura. El diseño prioriza invariantes de entrega/retorno y control económico: cualquier conflicto con los contratos existentes se debe **reportar a ChatGPT sin cambiar esta SPEC**.
 
 La aprobación de este documento autoriza exclusivamente preparar implementación backend mediante PR y controles CI posteriores; no equivale a producción autorizada. La auditoría integral final de FYAG Beta queda programada para cuando concluyan las funcionalidades del backend.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- `frontend/src/pages/Mermas.jsx` expone la presentación por ámbito y conserva la matriz del contrato: Bodeguero informa mermas de Bodega; Técnico informa mermas de Obra; Administrativo/Finanzas decide Bodega y Supervisor de Obras decide Obra. El Técnico no recibe campos monetarios.
+- La vista mapea códigos API a etiquetas en español solo para presentar, mantiene payloads con códigos originales y ofrece filtros, formulario, detalle, historial y paginación. Se añadió `frontend/src/styles/pages/mermas.css`, enlazado desde `main.jsx`.
+- Test de contrato existente `tests/inventory-actions.test.js` comprueba scope, paginación y ocultación de importes a Técnico. Estado local de frontend; no implica cambios backend, CI completa, merge ni despliegue.
+
+## Vista operativa de Finanzas — 26-11-2026
+
+- GET de mermas-bodega (listado y detalle) admite vista=finanzas exclusivamente AF. Sin el parámetro, contratos y roles anteriores intactos. En listado, buscar por nombre/código (máximo 150 caracteres), filtros originales, orden reciente primero y 25 por página. Incluye identidad y nombres actuales de responsables (no instantáneas históricas) sin reemplazar IDs de auditoría.
+- Resumen global de Bodega: pendientes, aprobadas, rechazadas y pérdida neta acumulada (sumatoria de importes históricos por merma aprobada, redondeados según el dominio). No incluye pendientes/rechazadas ni representa pagos. Los agregados son lecturas del estado actual, no cierre contable.
+- Pantalla AF independiente a ancho completo, estados vacíos, filtros, revisión contextual y decisiones explícitas con motivo. POST original sin cambios; validación de stock, corte, artículo y valoración permanece en backend. La escritura no es automática; ante incertidumbre, congelar datos y UUID, reconsultar o repetir únicamente la misma solicitud. Confirmación por GET de detalle. No se muestran pérdidas estimadas como reales.
+- OpenAPI SPEC-019C-2-v1.json actualizado y pruebas dirigidas añadidas. Ejecución local y validación visual pendientes. Sin merge.
+
+## Anexo — Bandeja de revisión del Supervisor
+GET `/api/inventario/mermas-supervisor/` (estado, tipo, buscar, page) y GET `/api/inventario/mermas-supervisor/{id}/`, exclusivos de SUPERVISOR_OBRAS y ámbito OBRA. Contadores globales por estado, nombres actuales y datos de reporte; detalle con entrega original, devoluciones confirmadas, mermas aprobadas y remanente consultivo (entregado menos devuelto y aprobado), importe informativo no aditivo e historial. No reserva ni modifica stock/costos. POST de decisión 019C-2 intacto, revalida condiciones bajo bloqueo. Los valores de consulta no garantizan aprobación.

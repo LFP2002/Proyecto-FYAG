@@ -1,0 +1,21 @@
+# SPEC-019D — Consulta operativa de Bodega
+
+## Alcance y seguridad
+Nueva consulta GET /api/inventario/bodega/ exclusiva de BODEGUERO activo con sesión operativa. No amplía acceso a obras, usuarios ni información financiera; solo proyecta nombres actuales de artículos, código de obra de operaciones ya visibles, alias/nombre laboral del actor y cantidades físicas. No proyecta costos, saldos valorados, precios, UUID ajenos, clientes ni datos privados. Respuesta private, no-store. Sin migraciones. Las rutas de escritura 019A/B permanecen intactas.
+
+## Contrato
+- seccion=resumen (por defecto): cuatro conteos globales y hasta cinco registros por lista. Materiales registrados incluye inactivos; sin_stock solo activos con saldo cero. Entregas/devoluciones pendientes cuentan autorizaciones con remanente positivo y obra operativa (EN_PROCESO/SUSPENDIDA), aunque estén bloqueadas por stock/valoración. Las listas son muestras, no totales.
+- seccion=inventario: página 25, orden nombre e ID, búsqueda parcial por código/nombre, estado activo/inactivo, stock con_stock/sin_stock. Saldo nulo significa indisponible; no se convierte en cero.
+- seccion=movimientos: página 25, orden fecha e ID descendentes; buscar, articulo, tipo, desde/hasta civiles inclusivos.
+- seccion=entregas/devoluciones: vista pendientes (remanente positivo y obra operativa), historial (ejecuciones físicas) o autorizaciones (todas). buscar admite nombre/código de material, código exacto OB-... o referencia. Remanente de despacho = autorización menos ejecuciones; remanente de devolución reutiliza proyección 019C-2 con mermas aprobadas. maximo limita por saldo físico o capacidad y bloqueos conocidos de obra/artículo/valoración. Es una lectura orientativa, no reserva ni garantía de escritura. El servicio 019B revalida bajo locks.
+- seccion=confirmacion: tipo INGRESO/ENTREGA/DEVOLUCION y clave UUID canónica; devuelve ID del registro propio o null. No consulta actos de otros actores. No crea registros. Un null no prueba que una solicitud en vuelo no vaya a completarse; el cliente solo permite reenvío explícito con la misma clave y el mismo payload. Ante 409 definitivo y ausencia de registro puede descartar. Altas de artículo no se reenvían automáticamente.
+
+## Interfaz
+Menú separado de resumen, inventario, movimientos, entregas, devoluciones, mermas y chat. Las cinco primeras vistas comparten instancia para conservar filtros y el formulario. Ficha de artículo e historial; acciones de ingreso, alta/edición y despacho/recepción en pantallas independientes. Despacho y recepción se abren desde autorización, no desde un ID manual. Formato CLP civil y cantidades chilenas sin pérdida de tres decimales (BigInt en el cliente). No hay sumas de cantidades heterogéneas ni indicadores económicos. Se bloquea navegación interna mientras hay escritura o intención incierta; la salida de sesión/cierre del navegador no persiste intenciones localmente. Recuperación de artículo no idempotente exige revisar listado. Bootstrap Icons v1.13.1 MIT, CSS responsive y variables de tema. Mermas y chat no cambian; otros roles conservan sus componentes.
+
+## Verificación
+Pruebas dirigidas de permisos, proyección, remanentes, bloqueos, confirmación y búsqueda; pruebas de navegación, cantidades y recorrido de despacho. Validar suite inventario y frontend, compilación y recorrido real en ambos temas. No se afirma ejecución local.
+
+## Anexo 1.1 — Mermas de Bodega
+
+Secciones de lectura `mermas` (paginada, fecha e ID descendentes; buscar por nombre/código, estado y tipo) y `merma_detalle` (merma ID requerido, sin página). Reutilizan el alcance de consultas_mermas para BODEGA y la autorización exclusiva de BODEGUERO. Proyectan nombre y código actuales del artículo, unidad histórica, cantidades, motivo, referencia, estado, fecha, identidad actual de informante/decisor y eventos en detalle. No devuelven costos ni claves de terceros. La confirmación admite tipo MERMA y retorna únicamente el ID propio o null. La declaración conserva POST /api/inventario/mermas-bodega/ y el UUID original ante incertidumbre; la aprobación sigue reservada a Finanzas y no se realiza desde Bodega. Sin migraciones ni cambios en las rutas anteriores. OpenAPI 1.1.0.

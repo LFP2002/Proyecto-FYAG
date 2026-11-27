@@ -23,6 +23,22 @@ class CobranzasTests(PagosBase, TestCase):
             fecha_emision=(hoy_santiago() - timedelta(days=5)).isoformat(),
             fecha_vencimiento=(hoy_santiago() - timedelta(days=1) if vencido else hoy_santiago()).isoformat()), self.finanzas)
 
+    def test_busqueda_global_coincide_con_totales(self):
+        otro = self.nuevo_documento("90009")
+        for term in (self.doc.folio_externo, self.obra.codigo):
+            listado = self.client.get("/api/finanzas/cobranzas/", {"buscar": term})
+            resumen = self.client.get("/api/finanzas/cobranzas/resumen/", {"buscar": term})
+            self.assertEqual(listado.status_code, 200, listado.data)
+            self.assertEqual(resumen.status_code, 200, resumen.data)
+            self.assertEqual([row["id"] for row in listado.data["results"]], [self.doc.pk])
+            self.assertEqual(resumen.data["documentos"], 1)
+            self.assertEqual(resumen.data["saldo_total"], "2180.35")
+        self.assertEqual(self.client.get("/api/finanzas/cobranzas/", {"buscar": self.cliente.nombre_legal}).data["count"], 2)
+        self.assertEqual(self.client.get("/api/finanzas/documentos/", {"buscar": otro.folio_externo}).data["count"], 1)
+        for path in ("/api/finanzas/cobranzas/", "/api/finanzas/cobranzas/resumen/", "/api/finanzas/documentos/", "/api/finanzas/obras-elegibles/"):
+            for query in ("?buscar=", "?buscar=a&buscar=b", "?buscar=" + "x"*151):
+                self.assertEqual(self.client.get(path+query).status_code, 400)
+
     def test_estados_agregados_sin_joins_duplicados(self):
         parcial = self.nuevo_documento("20002")
         pagada = self.nuevo_documento("30003")

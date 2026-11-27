@@ -74,6 +74,7 @@ test('Cobranzas, Reportes y 012A navegan URL absoluta autorizada reconstruyendo 
       if (url.pathname === '/api/finanzas/documentos/') return { count: 0, next: null, previous: null, results: [] };
       if (url.pathname === '/api/finanzas/cobranzas/resumen/') return { moneda: 'CLP', documentos: 26, conteos: { PENDIENTE: 26, PARCIAL: 0, PAGADA: 0, VENCIDA: 0 }, monto_documentado_total: '2600.00', abonado_total: '0.00', saldo_total: '2600.00', saldo_vencido: '0.00' };
       if (url.pathname === '/api/finanzas/cobranzas/') return absolutePage(Array.from({ length: 26 }, (_, i) => financialDocument(i + 1, i + 7)), url);
+      if (url.pathname === '/api/clientes/') return [{id:15,nombre_legal:'Cliente sintético'}];
       if (url.pathname === '/api/reportes/catalogo/') return { moneda: 'CLP', zona_horaria: 'America/Santiago', formatos: ['csv'], reportes: [{ tipo: 'cobranzas', titulo: 'Cobranzas', filtros: ['cliente'], formatos: ['csv'] }] };
       if (url.pathname === '/api/reportes/cobranzas/') {
         const row = { documento: 1, obra: 7, codigo_obra: 'OB-7', cliente: 15, cliente_nombre: 'Cliente sintético', tipo_documento: 'FACTURA_EXENTA', folio_externo: '001', fecha_emision: '2026-11-10', fecha_vencimiento: '2026-11-30', moneda: 'CLP', monto_documentado_bruto: '100.00', abonado: '0.00', saldo: '100.00', estado_cobranza: 'PENDIENTE' };
@@ -86,10 +87,16 @@ test('Cobranzas, Reportes y 012A navegan URL absoluta autorizada reconstruyendo 
     const renderer = await mount(Page, request, module === 'metadata' ? 'GERENCIA' : 'ADMINISTRATIVO_FINANZAS', { obraId: 7 });
     try {
       const root = renderer.root;
-      if (module !== 'metadata') {
-        const label = module === 'cobranzas' ? 'Cliente ID' : 'ID de cliente';
+      if (module === 'reportes') {
+        const toggle=root.findAllByType('button').find(b=>text(b)==='Filtros');
+        await act(async()=>{toggle.props.onClick();await flush();});
+        await act(async()=>{root.findByProps({id:'report-cliente'}).props.onChange({target:{value:'15'}});await flush();});
+        await act(async()=>{root.findByProps({id:'report-filters'}).props.onSubmit({preventDefault(){}});await flush();});
+      } else if (module === 'cobranzas') {
+        const label = 'Buscar factura';
         const field = root.findAllByType('label').find((node) => node.children[0] === label).findByType('input');
-        await act(async () => { field.props.onChange({ target: { value: module === 'cobranzas' ? '3' : '15' } }); await flush(); });
+        await act(async () => { field.props.onChange({ target: { value: module === 'cobranzas' ? 'Cliente sintético' : '15' } }); await flush(); });
+        if(module==='cobranzas')await act(async()=>{root.findByProps({'aria-label':'Filtros de cobranzas'}).props.onSubmit({preventDefault(){}});await flush();});
       }
       const label = module === 'cobranzas' ? 'Paginación de cobranzas' : module === 'reportes' ? 'Paginación del reporte cobranzas' : 'Paginación de metadatos';
       const next = root.findByProps({ 'aria-label': label }).findAllByType('button').find((button) => text(button) === 'Siguiente');
@@ -98,14 +105,14 @@ test('Cobranzas, Reportes y 012A navegan URL absoluta autorizada reconstruyendo 
       const route = module === 'cobranzas' ? '/api/finanzas/cobranzas/' : module === 'reportes' ? '/api/reportes/cobranzas/' : '/api/documentos-metadata/';
       const last = calls.filter((path) => new URL(path, API).pathname === route).at(-1), query = new URL(last, API).searchParams;
       assert.ok(last.startsWith('/api/')); assert.equal(query.get('page'), '2');
-      assert.equal(query.get(module === 'metadata' ? 'obra' : 'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? '3' : '7');
+      assert.equal(query.get(module === 'metadata' ? 'obra' : module==='cobranzas'?'buscar':'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? 'Cliente sintético' : '7');
       assert.ok(calls.every((path) => path.startsWith('/api/')), 'No se sigue ninguna URL absoluta del servidor');
       const previous = root.findByProps({ 'aria-label': label }).findAllByType('button').find((button) => text(button) === 'Anterior');
       assert.equal(previous.props.disabled, false);
       await act(async () => { previous.props.onClick(); await flush(); });
       const back = new URL(calls.filter((path) => new URL(path, API).pathname === route).at(-1), API).searchParams;
       assert.equal(back.get('page') || '1', '1');
-      assert.equal(back.get(module === 'metadata' ? 'obra' : 'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? '3' : '7');
+      assert.equal(back.get(module === 'metadata' ? 'obra' : module==='cobranzas'?'buscar':'cliente'), module === 'reportes' ? '15' : module === 'cobranzas' ? 'Cliente sintético' : '7');
     } finally { await act(async () => renderer.unmount()); }
   }
 });

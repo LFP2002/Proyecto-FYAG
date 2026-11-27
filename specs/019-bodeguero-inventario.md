@@ -120,3 +120,9 @@ Bajo `/api/inventario/`, JWT/CSRF y convenciones DRF vigentes:
 4. **SPEC de comunicación interna**: chat entre cuentas con adjuntos e higiene de retención/seguridad; no se añade chat accidentalmente a Inventario.
 
 **Regla de ejecución:** iniciar implementación solo en rama propia después de revisar las decisiones del bloque correspondiente. No extrapolar las decisiones de 019A a presupuestos, costos o producción.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- La integración local añadió `frontend/src/pages/Inventario.jsx` y `frontend/src/integrations/InventoryActions.jsx` para consultar artículos, existencias, movimientos y ejecutar las operaciones 019A/019B que el backend ya permite. El Bodeguero no ve proyecciones de costo; los permisos y el contrato del backend siguen siendo autoridad.
+- Las pruebas locales de `frontend/tests/inventory-actions.test.js` comprueban scopes, paginación, filtros, claves de idempotencia, payloads decimales y ausencia de datos económicos para Bodeguero.
+- Esto describe la UI del worktree; no implica autorización de la propuesta backend 019A/019B, cambios de backend, merge o despliegue.

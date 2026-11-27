@@ -1,0 +1,296 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Supervisión gerencial de obras",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/obras/supervision-gerencial/": {
+      "get": {
+        "summary": "Consultar cartera gerencial de obras",
+        "description": "Exclusivo GERENCIA. Resumen global independiente de filtros; resultados priorizados y paginados (25). Cifras netas CLP; no representan avance físico. La lectura no constituye un cierre transaccional.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PLANIFICADA",
+                "EN_PROCESO",
+                "SUSPENDIDA",
+                "FINALIZADA",
+                "CANCELADA"
+              ]
+            }
+          },
+          {
+            "name": "atencion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "todas",
+                "requiere",
+                "sin_alertas"
+              ],
+              "default": "todas"
+            }
+          },
+          {
+            "name": "prioridad",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sin_programar",
+                "presupuesto_superado",
+                "suspendidas"
+              ]
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cartera y resumen global",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cartera"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Obra": {
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "cliente_nombre",
+          "categoria_nombre",
+          "tecnico_nombre",
+          "estado",
+          "fecha_programada",
+          "presupuesto_neto",
+          "costo_total",
+          "diferencia_neta",
+          "porcentaje_utilizado",
+          "costos_provisionales",
+          "sin_cobro",
+          "alertas",
+          "nivel"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "cliente_nombre": {
+            "type": "string"
+          },
+          "categoria_nombre": {
+            "type": "string"
+          },
+          "tecnico_nombre": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PLANIFICADA",
+              "EN_PROCESO",
+              "SUSPENDIDA",
+              "FINALIZADA",
+              "CANCELADA"
+            ]
+          },
+          "fecha_programada": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "presupuesto_neto": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+          },
+          "costo_total": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+          },
+          "diferencia_neta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+\\.[0-9]{2}$"
+          },
+          "porcentaje_utilizado": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+\\.[0-9]$"
+          },
+          "costos_provisionales": {
+            "type": "boolean"
+          },
+          "sin_cobro": {
+            "type": "boolean"
+          },
+          "alertas": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PRESUPUESTO_SUPERADO",
+                "SUSPENDIDA",
+                "SIN_PROGRAMAR",
+                "SIN_RESPONSABLE",
+                "CIERRE_NO_DISPONIBLE"
+              ]
+            }
+          },
+          "nivel": {
+            "type": "string",
+            "enum": [
+              "critica",
+              "atencion",
+              "normal"
+            ]
+          }
+        }
+      },
+      "Resumen": {
+        "type": "object",
+        "required": [
+          "total",
+          "en_ejecucion",
+          "sin_programar",
+          "presupuesto_superado",
+          "suspendidas",
+          "requieren_atencion"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "en_ejecucion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sin_programar": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "presupuesto_superado": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "suspendidas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requieren_atencion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Cartera": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results",
+          "resumen"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/Obra"
+            }
+          },
+          "resumen": {
+            "$ref": "#/components/schemas/Resumen"
+          }
+        }
+      }
+    }
+  }
+}

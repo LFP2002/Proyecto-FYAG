@@ -9,7 +9,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 const profile = { id: 7, username: 'TI', email: 'ti@example.test', first_name: '', last_name: '', rol: 'ADMINISTRADOR_TI', is_active: true, date_joined: '2026-11-11T12:00:00Z' };
 
 test('TI es quinto rol conocido, único administrador; proyección no revela permisos heredados', () => {
-  assert.equal(USER_ROLES.length, 5);
+  assert.equal(USER_ROLES.length, 6);
   for (const role of USER_ROLES) assert.equal(canManageUsers(role), role === 'ADMINISTRADOR_TI');
   assert.deepEqual(readUser({ ...profile, password: 'no-mostrar', sesion_version: 9, is_superuser: true }), profile);
   assert.throws(() => readUser({ ...profile, rol: 'ROOT' }), { status: 502 });
@@ -19,14 +19,17 @@ test('TI es quinto rol conocido, único administrador; proyección no revela per
   assert.equal(usersPath(2, { rol: 'ADMINISTRADOR_TI', activo: 'true' }), '/api/usuarios/?page=2&rol=ADMINISTRADOR_TI&activo=true');
 });
 
-test('auditoría filtra secretos y vacía snapshots de contraseñas aun si servidor entrega extras', () => {
-  const data = { count: 2, next: null, previous: null, results: [
+test('auditoría acepta eventos de credenciales temporales y filtra snapshots secretos', () => {
+  const data = { count: 5, next: null, previous: null, results: [
     { id: 1, tipo: 'EDICION', actor: 7, motivo: '', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: { username: 'Alias', password: 'secreto', is_active: 'true' } },
     { id: 2, tipo: 'ESTABLECER_CLAVE', actor: 7, motivo: '', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: { username: 'no-mostrar', password: 'secreto' } },
+    { id: 3, tipo: 'CREACION_CREDENCIAL_TEMPORAL', actor: 7, motivo: '', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: { password: 'secreto' } },
+    { id: 4, tipo: 'REEMISION', actor: 7, motivo: '', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: { password: 'secreto' } },
+    { id: 5, tipo: 'CAMBIO_INICIAL', actor: 7, motivo: '', creado_en: '2026-11-11T12:00:00Z', datos_nuevos: { password: 'secreto' } },
   ] };
   const history = readHistory(data, 7);
   assert.deepEqual(history.results[0].datos_nuevos, { username: 'Alias' });
-  assert.deepEqual(history.results[1].datos_nuevos, {});
+  assert.deepEqual(history.results.slice(1).map((event) => event.datos_nuevos), [{}, {}, {}, {}]);
   assert.doesNotMatch(JSON.stringify(history), /secreto|no-mostrar/);
   assert.throws(() => readHistory({ count: 1, results: [{}] }, 7), { status: 502 });
 });
@@ -73,4 +76,11 @@ test('errores Usuarios públicos por campo y conflicto; no filtra trazas ni secr
     assert.deepEqual(e.fieldErrors, { email: ['Correo duplicado.'], password: ['Contraseña demasiado corta.'] });
     return true;
   });
+});
+
+test('TI contrato de búsqueda, resumen y proyección de credenciales',()=>{
+ assert.equal(usersPath(1,{buscar:'Nombre Apellido',resumen:true}),'/api/usuarios/?page=1&buscar=Nombre+Apellido&resumen=true');
+ assert.throws(()=>usersPath(1,{buscar:'x'.repeat(151)}),{status:400});
+ assert.equal(readUser({...profile,estado_credencial:'INICIAL',cambio_obligatorio:true}).estado_credencial,'INICIAL');
+ assert.throws(()=>readUser({...profile,estado_credencial:'PERSONAL',cambio_obligatorio:true}),{status:502});
 });

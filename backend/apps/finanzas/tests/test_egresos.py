@@ -168,6 +168,24 @@ class EgresosAPITests(EgresosBase, TestCase):
                 self.assertEqual(r.status_code, 201, r.data)
                 self.assertEqual(r.data['fecha_pago'], fecha_local)
 
+    def test_busqueda_y_resumen_global_excluyen_anulados(self):
+        for _ in range(27):
+            self.crear_egreso()
+        otro = self.crear_egreso(concepto="Otro pago", beneficiario="Otro comercio", obra=self.obra.pk)
+        anulado = Egreso.objects.exclude(pk=otro.pk).first()
+        services.anular_egreso(anulado.pk, {"motivo": "Error", "referencia_correccion": "R"}, self.finanzas)
+        filtros = {"buscar": "COMERCIO DE EJEMPLO", "resumen": "true"}
+        r = self.client.get(URL, filtros)
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual((r.data["count"], len(r.data["results"])), (27, 25))
+        self.assertEqual(r.data["resumen"], {"moneda": "CLP", "total": "2606.50", "pagos": 26})
+        self.assertEqual(self.client.get(r.data["next"]).data["resumen"], r.data["resumen"])
+        self.assertEqual(self.client.get(URL, {**filtros, "activo": "false"}).data["resumen"]["total"], "0.00")
+        self.assertEqual(self.client.get(URL, {"buscar": self.obra.codigo}).data["count"], 1)
+        self.assertNotIn("resumen", self.client.get(URL).data)
+        for q in ("?buscar=%20", "?buscar=" + "x"*101, "?buscar=a&buscar=b", "?resumen=false"):
+            self.assertEqual(self.client.get(URL+q).status_code, 400)
+
     def test_paginacion_orden_filtros_y_lecturas_sin_escrituras(self):
         for _ in range(27):
             self.crear_egreso()

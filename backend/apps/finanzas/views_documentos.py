@@ -1,6 +1,6 @@
 import re
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
@@ -31,6 +31,22 @@ def query_estricta(params, allowed=()):
         errors["page"] = "Página entera positiva requerida."
     if errors:
         raise ValidationError(errors)
+
+
+def filtrar_busqueda(qs, params, *, obras=False):
+    if "buscar" not in params:
+        return qs
+    term = params["buscar"].strip()
+    if not term or len(term) > 150 or any(ord(c) < 32 for c in term):
+        raise ValidationError({"buscar": "Búsqueda no válida."})
+    prefix = "" if obras else "obra__"
+    criteria = Q(**{prefix + "presupuesto__cliente__nombre_legal__icontains": term})
+    if not obras:
+        criteria |= Q(folio_externo__icontains=term)
+    match = re.fullmatch(r"OB-([0-9]{1,19})", term.upper())
+    if match and 0 < int(match[1]) <= 9223372036854775807:
+        criteria |= Q(**{("pk" if obras else "obra_id"): int(match[1])})
+    return qs.filter(criteria)
 
 
 class FinanzasPaginacion(PageNumberPagination):
@@ -65,8 +81,8 @@ class DocumentoViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
 
     def list(self, request):
         params = request.query_params
-        query_estricta(params, {"estado", "tipo_documento", "obra", "cliente", "fecha_emision_desde", "fecha_emision_hasta"})
-        qs = self.get_queryset()
+        query_estricta(params, {"estado", "tipo_documento", "obra", "cliente", "fecha_emision_desde", "fecha_emision_hasta", "buscar"})
+        qs = filtrar_busqueda(self.get_queryset(), params)
         for field, choices in [("estado", DocumentoCobro.Estado.values), ("tipo_documento", DocumentoCobro.Tipo.values)]:
             if field in params:
                 if params[field] not in choices:
@@ -110,13 +126,14 @@ class ObrasElegiblesView(APIView):
     solo_finanzas = True
 
     def get(self, request):
-        query_estricta(request.query_params)
+        query_estricta(request.query_params, {"buscar"})
         qs = obras_lectura().filter(estado="FINALIZADA", presupuesto__estado="APROBADO_CLIENTE").annotate(
             tiene_cierre=Exists(CierreCostosObra.objects.filter(obra_id=OuterRef("pk"))),
             tiene_documento=Exists(DocumentoCobro.objects.filter(obra_id=OuterRef("pk"), estado="VIGENTE")),
             tiene_sin_cobro=Exists(CierreSinCobro.objects.filter(obra_id=OuterRef("pk"))),
             tiene_cortesia=Exists(CortesiaObra.objects.filter(obra_id=OuterRef("pk"), tipo="SIN_COBRO")),
         ).filter(tiene_cierre=True, tiene_documento=False, tiene_sin_cobro=False, tiene_cortesia=False).order_by("-finalizado_en", "-id")
+        qs = filtrar_busqueda(qs, request.query_params, obras=True)
         paginator = FinanzasPaginacion()
         page = paginator.paginate_queryset(qs, request, view=self)
         return paginator.get_paginated_response(OrigenFinancieroSerializer(page, many=True).data)

@@ -1,0 +1,249 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Supervisión gerencial de cobranzas",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/finanzas/cobranzas/supervision-gerencial/": {
+      "get": {
+        "summary": "Consultar cartera gerencial",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vista",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "atencion",
+                "vigentes",
+                "documentos"
+              ],
+              "default": "atencion"
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cartera y resumen de documentos vigentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results",
+                    "resumen"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "folio",
+                          "cliente",
+                          "obra",
+                          "emision",
+                          "vencimiento",
+                          "total",
+                          "cobrado",
+                          "saldo",
+                          "estado",
+                          "dias_atraso"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "folio": {
+                            "type": "string"
+                          },
+                          "cliente": {
+                            "type": "string"
+                          },
+                          "obra": {
+                            "type": "string"
+                          },
+                          "emision": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "vencimiento": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "total": {
+                            "type": "string",
+                            "pattern": "^[0-9]+\\.[0-9]{2}$"
+                          },
+                          "cobrado": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "pattern": "^[0-9]+\\.[0-9]{2}$"
+                          },
+                          "saldo": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "pattern": "^[0-9]+\\.[0-9]{2}$"
+                          },
+                          "estado": {
+                            "type": "string",
+                            "enum": [
+                              "VENCIDA",
+                              "PARCIAL",
+                              "PENDIENTE",
+                              "PAGADA",
+                              "REVERTIDO"
+                            ]
+                          },
+                          "dias_atraso": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      }
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "required": [
+                        "moneda",
+                        "documentos",
+                        "clientes_vencidos",
+                        "total",
+                        "cobrado",
+                        "saldo",
+                        "vencido",
+                        "no_vencido",
+                        "fecha_corte"
+                      ],
+                      "properties": {
+                        "moneda": {
+                          "const": "CLP"
+                        },
+                        "documentos": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "clientes_vencidos": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "total": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "cobrado": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "saldo": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "vencido": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "no_vencido": {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{2}$"
+                        },
+                        "fecha_corte": {
+                          "type": "string",
+                          "format": "date"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página inexistente"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

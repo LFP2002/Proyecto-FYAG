@@ -23,7 +23,7 @@ class AuditoriaTests(AuditoriaBase, TestCase):
         self.preparar_auditoria()
 
     def test_ocho_fuentes_con_esquema_exacto_y_ids_de_origen(self):
-        campos = {"id", "evento_id", "fuente", "modulo", "recurso_tipo", "recurso_id", "tipo", "actor", "actor_etiqueta", "motivo", "creado_en", "datos_anteriores", "datos_nuevos"}
+        campos = {"id", "evento_id", "fuente", "modulo", "recurso_tipo", "recurso_id", "tipo", "actor", "actor_etiqueta", "actor_username", "actor_identidad_origen", "motivo", "creado_en", "datos_anteriores", "datos_nuevos"}
         for name in FUENTES:
             self.autenticar(self.ti if name == "USUARIO_EVENTO" else self.gerencia)
             result = self.client.get(URL, {"fuente": name})
@@ -35,6 +35,9 @@ class AuditoriaTests(AuditoriaBase, TestCase):
                 self.assertEqual(event["id"], f"{name}:{event['evento_id']}")
                 self.assertEqual(event["fuente"], name)
                 self.assertIsInstance(event["recurso_id"], int)
+                self.assertEqual(event["actor_identidad_origen"], "HISTORICA")
+                self.assertTrue(event["actor_username"])
+                self.assertTrue(event["actor_etiqueta"])
 
     def test_presupuesto_deriva_tipo_y_estados_sin_atributo_tipo(self):
         result = self.client.get(URL, {"fuente": "PRESUPUESTO_EVENTO"})
@@ -121,17 +124,57 @@ class AuditoriaTests(AuditoriaBase, TestCase):
         row = next(e for e in result.data["results"] if e["evento_id"] == evento.pk)
         self.assertEqual(row["datos_nuevos"], {"monto": "1.20", "activo": True})
 
-    def test_actor_inactivo_conserva_id_etiqueta_solo_si_autorizada(self):
+    def test_identidad_historica_no_cambia_por_renombre_o_inactividad(self):
+        fuente = FUENTES["FINANZAS_EVENTO"]
+        self.finanzas.first_name, self.finanzas.last_name = "Camila", "Hernández"
+        self.finanzas.save()
+        event = fuente.modelo.objects.create(pago=self.pago, tipo="PAGO_REGISTRADO", actor=self.finanzas,
+                                              datos_nuevos={"monto": "1.00", "activo": True})
+        username = self.finanzas.username
+        self.finanzas.first_name, self.finanzas.last_name = "Nombre", "Actual"
+        self.finanzas.username = "alias_actual"
         self.finanzas.is_active = False
         self.finanzas.save()
-        result = self.client.get(URL, {"fuente": "FINANZAS_EVENTO"})
-        self.assertTrue(all(e["actor"] == self.finanzas.pk and e["actor_etiqueta"] is None for e in result.data["results"]))
-        self.ti.first_name, self.ti.last_name = "Nombre", "Laboral"
-        self.ti.save()
-        self.autenticar(self.ti)
-        result = self.client.get(URL)
-        self.assertTrue(all(e["actor_etiqueta"] == "Nombre Laboral" for e in result.data["results"]))
-        self.assertNotIn(self.ti.email, str(result.data["results"][0].get("actor_etiqueta")))
+        result = self.client.get(URL, {"fuente": fuente.nombre})
+        self.assertEqual(result.status_code, 200, result.data)
+        row = next(e for e in result.data["results"] if e["evento_id"] == event.pk)
+        self.assertEqual(row["actor"], self.finanzas.pk)
+        self.assertEqual(row["actor_etiqueta"], "Camila Hernández")
+        self.assertEqual(row["actor_username"], username)
+        self.assertEqual(row["actor_identidad_origen"], "HISTORICA")
+        self.assertNotIn(self.finanzas.email, str(row))
+        self.assertEqual(self.client.get(URL, {"fuente": "USUARIO_EVENTO"}).status_code, 403)
+
+    def test_identidad_legada_actual_sin_reescritura_y_alias_si_no_hay_nombre(self):
+        from apps.auditoria.serializers import normalizar_evento
+        fuente = FUENTES["FINANZAS_EVENTO"]
+        event = fuente.modelo.objects.first()
+        self.finanzas.first_name, self.finanzas.last_name = "", ""
+        self.finanzas.save()
+        row = fuente.modelo.objects.filter(pk=event.pk).values(*fuente.columnas()).get()
+        # Proyección de una fila legada: las nuevas columnas son NULL.
+        row["actor_nombre_historico"] = row["actor_username_historico"] = None
+        projected = normalizar_evento(fuente, row, "GERENCIA")
+        self.assertEqual(projected["actor_identidad_origen"], "ACTUAL")
+        self.assertEqual(projected["actor_etiqueta"], self.finanzas.username)
+        self.assertEqual(projected["actor_username"], self.finanzas.username)
+        self.finanzas.first_name = "Camila"
+        self.finanzas.last_name = "Hernández"
+        self.finanzas.save()
+        row = fuente.modelo.objects.filter(pk=event.pk).values(*fuente.columnas()).get()
+        row["actor_nombre_historico"] = row["actor_username_historico"] = None
+        self.assertEqual(normalizar_evento(fuente, row, "GERENCIA")["actor_etiqueta"], "Camila Hernández")
+        event.refresh_from_db()
+        self.assertIsNotNone(event.actor_username_historico)
+
+    def test_identidad_no_editable_incluso_por_update_directo(self):
+        from django.db import transaction, IntegrityError
+        fuente = FUENTES["FINANZAS_EVENTO"]
+        event = fuente.modelo.objects.first()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            models.QuerySet(model=fuente.modelo).filter(pk=event.pk).update(actor_username_historico="otra_identidad")
+        event.refresh_from_db()
+        self.assertEqual(event.actor_username_historico, self.finanzas.username)
 
     def test_filtros_actor_recurso_inexistente_uniformes_y_tipo_literal(self):
         for query in [{"actor": "9223372036854775807"}, {"recurso_tipo": "OBRA", "recurso_id": "9223372036854775807"}]:

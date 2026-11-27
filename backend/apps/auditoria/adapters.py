@@ -54,15 +54,16 @@ class Fuente:
             return qs.filter(creado_en__lte=fecha)
         return qs.filter(Q(creado_en__lt=fecha) | Q(creado_en=fecha, pk__lt=pk))
 
-    def columnas(self, etiqueta=False):
+    def columnas(self):
         fields = ["id", "creado_en", "motivo", self.actor, *[col for _, col in self.recursos]]
         if self.modelo is PresupuestoEvento:
             fields += ["estado_anterior", "estado_nuevo"]
         else:
             fields += ["tipo", "datos_anteriores", "datos_nuevos"]
-        if etiqueta:
-            relation = self.actor.removesuffix("_id")
-            fields += [f"{relation}__first_name", f"{relation}__last_name", f"{relation}__username"]
+        # La atribución se limita a actores de los eventos ya autorizados.
+        relation = self.actor.removesuffix("_id")
+        fields += ["actor_nombre_historico", "actor_username_historico",
+                   f"{relation}__first_name", f"{relation}__last_name", f"{relation}__username"]
         return fields
 
     def tipo(self, row):

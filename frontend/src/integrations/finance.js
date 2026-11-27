@@ -61,8 +61,8 @@ export function financialState(value, obra) {
       || (value.estado_financiero === 'SIN_COBRO') !== (value.cierre_sin_cobro !== null)) invalid();
   return value;
 }
-export function financialPage(value, path, project) {
-  return { ...readPage(value, path), results: value.results.map(project) };
+export function financialPage(value, path, project, filters = null) {
+  return { ...readPage(value, path, 25, filters), results: value.results.map(project) };
 }
 export const safeFinancialId = (value) => /^[1-9][0-9]*$/.test(String(value)) && positiveInteger(Number(value));
 export function canRegisterWithoutCharge(state) {

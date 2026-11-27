@@ -35,6 +35,6 @@ export default function NewObra({ onClose, onCreated }) {
     <div className="commercial-section-head"><h2>Nueva obra</h2><RefreshButton label="Reconsultar opciones" busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /></div>
     <Feedback api={api} />
     <ObraFields form={form} setForm={setForm} errors={errors} disabled={api.busy} refreshKey={revision} />
-    <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy || api.locked} type="submit">{api.busy ? 'Guardando…' : 'Crear obra'}</button><button className="btn btn-outline-secondary" disabled={api.busy} type="button" onClick={onClose}>Cancelar</button></div>
+    <div className="commercial-form-actions"><button className="btn btn-fyag-primary" disabled={api.busy || api.locked} type="submit">{api.busy ? 'Guardando…' : 'Crear obra'}</button><button className="btn btn-outline-secondary" disabled={api.busy||api.locked} type="button" onClick={onClose}>Cancelar</button></div>
   </form>;
 }

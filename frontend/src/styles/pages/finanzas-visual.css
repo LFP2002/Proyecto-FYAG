@@ -1,0 +1,36 @@
+/* Colores semánticos exclusivos de Finanzas. */
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] {
+  --af-danger-ink: #b34747;
+  --af-warning-ink: #966319;
+  --af-success-ink: #287751;
+  --af-change-bg: #e4eef8;
+  --af-change-ink: #325b80;
+  --af-change-note: #48647e;
+  --af-table-head: #edf2f7;
+}
+:root[data-fyag-theme='dark'][data-fyag-role='ADMINISTRATIVO_FINANZAS'] {
+  --af-danger-ink: #ea9691;
+  --af-warning-ink: #e7b66b;
+  --af-success-ink: #83d3ad;
+  --af-change-bg: #30465b;
+  --af-change-ink: #d2e4f5;
+  --af-change-note: #b8cce1;
+  --af-table-head: #273747;
+}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .audit-finance .audit-critical {
+  color:var(--af-danger-ink)!important;
+}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .audit-finance :is(.audit-results,.audit-comparison) thead th {
+  background-color:var(--af-table-head);
+  box-shadow:inset 0 0 0 9999px var(--af-table-head);
+  color:var(--fyag-text);
+}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .audit-finance .audit-comparison :is(.audit-changed,.audit-added) td:last-child {
+  background-color:var(--af-change-bg);
+  box-shadow:inset 0 0 0 9999px var(--af-change-bg);
+  color:var(--af-change-ink);
+}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .audit-finance .audit-change-label {color:var(--af-change-note);}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .finance-inventory :is(.if-negative,.if-stock-state.empty,.if-metric[data-tone='danger'] strong,.if-metric[data-tone='danger'] svg) {color:var(--af-danger-ink);}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .finance-inventory :is(.if-metric[data-tone='warning'] strong,.if-metric[data-tone='warning'] svg) {color:var(--af-warning-ink);}
+:root[data-fyag-role='ADMINISTRATIVO_FINANZAS'] .finance-inventory .if-positive {color:var(--af-success-ink);}

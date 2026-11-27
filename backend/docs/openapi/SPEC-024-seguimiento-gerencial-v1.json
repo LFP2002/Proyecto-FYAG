@@ -1,0 +1,419 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Seguimiento comercial gerencial",
+    "version": "1.1.0",
+    "description": "Neto por presupuesto o estado: null si hay precios pendientes. sin_precio cuenta los presupuestos afectados en cada estado."
+  },
+  "paths": {
+    "/api/presupuestos/seguimiento-comercial/": {
+      "get": {
+        "summary": "Consultar cartera de presupuestos (solo GERENCIA)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "BORRADOR",
+                "PENDIENTE_FINANZAS",
+                "APROBADO_FINANZAS",
+                "RECHAZADO_FINANZAS",
+                "ENVIADO_CLIENTE",
+                "APROBADO_CLIENTE",
+                "RECHAZADO_CLIENTE",
+                "ANULADO"
+              ]
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "sin_actualizar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultados y resumen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results",
+                    "resumen"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "codigo",
+                          "cliente_nombre",
+                          "descripcion",
+                          "estado",
+                          "estado_original",
+                          "monto_neto",
+                          "creado_en",
+                          "actualizado_en",
+                          "sin_actualizar"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "codigo": {
+                            "type": "string"
+                          },
+                          "cliente_nombre": {
+                            "type": "string"
+                          },
+                          "descripcion": {
+                            "type": "string"
+                          },
+                          "estado": {
+                            "type": "string",
+                            "enum": [
+                              "BORRADOR",
+                              "PENDIENTE_FINANZAS",
+                              "APROBADO_FINANZAS",
+                              "RECHAZADO_FINANZAS",
+                              "ENVIADO_CLIENTE",
+                              "APROBADO_CLIENTE",
+                              "RECHAZADO_CLIENTE",
+                              "ANULADO"
+                            ]
+                          },
+                          "estado_original": {
+                            "type": "string",
+                            "enum": [
+                              "BORRADOR",
+                              "PENDIENTE_FINANZAS",
+                              "APROBADO_FINANZAS",
+                              "RECHAZADO_FINANZAS",
+                              "ENVIADO_CLIENTE",
+                              "APROBADO_CLIENTE",
+                              "RECHAZADO_CLIENTE",
+                              "ANULADO",
+                              "PENDIENTE_GERENCIA",
+                              "APROBADO_GERENCIA",
+                              "RECHAZADO_GERENCIA"
+                            ]
+                          },
+                           "monto_neto": {
+                             "type": ["string", "null"],
+                            "pattern": "^[0-9]+\\.[0-9]{2}$"
+                          },
+                          "creado_en": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "actualizado_en": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "sin_actualizar": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "required": [
+                        "total",
+                        "sin_actualizar",
+                        "dias_sin_actualizar",
+                        "respuestas_cliente",
+                        "tasa_aceptacion",
+                        "estados"
+                      ],
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "sin_actualizar": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "dias_sin_actualizar": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "respuestas_cliente": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "tasa_aceptacion": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "estados": {
+                          "type": "object",
+                          "required": [
+                            "BORRADOR",
+                            "PENDIENTE_FINANZAS",
+                            "APROBADO_FINANZAS",
+                            "RECHAZADO_FINANZAS",
+                            "ENVIADO_CLIENTE",
+                            "APROBADO_CLIENTE",
+                            "RECHAZADO_CLIENTE",
+                            "ANULADO"
+                          ],
+                          "properties": {
+                             "BORRADOR": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "PENDIENTE_FINANZAS": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "APROBADO_FINANZAS": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "RECHAZADO_FINANZAS": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "ENVIADO_CLIENTE": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "APROBADO_CLIENTE": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "RECHAZADO_CLIENTE": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            },
+                             "ANULADO": {
+                               "type": "object",
+                               "required": [
+                                 "cantidad",
+                                 "sin_precio",
+                                 "monto_neto"
+                              ],
+                              "properties": {
+                                "cantidad": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                 "sin_precio": {"type":"integer","minimum":0},
+                                 "monto_neto": {
+                                   "type": ["string", "null"],
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "Sin sesión"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

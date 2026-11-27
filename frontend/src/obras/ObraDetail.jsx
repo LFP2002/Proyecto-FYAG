@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import {useApp} from '../context/AppContext.jsx';
+import {SupervisorEmpty} from './SupervisorCostReview.jsx';
+import MaterialPlan from './MaterialPlan.jsx';
 import { useAuth } from '../auth/AuthContext';
 import { Chip } from '../components/ui';
 import { collectionPath, memberPath, obraPath, readPage } from './api.js';
@@ -9,16 +12,26 @@ import Turnos from './Turnos.jsx';
 import Costos from './Costos.jsx';
 import EvidenceMetadata from '../integrations/EvidenceMetadata.jsx';
 import Adjuntos from '../integrations/Adjuntos.jsx';
+import TecIcon from './TecIcon.jsx';
+import { civilDate, civilTime } from './tecnicoDomain.js';
 
 export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   const { user } = useAuth(), api = useOperational();
   const [obra, setObra] = useState(null), [tab, setTab] = useState(initialTab), [form, setForm] = useState(null), [errors, setErrors] = useState({});
+  const [operationalChildLocked,setChildLocked]=useState(false),[evidenceLocked,setEvidenceLocked]=useState(false),[documentsRefreshing,setDocumentsRefreshing]=useState(false);
+  const evidenceRefresh=useRef(null),attachmentsRefresh=useRef(null),documentsPending=useRef(false);
+  const childLocked=operationalChildLocked||evidenceLocked||documentsRefreshing;
+  const suspensionDialog=useRef(null);
+  const suspensionOpen=form?.type==='suspender';
+  useEffect(()=>{if(!suspensionOpen)return;const dialog=suspensionDialog.current;if(dialog&&!dialog.open)dialog.showModal();return()=>{if(dialog?.open)dialog.close();};},[suspensionOpen]);
+  const supervisor=user.role===S,app=useApp();
+  useEffect(()=>{if(!supervisor)return;app?.setNavigationBlocked?.(api.busy||api.locked||childLocked);return()=>app?.setNavigationBlocked?.(false);},[supervisor,api.busy,api.locked,childLocked,app?.setNavigationBlocked]);
   const [members, setMembers] = useState(null), [memberPage, setMemberPage] = useState(1), [active, setActive] = useState('');
   const [history, setHistory] = useState(null), [historyPage, setHistoryPage] = useState(1);
   const [memberHistory, setMemberHistory] = useState(null), [memberHistoryPage, setMemberHistoryPage] = useState(1);
   const base = obraPath(id), team = canReadTeam(user.role), editable = obra && canEditObra(user.role, obra.estado);
-  const disabled = api.busy || api.loading || api.locked;
-  const readDetail = () => { setObra(null); return api.load('detail', base, (result) => setObra(projectObra(result, user.role))); };
+  const disabled = api.busy || api.loading || api.locked || childLocked;
+  const readDetail = (clear=true) => { if(clear)setObra(null); return api.load('detail', base, (result) => setObra(projectObra(result, user.role))); };
   const readMembers = () => api.load('members', collectionPath(`${base}participantes/`, memberPage, { activo: active }), (result) => setMembers(readPage(result, `${base}participantes/`)));
   const readHistory = () => api.load('history', collectionPath(`${base}historial/`, historyPage), (result) => setHistory(readPage(result, `${base}historial/`)));
   const readMemberHistory = () => api.load('memberHistory', collectionPath(`${base}participantes/historial/`, memberHistoryPage), (result) => setMemberHistory(readPage(result, `${base}participantes/historial/`)));
@@ -33,9 +46,20 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
   useEffect(() => { if (team && tab === 'historial') { setHistory(null); void readHistory(); } }, [tab, historyPage]);
   useEffect(() => { if (team && tab === 'historial') { setMemberHistory(null); void readMemberHistory(); } }, [tab, memberHistoryPage]);
   async function reconcile() {
-    const results = [await readDetail()];
+    const results = [await readDetail(!suspensionOpen)];
     if (team) results.push(await readMembers(), await readHistory(), await readMemberHistory());
     return results.every(Boolean);
+  }
+  async function refreshCurrent() {
+    if(!supervisor||tab!=='documentos')return api.reconcile(reconcile);
+    if(documentsPending.current||childLocked||api.busy||api.loading)return;
+    documentsPending.current=true;setDocumentsRefreshing(true);
+    try{
+      return await api.reconcile(async()=>{
+        const results=await Promise.all([readDetail(false),evidenceRefresh.current?.(),attachmentsRefresh.current?.()]);
+        return results.every(value=>value===true);
+      });
+    }finally{documentsPending.current=false;setDocumentsRefreshing(false);}
   }
   async function afterWrite() {
     await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role)));
@@ -71,17 +95,35 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
     const cambioResponsable = type === 'cambiar-tecnico' && payload.tecnico_responsable !== obra.tecnico_responsable;
     const avisoRelevo = cambioResponsable
       ? `¿Cambiar responsable en ${obra.codigo}?\n\n${obra.tecnico_responsable ? 'El responsable anterior dejará de ser participante activo de esta obra. ' : ''}${payload.tecnico_responsable ? 'El nuevo responsable quedará activo, incluso si fue desasignado anteriormente.' : 'La obra planificada quedará sin responsable.'}\n\n¿Deseas continuar?`
-      : `¿${actionLabels[type]} en ${obra.codigo}?`;
+      : type==='suspender'?`¿Estás seguro de suspender ${obra.codigo}?\n\nLa ejecución quedará suspendida y la decisión se registrará en el historial. Podrás reanudar la obra posteriormente. No se permite suspender con turnos abiertos.`:`¿${actionLabels[type]} en ${obra.codigo}?`;
     if (['desasignar', 'cambiar-tecnico', 'suspender'].includes(type) && !window.confirm(avisoRelevo)) return;
     await api.write(path, method, payload, afterWrite);
   }
   const tabs = [['resumen', 'Resumen / Estado'], ...(team ? [['tecnicos', 'Técnicos'], ['historial', 'Historial']] : []), ...([G, S, T].includes(user.role) ? [['turnos', 'Turnos']] : []), ...([G, S, T].includes(user.role) ? [['documentos', 'Documentos y evidencias']] : []), ...(team ? [['gastos', 'Materiales y gastos']] : []), ...([G, S, AF].includes(user.role) ? [['costos', 'Costos']] : [])];
-  return <article className="card-fyag commercial-detail">
-    <div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>
+  if(user.role===T)return <article className="tec-detail">
+    <div className="tec-row"><button type="button" className="btn btn-outline-secondary tec-button" disabled={api.busy||childLocked} onClick={onBack}><TecIcon name="back"/>Volver a mis obras</button><button type="button" className="btn btn-outline-secondary tec-button" aria-label="Actualizar datos" disabled={api.busy||api.loading||childLocked} onClick={()=>void api.reconcile(reconcile)}><TecIcon name="refresh"/>Actualizar</button></div>
+    <Feedback api={api}/>
+    {obra&&<><header className="tec-heading fyag-detail-heading"><div><h1>{obra.codigo}</h1><p>{obra.cliente_nombre} · {obra.categoria_nombre}</p></div><ObraStatus state={obra.estado}/></header>
+    <div className="tec-detail-kpis"><div className="card-fyag tec-panel"><small><TecIcon name="calendar"/> Programación</small><strong>{civilDate(obra.fecha_programada)}</strong></div><div className="card-fyag tec-panel"><small><TecIcon name={obra.finalizado_en?'check':'clock'}/> {obra.finalizado_en?'Finalización':'Inicio efectivo'}</small><strong>{civilTime(obra.finalizado_en||obra.iniciado_en)}</strong></div></div>
+    <nav className="tec-tabs" aria-label="Secciones de la obra">{[['resumen','Resumen'],['turnos','Turnos'],['documentos','Documentación']].map(([key,label])=><button key={key} type="button" aria-current={tab===key?'page':undefined} aria-pressed={tab===key} disabled={api.busy||childLocked} onClick={()=>setTab(key)}>{label}</button>)}</nav>
+    {tab==='resumen'&&<section className="card-fyag tec-panel"><h2>Trabajo asignado</h2><p className="commercial-long-text">{obra.descripcion}</p><div className="tec-facts tec-detail-facts"><div><small>Responsable</small><strong>{obra.tecnico_nombre||'Sin asignar'}</strong></div><div><small>Categoría</small><strong>{obra.categoria_nombre}</strong></div>{obra.finalizado_en&&<div><small>Inicio efectivo</small><strong>{civilTime(obra.iniciado_en)}</strong></div>}{obra.cancelado_en&&<div><small>Cancelación</small><strong>{civilTime(obra.cancelado_en)}</strong></div>}<div><small>Presupuesto de origen</small><strong>{obra.presupuesto_codigo}</strong></div></div></section>}
+    {tab==='turnos'&&<Turnos obraId={id} obraState={obra.estado} onOperationalLock={setChildLocked}/>}
+    {tab==='documentos'&&<Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={obra.estado==='EN_PROCESO'} compactActions obraCode={obra.codigo} onOperationalLock={setChildLocked}/>}
+    </>}
+  </article>;
+  return <article className={supervisor?'so-detail':'card-fyag commercial-detail'}>
+    {supervisor?<><div className="so-heading"><button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.locked||childLocked||!!form} onClick={onBack}><TecIcon name="back"/> Volver al listado</button>{!['costos','gastos'].includes(tab)&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={api.busy||api.loading||childLocked||!!form&&!api.locked} onClick={()=>void refreshCurrent()} aria-label="Actualizar datos"><TecIcon name="refresh"/> {documentsRefreshing?'Actualizando…':api.locked?'Reconsultar resultado':'Actualizar'}</button>}</div><header className="so-heading so-work-heading"><div><h1>{obra?.codigo||'Detalle de obra'}</h1>{obra&&<><h2>{obra.cliente_nombre}</h2><p className="commercial-help">{obra.categoria_nombre} · {obra.presupuesto_codigo}</p></>}</div>{obra&&<ObraStatus state={obra.estado}/>}</header></>:<div className="commercial-section-head"><div><h2>{obra?.codigo || `Obra #${id}`}</h2>{obra && <ObraStatus state={obra.estado} />}</div><div className="commercial-row-actions"><RefreshButton busy={api.busy || api.loading} onClick={() => void api.reconcile(reconcile)} /><button className="btn btn-outline-secondary btn-sm" disabled={api.busy} onClick={onBack}>Volver al listado</button></div></div>}
     <Feedback api={api} />
     {obra && <>
-      <nav className="obras-tabs" aria-label="Secciones de la obra">{tabs.map(([key, label]) => <button type="button" key={key} className={`btn btn-sm ${tab === key ? 'btn-fyag-primary' : 'btn-outline-secondary'}`} aria-current={tab === key ? 'page' : undefined} disabled={api.busy || !!form} onClick={() => setTab(key)}>{label}</button>)}</nav>
-      {tab === 'resumen' && <>
+      <nav className={supervisor?"so-tabs":"obras-tabs"} aria-label="Secciones de la obra">{tabs.map(([key, label]) => <button type="button" key={key} className={supervisor?undefined:`btn btn-sm ${tab === key ? 'btn-fyag-primary' : 'btn-outline-secondary'}`} aria-current={tab === key ? 'page' : undefined} aria-pressed={tab===key} disabled={api.busy || !!form || api.locked || childLocked} onClick={() => setTab(key)}>{supervisor?({resumen:'Resumen',tecnicos:'Equipo',costos:'Costos y cierre',documentos:'Documentación'})[key]||label:label}</button>)}</nav>
+      {tab === 'resumen' && supervisor&&<section className="card-fyag so-panel so-summary">
+        <div className="so-section-head"><h2>Resumen operativo</h2>{obra.estado==='PLANIFICADA'&&!obra.tecnico_responsable&&<span className="so-warning-text">Asigna un responsable para iniciar</span>}</div>
+        <p className="so-description">{obra.descripcion||'Sin descripción registrada.'}</p>
+        <div className="so-summary-facts"><div><span><TecIcon name="calendar"/> Fecha programada</span><strong>{civilDate(obra.fecha_programada)}</strong></div><div><span><TecIcon name="person"/> Responsable principal</span><strong>{obra.tecnico_nombre||'Sin asignar'}</strong></div><div><span><TecIcon name="clock"/> Inicio efectivo</span><strong>{obra.iniciado_en?timestamp(obra.iniciado_en):'Sin iniciar'}</strong></div>{obra.finalizado_en&&<div><span>Finalización</span><strong>{timestamp(obra.finalizado_en)}</strong></div>}{obra.cancelado_en&&<div><span>Cancelación histórica</span><strong>{timestamp(obra.cancelado_en)}</strong></div>}</div>
+        <dl className="so-facts"><div><dt>Presupuesto de origen</dt><dd>{obra.presupuesto_codigo}</dd></div><div><dt>Categoría</dt><dd>{obra.categoria_nombre}</dd></div><div><dt>Creación</dt><dd>{timestamp(obra.creado_en)} · Usuario #{obra.creado_por}</dd></div><div><dt>Última actualización</dt><dd>{timestamp(obra.actualizado_en)}</dd></div></dl>
+        {editable&&<div className="so-actions so-separated"><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('editar')}>Editar obra</button><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!form} onClick={()=>open('cambiar-tecnico')}>Cambiar responsable</button>{operationFor(user.role,obra)&&<button type="button" className={'btn '+(operationFor(user.role,obra)==='suspender'?'btn-outline-danger so-danger-action':'btn-outline-success so-positive-action')} disabled={disabled||!!form} onClick={()=>open(operationFor(user.role,obra))}>{actionLabels[operationFor(user.role,obra)]}</button>}</div>}
+      </section>}
+      {tab === 'resumen' && !supervisor && <>
         <dl className="commercial-facts">
           <div><dt>Cliente</dt><dd>{obra.cliente_nombre} · #{obra.cliente}</dd></div><div><dt>Presupuesto de origen</dt><dd>{obra.presupuesto_codigo} · #{obra.presupuesto}</dd></div>
           <div><dt>Categoría</dt><dd>{obra.categoria_nombre} · #{obra.categoria_servicio}</dd></div><div><dt>Responsable</dt><dd>{obra.tecnico_nombre || 'Sin asignar'}{obra.tecnico_responsable ? ` · #${obra.tecnico_responsable}` : ''}</dd></div>
@@ -94,29 +136,41 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
         {editable && <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => open('editar')}>Editar obra</button><button className="btn btn-outline-secondary" disabled={disabled || !!form} onClick={() => open('cambiar-tecnico')}>Cambiar responsable</button>{operationFor(user.role, obra) && <button className="btn btn-fyag-primary" disabled={disabled || !!form} onClick={() => open(operationFor(user.role, obra))}>{actionLabels[operationFor(user.role, obra)]}</button>}</div>}
 
       </>}
-      {tab === 'tecnicos' && team && <>
-        <div className="budget-toolbar"><Field name="miembros_activo" label="Participantes" value={active} options={[[ '', 'Todos' ], ['true', 'Activos'], ['false', 'Históricos / inactivos']]} disabled={disabled || !!form} onChange={(value) => { setActive(value); setMemberPage(1); }} />{editable && <button className="btn btn-fyag-primary" disabled={disabled || !!form} onClick={() => open('asignar')}>Asignar participante</button>}</div>
-        <div className="table-responsive" role="region" aria-label="Participantes de la obra" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Miembro / técnico', 'Vigencia', 'Origen', 'Asignación', 'Desasignación', 'Acción'].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{members?.results.map((member) => <tr key={member.id}>
-          <td>{member.tecnico_nombre} · Técnico #{member.tecnico}<span className="commercial-help d-block">Miembro #{member.id}{member.es_responsable ? ' · Responsable principal' : ''}</span></td><td><Chip cls={member.activo ? 'green' : 'gray'}>{member.activo ? 'Activo' : 'Histórico / inactivo'}</Chip></td><td>{member.origen_registro}</td>
+      {tab === 'tecnicos' && team && <section className={supervisor?'card-fyag so-panel':undefined}>
+        {supervisor&&<div className="so-section-head"><div><h2>Equipo de trabajo</h2><p className="commercial-help">Gestiona al responsable y los técnicos participantes.</p></div></div>}
+        <div className="budget-toolbar so-team-toolbar"><Field name="miembros_activo" label="Participantes" value={active} options={[[ '', 'Todos' ], ['true', 'Activos'], ['false', 'Históricos / inactivos']]} disabled={disabled || !!form} onChange={(value) => { setActive(value); setMemberPage(1); }} />{editable && <button className="btn btn-fyag-primary" disabled={disabled || !!form} onClick={() => open('asignar')}>Asignar participante</button>}</div>
+        <div className="table-responsive" role="region" aria-label="Participantes de la obra" tabIndex={0}><table className="table table-hover align-middle commercial-table"><thead><tr>{['Miembro / técnico', 'Vigencia', 'Origen', 'Asignación', 'Desasignación', ...(user.role === S ? ['Acción'] : [])].map((label) => <th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{members?.results.map((member) => <tr key={member.id}>
+          <td>{supervisor?<strong>{member.tecnico_nombre}</strong>:<>{member.tecnico_nombre} · Técnico #{member.tecnico}</>}<span className="commercial-help d-block">{supervisor?(member.es_responsable?'Responsable principal':'Participante'):`Miembro #${member.id}${member.es_responsable?' · Responsable principal':''}`}</span></td><td><Chip cls={member.activo ? 'green' : 'gray'}>{member.activo ? 'Activo' : 'Histórico / inactivo'}</Chip></td><td>{supervisor?({OPERACION:'Asignación operativa',MIGRACION_004B:'Registro histórico'})[member.origen_registro]||member.origen_registro:member.origen_registro}</td>
           <td>{timestamp(member.asignado_en)} · Usuario {member.asignado_por ? `#${member.asignado_por}` : 'no registrado'}<p className="commercial-long-text">{member.motivo_asignacion}</p></td><td>{timestamp(member.desasignado_en)}{member.desasignado_por ? ` · Usuario #${member.desasignado_por}` : ''}<p className="commercial-long-text">{member.motivo_desasignacion}</p></td>
-          <td>{editable && !member.es_responsable && <button className={`btn btn-sm ${member.activo ? 'btn-outline-danger' : 'btn-outline-secondary'}`} disabled={disabled || !!form} onClick={() => open(member.activo ? 'desasignar' : 'asignar', member)}>{member.activo ? 'Desasignar' : 'Reactivar'}</button>}</td>
+          {user.role === S && <td>{editable && !member.es_responsable && <button className={`btn btn-sm ${member.activo ? 'btn-outline-danger' : 'btn-outline-secondary'}`} disabled={disabled || !!form} onClick={() => open(member.activo ? 'desasignar' : 'asignar', member)}>{member.activo ? 'Desasignar' : 'Reactivar'}</button>}</td>}
         </tr>)}</tbody></table></div>
-        {members && !members.count && <p className="commercial-empty">No hay participantes para este filtro.</p>}
-        <Pager label="Paginación de participantes" data={members} page={memberPage} setPage={setMemberPage} disabled={disabled || !!form} />
-      </>}
-      {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} /><Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} /><EventList title="Historial de participantes" data={memberHistory} /><Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} /></>}
-      {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} />}
-      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} />}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
-      {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
-      {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
-      {form && <form className="commercial-form obras-action-form" noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
+        {members && !members.count && (supervisor?<SupervisorEmpty title="No hay participantes" description="No se encontraron técnicos con esta vigencia."/>:<p className="commercial-empty">No hay participantes para este filtro.</p>)}
+        {(!supervisor||members?.next||members?.previous)&&<Pager label="Paginación de participantes" data={members} page={memberPage} setPage={setMemberPage} disabled={disabled || !!form} />}
+      </section>}
+      {tab === 'historial' && team && <><EventList title="Historial operativo" data={history} supervisor={supervisor} />{(!supervisor||history?.next||history?.previous)&&<Pager label="Paginación del historial operativo" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled || !!form} />}<EventList title="Historial de participantes" data={memberHistory} supervisor={supervisor} />{(!supervisor||memberHistory?.next||memberHistory?.previous)&&<Pager label="Paginación del historial de participantes" data={memberHistory} page={memberHistoryPage} setPage={setMemberHistoryPage} disabled={disabled || !!form} />}</>}
+      {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} onOperationalLock={supervisor?setChildLocked:undefined}/>}
+      {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} supervisorPresentation={supervisor} sharedRefresh={supervisor?evidenceRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setEvidenceLocked:undefined}/>}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} compactActions={supervisor} obraCode={obra.codigo} sharedRefresh={supervisor?attachmentsRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setChildLocked:undefined} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
+      {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
+      {tab === 'resumen' && supervisor && obra.estado==='PLANIFICADA' && <MaterialPlan obra={obra} disabled={api.busy||api.locked}/>}
+      {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onTab={supervisor?setTab:undefined} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
+      {form && (!supervisor||form.type!=='suspender') && <form className={supervisor?"card-fyag so-panel commercial-form obras-action-form":"commercial-form obras-action-form"} noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
         {form.type === 'editar' ? <ObraFields form={form.data} setForm={(data) => setForm({ ...form, data })} original={obra} errors={errors} disabled={api.busy || !editable} /> : <div className="obras-form-grid">
           {['cambiar-tecnico', 'asignar'].includes(form.type) && <PagedSelect name={form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable'} label={form.type === 'asignar' ? 'Técnico participante' : 'Nuevo responsable'} path={`${obraPath()}tecnicos-disponibles/`} value={form.type === 'asignar' ? form.data.tecnico : form.data.tecnico_responsable} selectedLabel={form.member?.tecnico_nombre} onChange={(value) => setForm({ ...form, data: { ...form.data, [form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']: value } })} disabled={api.busy || !editable} error={errors[form.type === 'asignar' ? 'tecnico' : 'tecnico_responsable']} />}
           <Field name="motivo" label="Motivo" type="textarea" value={form.data.motivo} onChange={(value) => setForm({ ...form, data: { ...form.data, motivo: value } })} disabled={api.busy || !editable} error={errors.motivo} required maxLength={2000} />
         </div>}
         {!formAllowed && <p className="alert alert-warning">Los datos actuales ya no permiten esta acción. Cancela para continuar.</p>}
-        <div className="commercial-form-actions"><button type="submit" className={`btn ${form.type === 'desasignar' ? 'btn-outline-danger' : 'btn-fyag-primary'}`} disabled={disabled || !formAllowed}>{api.busy ? 'Guardando…' : 'Guardar cambios'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy} onClick={() => setForm(null)}>Cancelar</button></div>
+        <div className="commercial-form-actions"><button type="submit" className={`btn ${form.type === 'desasignar' ? 'btn-outline-danger' : 'btn-fyag-primary'}`} disabled={disabled || !formAllowed}>{api.busy ? 'Guardando…' : 'Guardar cambios'}</button><button type="button" className="btn btn-outline-secondary" disabled={api.busy||api.locked} onClick={() => setForm(null)}>Cancelar</button></div>
       </form>}
+      {supervisor&&suspensionOpen&&<dialog ref={suspensionDialog} className="so-confirm-dialog" aria-labelledby="so-suspend-title" onCancel={event=>{event.preventDefault();if(!api.busy&&!api.locked)setForm(null);}}>
+        <form noValidate onSubmit={submit} className="so-suspend-form">
+          <div className="so-section-head"><h2 id="so-suspend-title">Suspender obra</h2></div>
+          <p className="so-warning"><TecIcon name="warning"/> La ejecución se detendrá temporalmente. Podrás reanudarla después; no se permite suspender con turnos abiertos.</p>
+          <Field name="motivo" label="Motivo de suspensión" type="textarea" value={form.data.motivo} onChange={value=>setForm({...form,data:{...form.data,motivo:value}})} disabled={disabled} error={errors.motivo} required maxLength={2000}/>
+          <Feedback api={api}/>
+          <div className="so-actions"><button type="button" className="btn btn-outline-secondary" disabled={api.busy||api.locked} onClick={()=>setForm(null)}>Cancelar</button>
+          {api.locked?<button type="button" className="btn btn-outline-secondary" disabled={api.loading||api.busy} onClick={()=>void api.reconcile(async()=>{const ok=await reconcile();if(ok)setForm(null);return ok;})}>Reconsultar resultado</button>:<button type="submit" className="btn btn-outline-danger so-danger-action" disabled={disabled||!formAllowed||!form.data.motivo.trim()}>{api.busy?'Guardando…':'Guardar cambios'}</button>}</div>
+        </form>
+      </dialog>}
     </>}
   </article>;
 }

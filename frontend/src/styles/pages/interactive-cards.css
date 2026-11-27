@@ -1,0 +1,52 @@
+/* Selección de indicadores interactivos en todos los roles.
+   No afecta indicadores informativos (div), pestañas, menú ni acciones. */
+:root {
+  --fyag-selection-surface:#fff;
+  --fyag-selection-strength:7%;
+}
+:root[data-fyag-theme='dark'] {
+  --fyag-selection-surface:#1b2633;
+  --fyag-selection-strength:16%;
+}
+.app-root button:is(.portfolio-kpi,.si-kpi,.ss-kpi) {
+  --fyag-selection-tone:var(--tone,var(--fyag-blue));
+}
+.app-root button:is(.si-kpi[data-tone=green],.ss-kpi[data-state=APROBADA]) { --fyag-selection-tone:#287751; }
+.app-root button:is(.si-kpi[data-tone=red],.ss-kpi[data-state=RECHAZADA]) { --fyag-selection-tone:#b34747; }
+.app-root button:is(.si-kpi[data-tone=amber],.ss-kpi[data-state=PENDIENTE]) { --fyag-selection-tone:#a66b0d; }
+.app-root button:is(.portfolio-kpi,.si-kpi,.ss-kpi)[aria-pressed=true] {
+  box-shadow:none;
+  background-color:color-mix(in srgb,var(--fyag-selection-tone) var(--fyag-selection-strength),var(--fyag-selection-surface));
+}
+.app-root button:is(.portfolio-kpi,.si-kpi,.ss-kpi):focus-visible {
+  outline:2px solid var(--fyag-blue);
+  outline-offset:2px;
+}
+/* Las superficies oscuras previas son !important; limitar la excepción a botones,
+   preservando las tarjetas informativas y su color semántico original. */
+:root[data-fyag-theme='dark'] .app-root button:is(.portfolio-kpi,.si-kpi,.ss-kpi)[aria-pressed] {
+  background-color:var(--fyag-selection-surface) !important;
+  border-left-color:var(--fyag-selection-tone);
+}
+:root[data-fyag-theme='dark'] .app-root button:is(.portfolio-kpi,.si-kpi,.ss-kpi)[aria-pressed=true] {
+  background-color:color-mix(in srgb,var(--fyag-selection-tone) var(--fyag-selection-strength),var(--fyag-selection-surface)) !important;
+}
+
+/* Pestañas de sección: un mismo subrayado y ritmo tipográfico; no son KPI.
+   Los filtros de tipo pastilla y la navegación de chat conservan su patrón. */
+.app-root .fyag-content :is(.manager-work-tabs,.budget-tabs,.cobranzas-tabs,.so-tabs,.si-tabs,.tec-tabs,.bodega-tabs,.ti-tabs) > button {
+  font-family:var(--bs-body-font-family);
+  font-size:.875rem;
+  font-weight:600;
+  min-height:44px;
+  padding-block:10px;
+  border-bottom-width:3px;
+}
+.app-root .fyag-content :is(.manager-work-tabs,.budget-tabs,.cobranzas-tabs,.so-tabs,.si-tabs,.tec-tabs,.bodega-tabs,.ti-tabs) > button[aria-pressed=true] {
+  color:var(--fyag-primary);
+  border-bottom-color:var(--fyag-blue);
+}
+.app-root .fyag-content :is(.manager-work-tabs,.budget-tabs,.cobranzas-tabs,.so-tabs,.si-tabs,.tec-tabs,.bodega-tabs,.ti-tabs) > button:focus-visible {
+  outline:2px solid var(--fyag-blue);
+  outline-offset:2px;
+}

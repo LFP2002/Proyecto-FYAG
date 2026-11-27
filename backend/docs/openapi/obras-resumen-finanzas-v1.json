@@ -1,0 +1,496 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Resumen de Obras para Finanzas",
+    "version": "1.0.0",
+    "description": "Exclusivo Administrativo/Finanzas. Proyección separada de Obras operativas; importes netos exactos, sin datos individuales de técnicos. El costo se consulta mediante la ruta existente /api/obras/{id}/costos/resumen/."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/finanzas/obras-resumen/": {
+      "get": {
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "cliente_nombre",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "categoria_nombre",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "responsable_nombre",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "PLANIFICADA",
+                "EN_PROCESO",
+                "SUSPENDIDA",
+                "FINALIZADA",
+                "CANCELADA"
+              ]
+            }
+          },
+          {
+            "name": "situacion_financiera",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "NO_HABILITADA",
+                "PENDIENTE_VALIDACION",
+                "PENDIENTE_FACTURACION",
+                "PENDIENTE_REGISTRO_SIN_COBRO",
+                "DOCUMENTADO",
+                "SIN_COBRO"
+              ]
+            }
+          },
+          {
+            "name": "fecha_programada_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_programada_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "creado_en",
+                "-creado_en",
+                "fecha_programada",
+                "-fecha_programada"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta de solo lectura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "results"
+                  ],
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "codigo",
+                          "presupuesto",
+                          "presupuesto_codigo",
+                          "cliente",
+                          "cliente_nombre",
+                          "categoria_servicio",
+                          "categoria_nombre",
+                          "tecnico_responsable",
+                          "tecnico_nombre",
+                          "fecha_programada",
+                          "iniciado_en",
+                          "estado",
+                          "finalizado_en",
+                          "monto_neto_aprobado",
+                          "situacion_financiera"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "codigo": {
+                            "type": "string"
+                          },
+                          "presupuesto": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "presupuesto_codigo": {
+                            "type": "string"
+                          },
+                          "cliente": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "cliente_nombre": {
+                            "type": "string"
+                          },
+                          "categoria_servicio": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "categoria_nombre": {
+                            "type": "string"
+                          },
+                          "tecnico_responsable": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "tecnico_nombre": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "fecha_programada": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date"
+                          },
+                          "iniciado_en": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "estado": {
+                            "type": "string",
+                            "enum": [
+                              "PLANIFICADA",
+                              "EN_PROCESO",
+                              "SUSPENDIDA",
+                              "FINALIZADA",
+                              "CANCELADA"
+                            ]
+                          },
+                          "finalizado_en": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "monto_neto_aprobado": {
+                            "type": "string",
+                            "pattern": "^[0-9]+\\.[0-9]{2}$"
+                          },
+                          "situacion_financiera": {
+                            "type": "string",
+                            "enum": [
+                              "NO_HABILITADA",
+                              "PENDIENTE_VALIDACION",
+                              "PENDIENTE_FACTURACION",
+                              "PENDIENTE_REGISTRO_SIN_COBRO",
+                              "DOCUMENTADO",
+                              "SIN_COBRO"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Recurso o página no disponible"
+          }
+        }
+      }
+    },
+    "/api/finanzas/obras-resumen/{obra_id}/": {
+      "get": {
+        "parameters": [
+          {
+            "name": "obra_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta de solo lectura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "codigo",
+                    "presupuesto",
+                    "presupuesto_codigo",
+                    "cliente",
+                    "cliente_nombre",
+                    "categoria_servicio",
+                    "categoria_nombre",
+                    "tecnico_responsable",
+                    "tecnico_nombre",
+                    "fecha_programada",
+                    "iniciado_en",
+                    "estado",
+                    "finalizado_en",
+                    "monto_neto_aprobado",
+                    "situacion_financiera",
+                    "documento"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "codigo": {
+                      "type": "string"
+                    },
+                    "presupuesto": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "presupuesto_codigo": {
+                      "type": "string"
+                    },
+                    "cliente": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "cliente_nombre": {
+                      "type": "string"
+                    },
+                    "categoria_servicio": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "categoria_nombre": {
+                      "type": "string"
+                    },
+                    "tecnico_responsable": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "tecnico_nombre": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "fecha_programada": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "iniciado_en": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "estado": {
+                      "type": "string",
+                      "enum": [
+                        "PLANIFICADA",
+                        "EN_PROCESO",
+                        "SUSPENDIDA",
+                        "FINALIZADA",
+                        "CANCELADA"
+                      ]
+                    },
+                    "finalizado_en": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "monto_neto_aprobado": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{2}$"
+                    },
+                    "situacion_financiera": {
+                      "type": "string",
+                      "enum": [
+                        "NO_HABILITADA",
+                        "PENDIENTE_VALIDACION",
+                        "PENDIENTE_FACTURACION",
+                        "PENDIENTE_REGISTRO_SIN_COBRO",
+                        "DOCUMENTADO",
+                        "SIN_COBRO"
+                      ]
+                    },
+                    "documento": {
+                      "oneOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "folio",
+                            "monto_total",
+                            "cobranza"
+                          ],
+                          "properties": {
+                            "folio": {
+                              "type": "string"
+                            },
+                            "monto_total": {
+                              "type": "string",
+                              "pattern": "^[0-9]+\\.[0-9]{2}$"
+                            },
+                            "cobranza": {
+                              "type": "object",
+                              "required": [
+                                "moneda",
+                                "abonado",
+                                "saldo",
+                                "estado"
+                              ],
+                              "properties": {
+                                "moneda": {
+                                  "const": "CLP"
+                                },
+                                "abonado": {
+                                  "type": "string",
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                },
+                                "saldo": {
+                                  "type": "string",
+                                  "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                },
+                                "estado": {
+                                  "enum": [
+                                    "PENDIENTE",
+                                    "PARCIAL",
+                                    "PAGADA",
+                                    "VENCIDA"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Recurso o página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

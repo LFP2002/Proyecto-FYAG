@@ -356,15 +356,31 @@ class PresupuestoItem(_ModeloPresupuestoValidado):
     presupuesto = models.ForeignKey(
         Presupuesto, on_delete=models.PROTECT, related_name="items"
     )
+    articulo = models.ForeignKey(
+        "inventario.ArticuloInventario", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="items_presupuestados",
+    )
+    codigo_articulo = models.CharField(max_length=50, blank=True, default="", editable=False)
     descripcion = models.CharField(max_length=2000)
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     unidad = models.CharField(max_length=30)
-    precio_unitario = models.DecimalField(max_digits=15, decimal_places=2)
+    precio_unitario = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     orden = models.IntegerField()
 
     class Meta:
         ordering = ["orden", "id"]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(precio_unitario__isnull=False) | models.Q(articulo__isnull=False),
+                name="pres_item_precio_pendiente_vinculado",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(articulo__isnull=True, codigo_articulo="")
+                    | (models.Q(articulo__isnull=False) & ~models.Q(codigo_articulo=""))
+                ),
+                name="presupuesto_item_articulo_coherente",
+            ),
             models.CheckConstraint(
                 condition=models.Q(
                     cantidad__gt=0, cantidad__lte=CANTIDAD_MAXIMA
@@ -408,6 +424,8 @@ class PresupuestoItem(_ModeloPresupuestoValidado):
         ):
             if campo in (exclude or ()):
                 continue
+            if campo == "precio_unitario" and self.precio_unitario is None and self.articulo_id is not None:
+                continue
             try:
                 setattr(self, campo, normalizar(getattr(self, campo)))
             except ValidationError as exc:
@@ -421,6 +439,19 @@ class PresupuestoItem(_ModeloPresupuestoValidado):
     @property
     def subtotal(self):
         return calcular_subtotal(self.cantidad, self.precio_unitario)
+
+
+class PresupuestoPrecioEvento(models.Model):
+    """Rastro de la fijación comercial, independiente de las transiciones y de Bodega."""
+    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.PROTECT, related_name="eventos_precio")
+    # Instantáneas: no impedir que se elimine una línea editable del borrador.
+    item_id_historico = models.PositiveBigIntegerField()
+    codigo_articulo = models.CharField(max_length=50)
+    precio_anterior = models.DecimalField(max_digits=15, decimal_places=2, null=True)
+    precio_nuevo = models.DecimalField(max_digits=15, decimal_places=2)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor_username_historico = models.CharField(max_length=150)
+    creado_en = models.DateTimeField(auto_now_add=True)
 
 
 class PresupuestoEvento(_ModeloPresupuestoValidado):
@@ -442,6 +473,9 @@ class PresupuestoEvento(_ModeloPresupuestoValidado):
     )
     motivo = models.CharField(max_length=2000, default="", blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
+
+    actor_nombre_historico = models.CharField(max_length=301, null=True, blank=True, editable=False)
+    actor_username_historico = models.CharField(max_length=150, null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["creado_en", "id"]

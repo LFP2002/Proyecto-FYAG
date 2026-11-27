@@ -104,7 +104,8 @@ class CarrerasMaterialesTests(MaterialesBase, CarrerasPostgreSQL, TransactionTes
     def test_finalizacion_antes_despacho_preserva_cierre(self):
         self.completa()
         a = self.autorizar()
-        one, two = self.race(self.finalizar, lambda: self.entregar('1.000', a))
+        confirmacion = self.confirmacion_cierre()
+        one, two = self.race(lambda: self.finalizar(confirmacion), lambda: self.entregar('1.000', a))
         self.assertEqual(one.estado, 'FINALIZADA')
         self.assertEqual(two.status_code, 409)
         self.assertEqual(self.saldo(), 10)

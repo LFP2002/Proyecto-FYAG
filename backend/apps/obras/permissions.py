@@ -16,7 +16,7 @@ class PuedeOperarObras(BasePermission):
 
     acciones_supervisor = frozenset({
         "create", "partial_update", "cambiar_tecnico", "iniciar", "suspender",
-            "reanudar", "finalizar", "presupuestos_disponibles", "tecnicos_disponibles",
+        "reanudar", "finalizar", "presupuestos_disponibles", "tecnicos_disponibles", "requisitos_cierre",
     })
 
     def has_permission(self, request, view):
@@ -27,7 +27,9 @@ class PuedeOperarObras(BasePermission):
         # OPTIONS debe respetar también el ámbito de la subruta.
         if accion == "metadata":
             accion = view.action_map.get("get") or view.action_map.get("post")
-        if accion == "mis_obras":
+        if accion == "supervision_gerencial":
+            return usuario.rol == G
+        if accion in {"mis_obras", "mis_turnos"}:
             return usuario.rol == T
         if accion in {"iniciar_turno", "finalizar_turno", "subsanar_turno"}:
             return usuario.rol == T
@@ -39,7 +41,7 @@ class PuedeOperarObras(BasePermission):
             return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
         if accion in {"editar_gasto", "devolver_gasto", "anular_gasto"}:
             return usuario.rol == S
-        if accion == "historial_costos":
+        if accion in {"historial_costos", "conciliacion_materiales"}:
             return usuario.rol in {G, S}
         if accion == "control_costos":
             return usuario.rol == S if request.method == "PATCH" else usuario.rol in {G, S}

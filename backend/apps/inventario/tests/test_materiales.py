@@ -25,6 +25,12 @@ RUTAS = {'AUTORIZACION_ENTREGA': 'autorizaciones-entrega', 'ENTREGA': 'entregas'
 
 
 class MaterialesBase(FinalizacionBase):
+    def confirmacion_cierre(self):
+        r = self.client.get(f'/api/obras/{self.obra.pk}/requisitos-cierre/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIsNotNone(r.data['confirmacion_remanente'])
+        return r.data['confirmacion_remanente']
+
     def preparar_materiales(self):
         self.preparar()
         self.bodega = Usuario.objects.create_user(username='bodega019b', email='bodega019b@example.test', rol='BODEGUERO')
@@ -189,7 +195,7 @@ class MaterialesTests(MaterialesBase, TestCase):
         self.assertEqual(self.control().version_actual, antes+1)
         self.assertFalse(self.control().costos_validados)
         self.validar()
-        self.finalizar()
+        self.finalizar(self.confirmacion_cierre())
         foto = list(CierreCostosObra.objects.values())
         with self.assertRaises(APIException):
             self.autorizar()
@@ -206,6 +212,11 @@ class MaterialesTests(MaterialesBase, TestCase):
             with self.assertRaises(EstadoIncompatible):
                 func(self.obra, e.gasto_id, data, self.supervisor)
         self.autenticar(self.supervisor)
+        lectura = self.client.get(self.url)
+        self.assertEqual(lectura.status_code, 200)
+        fila = next(g for g in lectura.data['results'] if g['id'] == e.gasto_id)
+        self.assertEqual(fila['origen'], 'BODEGA_019B')
+        self.assertEqual(fila['entrega_bodega'], e.pk)
         self.assertEqual(self.client.patch(f'{self.url}{e.gasto_id}/', {'observacion': 'No', 'motivo': 'No'}, format='json').status_code, 409)
         self.autenticar(self.bodega)
         self.assertEqual(self.client.get(self.url).status_code, 403)
@@ -404,3 +415,49 @@ class MaterialesAPITests(MaterialesBase, TestCase):
                 materiales.operar(tipo, {}, actor)
             self.assertEqual(error.exception.status_code, 401)
             Usuario.objects.filter(pk=actor.pk).update(is_active=True)
+
+
+class BodegaOperativaTests(MaterialesBase, TestCase):
+    def setUp(self):
+        self.preparar_materiales()
+
+    def test_resumen_pendientes_parciales_y_sin_costos(self):
+        self.recibir('10.000')
+        auth = self.autorizar('5.000')
+        delivered = self.entregar('2.000', auth)
+        self.op('AUTORIZACION_DEVOLUCION', entrega=delivered.pk, cantidad='1.000')
+        self.autenticar(self.bodega)
+        url = '/api/inventario/bodega/'
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['entregas'], 1)
+        self.assertEqual(r.data['devoluciones'], 1)
+        row = r.data['pendientes'][0]
+        self.assertEqual(row['nombre'], self.article.nombre)
+        self.assertEqual(row['obra'], self.obra.codigo)
+        self.assertEqual((row['pendiente'], row['ejecutada'], row['saldo'], row['maximo']), ('3.000','2.000','8.000','3.000'))
+        self.assertNotIn('costo_unitario_neto', row)
+        self.assertNotIn('promedio', row)
+        self.assertEqual(self.client.get(url, {'seccion':'entregas','vista':'historial'}).data['count'], 1)
+        self.assertEqual(self.client.get(url, {'seccion':'inventario','buscar':'Material 019B'}).data['count'], 1)
+        self.assertEqual(self.client.get(url, {'seccion':'inventario','stock':'sin_stock'}).data['count'], 0)
+        confirmation = self.client.get(url, {'seccion':'confirmacion','tipo':'ENTREGA','clave':str(delivered.clave_idempotencia)})
+        self.assertEqual(confirmation.data, {'id':delivered.pk})
+        self.entregar('3.000', auth)
+        self.assertEqual(self.client.get(url).data['entregas'], 0)
+        self.assertEqual(self.client.get(url, {'seccion':'entregas','vista':'autorizaciones'}).data['count'], 1)
+
+    def test_bloqueo_valoracion_y_permisos(self):
+        self.recibir('5.000', None)
+        self.autorizar('2.000')
+        self.autenticar(self.bodega)
+        url = '/api/inventario/bodega/'
+        row = self.client.get(url).data['pendientes'][0]
+        self.assertEqual(row['maximo'], '0.000')
+        self.assertIsNotNone(row['bloqueo'])
+        for query in ('?seccion=desconocida', '?seccion=inventario&stock=x', '?seccion=movimientos&desde=2026-02-30', '?seccion=inventario&buscar=x&buscar=y', '?seccion=inventario&precio=1'):
+            self.assertEqual(self.client.get(url+query).status_code, 400)
+        self.assertEqual(self.client.post(url, {}, format='json').status_code, 405)
+        for actor in (self.supervisor, self.finanzas):
+            self.autenticar(actor)
+            self.assertEqual(self.client.get(url).status_code, 403)

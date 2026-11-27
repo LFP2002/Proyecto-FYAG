@@ -131,6 +131,10 @@ class OperacionMaterial(models.Model):
     ingreso = models.OneToOneField(MovimientoInventario, on_delete=models.PROTECT, null=True, blank=True, related_name="valoracion")
     gasto = models.OneToOneField("obras.GastoObra", on_delete=models.PROTECT, null=True, blank=True, related_name="entrega_bodega")
     solicitud_material = models.OneToOneField("SolicitudMaterialObra", on_delete=models.PROTECT, null=True, blank=True, related_name="autorizacion_generada", editable=False)
+    item_presupuesto = models.OneToOneField(
+        "comercial.PresupuestoItem", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="autorizacion_prevista", editable=False,
+    )
     merma_bodega = models.OneToOneField("Merma", on_delete=models.PROTECT, null=True, blank=True, related_name="baja_generada", editable=False)
     cantidad = models.DecimalField(max_digits=12, decimal_places=3)
     unidad = models.CharField(max_length=30)

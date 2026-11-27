@@ -128,7 +128,8 @@ class CarrerasMermasTests(MermasBase, CarrerasPostgreSQL, TransactionTestCase):
         self.declarar(materiales_estado='CON_REGISTROS')
         self.validar()
         m = self.informar('OBRA')
-        _, two = self.race(self.finalizar, lambda: self.resolver(m))
+        confirmacion = self.confirmacion_cierre()
+        _, two = self.race(lambda: self.finalizar(confirmacion), lambda: self.resolver(m))
         self.assertEqual(two.status_code, 409)
         m.refresh_from_db()
         self.assertEqual(m.estado, 'PENDIENTE')
@@ -142,7 +143,8 @@ class CarrerasMermasTests(MermasBase, CarrerasPostgreSQL, TransactionTestCase):
         self.declarar(materiales_estado='CON_REGISTROS')
         self.validar()
         version = self.control().version_actual
-        one, two = self.race(lambda: self.resolver(m), self.finalizar)
+        confirmacion = self.confirmacion_cierre()
+        one, two = self.race(lambda: self.resolver(m), lambda: self.finalizar(confirmacion))
         self.assertEqual((one.estado, two.estado), ('APROBADA', 'FINALIZADA'))
         self.assertEqual(self.control().version_actual, version)
 

@@ -1,0 +1,556 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — SPEC-004C Consulta operativa Técnico",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/obras/mis-obras/": {
+      "get": {
+        "summary": "Obras asignadas al técnico",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PLANIFICADA",
+                "EN_PROCESO",
+                "SUSPENDIDA",
+                "FINALIZADA",
+                "CANCELADA"
+              ]
+            }
+          },
+          {
+            "name": "cliente",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "tecnico_responsable",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "categoria_servicio",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "fecha_programada_desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "fecha_programada_hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "creado_en",
+                "-creado_en",
+                "fecha_programada",
+                "-fecha_programada"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta confirmada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Obras"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetro no válido"
+          },
+          "401": {
+            "description": "Sesión no válida"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    },
+    "/api/obras/mis-turnos/": {
+      "get": {
+        "summary": "Turno activo e historial de turnos propios en obras asignadas",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "OBSERVADO",
+                "PENDIENTE_REVISION",
+                "VALIDADO"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta confirmada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Turnos"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetro no válido"
+          },
+          "401": {
+            "description": "Sesión no válida"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Foto": {
+        "type": "object",
+        "required": [
+          "id",
+          "tipo_mime",
+          "tamano",
+          "creado_en",
+          "descarga"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tipo_mime": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ]
+          },
+          "tamano": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "descarga": {
+            "type": "string"
+          }
+        }
+      },
+      "Turno": {
+        "type": "object",
+        "required": [
+          "modo_cierre",
+          "cerrado_por",
+          "turno_id",
+          "obra",
+          "tecnico",
+          "iniciado_en",
+          "terminado_en",
+          "duracion_segundos",
+          "duracion_ajustada_segundos",
+          "descripcion_trabajo",
+          "estado_revision",
+          "observacion",
+          "fotos",
+          "obra_codigo",
+          "categoria_nombre",
+          "obra_estado"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "modo_cierre": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "TECNICO",
+              "SUPERVISOR",
+              null
+            ]
+          },
+          "cerrado_por": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "turno_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "obra": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tecnico": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "iniciado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "terminado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duracion_segundos": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]+\\.[0-9]{6}$"
+          },
+          "duracion_ajustada_segundos": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "descripcion_trabajo": {
+            "type": "string"
+          },
+          "estado_revision": {
+            "type": "string",
+            "enum": [
+              "ABIERTO",
+              "PENDIENTE_REVISION",
+              "OBSERVADO",
+              "VALIDADO"
+            ]
+          },
+          "observacion": {
+            "type": "string"
+          },
+          "fotos": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/Foto"
+            }
+          },
+          "obra_codigo": {
+            "type": "string"
+          },
+          "categoria_nombre": {
+            "type": "string"
+          },
+          "obra_estado": {
+            "type": "string",
+            "enum": [
+              "PLANIFICADA",
+              "EN_PROCESO",
+              "SUSPENDIDA",
+              "FINALIZADA",
+              "CANCELADA"
+            ]
+          }
+        }
+      },
+      "Obra": {
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "presupuesto",
+          "presupuesto_codigo",
+          "cliente",
+          "cliente_nombre",
+          "categoria_servicio",
+          "categoria_nombre",
+          "descripcion",
+          "tecnico_responsable",
+          "tecnico_nombre",
+          "fecha_programada",
+          "iniciado_en",
+          "estado",
+          "finalizado_en",
+          "cancelado_en",
+          "creado_por",
+          "creado_en",
+          "actualizado_en"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "presupuesto": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "presupuesto_codigo": {
+            "type": "string"
+          },
+          "cliente": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cliente_nombre": {
+            "type": "string"
+          },
+          "categoria_servicio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "categoria_nombre": {
+            "type": "string"
+          },
+          "descripcion": {
+            "type": "string"
+          },
+          "tecnico_responsable": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "tecnico_nombre": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fecha_programada": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "iniciado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PLANIFICADA",
+              "EN_PROCESO",
+              "SUSPENDIDA",
+              "FINALIZADA",
+              "CANCELADA"
+            ]
+          },
+          "finalizado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "cancelado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "creado_por": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actualizado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Obras": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Obra"
+            },
+            "maxItems": 25
+          }
+        }
+      },
+      "Turnos": {
+        "type": "object",
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results",
+          "activo",
+          "hora_servidor"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Turno"
+            },
+            "maxItems": 25
+          },
+          "activo": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Turno"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hora_servidor": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

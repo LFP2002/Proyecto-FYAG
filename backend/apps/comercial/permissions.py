@@ -42,7 +42,7 @@ class PuedeOperarPresupuestos(BasePermission):
 
     acciones_comerciales = frozenset({
         "create", "partial_update", "items", "item_detalle",
-        "enviar_finanzas", "aprobar_finanzas", "rechazar_finanzas",
+        "enviar_finanzas", "aprobar_finanzas", "rechazar_finanzas", "precio_comercial",
         "enviar_cliente", "registrar_aprobacion_cliente",
         "registrar_rechazo_cliente", "anular", "crear_revision",
     })
@@ -61,8 +61,12 @@ class PuedeOperarPresupuestos(BasePermission):
         from .permissions_presupuestos import revalidar_presupuestos
         actual = revalidar_presupuestos(request.user)
         rol = actual.rol
-        if 'clientes_elegibles' in acciones_ruta:
+        if accion == 'seguimiento_comercial' or 'seguimiento_comercial' in acciones_ruta:
+            return rol == Usuario.Rol.GERENCIA
+        if acciones_ruta & {'clientes_elegibles', 'materiales_elegibles'}:
             return rol in {Usuario.Rol.ADMINISTRATIVO_FINANZAS, Usuario.Rol.SUPERVISOR_OBRAS}
+        if 'precio_comercial' in acciones_ruta:
+            return rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS
         if accion in self.acciones_comerciales:
             return (rol == Usuario.Rol.ADMINISTRATIVO_FINANZAS or
                     rol == Usuario.Rol.SUPERVISOR_OBRAS and accion in self.acciones_supervisor)

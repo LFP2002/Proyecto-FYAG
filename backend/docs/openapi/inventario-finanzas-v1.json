@@ -1,0 +1,495 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Inventario operativo Finanzas",
+    "version": "1.0.0",
+    "description": "Proyección de lectura exclusiva AF. Los candidatos son elegibles según estado consultado; el POST original vuelve a validar bajo bloqueo."
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/inventario/finanzas/": {
+      "get": {
+        "parameters": [
+          {
+            "name": "seccion",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "inventario",
+                "movimientos",
+                "valoraciones",
+                "regularizaciones",
+                "ingresos",
+                "historicos"
+              ],
+              "default": "inventario"
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "filtro",
+            "in": "query",
+            "description": "Solo inventario",
+            "schema": {
+              "enum": [
+                "sin_stock",
+                "pendiente"
+              ]
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "description": "Solo movimientos",
+            "schema": {
+              "enum": [
+                "INGRESO",
+                "SALIDA",
+                "DEVOLUCION",
+                "MERMA"
+              ]
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "description": "Solo movimientos; ambas fechas, máximo 366 días inclusivos.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "description": "Solo movimientos; ambas fechas, máximo 366 días inclusivos.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de hasta 25 registros. Resumen global únicamente en inventario; el tipo de fila depende de seccion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "next",
+                        "previous",
+                        "results",
+                        "resumen"
+                      ],
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "next": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "previous": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "results": {
+                          "type": "array",
+                          "maxItems": 25,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "nombre",
+                              "codigo",
+                              "unidad",
+                              "descripcion",
+                              "activo",
+                              "saldo",
+                              "pendiente",
+                              "valor_neto"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "descripcion": {
+                                "type": "string"
+                              },
+                              "activo": {
+                                "type": "boolean"
+                              },
+                              "saldo": {
+                                "oneOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "pendiente": {
+                                "type": "boolean"
+                              },
+                              "valor_neto": {
+                                "oneOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "resumen": {
+                          "type": "object",
+                          "required": [
+                            "materiales",
+                            "sin_stock",
+                            "pendientes",
+                            "valor_neto"
+                          ],
+                          "properties": {
+                            "materiales": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "sin_stock": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "pendientes": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "valor_neto": {
+                              "type": "string",
+                              "pattern": "^[0-9]+\\.[0-9]{2}$"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "next",
+                        "previous",
+                        "results"
+                      ],
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "next": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "previous": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "results": {
+                          "type": "array",
+                          "maxItems": 25,
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "nombre",
+                                  "codigo",
+                                  "unidad",
+                                  "tipo",
+                                  "cantidad",
+                                  "saldo_anterior",
+                                  "saldo_posterior",
+                                  "referencia",
+                                  "motivo",
+                                  "creado_en"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "nombre": {
+                                    "type": "string"
+                                  },
+                                  "codigo": {
+                                    "type": "string"
+                                  },
+                                  "unidad": {
+                                    "type": "string"
+                                  },
+                                  "tipo": {
+                                    "enum": [
+                                      "INGRESO",
+                                      "SALIDA",
+                                      "DEVOLUCION",
+                                      "MERMA"
+                                    ]
+                                  },
+                                  "cantidad": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "saldo_anterior": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "saldo_posterior": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "referencia": {
+                                    "type": "string"
+                                  },
+                                  "motivo": {
+                                    "type": "string"
+                                  },
+                                  "creado_en": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "nombre",
+                                  "codigo",
+                                  "unidad",
+                                  "tipo",
+                                  "cantidad",
+                                  "costo_unitario_neto",
+                                  "saldo_valorado_anterior",
+                                  "saldo_valorado_posterior",
+                                  "promedio_anterior",
+                                  "promedio_posterior",
+                                  "referencia",
+                                  "motivo",
+                                  "creado_en",
+                                  "referencia_ingreso"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "nombre": {
+                                    "type": "string"
+                                  },
+                                  "codigo": {
+                                    "type": "string"
+                                  },
+                                  "unidad": {
+                                    "type": "string"
+                                  },
+                                  "tipo": {
+                                    "enum": [
+                                      "VALORIZACION",
+                                      "REGULARIZACION"
+                                    ]
+                                  },
+                                  "cantidad": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "costo_unitario_neto": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                  },
+                                  "saldo_valorado_anterior": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "saldo_valorado_posterior": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  "promedio_anterior": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string",
+                                        "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "promedio_posterior": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string",
+                                        "pattern": "^[0-9]+\\.[0-9]{2}$"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "referencia": {
+                                    "type": "string"
+                                  },
+                                  "motivo": {
+                                    "type": "string"
+                                  },
+                                  "creado_en": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "referencia_ingreso": {
+                                    "oneOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "nombre",
+                                  "codigo",
+                                  "unidad",
+                                  "cantidad"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "nombre": {
+                                    "type": "string"
+                                  },
+                                  "codigo": {
+                                    "type": "string"
+                                  },
+                                  "unidad": {
+                                    "type": "string"
+                                  },
+                                  "cantidad": {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulta inválida"
+          },
+          "401": {
+            "description": "No autenticado"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

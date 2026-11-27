@@ -411,3 +411,39 @@ class TurnosTests(TurnosBase, TestCase):
         turno.refresh_from_db()
         self.assertIsNone(turno.costo_hora_neto)
         self.assertEqual(turno.estado_revision, "PENDIENTE_REVISION")
+
+class MisTurnosTests(TurnosBase, TestCase):
+    def setUp(self):
+        self.preparar()
+
+    def test_proyeccion_global_privada_y_activo_independiente(self):
+        old = self.abrir()
+        self.cerrar(old)
+        turnos.revisar_turno(self.obra, old.pk, {"decision": "OBSERVAR", "motivo": "Aclarar trabajo"}, self.supervisor)
+        other = self.abrir(self.otro_tecnico)
+        active = self.abrir(obra=self.otra_obra())
+        url = "/api/obras/mis-turnos/"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["activo"]["turno_id"], active.pk)
+        self.assertEqual(response.data["activo"]["obra_codigo"], active.obra.codigo)
+        self.assertEqual([r["turno_id"] for r in response.data["results"]], [old.pk])
+        self.assertNotIn("costo_hora_neto", response.data["activo"])
+        self.assertNotIn("costo_mano_obra", response.data["results"][0])
+        self.assertEqual(self.client.get(url, {"estado": "VALIDADO"}).data["count"], 0)
+        self.assertEqual(self.client.get(url, {"estado": "VALIDADO"}).data["activo"]["turno_id"], active.pk)
+        self.assertEqual(self.client.get(url, {"estado": "ABIERTO"}).status_code, 400)
+        self.autenticar(self.otro_tecnico)
+        self.assertEqual(self.client.get(url).data["activo"]["turno_id"], other.pk)
+        self.assertEqual(self.client.get(url).data["count"], 0)
+        self.autenticar(self.supervisor)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_busqueda_solo_mis_obras(self):
+        url = "/api/obras/mis-obras/"
+        response = self.client.get(url, {"buscar": self.obra.codigo})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual([r["id"] for r in response.data["results"]], [self.obra.pk])
+        self.assertEqual(self.client.get(url, {"buscar": "inexistente"}).data["count"], 0)
+        self.assertEqual(self.client.get(url + "?buscar=a&buscar=b").status_code, 400)
+        self.assertEqual(self.client.get("/api/obras/", {"buscar": "a"}).status_code, 400)

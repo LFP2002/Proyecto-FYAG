@@ -31,11 +31,11 @@ Presentar indicadores gerenciales existentes sin convertir presupuesto en ingres
 
 | GET existente | Parámetros y respuesta |
 | --- | --- |
-| `/api/dashboard/resumen/` | `desde/hasta`; generado_en, zona_horaria, moneda, periodo, operacion, rentabilidad_cerrada_periodo, cobranza_actual |
+| `/api/dashboard/resumen/` | `desde/hasta`; generado_en, zona_horaria, moneda, periodo, operacion (incluye pendientes de Gerencia históricos y pendientes actuales de Finanzas), rentabilidad_cerrada_periodo, cobranza_actual, incidencias (conteos y salud de sincronización) |
 | `/api/dashboard/serie-obras/` | `meses` de 1 a 12; métrica OBRAS_FINALIZADAS, zona y puntos mes/cantidad |
 | `/api/dashboard/obras-activas/` | `page`; página DRF de Obras EN_PROCESO, hasta 25 filas |
 
-Resumen separa estados actuales de Obras y presupuestos pendientes, finalizaciones/rentabilidad del período y cartera actual sin reconstrucción histórica. Importes CLP como strings; margen puede ser negativo. Período requiere fechas ISO civiles reales juntas, orden ascendente, máximo 366 días inclusivos y hasta no posterior a hoy en America/Santiago. Serie y obras activas son consultas independientes; no se suman páginas para fabricar totales.
+Resumen separa estados actuales de Obras y presupuestos pendientes, finalizaciones/rentabilidad del período, cartera actual e incidencias/salud de sincronización sin reconstrucción histórica. `presupuestos_pendientes_finanzas_actual` cubre los estados financieros vigentes definidos por backend; `presupuestos_pendientes_gerencia_actual` se presenta como dato histórico/legado y no como cola actual de aprobación. Importes CLP como strings; margen puede ser negativo. Período requiere fechas ISO civiles reales juntas, orden ascendente, máximo 366 días inclusivos y hasta no posterior a hoy en America/Santiago. Serie y obras activas son consultas independientes; no se suman páginas para fabricar totales.
 
 ### Estados de interfaz, concurrencia y seguridad
 
@@ -49,3 +49,9 @@ Carga, vacío, error y filtro incompatible se distinguen. Snapshots se asocian a
 4. Meses y página se corresponden con su consulta; los importes no se recalculan.
 
 Regresiones en `frontend/tests/integrations-domain.test.js`: calendario, Santiago, lectura de los tres recursos, respuesta tardía y error. Estado del código: corrección local implementada; estado documental: revisión local sin aprobación histórica acreditada. Pendientes: QA real y revisión visual en 320/375/768/1024 px; no se afirma validación visual/E2E. Publicación solo después del informe y autorización; sin cambios de backend. Referencias: SPEC-010, OpenAPI SPEC-010 y serializers de Dashboard.
+
+## Seguimiento del worktree frontend — 25-11-2026
+
+- `Dashboard.jsx` ya valida la forma vigente de `/api/dashboard/resumen/`, incluyendo `operacion.presupuestos_pendientes_finanzas_actual` y el objeto `incidencias` (`criticas_activas`, `pendientes_por_area`, `por_estado`, `sincronizacion`).
+- La vista presenta pendientes actuales de Finanzas por separado del contador legado de Gerencia, más incidencias críticas, pendientes por área y frescura del último ciclo. Los importes y agregados siguen viniendo del servidor; React solo valida y presenta.
+- Regresión local actualizada en `frontend/tests/integrations-domain.test.js`. Build y 44 pruebas focalizadas pasaron en esta sesión. No se tocó el backend ni se acredita QA con una cuenta real o despliegue.

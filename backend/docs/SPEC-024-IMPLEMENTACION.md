@@ -244,3 +244,6 @@ no una aceptación de claims manipulados.
   autorizado posterior. No hay despliegue cloud ni aprobación de CI en esta entrega.
 
 Las verificaciones locales no sustituyen la revisión técnica ni CI del futuro PR.
+## Precios comerciales de materiales de Bodega
+
+Ver [OpenAPI 025B](openapi/SPEC-025B-v1.json) y [colección QA de precios](postman/SPEC-025B-precio-comercial.postman_collection.json). El precio omitido nunca se convierte en cero: `precio_unitario`, `subtotal` y `monto_neto` pueden ser `null`. Los consumidores deben desplegarse coordinadamente. La migración `comercial.0009` no rellena ni reescribe históricos; su reversión se rechaza si existen pendientes o fijaciones auditadas.

@@ -8,6 +8,7 @@ export function AuthProvider({ children, client = authClient }) {
   useEffect(() => { void client.restore(); }, [client]);
   return (
     <AuthContext.Provider value={{ ...session, login: client.login, logout: client.logout, request: client.request,
+        completeFirstPasswordChange: client.completeFirstPasswordChange,
         sessionInvalidatedByEmailChange: client.sessionInvalidatedByEmailChange }}>
       {children}
     </AuthContext.Provider>

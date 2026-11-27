@@ -1,0 +1,50 @@
+/* Ajustes exclusivos de la interfaz gerencial de Obras. */
+.manager-obras-icon,.manager-obras-back {display:inline-flex;align-items:center;gap:7px;}
+.manager-obras-back {border:0;background:none;color:var(--fyag-primary-light);font:inherit;font-weight:600;padding:6px 0;min-height:36px;}
+.manager-obras-back:hover {text-decoration:underline;}
+.manager-obras-filters {display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:12px;background:#f5f8fb;border:1px solid var(--fyag-line);border-radius:8px;}
+.manager-obras-filters[hidden]{display:none!important;}
+.manager-obras-filters > div{flex:1 1 220px;min-width:0;}
+.manager-obras-filters label{font-weight:600;font-size:.8125rem;margin-bottom:5px;}
+.manager-obras-applied{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;color:var(--fyag-muted);font-size:.8125rem;}
+.manager-obras-footer{border-top:1px solid var(--fyag-line);margin-top:12px;padding-top:8px;}
+.manager-obras-list .manager-difference.red,.manager-obras-detail .manager-difference.red{color:#b12635;}
+.manager-obras-list .manager-difference.green,.manager-obras-detail .manager-difference.green{color:#176b4a;}
+.manager-obras-detail .manager-money {border-left:4px solid #8492a6;}
+.manager-obras-detail .manager-money-blue{border-left-color:#3478dc;}
+.manager-obras-detail .manager-money-red{border-left-color:#e34d59;}
+.manager-obras-summary{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px;}
+.manager-obras-caption,.manager-obras-diff span,.manager-obras-diff small{color:var(--fyag-muted);font-size:.8125rem;}
+.manager-obras-summary .manager-facts{border-top:1px solid var(--fyag-line);padding-top:12px;}
+.manager-obras-diff{display:flex;flex-direction:column;gap:5px;}
+.manager-obras-diff strong{font-size:1.5rem;overflow-wrap:anywhere;color:var(--fyag-primary);}
+.manager-obras-chart{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:24px;align-items:center;}
+.manager-obras-plot svg{display:block;width:100%;max-height:245px;}
+.manager-obras-chart-values{margin:0;display:grid;gap:12px;}
+.manager-obras-chart-values > div{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--fyag-line);padding:7px 0;}
+.manager-obras-chart-values dt{display:flex;align-items:center;gap:8px;font-weight:500;}
+.manager-obras-chart-values dt span{width:10px;height:10px;border-radius:2px;}
+.manager-obras-chart-values dd{margin:0;font-weight:600;overflow-wrap:anywhere;}
+.manager-obras-cost-summary{border-top:1px solid var(--fyag-line);padding-top:14px;}
+.manager-obras-detail .manager-events{padding-left:5px;}
+.manager-obras-detail .manager-events li{position:relative;border-left:2px solid #d5e0eb;padding-left:20px;}
+.manager-obras-detail .manager-events li::before{content:"";position:absolute;left:-6px;top:4px;width:10px;height:10px;border-radius:50%;background:#8492a6;outline:3px solid white;}
+.manager-obras-detail .manager-events li[data-state="EN_PROCESO"]::before{background:#3478dc;}
+.manager-obras-detail .manager-events li[data-state="FINALIZADA"]::before{background:#20ac73;}
+.manager-obras-detail .manager-events li[data-state="SUSPENDIDA"]::before{background:#eca321;}
+.manager-obras-detail .manager-events li[data-state="CANCELADA"]::before{background:#e34d59;}
+.manager-obras-turn-table{margin-top:14px;}
+.manager-obras-turn-table table{min-width:680px;}
+.manager-obras-turn-table td{vertical-align:middle;}
+.manager-obras-turn-table td p{margin:0 0 5px;white-space:pre-wrap;overflow-wrap:anywhere;}
+.manager-obras-detail .manager-documentation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;}
+.manager-obras-detail .manager-documentation > section{min-width:0;margin:0!important;}
+.manager-obras-detail .manager-documentation h3{font-size:1rem;font-weight:700;color:var(--fyag-primary);}
+.manager-evidence-empty{text-align:center;color:var(--fyag-muted);padding:30px 8px;margin:0;}
+.manager-evidence-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;}
+.manager-evidence-card{border:1px solid var(--fyag-line);border-radius:7px;overflow:hidden;display:grid;gap:6px;padding:8px;}
+.manager-evidence-card img,.manager-evidence-placeholder{width:100%;aspect-ratio:4/3;object-fit:contain;background:#edf2f7;}
+.manager-evidence-placeholder{display:grid;place-items:center;}
+.manager-evidence-card p{margin:0;overflow-wrap:anywhere;}
+@media(max-width:1000px){.manager-obras-detail .manager-documentation{grid-template-columns:1fr;}}
+@media(max-width:700px){.manager-obras-summary,.manager-obras-chart{grid-template-columns:1fr;}}

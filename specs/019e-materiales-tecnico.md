@@ -1,0 +1,15 @@
+# SPEC-019E — Consulta operativa de materiales del Técnico
+
+## Alcance y permisos
+Rediseño de Solicitudes y Mermas para Técnico. Lectura exclusiva de sesión operativa con rol TECNICO (revalidación 019C). Las vistas anteriores, servicios de escritura y roles decisores no cambian. Registros históricos propios conservan acceso incluso si el técnico ya no participa en la obra, como en 019C. Para nuevas operaciones solo se muestran obras con participación activa y estado EN_PROCESO o SUSPENDIDA. No se devuelven precios, costos, claves de terceros ni datos de usuarios ajenos a la resolución.
+
+## Contrato de lectura
+GET /api/inventario/tecnico-materiales/ con seccion obligatoria. Secciones paginadas (25 filas): obras, catalogo, entregas (obra requerida), solicitudes, mermas. Búsqueda opcional buscar (1–150 caracteres): nombre/código de material, cliente/categoría y código exacto de obra según sección. Catalogo: artículos activos. Entregas: exclusivamente entregas físicas de la obra elegible; remanente = max(0, cantidad - devoluciones físicas - mermas aprobadas). El remanente no reserva saldo, no descuenta reportes pendientes ni autorizaciones de devolución sin recibir, y no equivale a cantidad garantizada para aprobación. La creación vigente admite reportes hasta la cantidad original entregada; el remanente se verifica al decidir. Solicitudes y mermas: únicamente registros propios; estado opcional PENDIENTE/APROBADA/RECHAZADA, tipo opcional exclusivamente en mermas (TIPOS_MO). Listados de registros y entregas por fecha/ID descendente; catálogo por nombre/ID; obras por creación/ID descendente. Identificadores internos se mantienen para integridad y navegación, no como entrada manual.
+
+Secciones no paginadas: solicitud_detalle y merma_detalle, id requerido, historial con tipo, identidad actual del actor, motivo y fecha. Confirmacion con tipo SOLICITUD o MERMA y clave UUID canónica: retorna ID de creación propia o null; no revela registros ajenos. Parámetros desconocidos/repetidos/vacíos inválidos (400), recursos ajenos 404, roles no permitidos 403. Cabeceras de privacidad existentes de materiales.
+
+## Escritura
+POST solicitudes-materiales/ y mermas-obra/ sin cambios de contrato, permisos, ni reglas de aprobación. Cantidad decimal hasta tres posiciones. Selector no expone costos ni inventario general. Supervisión conserva la decisión exclusiva; una solicitud aprobada no confirma despacho. Ante respuesta incierta, conservar UUID/payload, consultar confirmación y releer; no reenvío automático. Reintento explícito con mismos datos. Los errores definitivos permiten corregir formulario con clave nueva; conflicto requiere verificar antes de descartar. Las lecturas son orientativas; validaciones transaccionales originales prevalecen.
+
+## Interfaz y verificación
+Tarjetas adaptables, filtros, estados vacíos, selectores paginados, detalle y formularios independientes. Bootstrap Icons, modo oscuro, sin tablas ni nuevas dependencias. Pruebas de aislamiento, remanente, filtros y reconciliación. Sin migraciones. Validación local pendiente.

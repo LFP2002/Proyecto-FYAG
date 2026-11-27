@@ -188,7 +188,7 @@ class ObrasAPIContratoTests(ObrasAPIBase):
             with self.subTest(accion=nombre):
                 respuesta = self.client.post(
                     f"/api/obras/{obra.pk}/{nombre}/",
-                    {"motivo": "Intento"}, format="json",
+                    {"motivo": "Intento", **({"version_costos_esperada": 0} if nombre == "finalizar" else {})}, format="json",
                 )
                 self.assertEqual(respuesta.status_code, 409 if nombre == "finalizar" else 404)
         for metodo in ("put", "delete"):
@@ -311,6 +311,24 @@ class ObrasAPIContratoTests(ObrasAPIBase):
         self.assertEqual(res.data["count"], 2)
         res = self.client.get("/api/obras/?page=1000")
         self.assertEqual(res.status_code, 404)
+
+    def test_busqueda_supervisor_antes_de_paginar_y_orden_operativo(self):
+        primero = self.crear_obra(tecnico=self.usuarios[T])
+        segundo = self.crear_obra(presupuesto=self.crear_presupuesto())
+        inicio = self.client.post(f"/api/obras/{primero.pk}/iniciar/", {"motivo": "Inicio QA"}, format="json")
+        self.assertEqual(inicio.status_code, 200, inicio.data)
+        url = "/api/obras/"
+        respuesta = self.client.get(url, {"buscar": "cliente para api"})
+        self.assertEqual(respuesta.status_code, 200, respuesta.data)
+        self.assertEqual([fila["id"] for fila in respuesta.data["results"]], [primero.pk, segundo.pk])
+        for termino in (f"OB-{primero.pk:06d}", self.usuarios[T].username):
+            respuesta = self.client.get(url, {"buscar": termino})
+            self.assertEqual(respuesta.status_code, 200, respuesta.data)
+            self.assertEqual([fila["id"] for fila in respuesta.data["results"]], [primero.pk])
+        for query in ("?buscar=", "?buscar=x&buscar=y", "?buscar=" + "a"*151):
+            self.assertEqual(self.client.get(url+query).status_code, 400)
+        self.autenticar(G)
+        self.assertEqual(self.client.get(url, {"buscar": "cliente"}).status_code, 400)
 
     def test_catalogo_y_permisos(self):
         self.autenticar(G)

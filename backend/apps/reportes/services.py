@@ -72,6 +72,8 @@ def exportar(actor, tipo, params, correlacion, *, head=False):
                 tiempo.comprobar()
                 registrar(actor, tipo, formato, correlacion, "validada_head_sin_generacion", inicio, info)
                 return None, nombre, info
+            if formato != "csv":
+                info["emisor"] = {"GERENCIA": "Gerencia", "ADMINISTRATIVO_FINANZAS": "Finanzas"}.get(actor.rol, actor.rol)
             from .exportadores import csv, xlsx, pdf
             from .exportadores.comun import ArchivoLimitado
             archivo = TemporaryFile(mode="w+b", prefix="fyag-reporte-")

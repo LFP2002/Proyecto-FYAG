@@ -31,6 +31,35 @@ export function obrasBackend(role = S) {
     if (method === 'GET' && backend.readFailure?.(path)) throw new ApiError(500, 'Relectura fallida.');
 
     const url = new URL(path, 'http://localhost'), route = url.pathname;
+    if (/^\/api\/presupuestos\/\d+\/$/.test(route) && method==='GET') { assertRole([G,AF]); const id=Number(route.split('/')[3]); return {id,monto_neto:'45300.00'}; }
+    if (route.startsWith('/api/finanzas/obras-resumen/')) {
+      assertRole([AF]);
+      const rows=backend.obras.map(o=>({...project(o),monto_neto_aprobado:'45300.00',situacion_financiera:o.estado==='FINALIZADA'?'PENDIENTE_FACTURACION':'NO_HABILITADA'}));
+      if(route!=='/api/finanzas/obras-resumen/'){
+        const id=Number(route.split('/')[4]), row=rows.find(o=>o.id===id);
+        if(!row)throw new ApiError(404,'Obra no encontrada');
+        return {...row,documento:null};
+      }
+      return paginate(rows.filter(o=>(!url.searchParams.has('estado')||o.estado===url.searchParams.get('estado'))&&(!url.searchParams.has('situacion_financiera')||o.situacion_financiera===url.searchParams.get('situacion_financiera'))&&(!url.searchParams.has('buscar')||[o.codigo,o.cliente_nombre,o.categoria_nombre].some(v=>v.toLowerCase().includes(url.searchParams.get('buscar').toLowerCase())))),url);
+    }
+    if (route === '/api/obras/supervision-gerencial/') {
+      assertRole([G]);
+      const rows=backend.obras.map(o=>{const cost=o.test_cost||'0.00',budget='45300.00',alerts=[];
+        if(Number(cost)>Number(budget))alerts.push('PRESUPUESTO_SUPERADO');
+        if(o.estado==='SUSPENDIDA')alerts.push('SUSPENDIDA');
+        if(o.estado==='PLANIFICADA'&&!o.fecha_programada)alerts.push('SIN_PROGRAMAR');
+        return {...o,presupuesto_neto:budget,costo_total:cost,diferencia_neta:(Number(budget)-Number(cost)).toFixed(2),porcentaje_utilizado:(Number(cost)/Number(budget)*100).toFixed(1),costos_provisionales:true,sin_cobro:false,alertas:alerts,nivel:alerts.includes('PRESUPUESTO_SUPERADO')?'critica':alerts.length?'atencion':'normal'};
+      }).sort((a,b)=>['critica','atencion','normal'].indexOf(a.nivel)-['critica','atencion','normal'].indexOf(b.nivel));
+      const resumen={total:rows.length,en_ejecucion:rows.filter(o=>o.estado==='EN_PROCESO').length,sin_programar:rows.filter(o=>o.alertas.includes('SIN_PROGRAMAR')).length,presupuesto_superado:rows.filter(o=>o.alertas.includes('PRESUPUESTO_SUPERADO')).length,suspendidas:rows.filter(o=>o.estado==='SUSPENDIDA').length,requieren_atencion:rows.filter(o=>o.alertas.length).length};
+      const filtered=rows.filter(o=>(!url.searchParams.has('estado')||o.estado===url.searchParams.get('estado'))&&(url.searchParams.get('atencion')!=='requiere'||o.alertas.length)&&(url.searchParams.get('atencion')!=='sin_alertas'||!o.alertas.length)&&(!url.searchParams.has('buscar')||o.codigo.includes(url.searchParams.get('buscar')))&&(!url.searchParams.has('prioridad')||o.alertas.includes(({sin_programar:'SIN_PROGRAMAR',presupuesto_superado:'PRESUPUESTO_SUPERADO',suspendidas:'SUSPENDIDA'})[url.searchParams.get('prioridad')])));
+      return {...paginate(filtered,url),resumen};
+    }
+    if (route === '/api/obras/mis-turnos/') {
+      assertRole([T]);
+      const rows=backend.turnos.filter(t=>t.tecnico===8&&backend.allowed.has(t.obra)).map(t=>({...t,obra_codigo:backend.obras.find(o=>o.id===t.obra).codigo,categoria_nombre:backend.obras.find(o=>o.id===t.obra).categoria_nombre,obra_estado:backend.obras.find(o=>o.id===t.obra).estado}));
+      const history=rows.filter(t=>t.terminado_en&&(!url.searchParams.has('estado')||t.estado_revision===url.searchParams.get('estado')));
+      return {...paginate(history,url),activo:clone(rows.find(t=>t.estado_revision==='ABIERTO')||null),hora_servidor:'2026-11-08T13:00:00Z'};
+    }
     if (route === '/api/obras/presupuestos-disponibles/') { assertRole([S]); return paginate(backend.budgets, url); }
     if (route === '/api/obras/tecnicos-disponibles/') { assertRole([S]); return paginate(backend.technicians, url); }
     if (route === '/api/obras/' || route === '/api/obras/mis-obras/') {
@@ -43,6 +72,7 @@ export function obrasBackend(role = S) {
       }
       if (route.endsWith('/mis-obras/')) assertRole([T]);
       let rows = backend.obras.filter((o) => backend.role !== T || backend.allowed.has(o.id));
+      if((route.endsWith('/mis-obras/')||backend.role===S)&&url.searchParams.has('buscar')){const term=url.searchParams.get('buscar').toLowerCase();rows=rows.filter(o=>[o.codigo,o.cliente_nombre,o.categoria_nombre,...(backend.role===S?[o.tecnico_nombre]:[])].some(v=>String(v||'').toLowerCase().includes(term)));}
       for (const key of ['estado', 'cliente', 'tecnico_responsable', 'categoria_servicio']) if (url.searchParams.has(key)) rows = rows.filter((o) => String(o[key]) === url.searchParams.get(key));
       for (const [key, comparison] of [['fecha_programada_desde', (a, b) => a >= b], ['fecha_programada_hasta', (a, b) => a <= b]]) if (url.searchParams.has(key)) rows = rows.filter((o) => o.fecha_programada && comparison(o.fecha_programada, url.searchParams.get(key)));
       return paginate(rows.map(project), url);
@@ -54,16 +84,18 @@ export function obrasBackend(role = S) {
       if (!suffix && method === 'GET') return project(obra);
       if (suffix === 'costos/resumen/' && method === 'GET') {
         assertRole([G, S, AF]);
-        const summary = { obra: obra.id, materiales_total: '0.00', otros_total: '0.00', mano_obra_total: '0.00', costo_total: '0.00', costos_validados: backend.control.costos_validados, cortesia_sin_cobro: !!backend.courtesy };
+        const summary = { obra: obra.id, materiales_total: '0.00', otros_total: '0.00', mano_obra_total: '0.00', costo_total: '0.00', ...backend.costTotals, costos_validados: backend.control.costos_validados, cortesia_sin_cobro: !!backend.courtesy };
         if (backend.role !== AF) Object.assign(summary, { materiales_estado: backend.control.materiales_estado, otros_estado: backend.control.otros_estado, materiales_justificacion: backend.control.materiales_justificacion, otros_justificacion: backend.control.otros_justificacion, version_actual: backend.control.version_actual, version_validada: backend.control.version_validada, validado_por: backend.control.validado_por, validado_en: backend.control.validado_en, cortesia_justificacion: backend.courtesy?.justificacion ?? null, provisional: !backend.control.costos_validados || obra.estado === 'SUSPENDIDA' });
         return summary;
       }
       if (suffix === 'costos/control/' && method === 'GET') { assertRole([G, S]); return clone(backend.control); }
+      if (suffix === 'conciliacion-materiales/' && method === 'GET') { assertRole([G, S]); return {count:0,next:null,previous:null,results:[]}; }
+      if (suffix === 'requisitos-cierre/' && method === 'GET') { assertRole([S]); return clone({version_actual:backend.control.version_actual,version_validada:backend.control.version_validada,evidencias_archivo_verificadas:false,validacion:[],finalizacion:[],devoluciones:[],despachos:[],confirmacion_remanente:null,...backend.requirements}); }
       if (suffix === 'costos/control/' && method === 'PATCH') { assertRole([S]); Object.assign(backend.control, body, { version_actual: backend.control.version_actual + 1, version_validada: null, costos_validados: false }); backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: 1, cortesia: null, tipo: 'DECLARACION', registrado_por: 2, motivo: body.motivo, datos_anteriores: {}, datos_nuevos: clone(backend.control), creado_en: time }); return clone(backend.control); }
       if (suffix === 'costos/validar/' && method === 'POST') { assertRole([S]); if (!body.motivo?.trim()) throw new ApiError(400, 'Motivo obligatorio.'); backend.control.costos_validados = true; backend.control.version_validada = backend.control.version_actual; backend.control.validado_por = 2; backend.control.validado_en = time; backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: 1, cortesia: null, tipo: 'VALIDACION', registrado_por: 2, motivo: body.motivo, datos_anteriores: {}, datos_nuevos: clone(backend.control), creado_en: time }); return clone(backend.control); }
       if (suffix === 'cortesia-sin-cobro/' && method === 'POST') { assertRole([S]); if (backend.courtesy && !body.motivo) throw new ApiError(400, 'Motivo obligatorio.'); backend.courtesy = { justificacion: body.justificacion }; backend.control.version_actual++; backend.control.costos_validados = false; backend.costEvents.push({ id: backend.costEvents.length + 1, obra: obra.id, gasto: null, control: null, cortesia: 1, tipo: 'CORTESIA', registrado_por: 2, motivo: body.motivo || body.justificacion, datos_anteriores: {}, datos_nuevos: { justificacion: body.justificacion }, creado_en: time }); return clone(backend.courtesy); }
       if (suffix.startsWith('costos/historial/') && method === 'GET') { assertRole([G, S]); return paginate(backend.costEvents, url); }
-      if (suffix === 'gastos/' && method === 'GET') { assertRole([G, S]); return paginate(backend.expenses, url); }
+      if (suffix === 'gastos/' && method === 'GET') { assertRole([G, S]); return paginate(backend.expenses.map(item=>({origen:'MANUAL',entrega_bodega:null,...item})), url); }
       if (suffix === 'gastos/' && method === 'POST') { assertRole([S]); const item = { id: backend.expenses.length + 1, obra: obra.id, ...clone(body), cantidad_devuelta: '0.000', subtotal: '25.00', vigente: true, anulado_por: null, anulado_en: null, motivo_anulacion: '', registrado_por: 2, creado_en: time, actualizado_en: time }; backend.expenses.unshift(item); backend.control.version_actual++; backend.control.costos_validados = false; return clone(item); }
       const expenseMatch = suffix.match(/^gastos\/(\d+)(?:\/(devolver|anular))?\/$/);
       if (expenseMatch && method !== 'GET') { assertRole([S]); const item = backend.expenses.find((entry) => entry.id === Number(expenseMatch[1])); if (!item) throw new ApiError(404, 'No disponible.'); if (method === 'PATCH') Object.assign(item, body); else if (expenseMatch[2] === 'devolver') item.cantidad_devuelta = body.cantidad; else if (expenseMatch[2] === 'anular') { item.vigente = false; item.motivo_anulacion = body.motivo; } backend.control.version_actual++; backend.control.costos_validados = false; return clone(item); }
@@ -132,13 +164,13 @@ export function obrasBackend(role = S) {
       const match = route.match(/^\/api\/categorias-servicio\/(\d+)\/(.*)$/);
       if (!match) {
         if (method === 'GET') return paginate(backend.categories.filter((c) => !url.searchParams.has('activo') || String(c.activo) === url.searchParams.get('activo')), url);
-        assertRole([G]); const category = { id: Math.max(...backend.categories.map((c) => c.id)) + 1, nombre: body.nombre, activo: true }; backend.categories.push(category); return clone(category);
+        assertRole([S]); const category = { id: Math.max(...backend.categories.map((c) => c.id)) + 1, nombre: body.nombre, activo: true }; backend.categories.push(category); return clone(category);
       }
       const category = backend.categories.find((c) => c.id === Number(match[1]));
       if (!category) throw new ApiError(404, 'Categoría no disponible.');
       if (method === 'GET' && !match[2]) return clone(category);
-      assertRole([G]);
-      if (match[2] === 'historial/') return paginate(backend.categoryEvents, url);
+      if (match[2] === 'historial/' && method === 'GET') return paginate(backend.categoryEvents, url);
+      assertRole([S]);
       if (method === 'PATCH') category.nombre = body.nombre;
       if (match[2] === 'activar/') category.activo = true;
       if (match[2] === 'desactivar/') category.activo = false;

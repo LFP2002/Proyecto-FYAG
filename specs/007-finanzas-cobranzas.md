@@ -245,3 +245,15 @@ Este PR **solo define documentación** y no habilita ningún endpoint. El workfl
 - Suite frontend local del worktree: 159 pruebas aprobadas; build aprobado. No se ejecutó E2E de finanzas con cuentas reales ni Frontend CI en esta sesión.
 - Durante QA, la API de Obras ofreció cero presupuestos. El único presupuesto local observado está `APROBADO_GERENCIA`; la creación de Obra exige `APROBADO_CLIENTE` y que todavía no esté asociado. El flujo restante es envío al cliente y registro de su aprobación conforme a SPEC-003B; no es un defecto del selector de Obras ni debe corregirse alterando manualmente su estado.
 - Esta nota no afirma que la integración frontend esté publicada: sigue en un worktree local, sin commit, push, PR ni merge.
+
+## Resumen económico de Obras para Finanzas — 26-11-2026
+
+- Nueva consulta de solo lectura exclusiva AF: GET /api/finanzas/obras-resumen/ y /api/finanzas/obras-resumen/{obra_id}/. Listado paginado de 25, búsqueda y filtros globales por estado operativo, situación financiera y nombres. No modifica los serializers ni permisos operativos originales. No expone datos de contacto, tarifas individuales, evidencias o descripciones privadas.
+- Importe neto aprobado calculado por el dominio comercial; estado financiero derivado de documento vigente, cierre sin cobro, finalización, cierre de costos y aprobación. El detalle incluye el folio, total documentado y cobranza vigente; no confunde costos con pagos o ingresos. Los costos por rubro se leen del endpoint 004B autorizado y se identifican como provisionales mientras no estén validados.
+- UI específica AF, acceso contextual al presupuesto de origen y cartera de cobranza filtrada; para pendientes, acceso a la sección de documentos y pagos. No se realizan escrituras desde Obras. No hay llamadas por fila ni cambios de stock, costo o facturación.
+- Contrato en backend/docs/openapi/obras-resumen-finanzas-v1.json. Pruebas dirigidas añadidas; validación local y visual pendientes, sin merge.
+
+## Búsqueda global de cobranzas — 26-11-2026
+
+- Parámetro opcional buscar en GET /api/finanzas/cobranzas/, /api/finanzas/cobranzas/resumen/, /api/finanzas/documentos/ y /api/finanzas/obras-elegibles/. Texto no vacío tras recortar espacios, máximo 150 caracteres, sin controles ASCII ni repetición. Nombre legal y folio por coincidencia parcial sin distinguir mayúsculas, código OB completo por ID validado; obras elegibles solo nombre o código. Filtro SQL previo a paginación y agregado. Permisos y respuestas existentes intactos.
+- Contrato complementario en backend/docs/openapi/cobranzas-busqueda-v1.json. Prueba de coincidencia entre cartera y resumen, validación y consulta histórica. Ejecución local pendiente.

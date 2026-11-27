@@ -89,3 +89,12 @@ Validación: IDs positivos BIGINT, string Decimal estricto, textos normalizados 
 Antes de iniciar 019C-2 debe decidirse expresamente: tipos de pérdida/merma, motivo/evidencia obligatorios, quién autoriza, cuándo afecta al stock, origen y valor del costo (incluida merma en Bodega versus después de despacho a Obra), impacto sobre gasto/cierre y conciliación financiera. No inventar un tipo MERMA, no usar salidas sin Obra como si fueran despachos 019B y no equiparar pérdidas con egresos de dinero.
 
 La futura fase se separará en SPEC/PR propios aprobados; no arrastrar complejidad adicional a solicitudes.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- `frontend/src/pages/Solicitudes.jsx` presenta al Técnico la creación de solicitudes para obras `EN_PROCESO` o `SUSPENDIDA`, con artículo del catálogo solicitable, cantidad y justificación; Supervisor de Obras consulta y decide las pendientes según respuesta API. Se reutilizan `POST/GET /api/inventario/solicitudes-materiales/` y `/decidir/`; no se cambió el contrato backend.
+- Se añadió la vista/formulario y tabla paginada, chips de estado, detalle/historial y estilos responsive en `frontend/src/styles/pages/solicitudes.css`, importado por `main.jsx`.
+- El test focalizado `tests/inventory-actions.test.js` verifica rutas/contrato y que el Técnico no reciba importes. Esto documenta el estado local del frontend, no aprobación, publicación ni ejecución E2E con backend real.
+
+## Anexo — Bandeja de decisiones del Supervisor
+GET `/api/inventario/solicitudes-supervisor/` (estado, buscar, page) y GET `/api/inventario/solicitudes-supervisor/{id}/`, exclusivamente SUPERVISOR_OBRAS, mismo alcance de las lecturas existentes. Proyección de nombres actuales, código de obra/material, saldo físico actual si unidad coincide, cantidades históricas, motivo e historial en detalle; sin importes ni claves. Resumen global por estado independiente de filtros. POST de decisión original sin modificaciones. La aprobación no garantiza stock ni despacho; obra/participación/artículo y cantidades se revalidan por el servicio existente.

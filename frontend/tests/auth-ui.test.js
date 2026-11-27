@@ -38,6 +38,23 @@ test('restauración no muestra ningún contenido protegido ni formulario prematu
   assert.doesNotMatch(html, /Pendiente de integración|<form|Dashboard/);
 });
 
+test('desafío de primer acceso monta solo el formulario para contraseña personal', () => {
+  const html = render({ status: 'password-change-required', user: null, notice: null });
+  assert.match(html, /Crear contraseña personal/);
+  assert.match(html, /id="first-password"/);
+  assert.match(html, /Confirmar contraseña/);
+  assert.doesNotMatch(html, /Dashboard|Módulos|Ingresar</);
+});
+
+test('primer acceso temporal no monta negocio y solicita definir y confirmar clave personal', () => {
+  const html = render({ status: 'password-change-required', user: null, notice: null });
+  assert.match(html, /Crear contraseña personal/);
+  assert.match(html, /id="first-password"/);
+  assert.match(html, /id="first-password-confirm"/);
+  assert.match(html, /Guardar contraseña personal/);
+  assert.doesNotMatch(html, /fyag-modules-nav|Dashboard gerencial|Mis obras|type="email"/);
+});
+
 test('login real vacío y sin selector ni credenciales precargadas', () => {
   const html = render({ status: 'anonymous', user: null, notice: null });
   assert.match(html, /Correo electrónico/);
@@ -68,7 +85,7 @@ for (const [role, label] of [
       user: { id: 7, username: 'Alias de la cuenta real', email: 'cuenta@example.test', role } });
     assert.match(html, /Alias de la cuenta real/);
     assert.ok(html.includes(label));
-    if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo borrador/);
+    if (role === 'ADMINISTRATIVO_FINANZAS') assert.match(html, /Nuevo presupuesto/);
     else if (role === 'SUPERVISOR_OBRAS') assert.match(html, /Nueva obra/);
     else if (role === 'GERENCIA') assert.match(html, /Dashboard gerencial/);
     else if (role === 'TECNICO') assert.match(html, /Mis obras/);

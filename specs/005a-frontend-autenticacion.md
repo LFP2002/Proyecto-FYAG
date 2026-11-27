@@ -106,3 +106,9 @@ Sustituir el inicio de sesión simulado por el mecanismo real de Django JWT, y p
 - En el worktree local de `feature/frontend-005c2-turnos`, `frontend/src/auth/client.js` conserva el flujo de sesión 005A y fue ampliado para respuestas Blob/binarias autenticadas y `FormData`, reutilizando refresh, CSRF, same-origin y el mismo cliente. No se declara integrado en `main` ni publicado.
 - Evidencia de pruebas del worktree, antes de actualizar este registro: `npm test` aprobó 159 pruebas; `npm run build` aprobó. No equivale a Frontend CI ni a E2E con backend.
 - La ampliación está cubierta también por `frontend/tests/auth-client.test.js`; revisar ese diff junto con las descargas que la utilizan antes de aprobar publicación.
+
+## Seguimiento frontend local posterior — 25-11-2026
+
+- El flujo de primer acceso con credencial temporal se implementó en el worktree frontend: estado `password-change-required`, desafío temporal en memoria y `POST /api/auth/primer-cambio-clave/` con CSRF. Tras completarlo, se exige nuevo inicio de sesión y no se crea una sesión operativa desde la respuesta del cambio.
+- La pantalla permite definir y confirmar la contraseña personal; el frontend no genera ni permite a TI escoger la credencial temporal inicial. Cobertura local añadida a `frontend/tests/auth-client.test.js` y `frontend/tests/auth-ui.test.js`; en validación focalizada reportada previamente: 46/46 y build aprobados.
+- Estado local frontend; no se modificó backend ni se acredita publicación o E2E con una cuenta institucional.

@@ -113,3 +113,14 @@ El recolector solo opera en el almacenamiento privado nuevo y tablas de chat. Pr
 ### Definición de backend local listo
 
 023A y 023B integradas con CI verde y pruebas manuales aisladas; API y WS disponibles mediante Docker local; almacenamiento/retención y recuperación documentados; sin cambios de frontend ni despliegue. La auditoría integral y adaptación a nube son etapas posteriores.
+
+## Seguimiento del frontend local — 25-11-2026
+
+- `frontend/src/pages/Chat.jsx` consume las rutas REST especificadas para conversaciones, usuarios elegibles, mensajes, lectura, adjuntos y ticket de conexión WebSocket. El WebSocket solo autentica con el ticket recibido por REST y recupera contenido por REST; no incluye mensajes ni el ticket en la URL.
+- La vista incluye estado de conexión/reconexión, creación directa/grupal, lista con no leídos, paginación, carga de mensajes anteriores, envío de texto/archivo y descarga autenticada. Los nombres personalizados son alias locales en estado de React y no se sincronizan ni persisten.
+- Los mensajes muestran únicamente hora y minuto de envío; la UI omite fecha y `vence_en`, sin cambiar la retención ni el contrato backend.
+- La presentación se define en `frontend/src/styles/pages/chat.css`, importado por `main.jsx`. No hay modificación del protocolo ni backend en esta nota; la integración real E2E de sockets/archivos sigue requiriendo QA.
+
+## Anexo de presentación 023A/023B — vista previa e información de grupo
+
+Conversacion/Detalle añaden ultimo_mensaje (objeto nulo si no existen mensajes vigentes): id, autor, texto limitado a los primeros 120 caracteres, creado_en y vence_en UTC. Se selecciona el ID mayor entre los mensajes vigentes mediante subconsultas correlacionadas, sin N+1 adicionales ni cambios de orden de paginación. Texto vacío identifica un mensaje con archivo; no se devuelve el nombre del archivo ni claves privadas. Solo miembros autorizados; GET sin escrituras; contador no_leidos y vigencia conservados. Frontend común a los seis roles: vista previa y contador del servidor, nombres/roles reales de integrantes, panel de grupo sin edición, avatares por iniciales, fechas civiles de Santiago, menú de adjuntos con límites visibles antes de seleccionar, composición adaptable y retorno móvil. Sin cambios en WebSocket, retención, idempotencia, permisos ni esquema SQL. OpenAPI SPEC-023A-v1 versión 1.1.0.

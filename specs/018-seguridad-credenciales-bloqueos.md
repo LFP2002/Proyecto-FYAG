@@ -207,3 +207,7 @@ Los campos exactos de respuestas, TTL de desafíos, rate limiting y estados de e
 - backend/apps/usuarios/services_usuarios.py, serializers_usuarios.py y views_usuarios.py
 - frontend/src/ (auth y Usuarios), backend/config/settings.py, compose.yaml
 - Tests actuales de TI y autenticación en backend/apps/usuarios/tests/
+
+## Anexo — Consulta administrativa TI
+
+`GET /api/usuarios/` conserva paginación de 25, ID ascendente, y permisos exclusivos TI. Admite `buscar` (1–150 caracteres tras trim, sin caracteres de control; coincidencia parcial case-insensitive de nombre completo, alias o correo) y `resumen=true` (opcional, único valor válido). El resumen agrega total, activas, inactivas y temporales sobre todas las cuentas, sin depender de filtros; temporales representa estados persistidos INICIAL/RECUPERACION, incluso vencidos, no significa que puedan acceder. No incluye secretos. La proyección de credenciales/acceso ya existente se reutiliza; C2 permanece deshabilitada fuera de QA. Sin migraciones, cambios de autenticación ni permisos. La UI separa creación, perfil, seguridad e historial. La credencial temporal permanece solo en memoria de la cuenta seleccionada, se oculta al salir y nunca se recupera mediante GET. OpenAPI 018A 1.2.0 y complemento C2 1.1.0.

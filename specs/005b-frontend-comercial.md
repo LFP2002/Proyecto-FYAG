@@ -267,5 +267,36 @@ No bloquear indefinidamente la UI cuando un request falla; mostrar loading, empt
 - **Funcionalidad integrada:** CRUD autorizado de Clientes; presupuestos e ítems reales; aprobación obligatoria de Gerencia; historial, rechazos, revisiones y anulación conforme al backend; selector de unidades y edición en línea.
 - **Interfaz:** barra de herramientas compacta, filtros de estado, controles de actualización y estilo Bootstrap 5/CSS FYAG; estándar acordado de Bootstrap Icons para nuevos íconos.
 - **Verificación:** la implementación fue revisada y el usuario completó pruebas manuales exitosas de flujo G/AF en navegador. Las pruebas de CI constan en GitHub. No atribuir a este registro resultados de una suite no ejecutada en este commit documental.
-- **Límites vigentes:** Obras, Finanzas, Dashboard, Alertas, Reportes y Usuarios no quedaron integrados como resultado de 005B. El filtrado por estado de Presupuestos opera sobre la página cargada (25 registros), no como filtro global de servidor.
+- **Límites de 005B:** el filtrado por estado de Presupuestos opera sobre la página cargada (25 registros), no como filtro global de servidor. Las integraciones posteriores se registran por separado abajo.
 - **Continuidad:** [SPEC-005C](005c-frontend-obras.md) define la integración de Gestión de Obras en bloques revisables.
+
+## Seguimiento frontend local posterior — 25-11-2026
+
+- El flujo visual vigente se alinea con SPEC-024: Supervisor de Obras puede crear y editar solo borradores propios, usar `/api/presupuestos/clientes-elegibles/` (proyección mínima) y enviar a Finanzas mediante `/enviar-finanzas/`. Finanzas puede aprobar/rechazar en revisión interna y, tras aprobar, enviar al cliente y registrar su respuesta. Gerencia conserva lectura; el frontend no llama las acciones gerenciales retiradas.
+- La navegación muestra Presupuestos para Supervisor sin habilitarle Clientes. Se conservan scopes y permisos backend como autoridad, y se mantiene separado el selector mínimo de clientes del CRUD de Clientes.
+- En el mismo worktree local se implementaron pantallas frontend para Chat, Solicitudes de materiales, Mermas, Inventario y Egresos, además de estilos de chat/solicitudes/mermas, auditoría visual y el flujo de cambio de contraseña temporal. Cada UI reutiliza los contratos API existentes; esta nota no constituye aprobación de cambios backend, merge ni despliegue.
+- El chat presenta la hora (hora:minuto) de envío y no muestra fecha ni vencimiento del mensaje. Los alias de conversación viven solo en estado de la vista, sin almacenamiento persistente.
+- Validaciones ejecutadas por incrementos se registran en la conversación de trabajo; no se declara aquí una suite completa final para todo el worktree. La autorización de publicación sigue siendo independiente.
+
+## Rediseño de Clientes — 26-11-2026
+
+- Exclusivo de Administrativo/Finanzas. Conserva las rutas, permisos, validaciones y acciones de activación/desactivación de SPEC-003A; sin modificaciones al backend ni al contrato OpenAPI.
+- Listado completo recibido como array desde GET /api/clientes/. Búsqueda local por nombre legal, identificación (incluye RUT sin separadores), contacto, correo y teléfono; insensible a mayúsculas y diacríticos. Filtros combinables por estado y tipo de cliente. Contador de coincidencias sobre el total recibido, sin paginación simulada.
+- Listado sin columna de ID, con contacto y tipo de cliente. Detalle independiente, formularios de alta y edición separados y agrupados en identificación/contacto. Se conservan filtros al regresar al listado. Campos de documento extranjero condicionales, valores legibles y validación original.
+- Diseño adaptable, Bootstrap Icons reutilizados y modo oscuro vigente. Escrituras mantienen reconsulta obligatoria, bloqueo por incertidumbre y ausencia de reenvíos automáticos; actualización accesible también desde el formulario bloqueado.
+- Resumen comercial consolidado (presupuestos, obras y cobranzas por cliente) diferido: no existe contrato consolidado y no se muestran cifras simuladas.
+- Pruebas dirigidas: comercial-ui.test.js y comercial-domain.test.js, más compilación Vite y comprobación visual manual. Ejecución local pendiente; no implica aprobación de CI ni merge.
+
+### Refinamiento visual de ficha y formularios
+
+- Listado principal aprobado: permanece a ancho completo, sin cambios de filtros ni tabla.
+- Alta, edición y detalle centrados con ancho máximo de 900 px; campos principales a ancho completo, restantes en dos columnas adaptables, iconos reutilizados, ayudas de entrada y marca de campos obligatorios según la validación vigente. Correo o teléfono sigue siendo requisito alternativo.
+- Ficha con encabezado de identidad, estado, ID informativo y acciones separadas; datos agrupados por filas, valores ausentes identificados como «No registrado». Sin cambios de API, permisos o escritura. Se conserva Actualizar para reconsulta y resolución de incertidumbre.
+- Pruebas dirigidas actualizadas; ejecución local y verificación visual pendientes.
+
+## Refinamiento de ítems de Presupuestos — 26-11-2026
+
+- Finanzas y Supervisor: selección de materiales y edición compactas en el mismo espacio; catálogo con desplazamiento interno, búsqueda y paginación existentes. Tras seleccionar, descripción y unidad de catálogo se conservan; cantidad y precio se ingresan en campos alineados.
+- Sin columna, campo ni acción de reordenamiento. El orden interno se asigna automáticamente al crear y se conserva al editar. Las restricciones de unicidad y validaciones del servidor permanecen.
+- Subtotal estimado local mediante enteros de precisión arbitraria y redondeo a centavos; el importe definitivo y el total del presupuesto siguen siendo los confirmados por el servidor. No hay modificación de stock por cotizar.
+- Pruebas de presentación actualizadas; ejecución local y comprobación visual pendientes. Sin cambios de API ni merge.

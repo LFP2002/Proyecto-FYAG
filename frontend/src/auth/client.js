@@ -3,7 +3,7 @@
 import { API_ORIGIN, trustedOrigin } from './config.js';
 export const USER_ROLES = Object.freeze([
   'GERENCIA', 'ADMINISTRATIVO_FINANZAS', 'SUPERVISOR_OBRAS', 'TECNICO',
-  'ADMINISTRADOR_TI',
+  'ADMINISTRADOR_TI', 'BODEGUERO',
 ]);
 
 export class ApiError extends Error {
@@ -33,6 +33,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   const origin = trustedOrigin(apiOrigin);
   let access = null;
   let csrf = null;
+  let firstChange = null;
   let epoch = 0;
   let csrfFlight = null;
   let refreshFlight = null;
@@ -54,6 +55,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   function clear(notice = null) {
     epoch += 1;
     access = null;
+    firstChange = null;
     emit('anonymous', null, notice);
   }
 
@@ -88,13 +90,27 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       if ([400, 409].includes(response.status) && !path.startsWith('/api/auth/')) {
         try {
           const data = await response.json();
-          const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+           const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+           const inicioObra = /^\/api\/obras\/\d+\/iniciar\/$/.test(path);
+           const cierreObra = /^\/api\/obras\/\d+\/finalizar\/$/.test(path);
+           const revisionObra = cierreObra || /^\/api\/obras\/\d+\/costos\/validar\/$/.test(path);
+           if (inicioObra && response.status === 400) allowed.add('materiales');
+           if (revisionObra) allowed.add('version_costos_esperada');
+           const aprobarPresupuesto = /^\/api\/presupuestos\/\d+\/aprobar-finanzas\/$/.test(path);
+           if (aprobarPresupuesto && response.status === 400) {
+             allowed.add('version_comercial_esperada');
+             allowed.add('monto_neto');
+           }
+           if (aprobarPresupuesto && response.status === 409 && data?.code === 'version_comercial_obsoleta') code = data.code;
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
-            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]']) allowed.add(field);
+            for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]', 'buscar', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'justificacion', 'costo_unitario_neto', 'fecha_gasto', 'fecha_devolucion']) allowed.add(field);
           }
           if (path.startsWith('/api/alertas/')) {
             for (const field of ['motivo', 'estado', 'tipo', 'recurso_tipo', 'recurso_id', 'desde', 'hasta', 'page']) allowed.add(field);
             if (['alerta_ya_atendida', 'alerta_resuelta', 'alerta_desactualizada'].includes(data?.code)) code = data.code;
+          }
+          if (path.startsWith('/api/chat/')) {
+            for (const field of ['archivo','texto','body','clave_idempotencia','ultimo_mensaje_id','participantes','destinatario','titulo']) allowed.add(field);
           }
           if (path.startsWith('/api/usuarios/')) {
             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
@@ -104,7 +120,14 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
             const values = Array.isArray(value) ? value : [value];
             if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
           }
-          if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
+           if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
+           if (response.status===409 && ((revisionObra && data?.code==='version_costos_obsoleta') ||
+             (cierreObra && ['devolucion_pendiente','confirmacion_remanente_requerida'].includes(data?.code)))) code=data.code;
+           if (response.status===409 && revisionObra && data?.code==='costos_incompletos') {
+            code=data.code;
+            const known=new Set(['responsable_no_elegible','responsable_sin_membresia','sin_turno_acreditado','turnos_sin_acreditar','turno_inconsistente','turnos_abiertos','turnos_pendientes_revision','turnos_observados','turnos_sin_tarifa','duracion_administrativa_sin_verificar','ejecutor_inconsistente','duracion_inconsistente','evidencia_inconsistente','gasto_inconsistente','materiales_sin_declarar_o_incoherente','otros_sin_declarar_o_incoherente','costo_total_no_positivo','control_inexistente','validacion_obsoleta_o_ausente']);
+            if(Array.isArray(data.pendientes))fields.pendientes=[...new Set(data.pendientes.filter(value=>known.has(value)))];
+          }
           if (path.startsWith('/api/usuarios/') && ['ultima_ti', 'ultima_gerencia', 'autooperacion_protegida', 'asignaciones_pendientes', 'sin_cambios', 'version_agotada'].includes(data?.code)) code = data.code;
         } catch { /* Respuesta no pública: conservar mensaje genérico. */ }
       }
@@ -200,6 +223,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     const previousRefresh = refreshFlight;
     const version = ++epoch;
     access = null;
+    firstChange = null;
     emit('authenticating');
     const pending = (async () => {
       if (previousRefresh) await previousRefresh.catch(() => null);
@@ -215,6 +239,15 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       assertCurrent(version);
       if (typeof data?.csrfToken !== 'string' || !data.csrfToken) throw new ApiError(502, 'No fue posible verificar la protección CSRF.');
       csrf = data.csrfToken; // Login rota CSRF: no reutilizar el token anterior.
+      if (data?.estado === 'CAMBIO_OBLIGATORIO') {
+        if (typeof data.desafio !== 'string' || data.desafio.length < 1 || data.desafio.length > 128 || /[\x00-\x1f]/.test(data.desafio)
+            || typeof data.desafio_vence_en !== 'string' || !Number.isFinite(Date.parse(data.desafio_vence_en))) {
+          throw new ApiError(502, 'La respuesta de primer acceso es inesperada.');
+        }
+        firstChange = Object.freeze({ desafio: data.desafio, venceEn: data.desafio_vence_en });
+        emit('password-change-required', null);
+        return null;
+      }
       const user = await identify(data.access, version);
       access = data.access;
       emit('authenticated', user);
@@ -227,11 +260,34 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     return pending;
   }
 
+  async function completeFirstPasswordChange(newPassword) {
+    if (snapshot.status !== 'password-change-required' || !firstChange) throw new ApiError(401, 'No hay un cambio inicial pendiente.');
+    if (typeof newPassword !== 'string' || !newPassword || newPassword.length > 4096) throw new ApiError(400, 'Ingresa una contraseña válida.');
+    const version = epoch;
+    const challenge = firstChange.desafio;
+    const protection = await csrfToken();
+    assertCurrent(version);
+    if (snapshot.status !== 'password-change-required' || firstChange?.desafio !== challenge) throw new ApiError(401, 'El desafío de primer acceso ya no está disponible.');
+    try {
+      const result = await http('/api/auth/primer-cambio-clave/', { method: 'POST', body: { desafio: challenge, nueva_clave: newPassword }, csrfToken: protection });
+      assertCurrent(version);
+      if (result?.estado !== 'CLAVE_PERSONAL_CONFIRMADA' || result.login_requerido !== true) throw new ApiError(502, 'La confirmación del cambio inicial es inesperada.');
+      firstChange = null;
+      access = null;
+      emit('anonymous', null, 'Contraseña personal confirmada. Inicia sesión con tu nueva contraseña.');
+      return true;
+    } catch (error) {
+      if (error.status === 400 || error.status === 401) { firstChange = null; emit('anonymous', null, error.status === 401 ? 'El desafío venció o ya fue utilizado. Inicia sesión nuevamente con la credencial temporal.' : 'El desafío no es válido o la contraseña nueva no cumple los requisitos. Inicia sesión nuevamente con la credencial temporal.'); }
+      throw error;
+    }
+  }
+
   function logout() {
     if (logoutFlight) return logoutFlight;
     const pendingAuth = [loginFlight, refreshFlight].filter(Boolean);
     const version = ++epoch;
     access = null;
+    firstChange = null;
     emit('logging-out'); // Retirar identidad y contenido antes de esperar la red.
     const pending = (async () => {
       // Una respuesta tardía puede haber rotado la cookie HttpOnly. Revocar
@@ -279,7 +335,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    restore, login, logout, request, sessionInvalidatedByEmailChange,
+    restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
   });
 }
 

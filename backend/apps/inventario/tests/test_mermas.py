@@ -184,6 +184,14 @@ class MermasDominioTests(MermasBase, TestCase):
         self.assertEqual(self.client.get(ruta, {'entrega': e.pk}).data['results'][0]['cantidad_recibible_efectiva'], '0.000')
         e.gasto.refresh_from_db()
         self.assertEqual(e.gasto.cantidad_devuelta, 4)
+        self.autenticar(self.supervisor)
+        self.acreditar()
+        self.validar()
+        requisitos = self.client.get(f'/api/obras/{self.obra.pk}/requisitos-cierre/')
+        self.assertEqual(requisitos.status_code, 200, requisitos.data)
+        self.assertEqual(requisitos.data['devoluciones'], [])
+        self.assertEqual(self.finalizar(requisitos.data['confirmacion_remanente']).estado, 'FINALIZADA')
+        self.assertEqual(GastoObra.objects.filter(obra=self.obra).count(), 1)
 
     def test_nuevas_autorizaciones_descuentan_todas_las_previas_y_mo(self):
         self.preparar_entrega()
@@ -372,3 +380,27 @@ class MermasAPITests(MermasBase, TestCase):
             with self.assertRaises(APIException) as error:
                 services.crear(ambito, self.entrada_merma(ambito), actor)
             self.assertEqual(error.exception.status_code, 401)
+
+class BodegaConsultaMermasTests(MermasBase, TestCase):
+    def setUp(self):
+        self.preparar_mermas()
+
+    def test_proyeccion_mermas_y_confirmacion_propia(self):
+        m = self.informar()
+        self.autenticar(self.bodega)
+        url = '/api/inventario/bodega/'
+        response = self.client.get(url, {'seccion': 'mermas', 'buscar': 'Manguera', 'estado': 'PENDIENTE'})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['count'], 1)
+        row = response.data['results'][0]
+        self.assertEqual((row['id'], row['nombre'], row['cantidad']), (m.pk, 'Manguera QA', '2.000'))
+        self.assertNotIn('costo_unitario_neto', row)
+        self.assertNotIn('clave_idempotencia', row)
+        detail = self.client.get(url, {'seccion': 'merma_detalle', 'merma': m.pk})
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertEqual(detail.data['historial'][0]['tipo'], 'CREACION')
+        self.assertEqual(self.client.get(url, {'seccion': 'confirmacion', 'tipo': 'MERMA', 'clave': str(m.clave_idempotencia)}).data, {'id': m.pk})
+        self.assertEqual(self.client.get(url, {'seccion': 'mermas', 'estado': 'APROBADA'}).data['count'], 0)
+        self.assertEqual(self.client.get(url, {'seccion': 'merma_detalle', 'merma': 999999}).status_code, 404)
+        self.autenticar(self.finanzas)
+        self.assertEqual(self.client.get(url, {'seccion': 'mermas'}).status_code, 403)

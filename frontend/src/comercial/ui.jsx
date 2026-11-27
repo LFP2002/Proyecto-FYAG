@@ -37,11 +37,19 @@ export function useCommercial() {
     catch (e) { if (ref.current === scope) setError(e); return false; }
     finally { if (ref.current === scope) { setBusy(false); setLocked(scope.locked); } }
   }
+  async function writeResult(path, method, body, apply) {
+    const scope = ref.current;
+    if (!scope || scope.locked) return false;
+    setBusy(true); setError(null);
+    try { return await scope.write((signal) => request(path, { method, body, signal }), apply); }
+    catch (e) { if (ref.current === scope) setError(e); return false; }
+    finally { if (ref.current === scope) { setBusy(false); setLocked(scope.locked); } }
+  }
   async function reconcile(operation) {
     setError(null);
     if (await operation()) { ref.current?.reconciled(); setLocked(false); }
   }
-  return { load, requiredLoad, write, error, setError, busy, loading, locked, reconcile };
+  return { load, requiredLoad, write, writeResult, error, setError, busy, loading, locked, reconcile };
 }
 export function Errors({ error }) {
   if (!error) return null;
@@ -70,6 +78,6 @@ export function BudgetStatus({ state }) {
   const [label, color] = PRE_E[state] || [state, 'gray'];
   return <Chip cls={color}>{label}</Chip>;
 }
-export const actionButtonClass = (action) => `btn ${['anular', 'rechazar-gerencia', 'registrar-rechazo-cliente'].includes(action)
-  ? 'btn-outline-danger' : ['aprobar-gerencia', 'registrar-aprobacion-cliente'].includes(action)
+export const actionButtonClass = (action) => `btn ${['anular', 'rechazar-finanzas', 'rechazar-gerencia', 'registrar-rechazo-cliente'].includes(action)
+  ? 'btn-outline-danger' : ['aprobar-finanzas', 'aprobar-gerencia', 'registrar-aprobacion-cliente'].includes(action)
     ? 'btn-outline-success' : 'btn-fyag-primary'}`;

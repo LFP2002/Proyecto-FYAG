@@ -3,7 +3,7 @@ name: Frontend CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, reajustes-visuales-frontend]
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'

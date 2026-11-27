@@ -5,10 +5,18 @@ from .views_documentos import DocumentoViewSet, ObrasElegiblesView, RegistrarSin
 from .views_pagos import PagosListaView, PagoDetalleView, PagoAnularView, PagosHistorialView, CobranzasView, CobranzasResumenView
 from .views_egresos import EgresosListaView, EgresoDetalleView, EgresoAnularView, EgresoHistorialView, FlujoDineroResumenView
 
+from .views_supervision import SupervisionCobranzasView
+from .views_egresos_gerencia import SupervisionEgresosView
+
+from .views_obras_resumen import ObrasResumenFinanzasView
+
 router = SimpleRouter()
 router.register("documentos", DocumentoViewSet, basename="documento-financiero")
 urlpatterns = [
+    path("obras-resumen/", ObrasResumenFinanzasView.as_view(), name="obras-resumen-finanzas"),
+    path("obras-resumen/<str:obra_id>/", ObrasResumenFinanzasView.as_view(), name="obra-resumen-finanzas"),
     path("egresos/", EgresosListaView.as_view(), name="egresos"),
+    path("egresos/supervision-gerencial/", SupervisionEgresosView.as_view(), name="supervision-egresos"),
     path("egresos/<str:egreso_id>/", EgresoDetalleView.as_view(), name="detalle-egreso"),
     path("egresos/<str:egreso_id>/anular/", EgresoAnularView.as_view(), name="anular-egreso"),
     path("egresos/<str:egreso_id>/historial/", EgresoHistorialView.as_view(), name="historial-egreso"),
@@ -17,6 +25,7 @@ urlpatterns = [
     path("documentos/<str:documento_id>/pagos/historial/", PagosHistorialView.as_view(), name="historial-pagos-documento"),
     path("documentos/<str:documento_id>/pagos/<str:pago_id>/anular/", PagoAnularView.as_view(), name="anular-pago-documento"),
     path("documentos/<str:documento_id>/pagos/<str:pago_id>/", PagoDetalleView.as_view(), name="detalle-pago-documento"),
+    path("cobranzas/supervision-gerencial/", SupervisionCobranzasView.as_view(), name="supervision-cobranzas"),
     path("cobranzas/resumen/", CobranzasResumenView.as_view(), name="resumen-cobranzas"),
     path("cobranzas/", CobranzasView.as_view(), name="cobranzas"),
     path("obras-elegibles/", ObrasElegiblesView.as_view(), name="obras-elegibles-finanzas"),

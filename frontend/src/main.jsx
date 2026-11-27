@@ -5,6 +5,22 @@ import App from './app.jsx';
 import { AppProvider } from './context/AppContext.jsx';
 import { AuthProvider } from './auth/AuthContext.jsx';
 
+// Mantener la cascada global independiente del orden de navegación.
+import './styles/pages/tecnico.css';
+import './styles/pages/supervisor-obras.css';
+import './styles/components/adjuntos.css';
+import './styles/pages/obras-finanzas.css';
+import './styles/pages/obras-gerencia.css';
+import './styles/pages/alertas-gerencia.css';
+import './styles/pages/reportes-gerencia.css';
+import './styles/pages/inventario-gerencia.css';
+import './styles/pages/inventario-finanzas.css';
+import './styles/pages/inventario-supervisor.css';
+import './styles/pages/mermas-finanzas.css';
+import './styles/pages/egresos-gerencia.css';
+import './styles/pages/egresos-finanzas.css';
+import './styles/pages/bodega.css';
+
 import './styles/variables.css';
 import './styles/base.css';
 import './styles/layout.css';
@@ -21,6 +37,14 @@ import './styles/pages/alertas.css';
 import './styles/pages/reportes.css';
 import './styles/pages/usuarios.css';
 import './styles/pages/comercial.css';
+import './styles/pages/auditoria.css';
+import './styles/pages/chat.css';
+import './styles/pages/mermas.css';
+import './styles/pages/solicitudes.css';
+import './styles/dark-mode.css';
+import './styles/pages/finanzas-visual.css';
+import './styles/pages/role-typography.css';
+import './styles/pages/interactive-cards.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

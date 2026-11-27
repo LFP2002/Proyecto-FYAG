@@ -20,7 +20,13 @@ class MermasAPIView(CabecerasMateriales, APIView):
 
     def serializar(self, merma, **contexto):
         economico = self.request.user.rol in {'ADMINISTRATIVO_FINANZAS', 'SUPERVISOR_OBRAS', 'GERENCIA'}
-        return (MermaCostoSerializer if economico else MermaSerializer)(merma, context=contexto).data
+        data = (MermaCostoSerializer if economico else MermaSerializer)(merma, context=contexto).data
+        if self.request.method == 'GET' and consultas.vista_finanzas(self.request.user, self.ambito, self.request.query_params):
+            def nombre(user):
+                return (user.get_full_name().strip() or user.username) if user else None
+            data.update(articulo_nombre=merma.articulo.nombre, articulo_codigo=merma.articulo.codigo,
+                        informado_nombre=nombre(merma.informado_por), decidido_nombre=nombre(merma.decidido_por))
+        return data
 
 
 class MermasView(MermasAPIView):
@@ -30,7 +36,10 @@ class MermasView(MermasAPIView):
         qs = consultas.listado(request.user, self.ambito, request.query_params)
         paginador = InventarioPaginacion()
         pagina = paginador.paginate_queryset(qs, request, view=self)
-        return paginador.get_paginated_response([self.serializar(m) for m in pagina])
+        response = paginador.get_paginated_response([self.serializar(m) for m in pagina])
+        if consultas.vista_finanzas(request.user, self.ambito, request.query_params):
+            response.data['resumen'] = consultas.resumen_finanzas(request.user)
+        return response
 
     def post(self, request):
         validar_query(request.query_params)

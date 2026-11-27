@@ -69,6 +69,8 @@ class GastoLecturaSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     obra = serializers.IntegerField(source="obra_id", read_only=True)
     tipo = serializers.CharField(read_only=True)
+    origen = serializers.ChoiceField(choices=["MANUAL", "BODEGA_019B"], read_only=True)
+    entrega_bodega = serializers.SerializerMethodField()
     descripcion = serializers.CharField(read_only=True)
     unidad = serializers.CharField(read_only=True)
     cantidad = serializers.DecimalField(
@@ -95,6 +97,10 @@ class GastoLecturaSerializer(serializers.Serializer):
     )
     creado_en = serializers.DateTimeField(read_only=True)
     actualizado_en = serializers.DateTimeField(read_only=True)
+
+    def get_entrega_bodega(self, gasto):
+        entrega = getattr(gasto, "entrega_bodega", None) if gasto.origen == "BODEGA_019B" else None
+        return entrega.pk if entrega else None
 
     def get_subtotal(self, gasto):
         return str(gasto.subtotal)

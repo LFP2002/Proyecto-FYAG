@@ -1,7 +1,9 @@
 """Consultas 021 sin efectos laterales ni locks de los dominios propietarios."""
+import re
 from decimal import Decimal, localcontext
 
 from django.db import connection
+from django.db.models import Q
 from django.http import QueryDict
 from rest_framework.exceptions import NotFound, ValidationError
 
@@ -37,7 +39,7 @@ def periodo(params, *, obligatorio=False):
 
 def listado(actor, params):
     revalidar(actor)
-    validar_query(params, {"categoria", "medio", "obra", "activo", "desde", "hasta", "page"})
+    validar_query(params, {"categoria", "medio", "obra", "activo", "desde", "hasta", "page", "buscar", "resumen"})
     fechas = periodo(params)
     qs = Egreso.objects.order_by("-fecha_pago", "-id")
     for campo, opciones in [("categoria", Egreso.Categoria.values), ("medio", PagoDocumento.Medio.values)]:
@@ -53,6 +55,17 @@ def listado(actor, params):
         qs = qs.filter(obra_id=pk_url(params["obra"]))
     if fechas:
         qs = qs.filter(fecha_pago__range=fechas)
+    if "resumen" in params and params["resumen"] != "true":
+        raise ValidationError({"resumen": "Use true."})
+    if "buscar" in params:
+        term = params["buscar"].strip()
+        if not term or len(term) > 100 or any(ord(c) < 32 for c in term):
+            raise ValidationError({"buscar": "Búsqueda no válida."})
+        criteria = Q(concepto__icontains=term) | Q(beneficiario__icontains=term)
+        match = re.fullmatch(r"OB-([0-9]{1,19})", term, re.IGNORECASE)
+        if match and 0 < int(match[1]) <= 9223372036854775807:
+            criteria |= Q(obra_id=int(match[1]))
+        qs = qs.filter(criteria)
     return qs
 
 

@@ -1,0 +1,855 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — SPEC-019D Consulta operativa Bodega",
+    "version": "1.1.0"
+  },
+  "paths": {
+    "/api/inventario/bodega/": {
+      "get": {
+        "summary": "Consulta exclusiva de Bodega; ver SPEC-019D para parámetros por sección",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seccion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "resumen",
+                "inventario",
+                "movimientos",
+                "entregas",
+                "devoluciones",
+                "confirmacion",
+                "mermas",
+                "merma_detalle"
+              ],
+              "default": "resumen"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activo",
+                "inactivo",
+                "PENDIENTE",
+                "APROBADA",
+                "RECHAZADA"
+              ]
+            }
+          },
+          {
+            "name": "stock",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "con_stock",
+                "sin_stock"
+              ]
+            }
+          },
+          {
+            "name": "articulo",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "INGRESO",
+                "SALIDA",
+                "DEVOLUCION",
+                "MERMA",
+                "ENTREGA",
+                "DANO",
+                "VENCIMIENTO",
+                "EXTRAVIO",
+                "DIFERENCIA_CONTEO",
+                "OTRA"
+              ]
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "vista",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pendientes",
+                "historial",
+                "autorizaciones"
+              ]
+            }
+          },
+          {
+            "name": "clave",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "merma",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Requerido para merma_detalle."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyección según sección",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Resumen"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Pagina"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Confirmacion"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MermaDetalle"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Consulta inválida"
+          },
+          "401": {
+            "description": "Sesión no disponible"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página inexistente"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Articulo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "id",
+          "activo",
+          "descripcion",
+          "saldo"
+        ],
+        "properties": {
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "activo": {
+            "type": "boolean"
+          },
+          "descripcion": {
+            "type": "string"
+          },
+          "saldo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          }
+        }
+      },
+      "Movimiento": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "id",
+          "tipo",
+          "cantidad",
+          "saldo_anterior",
+          "saldo_posterior",
+          "referencia",
+          "motivo",
+          "actor",
+          "creado_en"
+        ],
+        "properties": {
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "INGRESO",
+              "SALIDA",
+              "DEVOLUCION",
+              "MERMA"
+            ]
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "saldo_anterior": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "saldo_posterior": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Operacion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "id",
+          "tipo",
+          "obra",
+          "autorizacion",
+          "entrega",
+          "cantidad",
+          "referencia",
+          "motivo",
+          "actor",
+          "creado_en"
+        ],
+        "properties": {
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "ENTREGA",
+              "DEVOLUCION"
+            ]
+          },
+          "obra": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "autorizacion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "entrega": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Autorizacion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "id",
+          "tipo",
+          "obra",
+          "autorizacion",
+          "entrega",
+          "cantidad",
+          "referencia",
+          "motivo",
+          "actor",
+          "creado_en",
+          "ejecutada",
+          "pendiente",
+          "saldo",
+          "maximo",
+          "bloqueo"
+        ],
+        "properties": {
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "AUTORIZACION_ENTREGA",
+              "AUTORIZACION_DEVOLUCION"
+            ]
+          },
+          "obra": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "autorizacion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "entrega": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ejecutada": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "pendiente": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "saldo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "maximo": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "bloqueo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Resumen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "materiales",
+          "sin_stock",
+          "entregas",
+          "devoluciones",
+          "faltantes",
+          "pendientes",
+          "retornos"
+        ],
+        "properties": {
+          "materiales": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sin_stock": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entregas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "devoluciones": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "faltantes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Articulo"
+            },
+            "maxItems": 5
+          },
+          "pendientes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Autorizacion"
+            },
+            "maxItems": 5
+          },
+          "retornos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Autorizacion"
+            },
+            "maxItems": 5
+          }
+        }
+      },
+      "Pagina": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Articulo"
+                },
+                {
+                  "$ref": "#/components/schemas/Movimiento"
+                },
+                {
+                  "$ref": "#/components/schemas/Operacion"
+                },
+                {
+                  "$ref": "#/components/schemas/Autorizacion"
+                },
+                {
+                  "$ref": "#/components/schemas/Merma"
+                }
+              ]
+            },
+            "maxItems": 25
+          }
+        }
+      },
+      "Confirmacion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      },
+      "Merma": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "cantidad",
+          "tipo",
+          "estado",
+          "creado_en",
+          "motivo",
+          "referencia",
+          "actor",
+          "decidido_por",
+          "decidido_en",
+          "motivo_decision"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "DANO",
+              "VENCIMIENTO",
+              "EXTRAVIO",
+              "DIFERENCIA_CONTEO",
+              "OTRA"
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          }
+        }
+      },
+      "MermaDetalle": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "articulo",
+          "codigo",
+          "nombre",
+          "unidad",
+          "cantidad",
+          "tipo",
+          "estado",
+          "creado_en",
+          "motivo",
+          "referencia",
+          "actor",
+          "decidido_por",
+          "decidido_en",
+          "motivo_decision",
+          "historial"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "articulo": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codigo": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "unidad": {
+            "type": "string"
+          },
+          "cantidad": {
+            "type": "string",
+            "pattern": "^[0-9]{1,9}\\.[0-9]{3}$"
+          },
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "DANO",
+              "VENCIMIENTO",
+              "EXTRAVIO",
+              "DIFERENCIA_CONTEO",
+              "OTRA"
+            ]
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PENDIENTE",
+              "APROBADA",
+              "RECHAZADA"
+            ]
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "referencia": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "decidido_por": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decidido_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "motivo_decision": {
+            "type": "string"
+          },
+          "historial": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "tipo",
+                "actor",
+                "motivo",
+                "creado_en"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "tipo": {
+                  "type": "string",
+                  "enum": [
+                    "CREACION",
+                    "APROBACION",
+                    "RECHAZO"
+                  ]
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "motivo": {
+                  "type": "string"
+                },
+                "creado_en": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

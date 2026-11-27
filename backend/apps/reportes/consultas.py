@@ -52,6 +52,8 @@ def netos(ids, tiempo):
                     tiempo.comprobar()
                     yield calcular_subtotal(c, p)
             out[pk] = sumar_monto_neto(subtotales())
+            if out[pk] is None:
+                raise OrigenInconsistente("presupuesto_inconsistente")
     return out
 
 

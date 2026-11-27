@@ -1,3 +1,4 @@
+from django.db.models import Count, Sum
 from django.utils.cache import patch_vary_headers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,7 +25,12 @@ class EgresosListaView(EgresosAPIView):
     http_method_names = ["get", "post", "head", "options"]
 
     def get(self, request):
-        return self.paginar(consultas.listado(request.user, request.query_params), EgresoLecturaSerializer)
+        qs = consultas.listado(request.user, request.query_params)
+        response = self.paginar(qs, EgresoLecturaSerializer)
+        if request.query_params.get("resumen") == "true":
+            valores = qs.filter(activo=True).aggregate(total=Sum("monto"), pagos=Count("pk"))
+            response.data["resumen"] = {"moneda": "CLP", "total": format(valores["total"] or 0, ".2f"), "pagos": valores["pagos"]}
+        return response
 
     def post(self, request):
         consultas.validar_query(request.query_params)

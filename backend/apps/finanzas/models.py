@@ -198,6 +198,9 @@ class FinanzasEvento(RegistroInmutable):
     datos_nuevos = models.JSONField(default=dict, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
+    actor_nombre_historico = models.CharField(max_length=301, null=True, blank=True, editable=False)
+    actor_username_historico = models.CharField(max_length=150, null=True, blank=True, editable=False)
+
     class Meta:
         ordering = ["creado_en", "id"]
         constraints = [models.CheckConstraint(condition=(

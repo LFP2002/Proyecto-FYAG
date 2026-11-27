@@ -182,3 +182,22 @@ Estas políticas definen el **contrato autorizado para implementación**, no cap
 5. Luego retomar SPEC-019B simplificada (entregas/devoluciones) y, solo si aporta valor al objetivo Beta, SPEC-019C.
 
 **No usar SPEC-021 como excusa para activar dinero ficticio en Bodega, crear DTE, modificar créditos de clientes ni implementar un libro contable completo.**
+
+## Seguimiento del frontend local — 25-11-2026
+
+- Se añadió localmente `frontend/src/pages/Egresos.jsx` para consultar y registrar egresos mediante las rutas existentes, con filtros, paginación, detalle e historial; no realiza transferencias ni deriva egresos de movimientos de inventario o costos de Obras.
+- El alcance implementado es solo frontend y sus contratos disponibles. No se cambió backend, no se ejecutó QA financiero real ni se declara publicación.
+
+## Rediseño de la interfaz de Finanzas — 26-11-2026
+
+- Listado a ancho completo, búsqueda global por concepto, beneficiario o código OB completo, filtros plegables, importes CLP exactos y estados legibles. GET /egresos/ admite buscar (máximo 100 caracteres no vacíos) y resumen=true (total y cantidad de activos en el conjunto filtrado, no en la página). Se excluyen anulados del agregado; sin resumen se conserva la respuesta anterior. Listado y agregado son lecturas separadas, no un cierre contable inmutable.
+- Formulario de pago externo realizado, con obra opcional seleccionada por nombre/código mediante la consulta AF existente de Obras. Se conserva la asociación informativa, sin afectar stock ni costos. Detalle con historial y anulación bajo demanda; motivo, referencia y confirmación obligatorios. Alta idempotente, congelación de payload/UUID ante incertidumbre y relectura del estado vigente; anulación incierta exige reconsulta.
+- Flujo de dinero en pestaña independiente, con período explícito y agregados existentes, no representa saldo bancario ni conciliación. Sin barras de progreso. Gerencia y permisos originales conservados.
+- OpenAPI y pruebas dirigidas actualizados; ejecución local y revisión visual pendientes. Sin merge.
+
+### Visualización del flujo de dinero
+
+- Tras consultar un período válido, Finanzas presenta dos gráficos de igual escala interna por gráfico, en columnas paralelas en escritorio y apiladas en pantallas estrechas: comparación de ingresos/egresos desde cero y puente de ingresos menos egresos hasta el flujo neto firmado. El puente conserva el eje cero, conectores entre etapas y resultado positivo, negativo o equilibrado.
+- Los importes exactos y las etiquetas accesibles se obtienen de los agregados ya validados; únicamente las coordenadas gráficas se aproximan. Sin nuevas dependencias, peticiones, contratos ni modificaciones de permisos. No se interpreta el resultado como saldo bancario.
+- Estado inicial con icono, instrucción y explicación breve; si ambos importes son cero, estado sin movimientos en lugar de gráficos vacíos. No se muestran datos de un período anterior bajo fechas recién aplicadas.
+- Pruebas dirigidas de geometría, precisión, estados inicial y vacío y resultado financiero añadidas. Ejecución local y validación visual pendientes.

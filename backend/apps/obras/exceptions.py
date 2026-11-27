@@ -42,6 +42,17 @@ class CostosIncompletos(EstadoIncompatible):
         super().__init__()
 
 
+class CierreMaterialesPendientes(EstadoIncompatible):
+    def __init__(self, codigo, mensaje):
+        self.codigo = codigo
+        super().__init__(mensaje)
+
+
+class VersionCostosObsoleta(EstadoIncompatible):
+    codigo = 'version_costos_obsoleta'
+    mensaje = 'Los costos cambiaron. Actualice la revisión y confirme nuevamente.'
+
+
 class PresupuestoUtilizado(ErrorObras):
     codigo = "presupuesto_utilizado"
     mensaje = "El presupuesto ya está asociado a una obra."

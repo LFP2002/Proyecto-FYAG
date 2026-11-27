@@ -57,7 +57,11 @@ class CostosBase(GastosBase):
         return self.revisar(turno, tarifa=tarifa)
 
     def validar(self):
-        return costos.validar_costos(self.obra, {"motivo": "Costos y evidencia revisados"}, self.supervisor)
+        return costos.validar_costos(self.obra, self.revision('Costos y evidencia revisados'), self.supervisor)
+
+    def revision(self, motivo, obra=None):
+        version = ControlCostosObra.objects.filter(obra=obra or self.obra).values_list('version_actual', flat=True).first()
+        return {'motivo': motivo, 'version_costos_esperada': version or 0}
 
     def marcar_validado(self):
         # Simula una marca previa para probar limpieza en TODAS las mutaciones,
@@ -275,7 +279,7 @@ class ValidacionCostosTests(CostosBase, TestCase):
         self.assertEqual(evento.control_id, antes.pk)
         self.assertIsNone(evento.gasto_id)
         con_fecha = self.control().validado_en
-        respuesta = self.client.post(self.validar_url, {"motivo": "Repetida"}, format="json")
+        respuesta = self.client.post(self.validar_url, self.revision('Repetida'), format="json")
         self.assertEqual(respuesta.status_code, 409)
         self.assertEqual(respuesta.data["code"], "sin_cambios")
         self.assertEqual(self.control().validado_en, con_fecha)
@@ -286,7 +290,7 @@ class ValidacionCostosTests(CostosBase, TestCase):
 
     def test_validacion_incompleta_estructurada_y_sin_evento(self):
         self.assertFalse(ControlCostosObra.objects.exists())
-        respuesta = self.client.post(self.validar_url, {"motivo": "Revisión"}, format="json")
+        respuesta = self.client.post(self.validar_url, self.revision('Revisión'), format="json")
         self.assertEqual(respuesta.status_code, 409)
         self.assertEqual(respuesta.data["code"], "costos_incompletos")
         self.assertIn("sin_turno_acreditado", respuesta.data["pendientes"])
@@ -377,7 +381,7 @@ class ValidacionCostosTests(CostosBase, TestCase):
             self.assertEqual(self.client.get(self.control_url).status_code, 200)
             self.assertEqual(self.client.get(self.resumen_url).status_code, 200)
             self.assertEqual(self.client.patch(self.control_url, {"materiales_estado": "NO_APLICA", "materiales_justificacion": "X", "motivo": "X"}, format="json").status_code, 409)
-            self.assertEqual(self.client.post(self.validar_url, {"motivo": "X"}, format="json").status_code, 409)
+            self.assertEqual(self.client.post(self.validar_url, self.revision('X'), format="json").status_code, 409)
             self.assertEqual(self.client.post(self.cortesia_url, {"justificacion": "X"}, format="json").status_code, 409)
 
     def test_rollback_validacion_y_declaracion(self):
@@ -469,7 +473,7 @@ class ResumenCortesiaTests(CostosBase, TestCase):
     def test_cortesia_incompleta_no_valida_costos(self):
         self.assertEqual(self.client.post(self.cortesia_url, {"justificacion": "Cortesía excepcional"}, format="json").status_code, 200)
         self.assertEqual(self.client.get(self.resumen_url).data["costo_total"], "0.00")
-        self.assertEqual(self.client.post(self.validar_url, {"motivo": "Revisión"}, format="json").status_code, 409)
+        self.assertEqual(self.client.post(self.validar_url, self.revision('Revisión'), format="json").status_code, 409)
 
     def test_rectificacion_cortesia_y_duplicacion(self):
         costos.registrar_cortesia(self.obra, {"justificacion": "Primera"}, self.supervisor)
@@ -585,8 +589,17 @@ class TurnosInvalidacionTests(CostosBase, TestCase):
         self.revisar(turno)
         self.declarar()
         self.assertTrue(self.validar()["costos_validados"])
+        ruta = f'/api/obras/{self.obra.pk}/requisitos-cierre/'
+        with patch('apps.obras.services_costos.ruta_privada', side_effect=AssertionError('El GET no lee archivos')):
+            preliminar = self.client.get(ruta)
+        self.assertEqual(preliminar.status_code, 200)
+        self.assertIs(preliminar.data['evidencias_archivo_verificadas'], False)
+        self.assertEqual(preliminar.data['version_actual'], self.client.get(self.resumen_url).data['version_actual'])
         for archivo in self.raiz.iterdir():
             archivo.unlink()
+        cierre = self.client.post(f'/api/obras/{self.obra.pk}/finalizar/', self.revision('Cierre'), format='json')
+        self.assertEqual(cierre.status_code, 409)
+        self.assertIn('evidencia_inconsistente', cierre.data['pendientes'])
         with self.assertRaises(CostosIncompletos) as error:
             self.validar()
         self.assertIn("evidencia_inconsistente", error.exception.pendientes)
