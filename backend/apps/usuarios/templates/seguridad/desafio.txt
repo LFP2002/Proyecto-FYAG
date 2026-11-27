@@ -1,0 +1,14 @@
+{% autoescape off %}{% if proposito == 'recuperacion' %}Hemos recibido una solicitud para restablecer la contraseña de su cuenta en FYAG.
+
+Para recuperar el acceso, seleccione Restablecer contraseña:
+{% else %}Hemos recibido una solicitud para verificar su correo electrónico en FYAG.
+
+Para confirmar la dirección, seleccione Verificar correo:
+{% endif %}{{ enlace }}
+
+El enlace es de un solo uso y tiene una vigencia de {{ minutos }} minutos.
+
+Si usted no solicitó este cambio, ignore el mensaje y comuníquese con el Administrador TI si detecta actividad sospechosa.
+
+Mensaje generado automáticamente por el Sistema de Gestión de Obras y Presupuestos FYAG.
+{% endautoescape %}

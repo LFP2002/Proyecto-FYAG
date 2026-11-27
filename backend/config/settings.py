@@ -14,9 +14,11 @@ from datetime import timedelta
 from pathlib import Path
 import os
 from django.core.exceptions import ImproperlyConfigured
+from apps.usuarios.correo_config import configurar_correo
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+globals().update(configurar_correo(os.environ))
 
 # SPEC-018C C1: política ratificada; motor sin conexión a login/JWT/endpoints.
 # Habilitación exclusivamente explícita en tests QA mediante override_settings.

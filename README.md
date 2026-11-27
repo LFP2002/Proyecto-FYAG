@@ -82,6 +82,14 @@ de seguridad. Sin Redis se responde 503 en vez de omitir el control. La IP es
 `REMOTE_ADDR`, no `X-Forwarded-For`; detrás de proxy se comparte el cupo del peer
 si todavía no se configuró un transporte confiable de la IP real.
 
+Para revisar correo sintético: agregar `-f compose.mailpit.yaml --profile mailpit`
+al Compose local o al standalone QA (no combinar ambos Compose base). SMTP
+queda dentro de la red Docker y la interfaz de captura en `127.0.0.1:8025`.
+Usar solo destinatarios `.test`. Para SMTP empresarial, configurar un remitente
+autorizado y `FYAG_EMAIL_PROFILE=smtp`, backend SMTP de Django, URL pública HTTPS,
+credenciales externas y exactamente uno de STARTTLS o TLS implícito. Es una
+capacidad de envío: todavía no hay pantallas ni emisión de desafíos públicos.
+
 Para actualizar Python: usar una imagen limpia Python 3.13.18/Linux del mismo
 tipo que CI, revisar los cambios propuestos a `backend/requirements.txt` y
 `backend/constraints-runtime.txt`, reconstruir instalando runtime, comparar
