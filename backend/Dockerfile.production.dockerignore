@@ -1,0 +1,15 @@
+**
+!requirements.txt
+!constraints-runtime.txt
+!manage.py
+!config/
+!config/**
+!apps/
+!apps/**
+**/tests/
+**/tests/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/*.pem
+**/*.key

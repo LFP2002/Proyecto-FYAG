@@ -1,0 +1,6 @@
+**
+!database/
+!database/*.js
+!backend/apps/documentos/esquema.json
+!backend/apps/adjuntos/esquema.json
+!deploy/mongo-start.sh

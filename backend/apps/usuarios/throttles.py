@@ -41,6 +41,8 @@ class LimitesNoDisponibles(APIException):
 @lru_cache(maxsize=4)
 def _client(url):
     tls = {'ssl_cert_reqs': 'required', 'ssl_check_hostname': True} if url.startswith('rediss://') else {}
+    if tls and (ca := getattr(settings, 'FYAG_SECURITY_REDIS_CA', None)):
+        tls['ssl_ca_certs'] = ca
     return Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1, retry_on_timeout=False, **tls)
 
 
@@ -49,8 +51,7 @@ def _digest(value):
 
 
 def _remote(request):
-    # No aceptar cabeceras del cliente. Detrás de proxy se limita por el peer
-    # hasta que un transporte administrado proporcione su dirección confiable.
+    # No aceptar cabeceras del cliente: producción normaliza el peer en ASGI.
     try:
         ip = ip_address(request.META.get('REMOTE_ADDR', ''))
         return str(getattr(ip, 'ipv4_mapped', None) or ip)

@@ -1,0 +1,12 @@
+FROM python:3.13.18-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DJANGO_SETTINGS_MODULE=config.settings_production
+WORKDIR /app
+COPY requirements.txt constraints-runtime.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && groupadd -g 10001 fyag && useradd -r -u 10001 -g fyag fyag \
+    && install -d -o fyag -g fyag -m 0700 /run/fyag /var/lib/fyag/evidencias /var/lib/fyag/adjuntos /var/lib/fyag/chat
+COPY manage.py ./
+COPY config/ ./config/
+COPY apps/ ./apps/
+USER 10001:10001
+CMD ["python", "-m", "config.production_server"]

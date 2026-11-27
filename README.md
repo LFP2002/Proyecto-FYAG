@@ -16,6 +16,7 @@ Los workflows validan cambios; **no realizan despliegues** ni certifican por sí
 - **Especificaciones funcionales y contratos:** [`specs/`](specs/).
 - **Precedencia OpenAPI:** [índice de contratos](backend/docs/openapi/README.md).
 - **Auditoría final:** [avance y evidencia](docs/AUDITORIA-TECNICA-FINAL.md). [SPEC-027](specs/027-aprovisionamiento-recuperacion-seguridad.md) incluye [primera TI](backend/docs/SPEC-027-SETUP.md), [verificación voluntaria](backend/docs/SPEC-027-VERIFICACION.md), [recuperación por correo](backend/docs/SPEC-027-RECUPERACION.md), [recuperación excepcional TI](backend/docs/SPEC-027-RECUPERACION-TI.md) y [bloqueos opt-in](backend/docs/SPEC-027-BLOQUEOS.md). El [informe de validación](backend/docs/SPEC-027-CIERRE.md) no autoriza activación institucional.
+- **Infraestructura productiva:** [Compose independiente y guía operativa](docs/INFRAESTRUCTURA-PRODUCCION.md). No usa el `.env` ni el Compose de desarrollo.
 - **Implementación y operación del backend:** [`backend/docs/`](backend/docs/).
 - **Operación, autenticación, reconciliación y respaldo de MongoDB:** [`database/README.md`](database/README.md).
 - **Operación de adjuntos privados:** [`backend/docs/SPEC-012B-OPERACION.md`](backend/docs/SPEC-012B-OPERACION.md).
