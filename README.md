@@ -15,7 +15,7 @@ Los workflows validan cambios; **no realizan despliegues** ni certifican por sí
 
 - **Especificaciones funcionales y contratos:** [`specs/`](specs/).
 - **Precedencia OpenAPI:** [índice de contratos](backend/docs/openapi/README.md).
-- **Auditoría final:** [avance y evidencia](docs/AUDITORIA-TECNICA-FINAL.md). [SPEC-027](specs/027-aprovisionamiento-recuperacion-seguridad.md) es un diseño; no describe endpoints implementados ni autorización productiva.
+- **Auditoría final:** [avance y evidencia](docs/AUDITORIA-TECNICA-FINAL.md). [SPEC-027](specs/027-aprovisionamiento-recuperacion-seguridad.md) incluye un primer incremento de [verificación voluntaria](backend/docs/SPEC-027-VERIFICACION.md); no autoriza activación productiva.
 - **Implementación y operación del backend:** [`backend/docs/`](backend/docs/).
 - **Operación, autenticación, reconciliación y respaldo de MongoDB:** [`database/README.md`](database/README.md).
 - **Operación de adjuntos privados:** [`backend/docs/SPEC-012B-OPERACION.md`](backend/docs/SPEC-012B-OPERACION.md).
@@ -87,8 +87,9 @@ al Compose local o al standalone QA (no combinar ambos Compose base). SMTP
 queda dentro de la red Docker y la interfaz de captura en `127.0.0.1:8025`.
 Usar solo destinatarios `.test`. Para SMTP empresarial, configurar un remitente
 autorizado y `FYAG_EMAIL_PROFILE=smtp`, backend SMTP de Django, URL pública HTTPS,
-credenciales externas y exactamente uno de STARTTLS o TLS implícito. Es una
-capacidad de envío: todavía no hay pantallas ni emisión de desafíos públicos.
+credenciales externas y exactamente uno de STARTTLS o TLS implícito. Para
+habilitar los reenvíos voluntarios, iniciar el consumidor documentado en
+[Operación de verificación](backend/docs/SPEC-027-VERIFICACION.md).
 
 Para actualizar Python: usar una imagen limpia Python 3.13.18/Linux del mismo
 tipo que CI, revisar los cambios propuestos a `backend/requirements.txt` y

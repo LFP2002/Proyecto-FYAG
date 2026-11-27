@@ -4,6 +4,8 @@
 > **Rama:** `fix/auditoria-tecnica-final`, base `87d564bba6d18b274cb7ed009c767e89071b6aec`.
 > **Dependencias:** SPEC-002A/002B, 006B, 006C, 018, 018C (C1–C3) y contrato vigente de chat.
 
+**Incremento implementado:** verificación voluntaria y confirmación de cambio de correo. Consultar [operación y contrato](../backend/docs/SPEC-027-VERIFICACION.md). La obligatoriedad, la recuperación de contraseña, el setup web y el bloqueo productivo quedan fuera de este incremento.
+
 ## 1. Objetivo y alcance
 
 Permitir la entrega de una instalación vacía, demostrar la titularidad del correo y recuperar cuentas sin conceder acceso implícito. Aplicar los mismos bloqueos a los seis roles. Conservar RBAC, diseño institucional, primer acceso y límites de dominio. Sin cuentas maestras, segundo factor FYAG, cambios de rol ni reactivación como parte de recuperación.
