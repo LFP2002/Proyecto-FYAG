@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer,{act} from 'react-test-renderer';
 import {createServer} from 'vite';
+import { waitForModule } from './helpers/wait-for-module.js';
 import {amount,movementAmount,preview,authorizationStatus,timestamp,recordCount} from '../src/bodega/domain.js';
 let server,AuthProvider,AppProvider,App,MovementTable;
 before(async()=>{
@@ -39,9 +40,10 @@ test('Bodega: menú propio, despacho desde autorización y una sola escritura',a
   throw Error(path);
  }};
  let renderer;
- const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});};
+ const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});await waitForModule(renderer);};
  try{
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+   await waitForModule(renderer);
   assert.deepEqual(renderer.root.findByProps({id:'fyag-modules-nav'}).findAllByType('button').map(text),['Resumen de bodega','Inventario','Movimientos','Entregas','Devoluciones','Mermas','Chat interno']);
   await click('Entregas');await click('Despachar');
   const label=renderer.root.findAllByType('label').find(x=>text(x).startsWith('Cantidad'));
@@ -90,10 +92,11 @@ test('Bodega: estados vacíos contextuales, fuera de cuadrículas y tablas, y fi
   return page([]);
  }};
  let renderer;
- const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});};
+ const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});await waitForModule(renderer);};
  const empty=()=>renderer.root.findByProps({className:'bodega-empty',role:'status'});
  try{
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+   await waitForModule(renderer);
   assert.equal(renderer.root.findAllByProps({className:'bodega-empty bodega-empty-compact',role:'status'}).length,3);
   await click('Devoluciones');
   assert.match(text(empty()),/No hay devoluciones pendientes/);
@@ -143,10 +146,11 @@ test('Mermas Bodega: consulta por nombre, detalle independiente y declaración s
   throw Error(path);
  }};
  let renderer;
- const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});};
+ const click=async(label)=>{const b=renderer.root.findAllByType('button').find(b=>text(b).trim()===label||b.props['aria-label']===label);assert.ok(b,label);assert.equal(!!b.props.disabled,false);await act(async()=>{b.props.onClick();await flush();});await waitForModule(renderer);};
  const input=async(label,value)=>{const el=renderer.root.findAllByType('label').find(l=>text(l).startsWith(label));assert.ok(el,label);const control=el.findAllByType('input')[0]||el.findAllByType('textarea')[0];await act(async()=>control.props.onChange({target:{value}}));};
  try{
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+   await waitForModule(renderer);
   await click('Mermas');assert.match(text(renderer.root),/Tubería/);assert.doesNotMatch(text(renderer.root),/Importe informativo/);
   await click('Ver merma #3');assert.match(text(renderer.root),/En espera de revisión por Finanzas/);assert.equal(renderer.root.findAllByType('table').length,0);
   assert.doesNotMatch(text(renderer.root),/Decidir/);

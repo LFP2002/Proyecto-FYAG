@@ -1,7 +1,8 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { renderToString } from 'react-dom/server';
+import { renderToString, renderToPipeableStream } from 'react-dom/server';
+import { PassThrough } from 'node:stream';
 import { createServer } from 'vite';
 
 // Render real de componentes JSX mediante Vite, sin navegador ni nuevas
@@ -23,13 +24,28 @@ before(async () => {
 });
 after(async () => { await server?.close(); });
 
-function render(session) {
+function tree(session) {
   const client = {
     getSnapshot: () => session, subscribe: () => () => {},
     restore: async () => null, login: async () => null, logout: async () => true,
   };
-  return renderToString(React.createElement(AuthProvider, { client },
-    React.createElement(AppProvider, null, React.createElement(App))));
+  return React.createElement(AuthProvider, { client }, React.createElement(AppProvider, null, React.createElement(App)));
+}
+function render(session) { return renderToString(tree(session)); }
+// Espera el contenido real de Suspense antes de comprobar los permisos.
+function renderReady(session) {
+  return new Promise((resolve,reject)=>{
+    const output=new PassThrough();let html='';let timer;
+    output.setEncoding('utf8');output.on('data',chunk=>html+=chunk);
+    output.on('end',()=>{clearTimeout(timer);resolve(html);});
+    output.on('error',error=>{clearTimeout(timer);reject(error);});
+    const stream=renderToPipeableStream(tree(session),{
+      onAllReady(){stream.pipe(output);},
+      onError(error){clearTimeout(timer);reject(error);},
+      onShellError(error){clearTimeout(timer);reject(error);}
+    });
+    timer=setTimeout(()=>{stream.abort();reject(new Error('Tiempo agotado al cargar módulo SSR'));},10000);
+  });
 }
 
 test('restauración no muestra ningún contenido protegido ni formulario prematuro', () => {
@@ -80,8 +96,8 @@ for (const [role, label] of [
   ['GERENCIA', 'Gerencia'], ['ADMINISTRATIVO_FINANZAS', 'Administrativo / Finanzas'],
   ['SUPERVISOR_OBRAS', 'Supervisor de Obras'], ['TECNICO', 'Técnico'],
 ]) {
-  test(`interfaz ${role}: alias real, menú acotado y módulos sin escrituras simuladas`, () => {
-    const html = render({ status: 'authenticated', notice: null,
+  test(`interfaz ${role}: alias real, menú acotado y módulos sin escrituras simuladas`, async () => {
+    const html = await renderReady({ status: 'authenticated', notice: null,
       user: { id: 7, username: 'Alias de la cuenta real', email: 'cuenta@example.test', role } });
     assert.match(html, /Alias de la cuenta real/);
     assert.ok(html.includes(label));

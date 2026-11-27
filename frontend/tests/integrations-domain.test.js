@@ -260,7 +260,7 @@ test('Alertas gerenciales: filtros confirmados, bandeja, retorno y consulta sin 
 test('alertas solicita resumen/lista e impone matriz por rol', { timeout: 15000 }, async () => {
   for (const role of ['GERENCIA', 'SUPERVISOR_OBRAS','ADMINISTRATIVO_FINANZAS']) {
     const { renderer, calls } = await mount(Alertas, role);
-    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), role==='ADMINISTRATIVO_FINANZAS'?/Presupuesto pendiente de Finanzas/:/Obra suspendida/); await click(renderer,role==='ADMINISTRATIVO_FINANZAS'?'Presupuesto pendiente de Finanzas':'Obra suspendida'); assert.equal(renderer.root.findAllByType('button').some(b=>text(b)===(role==='ADMINISTRATIVO_FINANZAS'?'Marcar como atendida':'Atender alerta')),role!=='GERENCIA'); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
+    try { assert.ok(calls.some((c) => c.path === '/api/alertas/resumen/')); assert.ok(calls.some((c) => c.path === '/api/alertas/')); assert.match(text(renderer.toJSON()), role==='ADMINISTRATIVO_FINANZAS'?/Presupuesto pendiente de Finanzas/:/Obra suspendida/); await click(renderer,role==='ADMINISTRATIVO_FINANZAS'?'Presupuesto pendiente de Finanzas':'Obra suspendida'); assert.equal(renderer.root.findAllByType('button').some(b=>text(b)==='Marcar como atendida'),role!=='GERENCIA'); if (role === 'SUPERVISOR_OBRAS') assert.ok(calls.every((c) => !c.path.includes('COBRANZA_VENCIDA'))); } finally { await act(async () => renderer.unmount()); }
   }
 });
 test('AuthClient mantiene metadata de descarga y códigos públicos de conflicto de alerta', async () => {

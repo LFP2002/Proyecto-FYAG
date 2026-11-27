@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer,{act} from 'react-test-renderer';
 import {createServer} from 'vite';
+import { waitForModule } from './helpers/wait-for-module.js';
 import {payload,path,readPage} from '../src/obras/materialesTecnico.js';
 import {duration} from '../src/obras/tecnicoDomain.js';
 
@@ -59,12 +60,14 @@ async function mount({uncertain=false}={}){
  }};
  let view;
  await act(async()=>{view=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+  await waitForModule(view);
  return {view,calls};
 }
 async function click(view,label){
  const b=view.root.findAllByType('button').find(x=>text(x).trim()===label||x.props['aria-label']===label);
  assert.ok(b,label);assert.ok(!b.props.disabled,label);
  await act(async()=>{b.props.onClick();await flush();});
+  await waitForModule(view);
 }
 async function choose(view,label){
  await click(view,label);
