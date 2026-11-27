@@ -2,9 +2,6 @@ import React, { lazy, Suspense } from 'react';
 import ModuleBoundary, { ModuleLoading } from './components/ModuleBoundary.jsx';
 import { useAuth } from './auth/AuthContext';
 import Login from './components/login.jsx';
-import VerificacionCorreo from './components/VerificacionCorreo.jsx';
-import InstalacionInicial from './components/InstalacionInicial.jsx';
-import RecuperarClave from './components/RecuperarClave.jsx';
 import DesktopLayout from './components/layouts/DesktopLayout';
 import PendingIntegration from './components/PendingIntegration';
 import { useApp } from './context/AppContext';
@@ -34,16 +31,13 @@ const Bodega = lazy(() => import('./pages/Bodega.jsx'));
 
 const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 
-export default function App() {
+export default function App({ setupCreated }) {
   const { status, user } = useAuth();
   const { mod } = useApp();
-  if (globalThis.location?.pathname === '/restablecer-clave') return <RecuperarClave />;
-  if (globalThis.location?.pathname === '/configuracion-inicial') return <InstalacionInicial />;
-  if (globalThis.location?.pathname === '/verificar-correo') return <VerificacionCorreo />;
   if (status === 'restoring') {
     return <main className="login-page"><div className="login-card" role="status">Restaurando sesión…</div></main>;
   }
-  if (status !== 'authenticated' || !user) return <Login />;
+  if (status !== 'authenticated' || !user) return <Login setupCreated={setupCreated} />;
 
   const warehouse = user.role==='BODEGUERO'&&Object.hasOwn(warehouseModules,mod);
   const Page = warehouse ? Bodega : mod==='mis_turnos'&&user.role==='TECNICO'?MisTurnos: mod === 'inventario' ? Inventario

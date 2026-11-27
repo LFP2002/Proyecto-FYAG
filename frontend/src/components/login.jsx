@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Icon } from './ui';
 
-export default function Login() {
+export default function Login({ setupCreated = false }) {
   const { login, logout, completeFirstPasswordChange, status, notice } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,6 +49,7 @@ export default function Login() {
         <Icon d="M12 2v20M4.2 7l15.6 10M4.2 17L19.8 7M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5" className="logo-l" />
         <h1 className="login-title">FYAG</h1>
         <p className="login-sub">Sistema de Gestión de Obras y Presupuestos</p>
+        {setupCreated && status === 'anonymous' && !notice && <p role="status" className="alert alert-info mt-3">Cuenta TI creada. Ya puedes iniciar sesión. La verificación por correo es voluntaria.</p>}
         <label htmlFor="f-email">Correo electrónico</label>
         <input id="f-email" name="email" className="form-control" type="email" autoComplete="username"
           value={email} onChange={(e) => setEmail(e.target.value)} required disabled={busy} />

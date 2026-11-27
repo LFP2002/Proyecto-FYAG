@@ -59,7 +59,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     emit('anonymous', null, notice);
   }
 
-  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal, responseType } = {}) {
+  async function http(path, { method = 'GET', body, token, csrfToken, headers = {}, signal, responseType, expectedStatus } = {}) {
     // No enviar credenciales a URLs externas, ni seguir redirecciones de API.
     if (typeof path !== 'string' || !path.startsWith('/api/') || path.includes('\\') || path.startsWith('/api//')
         || !new URL(path, 'https://request.invalid').pathname.startsWith('/api/')) {
@@ -135,6 +135,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       }
       throw new ApiError(response.status, messageFor(response.status), response.headers.get('Retry-After'), { fieldErrors: fields, code });
     }
+    if (expectedStatus && response.status !== expectedStatus) throw new ApiError(502, 'El servidor devolvió una respuesta inesperada.');
     if (response.status === 204) return null;
     if (wantsBlob) {
       try {
@@ -344,7 +345,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
 
   async function submitInitialSetup(body) {
     const protection = await csrfToken({ force: true });
-    return http('/api/auth/setup/', { method: 'POST', body, csrfToken: protection });
+    return http('/api/auth/setup/', { method: 'POST', body, csrfToken: protection, expectedStatus: 201 });
   }
 
   async function submitPasswordRecovery(action, body) {
@@ -358,7 +359,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
     submitEmailVerification,
-    initialSetupStatus: () => http('/api/auth/setup/estado/'),
+    initialSetupStatus: ({ signal } = {}) => http('/api/auth/setup/estado/', { signal, expectedStatus: 200 }),
     submitInitialSetup,
     submitPasswordRecovery,
   });

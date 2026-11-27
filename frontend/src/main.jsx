@@ -4,6 +4,9 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import App from './app.jsx';
 import { AppProvider } from './context/AppContext.jsx';
 import { AuthProvider } from './auth/AuthContext.jsx';
+import InicioInstalacion from './components/InicioInstalacion.jsx';
+import RecuperarClave from './components/RecuperarClave.jsx';
+import VerificacionCorreo from './components/VerificacionCorreo.jsx';
 
 // Mantener la cascada global independiente del orden de navegación.
 import './styles/pages/tecnico.css';
@@ -46,12 +49,15 @@ import './styles/pages/finanzas-visual.css';
 import './styles/pages/role-typography.css';
 import './styles/pages/interactive-cards.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <AuthProvider>
-      <AppProvider>
-        <App />
-      </AppProvider>
+function Entrada() {
+  const path = globalThis.location.pathname;
+  if (path === '/restablecer-clave') return <RecuperarClave />;
+  if (path === '/verificar-correo') return <VerificacionCorreo />;
+  return <InicioInstalacion>{({ restoreSession, setupCreated }) => (
+    <AuthProvider restoreSession={restoreSession}>
+      <AppProvider><App setupCreated={setupCreated} /></AppProvider>
     </AuthProvider>
-  </React.StrictMode>
-);
+  )}</InicioInstalacion>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode><Entrada /></React.StrictMode>);

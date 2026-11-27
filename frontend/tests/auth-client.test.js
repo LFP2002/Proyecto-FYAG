@@ -30,6 +30,35 @@ function backend(overrides = {}) {
   return { client: createAuthClient({ fetchImpl }), calls };
 }
 
+test('estado de instalación consulta sin caché, sin seguir redirecciones y admite abortar', async () => {
+  const path = '/api/auth/setup/estado/';
+  const { client, calls } = backend({ [path]: () => json({ pendiente: true }) });
+  const { signal } = new AbortController();
+  assert.deepEqual(await client.initialSetupStatus({ signal }), { pendiente: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, path);
+  assert.equal(calls[0].method, 'GET');
+  assert.equal(calls[0].cache, 'no-store');
+  assert.equal(calls[0].redirect, 'error');
+  assert.equal(calls[0].signal, signal);
+  assert.equal(calls[0].headers.has('Authorization'), false);
+});
+
+test('alta inicial exige 201 y CSRF sin restaurar ni crear sesión', async () => {
+  const path = '/api/auth/setup/';
+  for (const status of [200, 201]) {
+    const { client, calls } = backend({ [path]: () => json({ detail: 'Cuenta TI creada.' }, status) });
+    const snapshot = client.getSnapshot();
+    const result = client.submitInitialSetup({ clave_instalacion: 'A'.repeat(43) });
+    if (status === 201) await result;
+    else await assert.rejects(result, { status: 502 });
+    assert.deepEqual(calls.map(call => call.path), ['/api/auth/csrf/', path]);
+    assert.equal(calls[1].headers.get('X-CSRFToken'), 'proteccion-inicial');
+    assert.equal(calls[1].headers.has('Authorization'), false);
+    assert.equal(client.getSnapshot(), snapshot);
+  }
+});
+
 test('verificación envía CSRF y token solo en el cuerpo, sin crear sesión', async () => {
   const { client, calls } = backend({ '/api/auth/correo/verificar/': () => new Response(null, { status: 204 }) });
   await client.submitEmailVerification('confirmar', 'A'.repeat(43));
