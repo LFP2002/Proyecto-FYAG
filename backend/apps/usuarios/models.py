@@ -4,6 +4,14 @@ from django.db import models
 from django.db.models.functions import Lower, Trim
 
 
+class InstalacionFYAG(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    inicializada_en = models.DateTimeField(null=True, editable=False)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name='instalacion_fyag_unica')]
+
+
 class Usuario(AbstractUser):
 
     class Rol(models.TextChoices):

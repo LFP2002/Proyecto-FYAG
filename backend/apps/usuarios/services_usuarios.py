@@ -13,7 +13,7 @@ from django.db import connection, IntegrityError, transaction
 from django.db.models import Q
 from rest_framework.exceptions import APIException, AuthenticationFailed, NotFound, PermissionDenied, ValidationError
 
-from .models import Usuario, UsuarioEvento
+from .models import InstalacionFYAG, Usuario, UsuarioEvento
 
 G = Usuario.Rol.GERENCIA
 TI = Usuario.Rol.ADMINISTRADOR_TI
@@ -292,19 +292,16 @@ def cambiar_clave_propia(data, actor):
 
 @operacion
 def aprovisionar_primera_ti(data):
-    """Solo CLI de confianza; no se publica en HTTP ni modifica cuentas existentes.
-
-    Bloquea incluso con cero filas TI: dos ejecuciones no pueden crear dos
-    primeras cuentas. Una TI inactiva también exige recuperación, no rebootstrap.
-    """
+    """Solo CLI de confianza; instalación previa nunca habilita rebootstrap."""
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", [ADMIN_MUTEX])
-    if Usuario.objects.filter(rol=TI).exists():
-        raise ConflictoUsuario("ti_ya_aprovisionada", "Ya existe una cuenta TI; utilice la administración o el procedimiento de recuperación.")
     _contract(data, PROFILE | {"password"}, {"email", "username", "password"})
     user = Usuario(**_profile(data), rol=TI.value, is_active=True)
     _password(data["password"], user, "password")
     user.set_password(data["password"])
+    instalacion, _ = InstalacionFYAG.objects.select_for_update().get_or_create(pk=1)
+    if instalacion.inicializada_en is not None or Usuario.objects.exists():
+        raise ConflictoUsuario("ti_ya_aprovisionada", "La instalación ya fue inicializada; no se puede repetir el aprovisionamiento.")
     _unique(user)
     user.save()
     from .credenciales import es_personal
