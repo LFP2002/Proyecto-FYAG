@@ -8,6 +8,8 @@
 
 ## 1. Objetivo y alcance
 
+La evidencia de cierre técnico y los pendientes institucionales se registran en el [informe de validación](../backend/docs/SPEC-027-CIERRE.md).
+
 Permitir la entrega de una instalación vacía, demostrar la titularidad del correo y recuperar cuentas sin conceder acceso implícito. Aplicar los mismos bloqueos a los seis roles. Conservar RBAC, diseño institucional, primer acceso y límites de dominio. Sin cuentas maestras, segundo factor FYAG, cambios de rol ni reactivación como parte de recuperación.
 
 ## 2. Precedencia y decisiones funcionales

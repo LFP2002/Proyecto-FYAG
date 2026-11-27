@@ -260,7 +260,7 @@ class BloqueosProductivosTests(TransactionTestCase):
         with conectar(url) as redis:
             self.assertTrue(redis.ping())
         with conectar(url.replace(f'@{host}:', f'@{incorrecto}:', 1)) as redis:
-            with self.assertRaisesRegex(ConnectionError, r'(?i)certificate verify failed.*hostname mismatch'):
+            with self.assertRaisesRegex(ConnectionError, r'(?i)certificate verify failed.*(?:hostname|IP address) mismatch'):
                 redis.ping()
         with patch.dict(os.environ):
             del os.environ['SSL_CERT_FILE']

@@ -176,24 +176,39 @@ jobs:
         working-directory: backend
         run: python manage.py migrate --noinput
 
-      - name: Iniciar Redis exclusivo de seguridad
+      - name: Iniciar Redis TLS exclusivo de seguridad
         run: |
           password=$(python -c 'import secrets; print(secrets.token_hex(32))')
           echo "::add-mask::$password"
-          echo "FYAG_SECURITY_REDIS_URL=redis://:$password@127.0.0.1:6380/0" >> "$GITHUB_ENV"
+          tls=$(mktemp -d "$RUNNER_TEMP/fyag-redis-tls.XXXXXX")
+          sh backend/scripts/generar_tls_redis_qa.sh "$tls" localhost
+          mkdir "$tls/servidor"
+          mv "$tls/server.key" "$tls/server.crt" "$tls/servidor/"
+          cp "$tls/ca.crt" "$tls/servidor/ca.crt"
+          url="rediss://:$password@localhost:6380/0"
+          echo "FYAG_SECURITY_REDIS_URL=$url" >> "$GITHUB_ENV"
+          echo "FYAG_QA_REDIS_TLS_URL=$url" >> "$GITHUB_ENV"
+          echo "FYAG_QA_REDIS_TLS_HOST_INCORRECTO=127.0.0.1" >> "$GITHUB_ENV"
+          echo "SSL_CERT_FILE=$tls/ca.crt" >> "$GITHUB_ENV"
           export REDIS_PASSWORD="$password"
           docker run -d --name fyag_security_redis_ci --tmpfs /data --memory 128m \
-            -p 127.0.0.1:6380:6379 -e REDIS_PASSWORD redis:7.4.7-alpine sh -ec \
-            'exec redis-server --protected-mode yes --save "" --appendonly no --maxmemory 64mb --maxmemory-policy noeviction --requirepass "$REDIS_PASSWORD"'
+            --user "$(id -u):$(id -g)" --mount "type=bind,src=$tls/servidor,dst=/tls,readonly" \
+            -p 127.0.0.1:6380:6380 -e REDIS_PASSWORD redis:7.4.7-alpine sh -ec \
+            'exec redis-server --port 0 --tls-port 6380 --tls-cert-file /tls/server.crt --tls-key-file /tls/server.key --tls-ca-cert-file /tls/ca.crt --tls-auth-clients no --protected-mode yes --save "" --appendonly no --maxmemory 64mb --maxmemory-policy noeviction --requirepass "$REDIS_PASSWORD"'
+          export SSL_CERT_FILE="$tls/ca.crt" FYAG_SECURITY_REDIS_URL="$url"
+          export DJANGO_SETTINGS_MODULE=config.settings
+          cd backend
           for i in $(seq 1 20); do
-            if docker exec -e REDISCLI_AUTH="$password" fyag_security_redis_ci redis-cli ping | grep -qx PONG; then break; fi
+            if python -c 'import os; from apps.usuarios.throttles import _client; assert _client(os.environ["FYAG_SECURITY_REDIS_URL"]).ping()'; then break; fi
             sleep 1
           done
-          docker exec -e REDISCLI_AUTH="$password" fyag_security_redis_ci redis-cli ping | grep -qx PONG
+          python -c 'import os; from apps.usuarios.throttles import _client; assert _client(os.environ["FYAG_SECURITY_REDIS_URL"]).ping()'
 
       - name: Ejecutar suite completa
         working-directory: backend
-        run: python manage.py test
+        run: |
+          : "${FYAG_QA_REDIS_TLS_URL:?Redis TLS de SPEC-027 es obligatorio en CI}"
+          python manage.py test
 
       - name: Cerrar Mongo QA efímero
         if: always()
