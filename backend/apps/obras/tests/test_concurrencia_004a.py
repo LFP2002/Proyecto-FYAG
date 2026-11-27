@@ -6,6 +6,7 @@ from time import monotonic
 
 from django.db import close_old_connections, connection, transaction
 from django.test import TransactionTestCase
+from rest_framework.exceptions import AuthenticationFailed
 
 from apps.comercial import services_presupuestos as comercial
 from apps.comercial.exceptions import (
@@ -13,7 +14,7 @@ from apps.comercial.exceptions import (
 )
 from apps.obras import services as obras
 from apps.obras.exceptions import (
-    ErrorObras, EstadoIncompatible, PresupuestoUtilizado as PresupuestoUtilizadoObras,
+    ErrorObras, EstadoIncompatible, PermisoDenegado, PresupuestoUtilizado as PresupuestoUtilizadoObras,
 )
 from apps.obras.models import Obra
 
@@ -53,7 +54,7 @@ class ObrasConcurrenciaTests(BaseObras, TransactionTestCase):
                     segunda_lista.set()
                     resultado = funcion()
                 return resultado
-            except (ErrorObras, ErrorPresupuesto) as exc:
+            except (ErrorObras, ErrorPresupuesto, AuthenticationFailed) as exc:
                 return exc
             finally:
                 connection.close()
@@ -115,3 +116,28 @@ class ObrasConcurrenciaTests(BaseObras, TransactionTestCase):
         self.assertIsInstance(dos, PresupuestoUtilizadoObras)
         self.assertEqual(Obra.objects.count(), 1)
         self.assertEqual(Obra.objects.get().eventos.count(), 1)
+
+    def _edicion_en_espera(self, expected, **changes):
+        obra = obras.crear_obra(self.datos(), self.supervisor)
+        _, result = self._ejecutar_en_orden(
+            lambda: type(self.supervisor).objects.filter(pk=self.supervisor.pk).update(**changes),
+            lambda: obras.editar_obra(obra, {'descripcion': 'No debe persistir', 'motivo': 'QA'}, self.supervisor),
+        )
+        self.assertIsInstance(result, expected)
+        previous = obra.descripcion
+        obra.refresh_from_db()
+        self.assertEqual(obra.descripcion, previous)
+        self.assertEqual(obra.eventos.count(), 1)
+
+    def test_edicion_denegada_por_revocacion_en_espera(self):
+        self._edicion_en_espera(AuthenticationFailed, sesion_version=self.supervisor.sesion_version + 1)
+
+    def test_edicion_denegada_por_nueva_clave_en_espera(self):
+        from django.contrib.auth.hashers import make_password
+        self._edicion_en_espera(AuthenticationFailed, password=make_password('nueva-clave-sintetica-qa'))
+
+    def test_edicion_denegada_por_desactivacion_en_espera(self):
+        self._edicion_en_espera(AuthenticationFailed, is_active=False)
+
+    def test_edicion_denegada_por_cambio_de_rol_en_espera(self):
+        self._edicion_en_espera(PermisoDenegado, rol='TECNICO')

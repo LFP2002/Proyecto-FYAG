@@ -94,6 +94,10 @@ def _actor_autorizado(usuario, rol):
 
 
 def _actor_019f(usuario, token=None):
+    return _revalidar_actor(usuario, SUPERVISOR, token)
+
+
+def _revalidar_actor(usuario, rol, token=None):
     """Releer seguridad sin reemplazar la identidad que inició la operación."""
     from rest_framework.exceptions import AuthenticationFailed
     from apps.usuarios.acceso import sesion_operativa
@@ -111,7 +115,7 @@ def _actor_019f(usuario, token=None):
         if identificador_sesion(token) != usuario.pk:
             raise AuthenticationFailed('Sesión no disponible.', code='sesion_revocada')
         validar_sesion(token, actual)
-    if actual.rol != SUPERVISOR:
+    if actual.rol != rol or usuario.rol != rol:
         raise PermisoDenegado()
     return actual
 
@@ -276,6 +280,7 @@ def crear_obra(datos, usuario):
     if datos.get("tecnico_responsable") is not None:
         tecnico = _tecnico_elegible(datos["tecnico_responsable"])
     motivo = _motivo(datos.get("motivo", ""), obligatorio=tecnico is not None)
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     obra = Obra.objects.create(
         presupuesto=presupuesto, categoria_servicio=categoria,
         descripcion=descripcion, tecnico_responsable=tecnico,
@@ -329,6 +334,7 @@ def editar_obra(referencia, cambios, usuario):
             _motivo(cambios["motivo"], obligatorio=False)
         return obra  # No-op: sin cambiar actualizado_en ni crear evento.
     motivo = _motivo(cambios.get("motivo", ""), obligatorio=True)
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     obra.save(update_fields=[*campos, "actualizado_en"])
     _evento_obra(
         obra, ObraEvento.Tipo.EDICION, actor, obra.estado,
@@ -360,6 +366,7 @@ def cambiar_tecnico(referencia, tecnico_responsable, usuario, motivo):
     anterior = obra.tecnico_responsable_id
     if anterior is not None:
         _sin_turnos_abiertos(obra, anterior)
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     obra.tecnico_responsable = nuevo
     obra.save(update_fields=["tecnico_responsable", "actualizado_en"])
     if anterior is not None:
@@ -483,6 +490,7 @@ def asignar_participante(referencia, datos, usuario):
     _participantes_editables(obra)
     motivo = _motivo(datos["motivo"], obligatorio=True)
     tecnico = _tecnico_elegible(datos["tecnico"], campo="tecnico")
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     resultado = _activar_participante(obra, tecnico, actor, motivo)
     from .services_costos import invalidar
     invalidar(obra, actor, motivo)
@@ -505,6 +513,7 @@ def desasignar_participante(referencia, participante_id, usuario, motivo):
         raise EstadoIncompatible("Cambie al responsable principal mediante cambiar-tecnico.")
     if not participante.activo:
         raise SinCambios("El participante ya está inactivo.")
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     resultado = _desactivar_participante(participante, actor, motivo)
     from .services_costos import invalidar
     invalidar(obra, actor, motivo)
@@ -530,6 +539,7 @@ def suspender_obra(referencia, usuario, motivo):
     anterior = obra.estado
     obra.estado = Obra.Estado.SUSPENDIDA
     _sin_turnos_abiertos(obra)
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     obra.save(update_fields=["estado", "actualizado_en"])
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_ESTADO, actor, anterior,
@@ -551,6 +561,7 @@ def reanudar_obra(referencia, usuario, motivo):
             "tecnico_responsable": ["Asigne un técnico para reanudar."]
         })
     _tecnico_elegible(obra.tecnico_responsable_id)
+    actor = _revalidar_actor(usuario, SUPERVISOR)
     anterior = obra.estado
     obra.estado = Obra.Estado.EN_PROCESO
     obra.save(update_fields=["estado", "actualizado_en"])

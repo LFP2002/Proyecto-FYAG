@@ -79,6 +79,7 @@ def iniciar_turno(referencia, datos, usuario):
     obra = base._obra_bloqueada(referencia)
     actor = base._tecnico_elegible(actor, campo="tecnico")
     _miembro(obra, actor)
+    actor = base._revalidar_actor(usuario, base.TECNICO)
     base._campos_validos(datos, set())
     if obra.estado != Obra.Estado.EN_PROCESO:
         raise EstadoIncompatible()
@@ -127,6 +128,7 @@ def finalizar_turno(referencia, turno_id, datos, usuario, *, fotos=(), archivos_
     actor = base._actor_autorizado(usuario, base.TECNICO)
     obra = base._obra_bloqueada(referencia)
     turno = _turno(obra, turno_id, actor)
+    actor = base._revalidar_actor(usuario, base.TECNICO)
     base._campos_validos(datos, {"descripcion_trabajo"}, {"descripcion_trabajo"})
     descripcion = base._texto(datos["descripcion_trabajo"], "descripcion_trabajo")
     _editable(obra)
@@ -161,6 +163,7 @@ def cerrar_administrativamente(referencia, turno_id, datos, usuario):
     actor = base._actor_autorizado(usuario, base.SUPERVISOR)
     obra = base._obra_bloqueada(referencia)
     turno = _turno(obra, turno_id, actor)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     base._campos_validos(datos, {"motivo", "descripcion_trabajo", "duracion_ajustada_segundos"}, {"motivo", "descripcion_trabajo"})
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     descripcion = base._texto(datos["descripcion_trabajo"], "descripcion_trabajo")
@@ -188,6 +191,7 @@ def subsanar_turno(referencia, turno_id, datos, usuario, *, fotos=(), archivos_c
     actor = base._actor_autorizado(usuario, base.TECNICO)
     obra = base._obra_bloqueada(referencia)
     turno = _turno(obra, turno_id, actor)
+    actor = base._revalidar_actor(usuario, base.TECNICO)
     base._campos_validos(datos, {"descripcion_trabajo"})
     _editable(obra)
     if turno.estado_revision != TurnoObra.Estado.OBSERVADO:
@@ -210,6 +214,7 @@ def revisar_turno(referencia, turno_id, datos, usuario):
     actor = base._actor_autorizado(usuario, base.SUPERVISOR)
     obra = base._obra_bloqueada(referencia)
     turno = _turno(obra, turno_id, actor)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     base._campos_validos(datos, {"decision", "motivo", "costo_hora_neto"}, {"decision", "motivo"})
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     decision = datos["decision"]
@@ -239,6 +244,7 @@ def corregir_turno(referencia, turno_id, datos, usuario):
     actor = base._actor_autorizado(usuario, base.SUPERVISOR)
     obra = base._obra_bloqueada(referencia)
     turno = _turno(obra, turno_id, actor)
+    actor = base._revalidar_actor(usuario, base.SUPERVISOR)
     base._campos_validos(datos, {"duracion_ajustada_segundos", "costo_hora_neto", "motivo", "descripcion_trabajo"}, {"motivo"})
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     _editable(obra)
