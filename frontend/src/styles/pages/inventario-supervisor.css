@@ -1,0 +1,46 @@
+.supervisor-inventory{display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;max-width:none}
+.supervisor-inventory>.page-head,.supervisor-inventory .si-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.supervisor-inventory .page-head h1{font-size:1.75rem;font-weight:700;line-height:1.25;color:var(--fyag-primary);margin:0}
+.supervisor-inventory .si-panel,.supervisor-inventory #inventory-operations-title{min-width:0}
+.supervisor-inventory .si-panel{display:flex;flex-direction:column;gap:14px;padding:16px;width:100%}
+.supervisor-inventory :is(.si-panel h2,.si-panel h3,#inventory-operations-title,.commercial-form h3){font-size:1.0625rem;font-weight:700;line-height:1.35;margin:0}
+.supervisor-inventory .si-detail .si-heading h2{font-size:1.5rem;line-height:1.3;overflow-wrap:anywhere}
+.supervisor-inventory .si-heading p{margin:4px 0}
+.supervisor-inventory .si-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:auto;min-height:38px;white-space:nowrap;line-height:1.25}
+.supervisor-inventory .si-back{align-self:flex-start}
+.supervisor-inventory .si-tabs{display:flex;flex-wrap:wrap;gap:10px 18px;border-bottom:1px solid var(--fyag-line)}
+.supervisor-inventory .si-tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:10px 2px;color:var(--fyag-muted);font:inherit;font-size:.875rem;font-weight:600}
+.supervisor-inventory .si-tabs button[aria-pressed=true]{border-bottom-color:var(--fyag-blue);color:var(--fyag-primary)}
+.supervisor-inventory .si-toolbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
+.supervisor-inventory .si-search{flex:1 1 220px;max-width:480px;min-width:0}
+.supervisor-inventory .si-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:12px;border:1px solid var(--fyag-line);border-radius:8px}
+.supervisor-inventory .si-filters>.form-label,.supervisor-inventory .si-filters>.obras-selector{flex:1 1 175px;min-width:0;margin:0}
+.supervisor-inventory .si-filters .form-label{display:flex;flex-direction:column;gap:5px;font-size:.875rem;font-weight:600}
+.supervisor-inventory .si-material{min-width:150px;overflow-wrap:anywhere}
+.supervisor-inventory :is(.si-material,.si-stock) small{display:block;color:var(--fyag-muted);font-size:.8125rem;font-weight:400;margin-top:4px}
+.supervisor-inventory .si-stock{font-size:1rem;font-weight:700;font-variant-numeric:tabular-nums}
+.supervisor-inventory .si-table{min-width:540px;margin:0}
+.supervisor-inventory .si-table :is(th,td){padding:12px;vertical-align:middle}
+.supervisor-inventory .si-table th{white-space:nowrap}
+.supervisor-inventory .si-table td:last-child{text-align:right;width:1%}
+.supervisor-inventory .si-positive{color:#287751;font-weight:600}
+.supervisor-inventory .si-negative{color:#b34747;font-weight:600}
+.supervisor-inventory .si-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:18px;padding:20px 0;border-block:1px solid var(--fyag-line)}
+.supervisor-inventory .si-summary span,.supervisor-inventory .si-summary small{display:block;color:var(--fyag-muted);font-size:.875rem}
+.supervisor-inventory .si-summary strong{display:block;font-size:1.75rem;line-height:1.3;margin:6px 0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.supervisor-inventory .si-summary .si-secondary{font-size:1.25rem;color:var(--fyag-muted)}
+.supervisor-inventory .si-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px;margin:0}
+.supervisor-inventory .si-facts dt{font-size:.8125rem;color:var(--fyag-muted);font-weight:500}
+.supervisor-inventory .si-facts dd{margin:5px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.supervisor-inventory .si-related{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--fyag-line);padding-top:14px}
+.supervisor-inventory .si-empty{display:grid;justify-items:center;gap:8px;padding:26px 12px;text-align:center;color:var(--fyag-muted)}
+.supervisor-inventory .si-empty svg{width:30px;height:30px}
+.supervisor-inventory .si-empty strong{color:var(--fyag-text)}
+.supervisor-inventory .si-empty p{margin:0}
+.supervisor-inventory section[aria-labelledby="inventory-operations-title"]{margin-top:0!important;display:flex;flex-direction:column;gap:12px;width:100%}
+.supervisor-inventory section[aria-labelledby="inventory-operations-title"] .commercial-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.supervisor-inventory section[aria-labelledby="inventory-operations-title"] .commercial-form :is(h3,.commercial-form-actions,p[role="alert"]){grid-column:1/-1}
+.supervisor-inventory section[aria-labelledby="inventory-operations-title"] .commercial-form>.form-label{margin:0;min-width:0}
+:root[data-fyag-theme='dark'] .supervisor-inventory .si-positive{color:#83d3ad}
+:root[data-fyag-theme='dark'] .supervisor-inventory .si-negative{color:#ea9691}
+@media(max-width:600px){.supervisor-inventory .si-panel{padding:12px}.supervisor-inventory .si-filters>.form-label,.supervisor-inventory .si-filters>.obras-selector{flex-basis:100%}.supervisor-inventory section[aria-labelledby="inventory-operations-title"] .commercial-form{grid-template-columns:1fr}}
