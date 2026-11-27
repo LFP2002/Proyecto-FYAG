@@ -61,7 +61,7 @@ test('Presupuestos: detalle sustituye listado y conserva página y filtro al vol
     assert.ok(root.findByProps({className:'commercial-page budgets-page'}));
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,false);
     assert.equal(root.findByProps({id:'budget-history'}).props.hidden,true);
-    assert.equal(root.findAllByType('button').some(b=>text(b)==='Editar cabecera'),false);
+    assert.equal(root.findAllByType('button').some(b=>text(b)==='Editar datos generales'),false);
     const before=calls.length;
     await click(root,'Historial comercial');
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,true);
@@ -78,10 +78,19 @@ test('Presupuestos: Finanzas conserva edición y puede cancelar antes de volver'
   try{
     const root=renderer.root;
     await click(root,'Siguiente');await click(root,'Ver presupuesto');
-    await click(root,'Editar cabecera');
-    assert.ok(root.findAllByType('form').length);
-    assert.equal(root.findAllByType('button').find(b=>text(b)==='Volver al listado').props.disabled,true);
-    await click(root,'Cancelar');await click(root,'Volver al listado');
+    await click(root,'Editar datos generales');
+    assert.ok(root.findByProps({className:'card-fyag commercial-form budget-header-form'}));
+    assert.equal(root.findAllByType('button').some(b=>text(b)==='Volver al listado'),false);
+    assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,0);
+    const description=root.findByProps({id:'com-descripcion'});
+    assert.equal(description.props.value,'Servicio');
+    await act(async()=>description.props.onChange({target:{value:'Borrador que se cancela'}}));
+    assert.equal(root.findByProps({id:'com-descripcion'}).props.value,'Borrador que se cancela');
+    await click(root,'Cancelar');
+    assert.equal(root.findAllByType('form').length,0);
+    assert.match(text(renderer.toJSON()),/Servicio/);
+    assert.doesNotMatch(text(renderer.toJSON()),/Borrador que se cancela/);
+    await click(root,'Volver al listado');
     assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,1);
   }finally{await act(async()=>renderer.unmount());}
 });
