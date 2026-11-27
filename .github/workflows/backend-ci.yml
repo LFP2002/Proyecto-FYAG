@@ -74,6 +74,7 @@ jobs:
           cache-dependency-path: |
             backend/requirements.txt
             backend/requirements-test.txt
+            backend/constraints-runtime.txt
 
       - name: Instalar dependencias
         run: |
@@ -182,3 +183,32 @@ jobs:
       - name: Cerrar Mongo QA efímero
         if: always()
         run: docker rm -f fyag_mongo_ci fyag_clamd_ci fyag_redis_ci || true
+
+  audit-runtime:
+    name: Auditoría Python runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.18'
+      - name: Instalar en entornos separados y auditar runtime efectivo
+        run: |
+          python -m venv "$RUNNER_TEMP/fyag-runtime"
+          python -m venv "$RUNNER_TEMP/fyag-audit"
+          "$RUNNER_TEMP/fyag-runtime/bin/python" -m pip install -r backend/requirements.txt
+          "$RUNNER_TEMP/fyag-runtime/bin/python" -m pip check
+          "$RUNNER_TEMP/fyag-runtime/bin/python" -m pip freeze > "$RUNNER_TEMP/fyag-runtime.txt"
+          "$RUNNER_TEMP/fyag-audit/bin/python" -m pip install pip-audit==2.10.0
+          "$RUNNER_TEMP/fyag-audit/bin/pip-audit" --no-deps --disable-pip -r "$RUNNER_TEMP/fyag-runtime.txt" -f json -o "$RUNNER_TEMP/fyag-audit.json"
+      - name: Conservar inventario e informe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-runtime-audit
+          path: |
+            ${{ runner.temp }}/fyag-runtime.txt
+            ${{ runner.temp }}/fyag-audit.json

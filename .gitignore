@@ -1,16 +1,33 @@
 # Variables de entorno
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+*.dump
+*.bak
+*.sql.gz
+backups/
+qa-artifacts/
+test-results/
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+.ruff_cache/
+.coverage*
 
 # Django
 *.sqlite3
 *.log
 backend/private_evidencias/
+backend/private_adjuntos/
+backend/private_chat/
 
 # Node / React
 node_modules/

@@ -1,16 +1,14 @@
-Django>=5.2,<5.3
-djangorestframework
-djangorestframework-simplejwt
-psycopg[binary]
+-c constraints-runtime.txt
+Django==5.2.19
+djangorestframework==3.18.3
+djangorestframework-simplejwt==5.5.1
+psycopg[binary]==3.3.9
 pymongo==4.20.0
-django-cors-headers
-python-dotenv
-Pillow>=12.0,<13
+django-cors-headers==4.9.0
+python-dotenv==1.2.4
+Pillow==13.0.0
 openpyxl==3.1.5
 reportlab==5.1.0
-# Dependencias nuevas transitivas fijadas para reproducibilidad de exportación.
-et-xmlfile==2.0.0
-charset-normalizer==3.5.2
 # Inspección estructural de PDFs sin reescritura, también usado por QA de Reportes.
 pypdf==7.0.1
 # SPEC-023B: ASGI y channel layer oficial; Redis solo avisos transitorios.
