@@ -28,7 +28,7 @@ def revalidar_presupuestos(usuario, accion='lectura', presupuesto=None, *, bloqu
     roles = {
         'lectura': {AF, S, G}, 'selector': {AF, S},
         'elaborar': {AF, S}, 'enviar_revision': {AF, S},
-        'crear_revision': {AF, S}, 'decision_finanzas': {AF},
+        'crear_revision': {AF, S}, 'decision_finanzas': {AF}, 'fijar_precio': {AF},
     }
     if actual.rol not in roles.get(accion, set()):
         raise PermissionDenied('Operación presupuestaria no autorizada.')

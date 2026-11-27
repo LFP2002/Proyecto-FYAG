@@ -72,6 +72,10 @@ class Integracion019FTests(PrevisionBase, TestCase):
         self.assertEqual((fila['despachado'], fila['devuelto'], fila['neto_imputado'], fila['estado']),
                          ('5.000', '1.000', '4.000', 'COMPLETADO'))
         self.assertEqual(GastoObra.objects.count(), 2)
+        self.assertCountEqual(GastoObra.objects.values_list('costo_unitario_neto', flat=True),
+                              [Decimal('100.00'), Decimal('200.00')])
+        primera.refresh_from_db()
+        self.assertEqual(primera.precio_unitario, Decimal('930.00'))
 
     def test_inicio_inactivo_o_unidad_incompatible_revierte_todo(self):
         self.planificar()

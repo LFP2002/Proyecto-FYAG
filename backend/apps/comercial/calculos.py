@@ -41,8 +41,10 @@ def normalizar_precio(valor: Decimal) -> Decimal:
     )
 
 
-def calcular_subtotal(cantidad: Decimal, precio_unitario: Decimal) -> Decimal:
+def calcular_subtotal(cantidad: Decimal, precio_unitario: Decimal | None) -> Decimal | None:
     cantidad = normalizar_cantidad(cantidad)
+    if precio_unitario is None:
+        return None
     precio_unitario = normalizar_precio(precio_unitario)
     with localcontext() as contexto:
         contexto.prec = 50
@@ -51,12 +53,16 @@ def calcular_subtotal(cantidad: Decimal, precio_unitario: Decimal) -> Decimal:
         )
 
 
-def sumar_monto_neto(subtotales: Iterable[Decimal]) -> Decimal:
-    """Suma líneas ya redondeadas, sin volver a redondear sus productos."""
+def sumar_monto_neto(subtotales: Iterable[Decimal | None]) -> Decimal | None:
+    """Suma líneas ya redondeadas; un subtotal pendiente invalida el total completo."""
     with localcontext() as contexto:
         contexto.prec = 50
         total = Decimal("0.00")
+        pendiente = False
         for subtotal in subtotales:
+            if subtotal is None:
+                pendiente = True
+                continue
             if (
                 not isinstance(subtotal, Decimal)
                 or not subtotal.is_finite()
@@ -66,4 +72,4 @@ def sumar_monto_neto(subtotales: Iterable[Decimal]) -> Decimal:
             # Un producto máximo de línea tiene hasta 22 dígitos enteros.
             DecimalValidator(24, 2)(subtotal)
             total += subtotal
-        return total.quantize(CENTAVO)
+        return None if pendiente else total.quantize(CENTAVO)

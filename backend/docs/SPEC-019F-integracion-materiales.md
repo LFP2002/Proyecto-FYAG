@@ -14,6 +14,8 @@ La proyección Bodega 019D añade `origen` a las cuatro operaciones físicas/ope
 
 ### Revisión 1.1 del contrato
 
+La preparación comercial de estos materiales se rige por [SPEC-025B](openapi/SPEC-025B-v1.json): Finanzas fija el precio de venta antes de aprobar. La autorización de inicio sigue usando artículo, unidad y cantidad; la imputación ocurre al confirmar el despacho a costo de inventario, no al cotizar.
+
 Los clientes de validar y finalizar deben enviar `version_costos_esperada`: el entero mostrado por `version_actual` de la revisión que se confirma. Antes de habilitar la acción, compare también `version_validada` entre resumen y preflight. Si hay `409 version_costos_obsoleta`, relea ambos recursos y solicite una nueva confirmación. No use la versión de una lectura posterior para reenviar una confirmación anterior. Las peticiones sin la versión requerida reciben `400`; el cambio no requiere migración.
 
 El preflight no abre fotos ni calcula sus hashes y declara `evidencias_archivo_verificadas: false`; los POST conservan la verificación definitiva. Los tres servicios de escritura 019F contrastan usuario y JWT originales con sesión, credenciales y rol persistidos después de esperar a las raíces y de nuevo antes de consolidar efectos. Las revocaciones no se sustituyen con datos de una sesión más reciente.

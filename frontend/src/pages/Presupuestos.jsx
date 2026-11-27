@@ -9,6 +9,7 @@ import ItemEditRow, { itemRowErrors } from '../comercial/ItemEditRow.jsx';
 import SeguimientoComercial from '../comercial/SeguimientoComercial.jsx';
 import TecIcon from '../obras/TecIcon.jsx';
 import { useApp } from '../context/AppContext.jsx';
+import { unitCostInput } from '../utils/decimalInput.js';
 
 // Agrupación exclusivamente visual; los estados originales conservan sus permisos e historial.
 const HISTORICAL_FILTERS = { PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS', APROBADO_GERENCIA:'APROBADO_FINANZAS', RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS' };
@@ -129,6 +130,9 @@ function PresupuestosOperativos() {
   const compactMoney=value=>money(value).replace(/,00 CLP$/, '').replace(/ CLP$/, '');
   const canCreate=[AF,'SUPERVISOR_OBRAS'].includes(user.role);
   const editable = [AF, 'SUPERVISOR_OBRAS'].includes(user.role) && selected?.estado === 'BORRADOR';
+  const canPrice = user.role === AF && filterState(selected?.estado) === 'PENDIENTE_FINANZAS';
+  const pricesPending = selected?.monto_neto === null;
+  const actions = actionsFor(user.role, selected?.estado, pricesPending);
   const historical = selected ? {id:selected.cliente,nombre_legal:selected.cliente_nombre || clients.find(c=>c.id===selected.cliente)?.nombre_legal || 'Cliente #'+selected.cliente, historical:true} : null;
   const currentChoices = clients.filter(c=>user.role==='SUPERVISOR_OBRAS'||c.activo||c.id===selected?.cliente).filter(c=>user.role==='SUPERVISOR_OBRAS'||!clientSearch||c.nombre_legal.toLocaleLowerCase('es-CL').includes(clientSearch.toLocaleLowerCase('es-CL')));
   const retained = [chosenClient,historical].filter(c=>c&&String(c.id)===header?.cliente&&!currentChoices.some(x=>x.id===c.id));
@@ -160,21 +164,29 @@ function PresupuestosOperativos() {
   }
   async function saveLine(event) {
     event.preventDefault();
-    if (!editable || disabled || !line) return;
+    if (disabled || !line) return;
+    if (line.mode === 'price') {
+      const price = unitCostInput(line.form.precio_unitario);
+      if (!canPrice || price === null || !selected.items.some(i=>i.id===line.original.id&&i.articulo!=null)) return;
+      await api.write(`${itemPath(selected.id, line.original.id)}precio-comercial/`, 'PATCH', {precio_unitario:price}, async () => { await refreshedDetail(selected.id); setLine(null); });
+      return;
+    }
+    if (!editable) return;
     const form = { ...line.form, orden: line.original ? line.original.orden : nextItemOrder(selected.items) };
-    const errors = itemRowErrors(form, selected.items, line.original);
+    const errors = itemRowErrors(form, selected.items, line.original, user.role);
     if (Object.keys(errors).length) return;
-    await api.write(itemPath(selected.id, line.original?.id), line.original ? 'PATCH' : 'POST', itemPayload(form, line.original), async () => { await refreshedDetail(selected.id); setLine(null); });
+    await api.write(itemPath(selected.id, line.original?.id), line.original ? 'PATCH' : 'POST', itemPayload(form, line.original, user.role), async () => { await refreshedDetail(selected.id); setLine(null); });
   }
   async function execute(event) {
     event.preventDefault();
-    if (disabled || !actionsFor(user.role, selected.estado).includes(action)) return;
+    if (disabled || !actions.includes(action)) return;
     if (needsReason(action) && !reason.trim()) { api.setError({ message: 'El motivo es obligatorio.' }); return; }
     if (!window.confirm(`¿${ACTION_LABELS[action]} para ${selected.codigo}?`)) return;
     await api.write(`${budgetPath(selected.id)}${action}/`, 'POST', action === 'crear-revision' ? {} : { motivo: reason.trim() }, async (data) => {
       await refreshedDetail(data.id); setAction(null); setReason(''); setHistoryPage(1);
     });
   }
+  const renderItemEditor = (key, available) => <ItemEditRow key={key} line={line} items={selected.items} role={user.role} onChange={form=>setLine(previous=>previous?{...previous,form}:previous)} onSave={saveLine} onCancel={()=>setLine(null)} disabled={disabled||!available} busy={api.busy} editable={available} error={api.error}/>;
   const headerForm = header && <div className="budget-header-view">
     <button type="button" className="btn btn-outline-secondary btn-sm budget-back" disabled={api.busy||api.locked||api.loading} onClick={()=>{setHeader(null);api.setError(null);}}><TecIcon name="back"/>{selected?'Volver al detalle':'Volver a presupuestos'}</button>
     <h2>{selected ? 'Editar datos generales' : 'Nuevo presupuesto'}</h2><p className="commercial-help">{selected?'Actualiza el cliente o la descripción.':'Primero registra los datos generales. Luego podrás agregar materiales y servicios.'}</p>
@@ -223,7 +235,8 @@ function PresupuestosOperativos() {
       {opening&&!selected&&<p className="commercial-loading" role="status">Cargando presupuesto…</p>}
     {selected && !header && <article className="card-fyag commercial-detail">
       <div className="budget-detail-heading"><h2>{selected.codigo}</h2><BudgetStatus state={selected.estado} /></div>
-      <div className="commercial-summary"><div><span className="commercial-help">Cliente</span><p className="commercial-code">{clientLabel(selected)}</p><p className="commercial-long-text mb-0">{selected.descripcion}</p></div><div className="commercial-total"><span>Total neto · CLP</span><strong>{compactMoney(selected.monto_neto)}</strong></div></div>
+       <div className="commercial-summary"><div><span className="commercial-help">Cliente</span><p className="commercial-code">{clientLabel(selected)}</p><p className="commercial-long-text mb-0">{selected.descripcion}</p></div><div className="commercial-total"><span>Total neto · CLP</span><strong>{pricesPending?'Precios pendientes':compactMoney(selected.monto_neto)}</strong></div></div>
+       {pricesPending&&<p className="commercial-help">{editable?'Puedes enviar este presupuesto a revisión sin completar los precios de Bodega.':'Finanzas debe completar todos los precios de venta antes de aprobar o enviar al cliente.'}</p>}
       <p className="commercial-help">Creado por {selected.creador_nombre || `Usuario #${selected.creado_por}`} · {new Date(selected.creado_en).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
       {editable && <div className="commercial-actions"><button className="btn btn-outline-secondary" disabled={disabled || !!header || !!line || !!action} onClick={() => {setTab('items');openHeader({ cliente: String(selected.cliente), descripcion: selected.descripcion });}}>Editar datos generales</button></div>}
       <BudgetProgress budget={selected} role={user.role}/>
@@ -232,11 +245,14 @@ function PresupuestosOperativos() {
         <button type="button" aria-pressed={tab==='history'} aria-controls="budget-history" disabled={!!line||!!header||!!action||api.busy||api.locked} onClick={()=>setTab('history')}>Historial comercial</button>
       </div>
       <div id="budget-items" hidden={tab!=='items'}>
-      <div className="commercial-table-frame"><div className="table-responsive" role="region" aria-label="Ítems del presupuesto" tabIndex={0}><table className="table table-hover align-middle commercial-table commercial-items-table"><thead><tr><th scope="col">Descripción</th><th scope="col" className="text-end">Cantidad</th><th scope="col">Unidad</th><th scope="col" className="text-end">Precio de venta CLP</th><th scope="col" className="text-end">Subtotal CLP</th>{editable&&<th scope="col">Acciones</th>}</tr></thead><tbody>
-        {selected.items.map((i) => line?.original?.id === i.id ? <ItemEditRow key={i.id} line={line} items={selected.items} onChange={(form) => setLine(previous => previous ? { ...previous, form } : previous)} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled} busy={api.busy} editable={editable} error={api.error} /> : <tr key={i.id} className="commercial-item-read"><td data-label="Descripción" className="commercial-description">{i.descripcion}{i.articulo!=null&&<span className="commercial-help d-block">Material de catálogo · {i.codigo_articulo}</span>}</td><td data-label="Cantidad" className="text-end">{quantityLabel(i.cantidad)}</td><td data-label="Unidad">{i.unidad}</td><td data-label="Precio unitario" className="commercial-money">{compactMoney(i.precio_unitario)}</td><td data-label="Subtotal" className="commercial-money">{compactMoney(i.subtotal)}</td>{editable && <td data-label="Acciones"><div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...i }, original: i }); }}>Editar ítem</button><button className="btn btn-outline-danger btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => {
+       <div className="commercial-table-frame"><div className="table-responsive" role="region" aria-label="Ítems del presupuesto" tabIndex={0}><table className="table table-hover align-middle commercial-table commercial-items-table"><thead><tr><th scope="col">Descripción</th><th scope="col" className="text-end">Cantidad</th><th scope="col">Unidad</th><th scope="col" className="text-end">Precio de venta CLP</th><th scope="col" className="text-end">Subtotal CLP</th>{(editable||canPrice)&&<th scope="col">Acciones</th>}</tr></thead><tbody>
+         {selected.items.map((i) => line?.original?.id === i.id ? renderItemEditor(i.id,line.mode==='price'?canPrice&&i.articulo!=null:editable) : <tr key={i.id} className="commercial-item-read">
+         <td data-label="Descripción" className="commercial-description">{i.descripcion}{i.articulo!=null&&<span className="commercial-help d-block">Material de catálogo · {i.codigo_articulo}</span>}</td><td data-label="Cantidad" className="text-end">{quantityLabel(i.cantidad)}</td><td data-label="Unidad">{i.unidad}</td>
+         <td data-label="Precio de venta" className="commercial-money">{i.precio_unitario===null?'Pendiente':compactMoney(i.precio_unitario)}</td><td data-label="Subtotal" className="commercial-money">{compactMoney(i.subtotal)}</td>
+         {editable && <td data-label="Acciones"><div className="commercial-row-actions"><button className="btn btn-outline-secondary btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => { api.setError(null); setLine({ form: { ...i }, original: i }); }}>Editar ítem</button><button className="btn btn-outline-danger btn-sm" disabled={disabled || !!line || !!header || !!action} onClick={() => {
           if (window.confirm(`¿Eliminar ítem #${i.id}?`)) void api.write(itemPath(selected.id, i.id), 'DELETE', undefined, () => refreshedDetail(selected.id));
-        }}>Eliminar ítem</button></div></td>}</tr>)}
-        {line && (!line.original || !selected.items.some((item) => item.id === line.original.id)) && <ItemEditRow line={line} items={selected.items} onChange={(form) => setLine(previous => previous ? { ...previous, form } : previous)} onSave={saveLine} onCancel={() => setLine(null)} disabled={disabled || !!line.original} busy={api.busy} editable={editable && !line.original} error={api.error} />}
+         }}>Eliminar ítem</button></div></td>}{canPrice&&<td data-label="Acciones">{i.articulo!=null&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={disabled||!!line||!!action} onClick={()=>{api.setError(null);setLine({form:{...i},original:i,mode:'price'});}}>Fijar precio comercial</button>}</td>}</tr>)}
+         {line && (!line.original || !selected.items.some(item=>item.id===line.original.id)) && renderItemEditor('new',editable&&!line.original)}
         {editable && !line && <tr className="commercial-ghost-row"><td colSpan={6}><div className="budget-add-options"><button type="button" className="btn btn-outline-secondary" disabled={disabled||!!header||!!action} onClick={()=>startLine('material')}><TecIcon name="plus"/> Agregar material de bodega</button><button ref={addItemButton} type="button" className="btn btn-outline-secondary" disabled={disabled||!!header||!!action} onClick={()=>startLine('manual')}><TecIcon name="plus"/> Agregar ítem manual</button></div></td></tr>}
       </tbody></table></div>{!selected.items.length && !line && <div className="commercial-empty"><p className="mb-0">{editable?'Agrega materiales de Bodega o servicios personalizados.':'Este presupuesto no tiene ítems.'}</p></div>}</div>
       </div>
@@ -246,11 +262,11 @@ function PresupuestosOperativos() {
         <ol className="commercial-timeline">{history?.results.map(e=><li key={e.id}><div className="commercial-history-states">{e.estado_anterior?<BudgetStatus state={e.estado_anterior}/>:<span className="commercial-help">Creación</span>}<span aria-label="cambia a">→</span><BudgetStatus state={e.estado_nuevo}/></div><p className="commercial-help"><time dateTime={e.creado_en}>{dateLabel(e.creado_en)}</time> · Usuario #{e.registrado_por}</p>{e.motivo&&<p className="commercial-long-text mb-0">{e.motivo}</p>}</li>)}</ol>
         {history&&(history.next||history.previous)&&<Pager label="Paginación del historial" data={history} page={historyPage} setPage={setHistoryPage} disabled={disabled}/>}
       </section>
-      {actionsFor(user.role,selected.estado).length>0&&<section className="budget-commercial-actions"><h3>Acciones comerciales</h3><div className="commercial-actions">{actionsFor(user.role, selected.estado).map((a) => <button className={actionButtonClass(a)} key={a} disabled={disabled || !!header || !!line || !!action} onClick={() => { setAction(a); setReason(''); }}>{ACTION_LABELS[a]}</button>)}</div></section>}
+       {actions.length>0&&<section className="budget-commercial-actions"><h3>Acciones comerciales</h3><div className="commercial-actions">{actions.map((a) => <button className={actionButtonClass(a)} key={a} disabled={disabled || !!header || !!line || !!action} onClick={() => { setAction(a); setReason(''); }}>{ACTION_LABELS[a]}</button>)}</div></section>}
     {action && <form className="card-fyag commercial-form" onSubmit={execute}><h2>{ACTION_LABELS[action]}</h2>
       {action !== 'crear-revision' && <><label className="form-label" htmlFor="budget-reason">Motivo {needsReason(action) ? '(obligatorio)' : '(opcional)'}</label><textarea id="budget-reason" className="form-control" rows={4} maxLength={2000} required={needsReason(action)} disabled={api.busy} value={reason} onChange={(e) => setReason(e.target.value)} /></>}
-      {!actionsFor(user.role, selected.estado).includes(action) && <p>El estado actual ya no permite esta acción. Cancela y toma una nueva decisión.</p>}
-      <div className="commercial-form-actions"><button className={actionButtonClass(action)} disabled={disabled || !actionsFor(user.role, selected.estado).includes(action)} type="submit">Confirmar {ACTION_LABELS[action]}</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setAction(null)}>Cancelar</button></div>
+       {!actions.includes(action) && <p>El estado o los precios actuales no permiten esta acción. Cancela y revisa el presupuesto.</p>}
+       <div className="commercial-form-actions"><button className={actionButtonClass(action)} disabled={disabled || !actions.includes(action)} type="submit">Confirmar {ACTION_LABELS[action]}</button><button className="btn btn-outline-secondary" type="button" disabled={api.busy} onClick={() => setAction(null)}>Cancelar</button></div>
     </form>}
     </article>}
 

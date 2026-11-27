@@ -89,7 +89,9 @@ class MaterialesPresupuesto025B(PresupuestoAPIBase):
         r = self.client.patch(path, {'articulo':b.pk}, format='json')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(r.data['codigo_articulo'], b.codigo)
-        r = self.client.patch(path, {'articulo':None,'descripcion':'Servicio','unidad':'hora'}, format='json')
+        self.assertIsNone(r.data['precio_unitario'])
+        self.assertEqual(self.client.patch(path, {'articulo': None}, format='json').status_code, 400)
+        r = self.client.patch(path, {'articulo':None,'descripcion':'Servicio','unidad':'hora','precio_unitario':'40.00'}, format='json')
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual((r.data['articulo'],r.data['codigo_articulo'],r.data['unidad']), (None,'','hora'))
 
@@ -98,7 +100,10 @@ class MaterialesPresupuesto025B(PresupuestoAPIBase):
         self.autenticar(S)
         self.assertEqual(self.client.post(self.detalle()+'items/', self.datos(a), format='json').status_code, 404)
         propio = servicios.crear_presupuesto(cliente=self.cliente, descripcion='Propio', usuario=self.usuarios[S])
-        result = self.alta(a, propio)
+        self.assertEqual(self.client.post(self.detalle(propio)+'items/', self.datos(a), format='json').status_code, 403)
+        respuesta = self.client.post(self.detalle(propio)+'items/', {'articulo':a.pk,'cantidad':'2.500','orden':2}, format='json')
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        result = respuesta.data
         path = self.detalle(propio)+f"items/{result['id']}/"
         for rol in (G, B, Usuario.Rol.TECNICO, Usuario.Rol.ADMINISTRADOR_TI):
             self.autenticar(rol)
@@ -112,3 +117,48 @@ class MaterialesPresupuesto025B(PresupuestoAPIBase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 PresupuestoItem.objects.filter(pk=item['id']).update(codigo_articulo='')
+
+    def test_precios_pendientes_finanzas_y_traza(self):
+        a = self.material()
+        propio = servicios.crear_presupuesto(cliente=self.cliente, descripcion='Propio', usuario=self.usuarios[S])
+        base = self.detalle(propio)
+        self.autenticar(S)
+        r = self.client.post(base+'items/', {'articulo':a.pk,'cantidad':'2.500','orden':1}, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual((r.data['unidad'], r.data['precio_unitario'], r.data['subtotal']), (a.unidad, None, None))
+        item = base+f"items/{r.data['id']}/"
+        precio = item+'precio-comercial/'
+        self.assertEqual(self.client.patch(item, {'precio_unitario':'0.00'}, format='json').status_code, 403)
+        r = self.client.post(base+'enviar-finanzas/', {}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIsNone(r.data['monto_neto'])
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':'500.00'}, format='json').status_code, 403)
+        self.autenticar(G)
+        resumen = self.client.get('/api/presupuestos/seguimiento-comercial/').data['resumen']['estados']['PENDIENTE_FINANZAS']
+        self.assertEqual((resumen['sin_precio'], resumen['monto_neto']), (1, None))
+        self.autenticar(AF)
+        aprobar = base+'aprobar-finanzas/'
+        self.assertEqual(self.client.post(aprobar, {}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(item, {'cantidad':'1.000'}, format='json').status_code, 409)
+        self.assertEqual(self.client.patch(precio, {'cantidad':'1.000','precio_unitario':'500.00'}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':None}, format='json').status_code, 400)
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':'0.00'}, format='json').data['subtotal'], '0.00')
+        r = self.client.post(aprobar, {}, format='json')
+        self.assertIn('monto_neto', r.data)
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':'500.00'}, format='json').data['subtotal'], '1250.00')
+        self.assertEqual(self.client.post(aprobar, {}, format='json').data['monto_neto'], '1250.00')
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':'600.00'}, format='json').status_code, 409)
+        self.assertEqual(self.client.post(base+'enviar-cliente/', {}, format='json').status_code, 200)
+        self.assertEqual(list(propio.eventos_precio.order_by('pk').values_list('precio_anterior','precio_nuevo','registrado_por_id')),
+                         [(None, Decimal('0.00'), self.usuarios[AF].pk), (Decimal('0.00'), Decimal('500.00'), self.usuarios[AF].pk)])
+        self.assertFalse(MovimientoInventario.objects.exists())
+
+    def test_envio_no_admite_precio_pendiente_incluso_si_estado_ya_aprobado(self):
+        from apps.comercial.models import Presupuesto
+        linea = self.alta(self.material())
+        self.assertEqual(self.accion('enviar-finanzas').status_code, 200)
+        self.assertEqual(self.accion('aprobar-finanzas').status_code, 200)
+        PresupuestoItem.objects.filter(pk=linea['id']).update(precio_unitario=None)
+        self.assertEqual(self.accion('enviar-cliente').status_code, 400)
+        self.assertEqual(Presupuesto.objects.get(pk=self.presupuesto.pk).estado, 'APROBADO_FINANZAS')

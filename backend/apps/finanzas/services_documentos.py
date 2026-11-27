@@ -109,7 +109,10 @@ def registrar_documento(payload, actor):
     if (DocumentoCobro.objects.filter(obra=obra, estado="VIGENTE").exists()
         or DocumentoCobro.objects.filter(tipo_documento=data["tipo_documento"], folio_externo=data["folio_externo"]).exists()):
         raise ConflictoFinanciero("documento_duplicado", "Ya existe un registro documental para esa Obra o folio/tipo.")
-    if data["monto_neto"] != obra.presupuesto.monto_neto:
+    neto = obra.presupuesto.monto_neto
+    if neto is None:
+        raise ConflictoFinanciero("presupuesto_inconsistente", "La Obra tiene precios comerciales pendientes.")
+    if data["monto_neto"] != neto:
         raise ConflictoFinanciero("monto_no_coincide", "El neto documental no coincide con el presupuesto aprobado.")
     documento = DocumentoCobro.objects.create(obra=obra, registrado_por=actor, **data)
     snapshot = {key: (format(value, ".2f") if key.startswith("monto_") else value.isoformat() if key.startswith("fecha_") else value) for key, value in data.items()}

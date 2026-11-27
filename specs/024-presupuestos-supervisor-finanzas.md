@@ -1,5 +1,7 @@
 # SPEC-024 — Elaboración de presupuestos por Supervisor y Finanzas (backend FYAG)
 
+> **Actualización para materiales vinculados:** [SPEC-025](025-catalogo-bodega-presupuestos.md) sustituye las reglas de obligatoriedad de precio y congelación económica únicamente para líneas de Bodega: se puede pedir revisión con precios pendientes; Finanzas dispone de una acción limitada al precio antes de aprobar. Las demás ediciones permanecen congeladas. El subtotal y el neto afectados son `null`, no cero.
+
 > **Contrato funcional ratificado para la Beta local.** Base comprobada: `main` `148e2120499c9221dd476f179b124024582f97fa`, con SPEC-020A/B y SPEC-023A/B integradas. **Alcance exclusivo: backend y documentación técnica**. Sin cambios en `frontend/`, sin nube y sin ampliar Bodega. Este contrato modifica puntualmente la matriz de **Presupuestos** de SPEC-020A; conserva intacta la política de **Clientes** y las atribuciones de Gerencia.
 
 ## 1. Objetivo

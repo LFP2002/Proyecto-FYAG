@@ -267,6 +267,8 @@ def crear_obra(datos, usuario):
     presupuesto = _presupuesto_bloqueado(datos["presupuesto"])
     if presupuesto.estado != Presupuesto.Estado.APROBADO_CLIENTE:
         raise EstadoIncompatible()
+    if presupuesto.items.filter(precio_unitario__isnull=True).exists():
+        raise EstadoIncompatible('El presupuesto tiene precios comerciales pendientes.')
     if Obra.objects.filter(presupuesto_id=presupuesto.pk).exists():
         raise PresupuestoUtilizado()
     categoria = _categoria_elegible(datos["categoria_servicio"])

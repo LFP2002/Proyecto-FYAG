@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.comercial.proyecciones import neto_aprobado
 from apps.obras.models import CierreCostosObra, CortesiaObra, Obra
 from apps.obras.serializers import ObraFinanzasSerializer
 from .models import CierreSinCobro, DocumentoCobro
@@ -41,7 +42,7 @@ def consulta():
 def proyeccion(obra):
     return {
         **ObraFinanzasSerializer(obra).data,
-        "monto_neto_aprobado": format(obra.presupuesto.monto_neto, ".2f"),
+        "monto_neto_aprobado": format(neto_aprobado(obra.presupuesto), ".2f"),
         "situacion_financiera": obra.situacion_financiera,
     }
 

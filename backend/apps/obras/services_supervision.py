@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
 from rest_framework.exceptions import ValidationError
 
+from apps.comercial.proyecciones import neto_aprobado
 from .models import GastoObra, Obra, TurnoObra
 from .services_costos import _totales
 
@@ -41,7 +42,7 @@ def supervision_gerencial(queryset, params):
     # Reutiliza las mismas reglas Decimal y redondeo que la ficha individual.
     # Se procesan lotes, sin N+1, y se conservan solo las filas proyectadas.
     for obra in queryset.iterator(chunk_size=100):
-        presupuesto = obra.presupuesto.monto_neto
+        presupuesto = neto_aprobado(obra.presupuesto)
         cierre = _relacion(obra, "cierre_costos") if obra.estado == "FINALIZADA" else None
         control = _relacion(obra, "control_costos")
         cortesia = _relacion(obra, "cortesia") is not None

@@ -69,15 +69,19 @@ class PresupuestoEscrituraSerializer(ContratoPresupuestoSerializer):
 
 class PresupuestoItemEscrituraSerializer(ContratoPresupuestoSerializer):
     articulo = EnteroEstrictoField(min_value=1, max_value=9223372036854775807, required=False, allow_null=True)
-    descripcion = StringEstrictoField(max_length=2000)
+    descripcion = StringEstrictoField(max_length=2000, required=False)
     cantidad = DecimalTextoField(
         max_digits=12, decimal_places=3, min_value=Decimal("0.001")
     )
-    unidad = StringEstrictoField(max_length=30)
+    unidad = StringEstrictoField(max_length=30, required=False)
     precio_unitario = DecimalTextoField(
-        max_digits=15, decimal_places=2, min_value=Decimal("0.00")
+        max_digits=15, decimal_places=2, min_value=Decimal("0.00"), required=False,
     )
     orden = EnteroEstrictoField(min_value=1, max_value=2147483647)
+
+
+class PrecioComercialSerializer(ContratoPresupuestoSerializer):
+    precio_unitario = DecimalTextoField(max_digits=15, decimal_places=2, min_value=Decimal("0.00"))
 
 
 class PresupuestoAccionSerializer(ContratoPresupuestoSerializer):
@@ -121,11 +125,11 @@ class PresupuestoItemSerializer(serializers.Serializer):
     )
     unidad = serializers.CharField(read_only=True)
     precio_unitario = serializers.DecimalField(
-        max_digits=15, decimal_places=2, coerce_to_string=True, read_only=True
+        max_digits=15, decimal_places=2, coerce_to_string=True, read_only=True, allow_null=True,
     )
     orden = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(
-        max_digits=24, decimal_places=2, coerce_to_string=True, read_only=True
+        max_digits=24, decimal_places=2, coerce_to_string=True, read_only=True, allow_null=True,
     )
 
 
@@ -151,7 +155,7 @@ class PresupuestoListadoSerializer(serializers.Serializer):
 
     def get_monto_neto(self, obj):
         neto = sumar_monto_neto(item.subtotal for item in obj.lineas_respuesta)
-        return format(neto, ".2f")
+        return format(neto, ".2f") if neto is not None else None
 
 
 class PresupuestoDetalleSerializer(PresupuestoListadoSerializer):

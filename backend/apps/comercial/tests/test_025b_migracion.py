@@ -42,3 +42,35 @@ class MigracionMateriales025B(TransactionTestCase):
         self.assertEqual(list(PresupuestoEvento.objects.filter(presupuesto_id=presupuesto.pk).values()),
                          [dict(e, actor_nombre_historico=None, actor_username_historico=None) for e in historial])
         self.assertEqual(PresupuestoItem.objects.get(pk=item.pk).subtotal, Decimal('21250.00'))
+
+    def test_upgrade_0008_preserva_precios_vinculados_incluido_cero(self):
+        from decimal import Decimal
+        from apps.comercial.models import PresupuestoItem, PresupuestoPrecioEvento
+        from apps.comercial.tests.test_presupuesto_api import datos_item
+        from apps.comercial.tests.test_025b import MaterialesPresupuesto025B
+
+        # Crear antes del downgrade solo datos compatibles con 0008, sin fijaciones nuevas.
+        fixture = MaterialesPresupuesto025B()
+        fixture.setUpTestData()
+        presupuesto = fixture.preparar()
+        articulo = fixture.material()
+        lineas = []
+        for orden, precio in ((2, '0.00'), (3, '8500.00')):
+            lineas.append(PresupuestoItem.objects.create(
+                presupuesto=presupuesto, articulo=articulo, codigo_articulo=articulo.codigo,
+                descripcion=articulo.nombre, cantidad=Decimal(datos_item()['cantidad']),
+                unidad=articulo.unidad, precio_unitario=Decimal(precio), orden=orden,
+            ).pk)
+        executor = MigrationExecutor(connection)
+        hojas = executor.loader.graph.leaf_nodes()
+        anterior = [('comercial', '0008_merge_identidad_articulo')]
+        try:
+            executor.migrate(anterior)
+            modelo = executor.loader.project_state(anterior).apps.get_model('comercial', 'PresupuestoItem')
+            antes = list(modelo.objects.filter(pk__in=lineas).values())
+        finally:
+            MigrationExecutor(connection).migrate(hojas)
+        self.assertEqual(list(PresupuestoItem.objects.filter(pk__in=lineas).values()), antes)
+        self.assertEqual(list(PresupuestoItem.objects.filter(pk__in=lineas).values_list('precio_unitario', flat=True)),
+                         [Decimal('0.00'), Decimal('8500.00')])
+        self.assertFalse(PresupuestoPrecioEvento.objects.exists())

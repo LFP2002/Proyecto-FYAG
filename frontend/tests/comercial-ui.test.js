@@ -81,10 +81,11 @@ function fakeBackend() {
     if (!suffix) { Object.assign(budget, options.body); return structuredClone(budget); }
     if (suffix.startsWith('items/')) {
       const itemId = Number(suffix.split('/')[1]);
-      if (method === 'POST') budget.items.push({ ...options.body, codigo_articulo:options.body.articulo===17?'cobre-01':'', id: Math.max(0, ...budget.items.map((i) => i.id)) + 1, subtotal: '1234.56' });
+      if (method === 'POST') budget.items.push({ ...(options.body.articulo===17?{unidad:'m',descripcion:'Tubería de cobre'}:{}), precio_unitario:null, ...options.body, codigo_articulo:options.body.articulo===17?'cobre-01':'', id: Math.max(0, ...budget.items.map((i) => i.id)) + 1 });
       if (method === 'PATCH') Object.assign(budget.items.find((i) => i.id === itemId), options.body);
       if (method === 'DELETE') budget.items = budget.items.filter((i) => i.id !== itemId);
-      budget.monto_neto = budget.items.length ? '1234.56' : '0.00';
+      for(const item of budget.items) item.subtotal=item.precio_unitario===null?null:'1234.56';
+      budget.monto_neto = budget.items.some(i=>i.subtotal===null)?null:budget.items.length ? '1234.56' : '0.00';
       return method === 'DELETE' ? null : structuredClone(budget.items[0]);
     }
     if (suffix === 'crear-revision/') {
@@ -632,9 +633,37 @@ test('catálogo comercial: selección rellena identidad, conserva precio manual 
     await click(renderer,'Guardar ítem');
     const post=b.calls.find(c=>c.method==='POST'&&c.path.endsWith('/items/'));
     assert.equal(post.body.articulo,17);
-    assert.equal(post.body.unidad,'m');
+     assert.equal(Object.hasOwn(post.body,'unidad'),false);
     assert.equal(post.body.precio_unitario,'8500');
     assert.equal(Object.hasOwn(post.body,'codigo_articulo'),false);
     assert.match(text(renderer.root),/Material de catálogo/);
   } finally {await act(async()=>renderer.unmount());}
+});
+
+test('Supervisor envía material sin precio y Finanzas fija solo el precio antes de aprobar', async () => {
+  const b=fakeBackend();
+  const s=await mount(Presupuestos,b.request,'SUPERVISOR_OBRAS');
+  try {
+    await createBudget(s);
+    await click(s,'Agregar material de bodega');
+    await click(s,'Seleccionar Tubería de cobre');
+    assert.equal(s.root.findAllByProps({id:'com-precio_unitario'}).length,0);
+    await input(s,'cantidad','2');
+    await click(s,'Guardar ítem');
+    assert.deepEqual(b.calls.find(c=>c.method==='POST'&&c.path.endsWith('/items/')).body,{cantidad:'2',orden:1,articulo:17});
+    assert.match(text(s.root),/Precios pendientes/);
+    await click(s,'Enviar a revisión de Finanzas');
+    await submit(s);
+  } finally {await act(async()=>s.unmount());}
+  const af=await mount(Presupuestos,b.request);
+  try {
+    await click(af,'Ver presupuesto');
+    assert.doesNotMatch(text(af.root),/Aprobar por Finanzas|Editar ítem/);
+    await click(af,'Fijar precio comercial');
+    assert.equal(af.root.findAllByProps({id:'com-cantidad'}).length,0);
+    await input(af,'precio_unitario','8500');
+    await submit(af);
+    assert.deepEqual(b.calls.find(c=>c.path.endsWith('/precio-comercial/')).body,{precio_unitario:'8500'});
+    assert.match(text(af.root),/Aprobar por Finanzas/);
+  } finally {await act(async()=>af.unmount());}
 });

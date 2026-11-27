@@ -9,6 +9,7 @@ from inspect import signature
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from rest_framework.exceptions import PermissionDenied
 
 from apps.inventario.models import ArticuloInventario
 
@@ -22,7 +23,7 @@ from .exceptions import (
     RecursoNoEncontrado,
     PresupuestoUtilizado,
 )
-from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem
+from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem, PresupuestoPrecioEvento
 from .permissions_presupuestos import revalidar_presupuestos, presupuestos_visibles, S
 
 
@@ -39,16 +40,18 @@ CAMPOS_ITEM_EDITABLES = CAMPOS_ITEM | {"articulo"}
 def _datos_item(datos, *, completos=False):
     _datos_permitidos(datos, CAMPOS_ITEM_EDITABLES)
     if completos:
-        _datos_permitidos(
-            {campo: valor for campo, valor in datos.items() if campo in CAMPOS_ITEM},
-            CAMPOS_ITEM, completos=True,
-        )
+        obligatorios = {"cantidad", "orden"} if datos.get("articulo") is not None else CAMPOS_ITEM
+        _datos_permitidos({k: datos[k] for k in obligatorios if k in datos}, obligatorios, completos=True)
 
 
-def _aplicar_item(item, cambios):
+def _aplicar_item(item, cambios, actor):
     """Conservar la instantánea salvo selección explícita de otro material."""
     cambios = dict(cambios)
     articulo_id = cambios.pop("articulo", item.articulo_id)
+    if articulo_id is not None and "precio_unitario" in cambios and actor.rol == S:
+        raise PermissionDenied("Solo Finanzas fija el precio comercial de materiales de Bodega.")
+    if "precio_unitario" in cambios and cambios["precio_unitario"] is None:
+        raise DatosInvalidos({"precio_unitario": ["Ingrese un precio explícito u omita el campo."]})
     if articulo_id is not None and (
         type(articulo_id) is not int or not 0 < articulo_id <= 9223372036854775807
     ):
@@ -68,7 +71,10 @@ def _aplicar_item(item, cambios):
             cambios[campo] = esperado
         item.articulo_id = articulo.pk
         item.codigo_articulo = articulo.codigo
+        item.precio_unitario = None
     elif articulo_id is None:
+        if item.articulo_id is not None and "precio_unitario" not in cambios:
+            raise DatosInvalidos({"precio_unitario": ["Ingrese el precio de la nueva línea libre."]})
         item.articulo_id = None
         item.codigo_articulo = ""
     else:
@@ -77,8 +83,10 @@ def _aplicar_item(item, cambios):
                 not isinstance(cambios[campo], str) or cambios[campo].strip() != getattr(item, campo)
             ):
                 raise DatosInvalidos({campo: ["Seleccione otro material o desvincule la línea."]})
+    anterior = item.precio_unitario
     for campo, valor in cambios.items():
         setattr(item, campo, valor)
+    return anterior
 
 
 
@@ -96,7 +104,6 @@ def _operacion(funcion):
                 if inicial is not None:
                     final = revalidar_presupuestos(usuario, bloquear=True)
                     if final.rol != inicial.rol:
-                        from rest_framework.exceptions import PermissionDenied
                         raise PermissionDenied('Operación presupuestaria no autorizada.')
                 return resultado
         except IntegrityError as exc:
@@ -232,16 +239,27 @@ def _actualizar_fecha(presupuesto):
     presupuesto.save(update_fields=["actualizado_en"])
 
 
+def _registrar_precio(item, anterior, actor):
+    if item.articulo_id is not None and item.precio_unitario is not None and anterior != item.precio_unitario:
+        PresupuestoPrecioEvento.objects.create(
+            presupuesto_id=item.presupuesto_id, item_id_historico=item.pk,
+            codigo_articulo=item.codigo_articulo, precio_anterior=anterior,
+            precio_nuevo=item.precio_unitario, registrado_por=actor,
+            actor_username_historico=actor.username,
+        )
+
+
 @_operacion
 def crear_item(presupuesto, datos, usuario=None):
     _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto, usuario)
-    _usuario_interno(usuario, presupuesto=actual)
+    actor = _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _datos_item(datos, completos=True)
     item = PresupuestoItem(presupuesto=actual)
-    _aplicar_item(item, datos)
+    anterior = _aplicar_item(item, datos, actor)
     _guardar_item(item)
+    _registrar_precio(item, anterior, actor)
     _actualizar_fecha(actual)
     return item
 
@@ -250,14 +268,33 @@ def crear_item(presupuesto, datos, usuario=None):
 def modificar_item(presupuesto, item, cambios, usuario=None):
     _usuario_interno(usuario)
     actual = _presupuesto_bloqueado(presupuesto, usuario)
-    _usuario_interno(usuario, presupuesto=actual)
+    actor = _usuario_interno(usuario, presupuesto=actual)
     _exigir_borrador(actual)
     _datos_item(cambios)
     item = _item_del_presupuesto(actual, item)
-    _aplicar_item(item, cambios)
+    anterior = _aplicar_item(item, cambios, actor)
     _guardar_item(item)
+    _registrar_precio(item, anterior, actor)
     _actualizar_fecha(actual)
     return item
+
+
+@_operacion
+def fijar_precio_comercial(presupuesto, item, precio_unitario, usuario):
+    _usuario_interno(usuario, 'fijar_precio')
+    actual = _presupuesto_bloqueado(presupuesto, usuario)
+    actor = _usuario_interno(usuario, 'fijar_precio', actual)
+    linea = _item_del_presupuesto(actual, item)
+    if actual.estado not in {Estado.PENDIENTE_FINANZAS, Estado.PENDIENTE_GERENCIA} or linea.articulo_id is None:
+        raise EstadoIncompatible("Solo se cotizan materiales vinculados en revisión interna.")
+    if precio_unitario is None:
+        raise DatosInvalidos({"precio_unitario": ["Ingrese un precio comercial explícito."]})
+    anterior = linea.precio_unitario
+    linea.precio_unitario = precio_unitario
+    _guardar_item(linea)
+    _registrar_precio(linea, anterior, actor)
+    _actualizar_fecha(actual)
+    return linea
 
 
 @_operacion
@@ -284,16 +321,24 @@ def recalcular_monto_neto(presupuesto):
     return _lineas_y_total(actual)[1]
 
 
-def _validar_salida(presupuesto):
+def _validar_salida(presupuesto, *, admitir_pendientes=False):
     _cliente_activo_bloqueado(presupuesto.cliente_id)
     presupuesto.full_clean()
     lineas, neto = _lineas_y_total(presupuesto)
     if not lineas:
         raise DatosInvalidos({"items": ["Debe existir al menos un ítem."]})
+    if neto is None and admitir_pendientes:
+        return
+    _exigir_precios_completos(neto is None)
     if neto <= 0:
         raise DatosInvalidos({
             "monto_neto": ["El monto neto debe ser positivo."],
         })
+
+
+def _exigir_precios_completos(pendientes):
+    if pendientes:
+        raise DatosInvalidos({"precio_unitario": ["Finanzas debe completar todos los precios comerciales de Bodega."]})
 
 
 def _motivo_normalizado(motivo, obligatorio):
@@ -325,8 +370,13 @@ def _transicionar(
         if Obra.objects.filter(presupuesto_id=actual.pk).exists():
             raise PresupuestoUtilizado()
     motivo = _motivo_normalizado(motivo, motivo_obligatorio)
-    if anterior == Estado.BORRADOR and destino != Estado.ANULADO:
+    if destino == Estado.PENDIENTE_FINANZAS:
+        _validar_salida(actual, admitir_pendientes=True)
+    elif destino == Estado.APROBADO_FINANZAS and anterior == Estado.PENDIENTE_FINANZAS:
         _validar_salida(actual)
+    elif destino in {Estado.APROBADO_FINANZAS, Estado.ENVIADO_CLIENTE, Estado.APROBADO_CLIENTE}:
+        # No revalidar cliente/neto de aprobaciones históricas: solo exigir completitud.
+        _exigir_precios_completos(actual.items.filter(precio_unitario__isnull=True).exists())
     _usuario_interno(usuario, autorizacion, actual)
     actual.estado = destino
     actual.save(update_fields=["estado", "actualizado_en"])
