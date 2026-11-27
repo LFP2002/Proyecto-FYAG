@@ -1,5 +1,6 @@
 from datetime import timedelta
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.core.cache import cache
 from django.test import override_settings
@@ -31,10 +32,12 @@ class BaseC2:
         cache.clear()
 
     def login(self, user=None, password=PASSWORD, *, clear_rate=True):
-        if clear_rate:
-            cache.clear()  # Aislar motor; throttles se prueban explícitamente aparte.
-        result = self.client.post("/api/auth/login/", {"email": (user or self.target).email, "password": password},
-                                  format="json", HTTP_X_CSRFTOKEN=self.csrf)
+        from contextlib import nullcontext
+        # Aislar el reloj simulado de C2 de la ventana real de Redis.
+        context = override_settings(FYAG_SECURITY_REDIS_PREFIX=f'fyag:qa:{uuid4().hex}') if clear_rate else nullcontext()
+        with context:
+            result = self.client.post("/api/auth/login/", {"email": (user or self.target).email, "password": password},
+                                      format="json", HTTP_X_CSRFTOKEN=self.csrf)
         if result.status_code == 200:
             self.csrf = result.data["csrfToken"]
         return result

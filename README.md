@@ -74,6 +74,14 @@ Docker aplica `restart: unless-stopped` si el proceso sale; `unhealthy` por sí
 solo no reinicia el contenedor. Los endpoints no certifican migraciones, entrega
 SMTP ni disponibilidad de módulos auxiliares.
 
+El login requiere Redis de seguridad dedicado. Para Compose local, suministrar
+`FYAG_SECURITY_REDIS_PASSWORD` (hexadecimal aleatorio, distinto del secreto de
+chat) por el entorno del operador. QA standalone usa `QA_SECURITY_REDIS_PASSWORD`.
+Fuera de Compose, `FYAG_SECURITY_REDIS_URL` apunta exclusivamente a la instancia
+de seguridad. Sin Redis se responde 503 en vez de omitir el control. La IP es
+`REMOTE_ADDR`, no `X-Forwarded-For`; detrás de proxy se comparte el cupo del peer
+si todavía no se configuró un transporte confiable de la IP real.
+
 Para actualizar Python: usar una imagen limpia Python 3.13.18/Linux del mismo
 tipo que CI, revisar los cambios propuestos a `backend/requirements.txt` y
 `backend/constraints-runtime.txt`, reconstruir instalando runtime, comparar

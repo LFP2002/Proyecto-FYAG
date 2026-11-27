@@ -292,11 +292,12 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_THROTTLE_RATES": {
-        "login_ip": "20/min",
-        "login_email": "5/min",
         "refresh_ip": "30/min",
     },
 }
+
+FYAG_SECURITY_REDIS_URL = os.getenv('FYAG_SECURITY_REDIS_URL', '')
+FYAG_SECURITY_REDIS_PREFIX = 'fyag:seguridad:v1'
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),

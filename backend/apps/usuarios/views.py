@@ -17,7 +17,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import LoginSerializer, VersionedRefreshSerializer
 from .services import delete_refresh_cookie, set_refresh_cookie, sin_cache
 from .throttles import (
-    LoginEmailRateThrottle,
     LoginIPRateThrottle,
     RefreshIPRateThrottle,
 )
@@ -38,7 +37,6 @@ class LoginView(TokenObtainPairView):
     authentication_classes = []
     throttle_classes = [
         LoginIPRateThrottle,
-        LoginEmailRateThrottle,
     ]
     serializer_class = LoginSerializer
 

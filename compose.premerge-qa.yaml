@@ -2,6 +2,21 @@
 # Proyecto único por ejecución; sin container_name, puertos fijos, redes externas,
 # volúmenes persistentes ni .env de FYAG. Secretos efímeros vía --env-file externo.
 services:
+  redis-seguridad:
+    image: redis:7.4.7-alpine
+    mem_limit: 128m
+    environment:
+      REDIS_PASSWORD: ${QA_SECURITY_REDIS_PASSWORD:?}
+    command:
+      - /bin/sh
+      - -ec
+      - 'exec redis-server --protected-mode yes --save "" --appendonly no --maxmemory 64mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"'
+    tmpfs: [/data]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -qx PONG']
+      interval: 3s
+      timeout: 3s
+      retries: 20
   redis:
     image: redis:7.4.7-alpine
     environment:
@@ -95,6 +110,7 @@ services:
       FYAG_CLAMD_HOST: clamav
       FYAG_CHAT_REDIS_HOST: redis
       FYAG_CHAT_REDIS_PASSWORD: ${QA_REDIS_PASSWORD:?}
+      FYAG_SECURITY_REDIS_URL: redis://:${QA_SECURITY_REDIS_PASSWORD:?}@redis-seguridad:6379/0
       FYAG_CLAMD_TEST_HOST: clamav
       FYAG_EVIDENCIAS_ROOT: /qa/evidencias
       FYAG_ADJUNTOS_ROOT: /qa/adjuntos
@@ -105,6 +121,7 @@ services:
     command: [python, -c, 'import time; time.sleep(86400)']
     depends_on:
       redis: {condition: service_healthy}
+      redis-seguridad: {condition: service_healthy}
       postgres: {condition: service_healthy}
       mongo: {condition: service_healthy}
       clamav: {condition: service_healthy}
