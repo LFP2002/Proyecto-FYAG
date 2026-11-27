@@ -14,11 +14,12 @@ from datetime import timedelta
 from pathlib import Path
 import os
 from django.core.exceptions import ImproperlyConfigured
-from apps.usuarios.correo_config import configurar_correo
+from apps.usuarios.correo_config import configurar_correo, configurar_vigencia_recuperacion
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 globals().update(configurar_correo(os.environ))
+FYAG_RECUPERACION_MINUTOS = configurar_vigencia_recuperacion(os.environ)
 try:
     FYAG_VERIFICACION_MINUTOS = int(os.getenv('FYAG_VERIFICACION_MINUTOS', '60'))
     if not 15 <= FYAG_VERIFICACION_MINUTOS <= 1440:

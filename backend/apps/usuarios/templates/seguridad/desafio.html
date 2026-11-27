@@ -10,7 +10,11 @@
     <p>Hemos recibido una solicitud para verificar su correo electrónico en FYAG.</p>
   {% endif %}
   <p><a href="{{ enlace }}" referrerpolicy="no-referrer" rel="noreferrer" style="background:#173653;color:#fff;padding:12px 16px">{{ accion }}</a></p>
-  <p>El enlace es de un solo uso y tiene una vigencia de {{ minutos }} minutos.</p>
+  {% if proposito == 'recuperacion' %}
+    <p>El enlace es de un solo uso y vence {{ minutos }} minutos después de su emisión.</p>
+  {% else %}
+    <p>El enlace es de un solo uso y tiene una vigencia de {{ minutos }} minutos.</p>
+  {% endif %}
   <p>Si usted no solicitó este cambio, ignore el mensaje y comuníquese con el Administrador TI si detecta actividad sospechosa.</p>
   <p>Mensaje generado automáticamente por el Sistema de Gestión de Obras y Presupuestos FYAG.</p>
 </body>

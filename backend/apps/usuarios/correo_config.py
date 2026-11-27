@@ -1,7 +1,15 @@
 from urllib.parse import urlsplit
+import re
 
 from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.core.validators import validate_email
+
+
+def configurar_vigencia_recuperacion(env):
+    valor = env.get('FYAG_RECUPERACION_MINUTOS', '15')
+    if isinstance(valor, str) and re.fullmatch(r'[0-9]{1,2}', valor) and 5 <= int(valor) <= 30:
+        return int(valor)
+    raise ImproperlyConfigured('FYAG_RECUPERACION_MINUTOS debe ser un entero entre 5 y 30.')
 
 
 def configurar_correo(env):

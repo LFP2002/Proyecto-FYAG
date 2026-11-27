@@ -18,7 +18,6 @@ from .recuperacion_c2 import bloquear_estado_recuperacion, normalizar_acceso
 from .services_usuarios import ADMIN_MUTEX, ConflictoUsuario, _password, _version, operacion
 from .verificacion import consumir_solicitud, encolar_reenvio
 
-TTL_MINUTOS = 15
 COLA = 'recuperacion-correo'
 
 
@@ -69,9 +68,10 @@ def emitir(email):
     if vigente.exists():
         return  # No reemplazar, reenviar ni prolongar un enlace válido.
     token = token_urlsafe(32)
+    minutos = settings.FYAG_RECUPERACION_MINUTOS
     DesafioRecuperacionCorreo.objects.update_or_create(usuario=user, defaults={
-        'digest': _digest(token), 'vinculo': vinculo, 'vence_en': now + timedelta(minutes=TTL_MINUTOS)})
-    enviar_desafio_despues_commit('recuperacion', email, token, TTL_MINUTOS)
+        'digest': _digest(token), 'vinculo': vinculo, 'vence_en': now + timedelta(minutes=minutos)})
+    enviar_desafio_despues_commit('recuperacion', email, token, minutos)
 
 
 def _invalido():

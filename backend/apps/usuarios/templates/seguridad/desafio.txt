@@ -6,7 +6,7 @@ Para recuperar el acceso, seleccione Restablecer contraseña:
 Para confirmar la dirección, seleccione Verificar correo:
 {% endif %}{{ enlace }}
 
-El enlace es de un solo uso y tiene una vigencia de {{ minutos }} minutos.
+{% if proposito == 'recuperacion' %}El enlace es de un solo uso y vence {{ minutos }} minutos después de su emisión.{% else %}El enlace es de un solo uso y tiene una vigencia de {{ minutos }} minutos.{% endif %}
 
 Si usted no solicitó este cambio, ignore el mensaje y comuníquese con el Administrador TI si detecta actividad sospechosa.
 
