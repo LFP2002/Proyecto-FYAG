@@ -2,7 +2,7 @@
 from datetime import timedelta
 from itertools import batched
 
-from django.db import connection, transaction
+from django.db import OperationalError, connection, transaction
 from django.utils import timezone
 
 from . import almacen
@@ -21,6 +21,30 @@ def paginas(qs, field, lote):
         qs = ordenado.filter(**{f'{field}__gt': ids[-1], f'{field}__lte': ultimo})
 
 
+def _borrar_efimeros(qs, ids, fila, *, espera='50ms'):
+    # SELECT FOR UPDATE SKIP LOCKED exigiría UPDATE. Conservar solo SELECT/DELETE.
+    try:
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SELECT current_setting('lock_timeout')")
+            anterior, = cursor.fetchone()
+            cursor.execute("SELECT set_config('lock_timeout', %s, true)", [espera])
+            eliminados = qs.filter(pk__in=ids).delete()[0]
+            cursor.execute("SELECT set_config('lock_timeout', %s, true)", [anterior])
+    except OperationalError as exc:
+        if getattr(exc.__cause__, 'sqlstate', None) != '55P03':
+            raise
+        # El lote se revirtió completo. Reintentar mitades con menos espera y
+        # posponer solo la fila que siga bloqueada; nunca repetirla en este ciclo.
+        if len(ids) == 1:
+            fila['bloqueados'] += 1
+        else:
+            mitad = len(ids) // 2
+            _borrar_efimeros(qs, ids[:mitad], fila, espera='5ms')
+            _borrar_efimeros(qs, ids[mitad:], fila, espera='5ms')
+    else:
+        fila['eliminados'] += eliminados
+
+
 def purgar(*, dry_run=False, lote=250):
     if not 1 <= lote <= 1000:
         raise ValueError('Lote de purga fuera de rango.')
@@ -36,6 +60,8 @@ def purgar(*, dry_run=False, lote=250):
     filas = {nombre: dict(identificados=qs.count(), eliminados=0, pendientes=0, fallidos=0)
              for nombre, qs in fuentes.items()}
     filas['reservas']['transferidas'] = 0
+    for nombre in efimeros:
+        filas[nombre]['bloqueados'] = 0
     resultado = {'corte': corte.isoformat(), 'estado': 'dry_run', 'registros': filas}
     if dry_run:
         for fila in filas.values():
@@ -94,9 +120,8 @@ def purgar(*, dry_run=False, lote=250):
         resultado['staging_no_disponible'] = True
 
     for nombre, qs in efimeros.items():
-        # Separar selección y borrado, acotando locks; no tocar nuevas filas.
         for ids in paginas(qs, 'id', lote):
-            filas[nombre]['eliminados'] += qs.filter(pk__in=ids).delete()[0]
+            _borrar_efimeros(qs, ids, filas[nombre])
     for nombre, qs in fuentes.items():
         filas[nombre]['pendientes'] = qs.count()
     resultado['estado'] = (

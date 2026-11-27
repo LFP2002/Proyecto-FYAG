@@ -162,3 +162,9 @@ Base: `c79e88342b1c7674031a7f7a4efb94a0146371ea`. [Operación y límites](RETENC
 - Respaldo AUD-023 con los caducados aún presentes (**9,17 s**). En otro proyecto con volúmenes nuevos, la restauración y purga offline (**40,48 s**) eliminaron los siete mensajes y sus archivos antes de abrir tráfico, conservaron los recibos mínimos y dejaron intacto el vigente. No se alteraron copias anteriores ni se aprobó una política de retención de copias.
 
 Solo pruebas dirigidas con datos sintéticos; sin intervención institucional, regresión global, merge ni despliegue.
+
+### OBS-008 — Contención durante la purga de efímeros
+
+Base: `de67bab4812872ae41cbf4e36615c73c15f39980`. Los `DELETE` de cupos, tickets y canales usan un `lock_timeout` local de 50 ms por bloqueo. Solo ante SQLSTATE `55P03` se revierte y divide el lote; las mitades se reintentan con 5 ms por bloqueo hasta posponer la fila ocupada. Se conservan `SELECT` y `DELETE` sin `UPDATE`; la contención queda separada de los fallos y los pendientes se vuelven a contar al cierre.
+
+El [ensayo dirigido](../deploy/tests/smoke_chat_obs008.py) en PostgreSQL 18.6 y Compose aislado sostuvo bloqueos de fila reales en una conexión web independiente, mientras el rol productivo Chat ejecutó la CLI con lotes de dos. Para cada entidad identificó cinco caducados, eliminó tres y dejó dos bloqueados y pendientes, sin fallos; terminó con código **1** mientras los locks seguían activos (**2,44 s**, incluido Compose). Al liberarlos, el siguiente ciclo eliminó los dos restantes de cada tabla, dejó cero pendientes y terminó con código **0** (**2,05 s**). Se verificó que el rol Chat no tenía `UPDATE` ni siquiera por columna en esas tablas. Sin regresión global, merge ni despliegue.
