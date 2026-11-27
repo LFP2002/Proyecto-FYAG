@@ -5,7 +5,6 @@ import {Errors,Pager} from '../comercial/ui.jsx';
 import {validatePage} from '../comercial/api.js';
 import {useApi} from './useApi.js';
 import InventoryPicker from './InventoryPicker.jsx';
-import InventoryActions from './InventoryActions.jsx';
 import TecIcon from '../obras/TecIcon.jsx';
 import {formatCLP} from '../utils/format.js';
 import {isoDate} from './dates.js';
@@ -87,7 +86,7 @@ export default function SupervisorInventario(){
  const update=(key,value)=>setDraft(old=>({...old,[key]:value}));
  return <section className="commercial-page supervisor-inventory">
  {selected?<RecordDetail key={tab+':'+(selected.id??selected.articulo)} row={selected} tab={tab} article={articles[selected.articulo]} onBack={()=>setSelected(null)} onRelated={selectTab}/>:<>
- <PageHead title="Inventario y bodega"><Button icon="refresh" disabled={api.loading} onClick={()=>void api.reconcile(load)}>Actualizar</Button></PageHead>
+ <PageHead title="Inventario y bodega" sub="Consulta de materiales, existencias y seguimiento de despachos."><Button icon="refresh" disabled={api.loading} onClick={()=>void api.reconcile(load)}>Actualizar</Button></PageHead>
  <div className="si-tabs" role="group" aria-label="Secciones de inventario">{TABS.map(([key,label])=><button type="button" key={key} aria-pressed={tab===key} onClick={()=>selectTab(key)}>{label}</button>)}</div>
  <Errors error={api.error}/>{api.loading&&<p role="status">Consultando inventario…</p>}
  <section className="card-fyag si-panel"><div className="si-heading"><div><h2>{TABS.find(t=>t[0]===tab)[1]}</h2><span className="commercial-help">{data?data.count+' registros':'—'}</span></div>{tab!=='catalogo'&&<Button icon="filter" aria-expanded={open} aria-controls="si-filters" onClick={()=>setOpen(v=>!v)}>Filtros</Button>}</div>
@@ -97,6 +96,5 @@ export default function SupervisorInventario(){
  {validation&&<p className="alert alert-warning" role="alert">{validation}</p>}{filtered&&<div className="si-toolbar"><span className="commercial-help">Filtros aplicados{filters.buscar?' · '+filters.buscar:''}</span><Button onClick={clear}>Quitar filtros</Button></div>}
  {data&&(data.results.length?<div className="table-responsive" role="region" aria-label={TABS.find(t=>t[0]===tab)[1]} tabIndex={0}><table className="table table-hover align-middle commercial-table si-table"><thead><tr>{columns[tab].map(h=><th scope="col" key={h}>{h}</th>)}</tr></thead><tbody>{data.results.map(r=>{const a=articles[r.articulo],unit=a?.unidad||r.unidad,inbound=['INGRESO','DEVOLUCION'].includes(r.tipo);return <tr key={r.id??r.articulo}><td><Material row={r} article={a}/></td>{tab==='catalogo'?<><td>{r.unidad}</td><td><Status row={r}/></td></>:tab==='existencias'?<td><Stock row={r}/></td>:tab==='movimientos'?<><td>{TYPES[r.tipo]||'Movimiento'}</td><td className={inbound?'si-positive':'si-negative'}>{inbound?'+':'−'}{withUnit(r.cantidad,unit)}</td><td>{withUnit(r.saldo_posterior,unit)}</td><td>{stamp(r.creado_en)}</td></>:<><td>{ref('Obra',r.obra)}</td><td><strong>{withUnit(r.cantidad,unit)}</strong></td>{tab==='devoluciones'&&<td>{withUnit(r.cantidad_recibible_efectiva,unit)}</td>}<td>{stamp(r.creado_en)}</td></>}<td><Button className="btn btn-outline-secondary btn-sm si-button" onClick={()=>setSelected(r)}>Ver detalle<TecIcon name="chevron"/></Button></td></tr>;})}</tbody></table></div>:<Empty title={filtered?'No hay resultados':'No hay registros en esta sección'} description={filtered?'Modifica o limpia los filtros para ampliar la consulta.':'Los registros disponibles aparecerán aquí.'}/>)}
  {data&&(data.next||data.previous)&&<Pager data={data} page={page} setPage={setPage} disabled={api.loading} label="Paginación de inventario"/>}</section></>}
- <InventoryActions role="SUPERVISOR_OBRAS" onSuccess={load}/>
  </section>;
 }

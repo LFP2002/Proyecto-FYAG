@@ -41,7 +41,8 @@ test('Supervisor consulta materiales, stock, movimientos y autorizaciones sin fu
  try{
   assert.match(body(),/Inventario y bodega/);assert.match(body(),/Aceite para compresor/);
   assert.doesNotMatch(body(),/Registrar ingreso|Valorizar ingreso|Despachar material|Nuevo artículo/);
-  assert.match(body(),/Autorizar entrega/);assert.match(body(),/Autorizar devolución/);
+  assert.doesNotMatch(body(),/Autorizar entrega|Autorizar devolución|Operaciones de materiales/);
+  assert.equal(r.root.findAllByProps({'aria-labelledby':'inventory-operations-title'}).length,0);
   assert.equal(r.root.findAllByProps({'aria-label':'Paginación de inventario'}).length,0);
   await click(r,'Ver detalle');assert.match(body(),/Existencias actuales/);assert.match(body(),/10,5 litro/);
   assert.ok(ui.calls.some(c=>c.path===ROOT+'existencias/?articulo=4'));
@@ -50,6 +51,7 @@ test('Supervisor consulta materiales, stock, movimientos y autorizaciones sin fu
   await click(r,'Ver detalle');assert.match(body(),/Stock anterior/);assert.match(body(),/13 litro/);
   await click(r,'Volver al listado');await click(r,'Autorizaciones de devolución');assert.match(body(),/1,5 litro/);
   await click(r,'Entregas');await click(r,'Ver detalle');assert.match(body(),/Costo unitario neto registrado/);
+  assert.doesNotMatch(body(),/Autorizar entrega|Autorizar devolución|Operaciones de materiales/);
   assert.ok(ui.calls.every(c=>c.method==='GET'&&!/finanzas\/|supervision-gerencial\/|bodega-operativa\//.test(c.path)));
  }finally{await ui.close();}
 });
