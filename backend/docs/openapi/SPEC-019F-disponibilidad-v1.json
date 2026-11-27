@@ -1,0 +1,383 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Disponibilidad de materiales del Supervisor",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/inventario/disponibilidad/": {
+      "get": {
+        "summary": "Consulta de solo lectura exclusiva de SUPERVISOR_OBRAS",
+        "description": "Indicadores globales independientes de filtros. Despachos pendientes cuentan autorizaciones con remanente positivo en obras operativas. No reserva stock ni expone importes.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "seccion",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "disponibilidad",
+                "pendientes",
+                "historial"
+              ],
+              "default": "disponibilidad"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          {
+            "name": "stock",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "con_stock",
+                "sin_stock"
+              ]
+            },
+            "description": "Solo disponibilidad"
+          },
+          {
+            "name": "vista",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "entregas",
+                "devoluciones",
+                "por_recibir"
+              ]
+            },
+            "description": "Solo historial; omitido muestra entregas y devoluciones realizadas"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página e indicadores globales",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "properties": {
+                        "disponibles": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "sin_stock": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "despachos_pendientes": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "disponibles",
+                        "sin_stock",
+                        "despachos_pendientes"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "articulo": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "activo": {
+                                "const": true
+                              },
+                              "descripcion": {
+                                "type": "string"
+                              },
+                              "saldo": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "articulo",
+                              "nombre",
+                              "codigo",
+                              "unidad",
+                              "activo",
+                              "descripcion",
+                              "saldo"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "articulo": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "obra": {
+                                "type": "string"
+                              },
+                              "cantidad": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "referencia": {
+                                "type": "string"
+                              },
+                              "motivo": {
+                                "type": "string"
+                              },
+                              "creado_en": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "origen": {
+                                "type": "string",
+                                "enum": [
+                                  "PRESUPUESTO",
+                                  "SOLICITUD",
+                                  "SIN_VINCULO_PRESUPUESTARIO"
+                                ]
+                              },
+                              "tipo": {
+                                "type": "string",
+                                "enum": [
+                                  "ENTREGA",
+                                  "DEVOLUCION"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "articulo",
+                              "nombre",
+                              "codigo",
+                              "unidad",
+                              "obra",
+                              "cantidad",
+                              "referencia",
+                              "motivo",
+                              "creado_en",
+                              "origen",
+                              "tipo"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "articulo": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "nombre": {
+                                "type": "string"
+                              },
+                              "codigo": {
+                                "type": "string"
+                              },
+                              "unidad": {
+                                "type": "string"
+                              },
+                              "obra": {
+                                "type": "string"
+                              },
+                              "cantidad": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "referencia": {
+                                "type": "string"
+                              },
+                              "motivo": {
+                                "type": "string"
+                              },
+                              "creado_en": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "origen": {
+                                "type": "string",
+                                "enum": [
+                                  "PRESUPUESTO",
+                                  "SOLICITUD",
+                                  "SIN_VINCULO_PRESUPUESTARIO"
+                                ]
+                              },
+                              "tipo": {
+                                "type": "string",
+                                "enum": [
+                                  "AUTORIZACION_ENTREGA",
+                                  "AUTORIZACION_DEVOLUCION"
+                                ]
+                              },
+                              "ejecutada": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "pendiente": {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              "saldo": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[0-9]+\\.[0-9]{3}$"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "bloqueo": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "articulo",
+                              "nombre",
+                              "codigo",
+                              "unidad",
+                              "obra",
+                              "cantidad",
+                              "referencia",
+                              "motivo",
+                              "creado_en",
+                              "origen",
+                              "tipo",
+                              "ejecutada",
+                              "pendiente",
+                              "saldo",
+                              "bloqueo"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "resumen",
+                    "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Filtros inválidos"
+          },
+          "401": {
+            "description": "Sesión no disponible"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

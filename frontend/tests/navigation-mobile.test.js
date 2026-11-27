@@ -215,6 +215,7 @@ test('Gerencia: auditoría visible al final, sin módulos operativos de material
 test('Supervisor conserva solicitudes, mermas y auditoría en navegación principal',async()=>{
   const view=await mount('SUPERVISOR_OBRAS');
   try{
+    assert.ok(btn(view,'Disponibilidad de materiales'));
     assert.ok(btn(view,'Solicitudes de materiales'));
     assert.ok(btn(view,'Mermas'));
     assert.ok(btn(view,'Auditoría'));

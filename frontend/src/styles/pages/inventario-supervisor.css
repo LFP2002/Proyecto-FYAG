@@ -40,3 +40,21 @@
 :root[data-fyag-theme='dark'] .supervisor-inventory .si-positive{color:#83d3ad}
 :root[data-fyag-theme='dark'] .supervisor-inventory .si-negative{color:#ea9691}
 @media(max-width:600px){.supervisor-inventory .si-panel{padding:12px}.supervisor-inventory .si-filters>.form-label,.supervisor-inventory .si-filters>.obras-selector{flex-basis:100%}}
+
+.supervisor-inventory .si-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.supervisor-inventory .si-kpi{display:flex;flex-direction:column;gap:8px;text-align:left;padding:16px;min-width:0;border-left:4px solid var(--fyag-line);color:var(--fyag-text)}
+.supervisor-inventory .si-kpi span,.supervisor-inventory .si-kpi small{font-size:.875rem;color:var(--fyag-muted)}
+.supervisor-inventory .si-kpi strong{font-size:1.75rem;line-height:1.25;font-variant-numeric:tabular-nums}
+.supervisor-inventory .si-kpi[data-tone=green]{border-left-color:#287751}
+.supervisor-inventory .si-kpi[data-tone=red]{border-left-color:#b34747}
+.supervisor-inventory .si-kpi[data-tone=amber]{border-left-color:#a66b0d}
+.supervisor-inventory .si-kpi[aria-pressed=true]{outline:2px solid var(--fyag-blue);outline-offset:1px}
+.supervisor-inventory .si-kpi[data-tone=green] strong{color:#287751}
+.supervisor-inventory .si-kpi[data-tone=red] strong{color:#b34747}
+.supervisor-inventory .si-kpi[data-tone=amber] strong,.supervisor-inventory .si-blockage{color:#966014}
+.supervisor-inventory .si-blockage{display:block;font-size:.8125rem;margin-top:4px}
+.supervisor-inventory .si-field{font-size:.875rem;font-weight:600;display:grid;gap:5px;margin:0;min-width:0}
+:root[data-fyag-theme=dark] .supervisor-inventory .si-kpi[data-tone=green] strong{color:#83d3ad}
+:root[data-fyag-theme=dark] .supervisor-inventory .si-kpi[data-tone=red] strong{color:#ea9691}
+:root[data-fyag-theme=dark] .supervisor-inventory .si-kpi[data-tone=amber] strong,:root[data-fyag-theme=dark] .supervisor-inventory .si-blockage{color:#e7b66b}
+@media(max-width:650px){.supervisor-inventory .si-kpis{grid-template-columns:1fr}.supervisor-inventory .si-kpi{padding:12px}.supervisor-inventory .si-field{width:100%}}

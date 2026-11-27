@@ -5,6 +5,7 @@ from .views import ArticuloViewSet, ExistenciaViewSet, MovimientoViewSet, Ingres
 from .views_finanzas import FinanzasInventarioView
 from .views_supervision import SupervisionInventarioView
 from .views_bodega import BodegaOperativaView
+from .views_disponibilidad import DisponibilidadSupervisorView
 from .views_tecnico import TecnicoMaterialesView
 from .views_materiales import OperacionesViewSet, EstadosValoracionViewSet
 from .views_mermas import MermasView, MermaDetalleView, MermaDecidirView
@@ -15,7 +16,7 @@ router.register("articulos", ArticuloViewSet, basename="articulo-inventario")
 router.register("existencias", ExistenciaViewSet, basename="existencia-inventario")
 router.register("movimientos", MovimientoViewSet, basename="movimiento-inventario")
 router.register('estados-valorizacion', EstadosValoracionViewSet, basename='estado-valorizacion')
-urlpatterns = [path("finanzas/", FinanzasInventarioView.as_view(), name="inventario-finanzas"), path("tecnico-materiales/", TecnicoMaterialesView.as_view(), name="tecnico-materiales"), path("bodega/", BodegaOperativaView.as_view(), name="bodega-operativa"), path("ingresos/", IngresoView.as_view(), name="ingreso-inventario"), path("supervision-gerencial/", SupervisionInventarioView.as_view(), name="supervision-inventario")] + router.urls
+urlpatterns = [path("disponibilidad/", DisponibilidadSupervisorView.as_view(), name="disponibilidad-supervisor"), path("finanzas/", FinanzasInventarioView.as_view(), name="inventario-finanzas"), path("tecnico-materiales/", TecnicoMaterialesView.as_view(), name="tecnico-materiales"), path("bodega/", BodegaOperativaView.as_view(), name="bodega-operativa"), path("ingresos/", IngresoView.as_view(), name="ingreso-inventario"), path("supervision-gerencial/", SupervisionInventarioView.as_view(), name="supervision-inventario")] + router.urls
 for ruta, ambito in [('mermas-bodega', 'BODEGA'), ('mermas-obra', 'OBRA')]:
     urlpatterns += [
         path(ruta+'/', MermasView.as_view(ambito=ambito), name=ruta),
