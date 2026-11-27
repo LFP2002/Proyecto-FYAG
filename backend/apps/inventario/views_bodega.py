@@ -52,7 +52,8 @@ def movimiento(m):
 
 def operaciones(actor, tipo):
     qs = consultas_materiales.listado(actor, tipo, {}).select_related(
-        'articulo__existencia', 'articulo__estadovaloracion', 'obra', 'actor')
+        'articulo__existencia', 'articulo__estadovaloracion', 'obra', 'actor',
+        'autorizacion', 'entrega__autorizacion')
     if tipo in ('AUTORIZACION_ENTREGA', 'AUTORIZACION_DEVOLUCION'):
         ejecucion = 'ENTREGA' if tipo == 'AUTORIZACION_ENTREGA' else 'DEVOLUCION'
         sub = OperacionMaterial.objects.filter(autorizacion_id=OuterRef('pk'), tipo=ejecucion).order_by().values(
@@ -70,12 +71,18 @@ def operacion(o):
            'autorizacion': o.autorizacion_id, 'entrega': o.entrega_id, 'cantidad': cantidad(o.cantidad),
            'referencia': o.referencia, 'motivo': o.motivo, 'actor': actor_label(o.actor),
            'creado_en': o.creado_en.isoformat()}
+    raiz = o if o.tipo == 'AUTORIZACION_ENTREGA' else (
+        o.autorizacion if o.tipo == 'ENTREGA' else o.entrega.autorizacion)
+    row['origen'] = ('PRESUPUESTO' if raiz.item_presupuesto_id else
+                     'SOLICITUD' if raiz.solicitud_material_id else 'SIN_VINCULO_PRESUPUESTARIO')
     if o.tipo.startswith('AUTORIZACION'):
         stock = saldo(o.articulo)
         limit = o.pendiente
         reason = None
         if o.pendiente <= 0:
             reason = 'Sin cantidad pendiente'
+        elif o.obra and o.obra.estado in {'FINALIZADA', 'CANCELADA'}:
+            reason = 'Inhabilitada por cierre de obra'
         elif not o.obra or o.obra.estado not in ROOT:
             reason = 'Obra no operativa'
         elif stock is None:
@@ -95,7 +102,8 @@ def operacion(o):
             if limit <= 0:
                 reason = 'Capacidad de stock agotada'
         row.update(ejecutada=cantidad(o.ejecutada), pendiente=cantidad(o.pendiente),
-                   saldo=cantidad(stock), maximo=cantidad(Decimal(0) if reason else limit), bloqueo=reason)
+                   saldo=cantidad(stock), maximo=cantidad(Decimal(0) if reason else limit), bloqueo=reason,
+                   inhabilitada=bool(o.pendiente and o.obra and o.obra.estado in {'FINALIZADA', 'CANCELADA'}))
     return row
 
 

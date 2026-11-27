@@ -25,6 +25,12 @@ RUTAS = {'AUTORIZACION_ENTREGA': 'autorizaciones-entrega', 'ENTREGA': 'entregas'
 
 
 class MaterialesBase(FinalizacionBase):
+    def confirmacion_cierre(self):
+        r = self.client.get(f'/api/obras/{self.obra.pk}/requisitos-cierre/')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertIsNotNone(r.data['confirmacion_remanente'])
+        return r.data['confirmacion_remanente']
+
     def preparar_materiales(self):
         self.preparar()
         self.bodega = Usuario.objects.create_user(username='bodega019b', email='bodega019b@example.test', rol='BODEGUERO')
@@ -189,7 +195,7 @@ class MaterialesTests(MaterialesBase, TestCase):
         self.assertEqual(self.control().version_actual, antes+1)
         self.assertFalse(self.control().costos_validados)
         self.validar()
-        self.finalizar()
+        self.finalizar(self.confirmacion_cierre())
         foto = list(CierreCostosObra.objects.values())
         with self.assertRaises(APIException):
             self.autorizar()

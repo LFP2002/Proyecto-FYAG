@@ -1,0 +1,167 @@
+openapi: 3.0.3
+info:
+  title: FYAG - Integración de materiales previstos y cierre
+  version: 1.0.0
+security:
+  - bearer: []
+paths:
+  /api/obras/{id}/iniciar/:
+    parameters:
+      - $ref: '#/components/parameters/Obra'
+    post:
+      description: Solo Supervisor. Transición inicial atómica; crea una autorización de entrega por línea vinculada. No reserva existencias ni requiere valoración.
+      requestBody:
+        $ref: '#/components/requestBodies/Motivo'
+      responses:
+        '200': {description: Ficha de Obra en proceso}
+        '400': {description: Datos inválidos o materiales previstos inactivos o con unidad incompatible; errores en materiales incluyen el código histórico}
+        '403': {description: Rol no autorizado}
+        '409': {description: Estado incompatible; no se duplican autorizaciones}
+  /api/obras/{id}/costos/validar/:
+    parameters:
+      - $ref: '#/components/parameters/Obra'
+    post:
+      description: Solo Supervisor. Deriva los rubros de gastos vigentes y guarda NO_APLICA con justificación automática; no requiere usar el PATCH histórico ni finaliza la obra.
+      requestBody:
+        $ref: '#/components/requestBodies/Motivo'
+      responses:
+        '200': {description: Control de costos con rubros derivados y validación vigente}
+        '403': {description: Rol no autorizado}
+        '409': {description: Estado incompatible, requisitos pendientes o validación ya vigente}
+  /api/obras/{id}/conciliacion-materiales/:
+    parameters:
+      - $ref: '#/components/parameters/Obra'
+    get:
+      description: Supervisor y Gerencia. Solo cantidades físicas; no expone precios ni costos.
+      parameters:
+        - name: origen
+          in: query
+          schema: {type: string, enum: [PRESUPUESTO, ADICIONAL], default: PRESUPUESTO}
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Página de hasta 25 filas. ADICIONAL incluye autorizaciones anteriores sin vínculo verificable.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count, next, previous, results]
+                properties:
+                  count: {type: integer}
+                  next: {type: string, nullable: true}
+                  previous: {type: string, nullable: true}
+                  results: {type: array, items: {$ref: '#/components/schemas/Fila'}}
+        '400': {description: Filtro inválido}
+        '401': {description: No autenticado}
+        '403': {description: Rol no autorizado}
+        '404': {description: Obra o página inexistente}
+  /api/obras/{id}/requisitos-cierre/:
+    parameters:
+      - $ref: '#/components/parameters/Obra'
+    get:
+      description: Solo Supervisor. No escribe. La evaluación orientativa se revalida bajo bloqueo en POST.
+      responses:
+        '200':
+          description: Impedimentos de validación y finalización, devoluciones que bloquean, advertencias de despacho y confirmación vinculada al remanente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [validacion, finalizacion, devoluciones, despachos, confirmacion_remanente]
+                properties:
+                  validacion: {type: array, items: {$ref: '#/components/schemas/Requisito'}}
+                  finalizacion: {type: array, items: {$ref: '#/components/schemas/Requisito'}}
+                  devoluciones: {type: array, items: {$ref: '#/components/schemas/Pendiente'}}
+                  despachos: {type: array, items: {$ref: '#/components/schemas/Pendiente'}}
+                  confirmacion_remanente: {type: string, nullable: true, pattern: '^[0-9a-f]{64}$'}
+        '400': {description: Parámetros no admitidos}
+        '401': {description: No autenticado}
+        '403': {description: Rol no autorizado}
+        '404': {description: Obra inexistente}
+  /api/obras/{id}/finalizar/:
+    parameters:
+      - $ref: '#/components/parameters/Obra'
+    post:
+      description: Solo Supervisor. Si hay remanente de despacho, requiere confirmación explícita con el token de la última comprobación. El cierre no genera movimientos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [motivo]
+              properties:
+                motivo: {type: string, maxLength: 2000}
+                confirmacion_remanente: {type: string, pattern: '^[0-9a-f]{64}$'}
+      responses:
+        '200': {description: Ficha existente de Obra con estado FINALIZADA}
+        '400': {description: Entrada inválida}
+        '401': {description: No autenticado}
+        '403': {description: Rol no autorizado}
+        '404': {description: Obra inexistente}
+        '409':
+          description: Volver a consultar requisitos; no repetir la escritura automáticamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, detail]
+                properties:
+                  code: {type: string, enum: [devolucion_pendiente, confirmacion_remanente_requerida, costos_incompletos, estado_incompatible]}
+                  detail: {type: string}
+                  pendientes: {type: array, items: {type: string}}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    Obra: {name: id, in: path, required: true, schema: {type: integer, minimum: 1}}
+  requestBodies:
+    Motivo:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [motivo]
+            properties:
+              motivo: {type: string, maxLength: 2000}
+  schemas:
+    Fila:
+      type: object
+      required: [id, articulo, origen, codigo, nombre, unidad, presupuestado, autorizado, despachado, devuelto, neto_imputado, pendiente_despacho, estado]
+      properties:
+        id: {type: integer, description: Identificador de línea prevista o autorización no prevista}
+        articulo: {type: integer}
+        origen: {type: string, enum: [PRESUPUESTO, SOLICITUD, SIN_VINCULO_PRESUPUESTARIO]}
+        codigo: {type: string}
+        nombre: {type: string}
+        unidad: {type: string}
+        presupuestado: {type: string, nullable: true, pattern: '^[0-9]+\.[0-9]{3}$'}
+        autorizado: {$ref: '#/components/schemas/Cantidad'}
+        despachado: {$ref: '#/components/schemas/Cantidad'}
+        devuelto: {$ref: '#/components/schemas/Cantidad'}
+        neto_imputado: {$ref: '#/components/schemas/Cantidad'}
+        pendiente_despacho: {$ref: '#/components/schemas/Cantidad'}
+        estado: {type: string, enum: [SIN_AUTORIZACION, PENDIENTE, PARCIAL, COMPLETADO, INHABILITADO]}
+    Cantidad: {type: string, pattern: '^[0-9]+\.[0-9]{3}$'}
+    Pendiente:
+      type: object
+      required: [obra, codigo, nombre, unidad, cantidad, responsable]
+      properties:
+        obra: {type: string}
+        codigo: {type: string}
+        nombre: {type: string}
+        unidad: {type: string}
+        cantidad: {$ref: '#/components/schemas/Cantidad'}
+        responsable: {type: string, enum: [Bodega, Supervisor]}
+    Requisito:
+      type: object
+      required: [codigo, mensaje, destino]
+      properties:
+        codigo: {type: string}
+        mensaje: {type: string}
+        destino: {type: string, enum: [tecnicos, turnos, gastos, costos, resumen]}

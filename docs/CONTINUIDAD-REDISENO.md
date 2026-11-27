@@ -1,4 +1,12 @@
 # FYAG — Continuidad del rediseño
+
+## SPEC-019F — integración de materiales y cierre
+
+- Rama de trabajo: `feature/spec-019f-integracion-materiales`, base `ad334f4`. Contrato: [SPEC-019F](../specs/019f-integracion-presupuesto-materiales-cierre.md); detalle ejecutable y compatibilidad: [nota técnica](../backend/docs/SPEC-019F-integracion-materiales.md).
+- `inventario.0009` es aditiva y no reclasifica autorizaciones anteriores. Las obras ya iniciadas no reciben autorizaciones retroactivas: su previsión se conserva como referencia. Únicamente iniciar una obra planificada genera las autorizaciones vinculadas; los adicionales mantienen el circuito 019B/C.
+- La revisión económica general deriva rubros; el PATCH histórico se mantiene por compatibilidad. El cierre revalida devoluciones recibibles y la confirmación del remanente de despacho en la transacción. No significa cobro ni facturación.
+- QA de esta entrega en laboratorio independiente `fyag-019f`; no retomar automatización Edge Headless/CDP ni scripts dinámicos PowerShell. La validación dirigida local no sustituye CI ni pruebas de despliegue.
+- Resultado dirigido: 183 pruebas backend en PostgreSQL y 5 comprobaciones finales (Bodega, merma sin saldo recibible y tres upgrades históricos), todas aprobadas; 65 pruebas frontend distintas aprobadas; compilación correcta con advertencia de tamaño de Vite. Migración limpia aplicada, sin drift. Sin regresión completa, revisión manual de navegador ni despliegue.
 Actualizado: 26-11-2026. Nota de traspaso de desarrollo, no contrato funcional. Retirar o archivar antes del cierre de producción si corresponde; conservar SPEC y OpenAPI.
 
 ## Contexto

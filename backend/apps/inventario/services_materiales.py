@@ -86,10 +86,13 @@ def _obtener(model, pk):
     return obj
 
 
-def _autorizar_entrega_bloqueada(obra, articulo, q, actor, key, huella, referencia, motivo, *, solicitud=None):
+def _autorizar_entrega_bloqueada(obra, articulo, q, actor, key, huella, referencia, motivo, *,
+                                solicitud=None, item_presupuesto=None):
     """Núcleo compartido 019B/019C-1, sin locks asesores nuevos.
 
-    Caller posee transacción, UUID, Presupuesto/Obra y artículo, en ese orden.
+    Caller posee transacción, Presupuesto/Obra y artículo, en ese orden.
+    Las operaciones públicas adquieren el lock UUID antes de las raíces;
+    019F usa UUID interno nuevo y la unicidad persistente del ítem.
     019C-1 bloquea además solicitud/participante antes del artículo. El trigger
     019B conserva sus verificaciones de origen, unidad, rol y estado.
     """
@@ -100,7 +103,7 @@ def _autorizar_entrega_bloqueada(obra, articulo, q, actor, key, huella, referenc
         conflicto()
     op = Op.objects.create(tipo='AUTORIZACION_ENTREGA', obra=obra, articulo=articulo, cantidad=q,
         unidad=articulo.unidad, actor=actual, clave_idempotencia=key, huella=huella,
-        referencia=referencia, motivo=motivo, solicitud_material=solicitud)
+        referencia=referencia, motivo=motivo, solicitud_material=solicitud, item_presupuesto=item_presupuesto)
     revalidar(actor, 'AUTORIZACION_ENTREGA', escritura=True)
     return op
 

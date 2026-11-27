@@ -28,8 +28,11 @@ class FinalizacionBase(CostosBase):
         self.validar()
         return turno, gasto
 
-    def finalizar(self):
-        return cierre.finalizar_obra(self.obra, {"motivo": "Trabajo terminado y costos revisados"}, self.supervisor)
+    def finalizar(self, confirmacion=None):
+        datos = {"motivo": "Trabajo terminado y costos revisados"}
+        if confirmacion is not None:
+            datos['confirmacion_remanente'] = confirmacion
+        return cierre.finalizar_obra(self.obra, datos, self.supervisor)
 
     def estado_persistido(self):
         return {modelo.__name__: list(modelo.objects.order_by("pk").values()) for modelo in (

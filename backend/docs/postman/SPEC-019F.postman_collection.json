@@ -1,0 +1,21 @@
+{
+  "info": {
+    "name": "FYAG SPEC-019F - Previsión y cierre",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{supervisorAccess}}", "type": "string"}]},
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8000"},
+    {"key": "obra", "value": ""},
+    {"key": "confirmacionRemanente", "value": ""}
+  ],
+  "item": [
+    {"name": "Previsión del presupuesto", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/conciliacion-materiales/?origen=PRESUPUESTO&page=1"}},
+    {"name": "Autorizaciones sin vínculo presupuestario", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/conciliacion-materiales/?origen=ADICIONAL&page=1"}},
+    {"name": "Iniciar y autorizar la previsión", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/iniciar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Inicio de ejecución\"}"}}},
+    {"name": "Comprobar requisitos de cierre", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/requisitos-cierre/"}},
+    {"name": "Validar costos sin declarar rubros", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/costos/validar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Revisión económica general\"}"}}},
+    {"name": "Finalizar sin despachos pendientes", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\"}"}}},
+    {"name": "Finalizar confirmando el remanente observado", "request": {"description": "Revise despachos en requisitos-cierre y copie su confirmacion_remanente solo si acepta inhabilitar esas cantidades.", "method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\",\"confirmacion_remanente\":\"{{confirmacionRemanente}}\"}"}}}
+  ]
+}

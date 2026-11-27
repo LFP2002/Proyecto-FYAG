@@ -371,6 +371,8 @@ def iniciar_obra(referencia, usuario, motivo):
     obra.estado = Obra.Estado.EN_PROCESO
     obra.iniciado_en = timezone.now()
     obra.save(update_fields=["estado", "iniciado_en", "actualizado_en"])
+    from .materials_plan import autorizar_prevision
+    autorizar_prevision(obra, actor, motivo)
     _evento_obra(
         obra, ObraEvento.Tipo.CAMBIO_ESTADO, actor, anterior,
         previos={"estado": anterior, "iniciado_en": None},

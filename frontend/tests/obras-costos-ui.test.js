@@ -37,9 +37,9 @@ async function unmount(renderer) { await act(async () => renderer.unmount()); }
 
 const gasto = { id: 4, obra: 1, tipo: 'MATERIAL', descripcion: 'Cable', unidad: 'metro', cantidad: '2.000', cantidad_devuelta: '0.000', costo_unitario_neto: '12.50', subtotal: '25.00', fecha_gasto: '2026-11-12', referencia_respaldo: '', observacion: '', vigente: true, anulado_por: null, anulado_en: null, motivo_anulacion: '', registrado_por: 2, creado_en: '2026-11-12T12:00:00Z', actualizado_en: '2026-11-12T12:00:00Z' };
 
-for (const failedRead of ['resumen', 'control']) test(`Costos: POST confirmado y relectura ${failedRead} fallida conserva formulario y bloquea reenvío`, async () => {
+test('Costos: POST confirmado y relectura de gastos fallida conserva formulario y bloquea reenvío', async () => {
   const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
-  backend.readFailure = (path) => backend.expenses.length > 0 && path === `/api/obras/1/costos/${failedRead}/`;
+  backend.readFailure = (path) => backend.expenses.length > 0 && path === '/api/obras/1/gastos/?page=1';
   const renderer = await mount(backend);
   try {
     await openExpenses(renderer); await click(renderer,'Registrar gasto externo');
@@ -68,8 +68,8 @@ test('005C-3 Supervisor registra gasto con decimales string y actualiza datos re
     await act(async () => { await renderer.root.findAllByType('form').find((form) => text(form).includes('Registrar gasto externo'))?.props.onSubmit({ preventDefault() {} }); await flush(); });
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/gastos/' && entry.method === 'POST');
     assert.ok(call); assert.equal(call.body.cantidad, '2.000'); assert.equal(call.body.costo_unitario_neto, '12.50');
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/resumen/'));
-    assert.ok(backend.calls.some((entry) => entry.path === '/api/obras/1/costos/control/'));
+    assert.ok(backend.calls.filter((entry) => entry.path === '/api/obras/1/gastos/?page=1').length >= 2);
+    assert.ok(!backend.calls.some((entry) => /costos\/(resumen|control)/.test(entry.path)));
     assert.equal(backend.expenses.length, 1);
   } finally { await unmount(renderer); }
 });
@@ -114,14 +114,20 @@ test('Administrativo ve solo el resumen económico mínimo, sin consultas de gas
 test('Supervisor finaliza solo con validación remota, confirmación y motivo; refresca ficha', async () => {
   const backend = obrasBackend(S); backend.obras[0].estado = 'EN_PROCESO';
   backend.control.costos_validados = true; backend.control.version_validada = 0;
+  const token='a'.repeat(64);
+  backend.requirements={validacion:[],finalizacion:[],devoluciones:[],despachos:[{codigo:'CAB',nombre:'Cable',cantidad:'1.500',unidad:'m'}],confirmacion_remanente:token};
   const renderer = await mount(backend);
   try {
     await openCosts(renderer);
     await click(renderer,'Finalizar obra');
     await input(renderer, 'obras-finalizar-motivo', 'Trabajo terminado y revisado');
+    await submitNamed(renderer,'Confirmar finalización');
+    assert.ok(!backend.calls.some(entry=>entry.path==='/api/obras/1/finalizar/'));
+    assert.match(text(renderer.root),/CAB · Cable: 1,500 m/);
+    await act(async()=>renderer.root.findByProps({type:'checkbox'}).props.onChange({target:{checked:true}}));
     await act(async()=>{await renderer.root.findByProps({'aria-label':'Confirmar finalización'}).props.onSubmit({preventDefault(){}});await flush();});
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/finalizar/' && entry.method === 'POST');
-    assert.deepEqual(call.body, { motivo: 'Trabajo terminado y revisado' });
+    assert.deepEqual(call.body, { motivo: 'Trabajo terminado y revisado', confirmacion_remanente:token });
     assert.equal(backend.obras[0].estado, 'FINALIZADA');
     assert.ok(backend.calls.filter((entry) => entry.path === '/api/obras/1/').length >= 2);
     assert.equal(buttons(renderer, 'Finalizar obra').length, 0);
@@ -129,12 +135,61 @@ test('Supervisor finaliza solo con validación remota, confirmación y motivo; r
 });
 
 const submitNamed=async(renderer,label)=>act(async()=>{await renderer.root.findByProps({'aria-label':label}).props.onSubmit({preventDefault(){}});await flush();});
+
+test('019F: la obra planificada muestra líneas vinculadas y distingue adicionales',async()=>{
+ const backend=obrasBackend(S),request=backend.request;
+ backend.request=(path,opts)=>path.includes('conciliacion-materiales/')?Promise.resolve({count:1,next:null,previous:null,results:[{
+  id:1, codigo:'CAB', nombre:path.includes('ADICIONAL')?'Cable adicional':'Cable previsto', unidad:'metro',
+  origen:path.includes('ADICIONAL')?'SOLICITUD':'PRESUPUESTO', presupuestado:'2.500', autorizado:'0.000', despachado:'0.000', devuelto:'0.000', neto_imputado:'0.000', pendiente_despacho:'0.000',estado:'SIN_AUTORIZACION',
+ }]}):request(path,opts);
+ const renderer=await mount(backend);
+ try{
+  await click(renderer,'Ver obra');
+  assert.match(text(renderer.root),/Cable previsto.*Presupuestado2,5 m/);
+  assert.match(text(renderer.root),/no acredita consumo físico/);
+  await click(renderer,'Adicionales y sin vínculo histórico');
+  assert.match(text(renderer.root),/Cable adicional.*Solicitud aprobada/);
+  assert.doesNotMatch(text(renderer.root),/Cable previsto/);
+ }finally{await unmount(renderer);}
+});
+
+test('019F: cierre obsoleto relee pendientes y exige confirmar otra vez',async()=>{
+ const backend=obrasBackend(S),request=backend.request;
+ backend.obras[0].estado='EN_PROCESO';backend.control.costos_validados=true;backend.control.version_validada=0;
+ const nuevo='b'.repeat(64), anterior='a'.repeat(64), enviados=[];
+ const despacho={codigo:'CAB',nombre:'Cable',cantidad:'5.000',unidad:'m'};
+ backend.requirements={validacion:[],finalizacion:[],devoluciones:[],despachos:[despacho],confirmacion_remanente:anterior};
+ backend.request=async(path,opts)=>{
+  if(path.endsWith('/finalizar/')&&opts?.method==='POST'){
+   enviados.push(opts.body.confirmacion_remanente);
+   if(enviados.length===1){
+    backend.requirements={...backend.requirements,despachos:[{...despacho,cantidad:'4.000'}],confirmacion_remanente:nuevo};
+    throw new ApiError(409,'Confirma las cantidades actuales.',null,{code:'confirmacion_remanente_requerida'});
+   }
+  }
+  return request(path,opts);
+ };
+ const renderer=await mount(backend);
+ try{
+  await openCosts(renderer);await click(renderer,'Finalizar obra');
+  await input(renderer,'obras-finalizar-motivo','Trabajo terminado');
+  const marcar=()=>act(async()=>renderer.root.findByProps({type:'checkbox'}).props.onChange({target:{checked:true}}));
+  await marcar();await submitNamed(renderer,'Confirmar finalización');
+  assert.deepEqual(enviados,[anterior]);assert.match(text(renderer.root),/4,000 m/);
+  await click(renderer,'Reconsultar resultado');await click(renderer,'Finalizar obra');
+  await input(renderer,'obras-finalizar-motivo','Trabajo terminado');
+  assert.equal(renderer.root.findByProps({type:'checkbox'}).props.checked,false);
+  await marcar();await submitNamed(renderer,'Confirmar finalización');
+  assert.deepEqual(enviados,[anterior,nuevo]);
+ }finally{await unmount(renderer);}
+});
+
 test('Supervisor: obra planificada muestra costos de solo lectura y estados vacíos',async()=>{
  const backend=obrasBackend(S),renderer=await mount(backend);
  try{
   await openCosts(renderer);
   assert.match(text(renderer.root),/Inicia la obra/);
-  assert.match(text(renderer.root),/Pendiente de declaración/);
+   assert.match(text(renderer.root),/Por validar/);
   assert.equal(buttons(renderer,'Revisar materiales').length,0);
   assert.equal(buttons(renderer,'Validar costos').length,0);
   assert.equal(buttons(renderer,'Finalizar obra').length,0);
@@ -142,27 +197,16 @@ test('Supervisor: obra planificada muestra costos de solo lectura y estados vac�
   assert.ok(backend.calls.every(c=>c.method==='GET'));
  }finally{await unmount(renderer);}
 });
-test('Supervisor: declaraciones explícitas, cortesía separada y validación vigente',async()=>{
+test('Supervisor: sin declaraciones individuales, cortesía separada y validación vigente',async()=>{
  const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
  backend.costTotals={materiales_total:'420000.00',otros_total:'0.00',mano_obra_total:'350000.00',costo_total:'770000.00'};
  const renderer=await mount(backend);
  try{
   await openCosts(renderer);
   assert.match(text(renderer.root),/\$770\.000/);
-  assert.equal(buttons(renderer,'Validar costos')[0].props.disabled,true);
-  await click(renderer,'Revisar materiales');
-  assert.equal(renderer.root.findByProps({id:'obras-rubric-materiales'}).props.value,'');
-  await input(renderer,'obras-rubric-materiales','CON_REGISTROS');
-  await input(renderer,'obras-rubric-materiales-motivo','Materiales revisados');
-  await submitNamed(renderer,'Declarar materiales');
-  assert.equal(backend.control.materiales_estado,'CON_REGISTROS');
-  await click(renderer,'Revisar otros gastos');
-  await input(renderer,'obras-rubric-otros','NO_APLICA');
-  await input(renderer,'obras-rubric-otros-reason','No hubo otros gastos');
-  await input(renderer,'obras-rubric-otros-motivo','Rubro revisado');
-  await submitNamed(renderer,'Declarar otros gastos');
-  assert.equal(backend.control.otros_estado,'NO_APLICA');
-  assert.equal(backend.calls.filter(c=>c.method==='PATCH').length,2);
+   assert.equal(buttons(renderer,'Validar costos')[0].props.disabled,false);
+   assert.equal(buttons(renderer,'Revisar materiales').length,0);
+   assert.equal(buttons(renderer,'Revisar otros gastos').length,0);
   await click(renderer,'Registrar sin cobro');
   await input(renderer,'obras-cortesia-justificacion','Garantía excepcional');
   await submitNamed(renderer,'Registrar servicio sin cobro');
@@ -171,7 +215,8 @@ test('Supervisor: declaraciones explícitas, cortesía separada y validación vi
   await click(renderer,'Validar costos');
   await input(renderer,'obras-costos-motivo','Revisión completa');
   await submitNamed(renderer,'Confirmar validación');
-  assert.equal(backend.control.costos_validados,true);
+   assert.equal(backend.control.costos_validados,true);
+   assert.equal(backend.calls.filter(c=>c.method==='PATCH').length,0);
   assert.equal(buttons(renderer,'Finalizar obra').length,1);
  }finally{await unmount(renderer);}
 });
@@ -193,7 +238,7 @@ test('Supervisor: rechazo de validación presenta pendientes y no reenvía autom
  }finally{await unmount(renderer);}
 });
 
-test('Supervisor: declaración idéntica bloqueada, rectificación permitida y sin cobro confirmado',async()=>{
+test('Supervisor: sin rectificación de rubros y con confirmación de servicio sin cobro',async()=>{
  const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';backend.control.materiales_estado='CON_REGISTROS';backend.control.otros_estado='NO_APLICA';
  backend.costTotals={materiales_total:'420000.00',otros_total:'0.00',mano_obra_total:'350000.00',costo_total:'770000.00'};
  const renderer=await mount(backend),old=window.confirm;
@@ -201,13 +246,7 @@ test('Supervisor: declaración idéntica bloqueada, rectificación permitida y s
   await openCosts(renderer);
   assert.equal(buttons(renderer,'Actualizar').length,1);
   assert.equal(buttons(renderer,'Actualizar datos').length,0);
-  await click(renderer,'Rectificar materiales');
-  await input(renderer,'obras-rubric-materiales-motivo','Motivo de prueba');
-  assert.equal(buttons(renderer,'Guardar declaración')[0].props.disabled,true);
-  await submitNamed(renderer,'Declarar materiales');assert.equal(backend.calls.filter(c=>c.method==='PATCH').length,0);
-  await input(renderer,'obras-rubric-materiales','NO_APLICA');await input(renderer,'obras-rubric-materiales-reason','Se debe rectificar el rubro');
-  assert.equal(buttons(renderer,'Guardar declaración')[0].props.disabled,false);
-  await click(renderer,'Cancelar');
+   assert.equal(buttons(renderer,'Rectificar materiales').length,0);
   assert.match(buttons(renderer,'Registrar sin cobro')[0].props.className,/so-danger-action/);
   await click(renderer,'Registrar sin cobro');await input(renderer,'obras-cortesia-justificacion','Garantía');
   let confirmation='';window.confirm=m=>{confirmation=m;return false;};
@@ -227,10 +266,9 @@ test('Supervisor: importes identificados y actividad económica con comparación
  const renderer=await mount(backend);
  try{
   await openCosts(renderer);
-  const amounts=renderer.root.findAllByProps({className:'so-rubric-value'});
-  assert.equal(amounts.length,3);
-  assert.match(text(amounts[0]),/Costo neto registrado · CLP\$420\.000/);
-  assert.equal(amounts[0].findAllByType('button').length,0);
+   const amounts=renderer.root.findByProps({className:'so-cost-values'});
+   assert.match(text(amounts),/Materiales\$420\.000/);
+   assert.equal(amounts.findAllByType('button').length,0);
   const history=renderer.root.findByProps({'aria-label':'Actividad de costos'});
   assert.match(text(history),/Declaración de rubros actualizada/);
   assert.match(text(history),/Gasto corregido/);

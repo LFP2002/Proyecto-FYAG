@@ -194,7 +194,7 @@ def _responsable_pendientes(obra):
 
 def _gasto_coherente(obra, gasto):
     """Comprobar movimientos reales, no solo el acumulado de la fila."""
-    gasto.full_clean()
+    _validar_persistido(gasto)
     if gasto.fecha_gasto > timezone.localdate():
         return False
     devuelta = Decimal("0.000")
@@ -225,6 +225,13 @@ def _gasto_coherente(obra, gasto):
     return devuelta == gasto.cantidad_devuelta
 
 
+def _validar_persistido(objeto):
+    # FK, unicidad y CHECK ya fueron aplicados por PostgreSQL a estas filas.
+    # Las reglas Python y de dominio se conservan sin reconsultar por cada fila.
+    fks = {f.name for f in objeto._meta.concrete_fields if f.many_to_one}
+    objeto.full_clean(exclude=fks, validate_unique=False, validate_constraints=False)
+
+
 def _pendientes(obra, control, gastos, turnos):
     pendientes = []
     miembros = set(ObraParticipante.objects.filter(obra=obra).values_list("tecnico_id", flat=True))
@@ -232,7 +239,7 @@ def _pendientes(obra, control, gastos, turnos):
         pendientes.append("sin_turno_acreditado")
     for turno in turnos:
         try:
-            turno.full_clean()
+            _validar_persistido(turno)
         except ValidationError:
             pendientes.append("turno_inconsistente")
         if not _turno_acreditado(turno):
@@ -260,7 +267,7 @@ def _pendientes(obra, control, gastos, turnos):
                 pendientes.append("duracion_inconsistente")
         for evidencia in turno.fotos.all():
             try:
-                evidencia.full_clean()
+                _validar_persistido(evidencia)
                 with ruta_privada(evidencia.nombre_interno).open("rb") as archivo:
                     contenido = archivo.read(MAX_BYTES + 1)
                 if evidencia.obra_id != obra.pk or len(contenido) != evidencia.tamano or hashlib.sha256(contenido).hexdigest() != evidencia.sha256:
@@ -273,15 +280,21 @@ def _pendientes(obra, control, gastos, turnos):
                 pendientes.append("gasto_inconsistente")
         except (ValidationError, KeyError, TypeError, ValueError, InvalidOperation):
             pendientes.append("gasto_inconsistente")
+    pendientes.extend(_pendientes_rubros(control, gastos))
+    if _totales(gastos, turnos)["costo_total"] <= 0:
+        pendientes.append("costo_total_no_positivo")
+    return sorted(set(pendientes))
+
+
+def _pendientes_rubros(control, gastos):
+    pendientes = []
     for rubro in RUBROS:
         tiene = any((g.tipo == "MATERIAL") == (rubro == "materiales") for g in gastos)
         estado = getattr(control, f"{rubro}_estado")
         if (estado == "PENDIENTE" or (estado == "CON_REGISTROS") != tiene
                 or (estado == "NO_APLICA" and not getattr(control, f"{rubro}_justificacion").strip())):
             pendientes.append(f"{rubro}_sin_declarar_o_incoherente")
-    if _totales(gastos, turnos)["costo_total"] <= 0:
-        pendientes.append("costo_total_no_positivo")
-    return sorted(set(pendientes))
+    return pendientes
 
 
 def validar_costos(referencia, datos, usuario):
@@ -303,9 +316,10 @@ def _validar_costos(referencia, datos, usuario):
     # Usuario antes de recursos/control, igual que iniciar/reasignar.
     responsable_pendientes = _responsable_pendientes(obra)
     control = _consultar_control(obra)
-    gastos = list(GastoObra.objects.filter(obra=obra, vigente=True).prefetch_related("eventos"))
-    turnos = list(TurnoObra.objects.filter(obra=obra).prefetch_related("fotos"))
-    pendientes = sorted(set(responsable_pendientes + _pendientes(obra, control, gastos, turnos)))
+    gastos, turnos = _recursos_revision(obra)
+    evaluado = ControlCostosObra(obra=obra)
+    _derivar_rubros(evaluado, gastos)
+    pendientes = sorted(set(responsable_pendientes + _pendientes(obra, evaluado, gastos, turnos)))
     if pendientes:
         if control.version_validada is not None:
             control.version_validada = None
@@ -316,12 +330,28 @@ def _validar_costos(referencia, datos, usuario):
     if control.costos_validados:
         raise SinCambios("La versión actual ya está validada.")
     antes = snapshot(control)
+    _derivar_rubros(control, gastos)
     control.version_validada = control.version_actual
     control.validado_por = actor
     control.validado_en = timezone.now()
     control.save()
     _evento(control, "VALIDACION", actor, motivo, antes)
     return snapshot(control)
+
+
+def _recursos_revision(obra):
+    return (
+        list(GastoObra.objects.filter(obra=obra, vigente=True).prefetch_related('eventos')),
+        list(TurnoObra.objects.filter(obra=obra).prefetch_related('fotos')),
+    )
+
+
+def _derivar_rubros(control, gastos):
+    tipos = {g.tipo for g in gastos}
+    for rubro, tiene in (('materiales', 'MATERIAL' in tipos), ('otros', bool(tipos - {'MATERIAL'}))):
+        setattr(control, f'{rubro}_estado', 'CON_REGISTROS' if tiene else 'NO_APLICA')
+        setattr(control, f'{rubro}_justificacion', '' if tiene else
+                'Justificación automática: no existen gastos vigentes de este rubro al validar.')
 
 
 def _snapshot_cortesia(cortesia):
