@@ -65,19 +65,3 @@
 :root[data-fyag-theme='dark'] .supervisor-alertas .manager-alert-row.medium .manager-alert-priority {color:#e7b66b;}
 :root[data-fyag-theme='dark'] .supervisor-alertas .manager-alert-title button {color:var(--fyag-text);}
 @media(max-width:540px){.supervisor-alertas .manager-cob-filter-form>div{flex-basis:100%;}.supervisor-alertas .finance-alert-actions button{width:100%;}.supervisor-alertas .manager-work-tabs{flex-wrap:wrap;}}
-
-/* Supervisor: selección semántica, distinta del foco de teclado. */
-.supervisor-alertas .manager-alert-kpi[aria-pressed=true] {
-  box-shadow:none;
-  background-color:color-mix(in srgb,var(--tone) 7%,#fff);
-}
-.supervisor-alertas .manager-alert-kpi:focus-visible {
-  outline:2px solid var(--fyag-blue);
-  outline-offset:2px;
-}
-:root[data-fyag-theme='dark'] .app-root .supervisor-alertas .manager-alert-kpi {
-  background-color:#1b2633 !important;
-}
-:root[data-fyag-theme='dark'] .app-root .supervisor-alertas .manager-alert-kpi[aria-pressed=true] {
-  background-color:color-mix(in srgb,var(--tone) 16%,#1b2633) !important;
-}

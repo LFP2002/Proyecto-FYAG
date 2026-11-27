@@ -28,6 +28,7 @@ import './styles/pages/solicitudes.css';
 import './styles/dark-mode.css';
 import './styles/pages/finanzas-visual.css';
 import './styles/pages/role-typography.css';
+import './styles/pages/interactive-cards.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

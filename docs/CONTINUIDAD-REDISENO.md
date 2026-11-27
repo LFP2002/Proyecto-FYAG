@@ -100,3 +100,9 @@ Bandeja inicial pendiente, indicadores globales, búsqueda compacta por material
 
 ## Supervisor — Mermas de obra
 Bandeja pendiente por defecto, contadores globales, búsqueda y filtro de tipo en línea, sin selector de ámbito. Reutiliza la bandeja de decisiones de Solicitudes; ficha independiente, material/obra/técnico, motivo/actividad, cantidades entregada/devuelta/mermas aprobadas/remanente, importe informativo no aditivo e historial. Aprobar/rechazar con motivo obligatorio, sin modificar cantidad, reintento exacto y navegación segura. No cambia stock ni costo; el servicio 019C-2 conserva autoridad. Lectura exclusiva sin migración. Pruebas y revisión visual pendientes.
+
+
+## Consistencia transversal de los seis roles
+Escala institucional común sin excluir Supervisor: módulo 1.75rem, ficha 1.5rem, panel 1.0625rem, peso 700 y familia IBM Plex Sans heredada de la aplicación. Se mantienen subtítulos contextuales, valores KPI, encabezados de filas y jerarquía de chat. Tarjetas de filtro `portfolio-kpi`, `si-kpi`, `ss-kpi`: selección por tinte semántico (7% claro, 16% oscuro), foco visible azul separado, sin contorno de selección. Indicadores no interactivos, pestañas y navegación conservan su función visual. Pendiente revisión visual por rol, modo y tamaño de fuente.
+
+Pestañas de sección compartidas: altura mínima 44px, tipografía .875rem/600, subrayado activo de 3px en azul institucional; se mantienen filtros tipo pastilla, tarjetas de navegación de Bodega (no representan selección persistente) y estados de flujo. Chat sin encabezado general adicional para preservar superficie de conversación; decisión visual pendiente si se desea homologarlo con los demás módulos.

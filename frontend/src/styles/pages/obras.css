@@ -65,7 +65,7 @@
 .portfolio-kpi.portfolio-amber { --tone:#ECA321; } .portfolio-kpi.portfolio-red { --tone:#E34D59; } .portfolio-kpi.portfolio-gray { --tone:#8492A6; }
 .portfolio-kpi span { font-size:.8125rem; color:var(--fyag-muted); font-weight:600; }
 .portfolio-kpi strong { font-size:1.8rem; color:var(--fyag-primary); }
-.portfolio-kpi[aria-pressed=true] { box-shadow:0 0 0 2px var(--tone); }
+/* Selección de tarjetas: regla institucional en interactive-cards.css. */
 .portfolio-list { padding:14px; min-width:0; display:flex; flex-direction:column; gap:12px; }
 .portfolio-list-head,.portfolio-filters,.portfolio-row-head,.portfolio-context { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px; }
 .portfolio-list-head h2,.portfolio-row-head h3 { font-size:1rem; margin:0; font-weight:700; }
