@@ -39,7 +39,11 @@ function backend() {
     const obj = accounts.find((a) => a.id === Number(match[1]));
     const action = match[2];
     if (action.startsWith('historial/')) return page(events.filter((e) => e.usuario_objetivo === obj.id));
-    if (method === 'PATCH') Object.assign(obj, options.body);
+    if (method === 'PATCH') {
+      const { email, ...profile } = options.body;
+      Object.assign(obj, profile);
+      if (email && email !== obj.email) Object.assign(obj, { correo_pendiente: email, correo_verificado_en: null });
+    }
     if (action === 'activar/') obj.is_active = true;
     if (action === 'desactivar/') obj.is_active = false;
     if (action === 'cambiar-rol/') obj.rol = options.body.rol;
@@ -218,7 +222,7 @@ test('filtros y páginas de usuarios son consultas remotas independientes de las
   } finally { await act(async () => renderer.unmount()); }
 });
 
-test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni refresh obsoleto', async () => {
+test('TI propone correo propio: conserva la sesión y muestra la dirección pendiente', async () => {
   const api = backend();
   const { renderer } = await mount(api.request, 'ADMINISTRADOR_TI', true);
   try {
@@ -228,14 +232,13 @@ test('TI edita correo propio: 200 persistido cierra sesión sin relectura ni ref
     await submit(renderer);
     assert.equal(api.accounts[0].first_name, 'Nombre actualizado');
     assert.ok(renderer.root.findAllByType('button').some((b) => text(b) === 'Editar perfil'), 'editar nombre no revoca sesión');
-    const historyReads = api.calls.filter((c) => c.path.includes('/historial/')).length;
     await click(renderer, 'Editar perfil');
     await input(renderer, 'email', 'nuevo@example.test');
     await submit(renderer);
-    assert.equal(api.accounts[0].email, 'nuevo@example.test');
-    assert.match(text(renderer.root), /Correo actualizado correctamente/);
-    assert.match(text(renderer.root), /Correo electrónico/);
-    assert.equal(api.calls.filter((c) => c.path.includes('/historial/')).length, historyReads, 'no reconsulta con token ya revocado');
+    assert.equal(api.accounts[0].email, 'cuenta1@example.test');
+    assert.equal(api.accounts[0].correo_pendiente, 'nuevo@example.test');
+    assert.match(text(renderer.root), /Nueva dirección pendiente: nuevo@example.test/);
+    assert.match(text(renderer.root), /Editar perfil/);
     assert.equal(api.calls.filter((c) => c.path.startsWith('/api/auth/refresh/')).length, 0);
   } finally { await act(async () => renderer.unmount()); }
 });

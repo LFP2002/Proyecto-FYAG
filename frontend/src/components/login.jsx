@@ -62,7 +62,7 @@ export default function Login() {
         {notice?.includes('revocación remota') && !busy && (
           <button type="button" className="btn btn-outline-secondary w-100 mt-2" onClick={() => void logout()}>Reintentar cierre de sesión</button>
         )}
-        <p className="login-foot">Acceso con cuenta institucional</p>
+        <p className="login-foot"><a href="/verificar-correo">Verificar mi correo electrónico</a></p>
       </form>
     </main>
   );

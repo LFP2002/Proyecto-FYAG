@@ -30,6 +30,17 @@ function backend(overrides = {}) {
   return { client: createAuthClient({ fetchImpl }), calls };
 }
 
+test('verificación envía CSRF y token solo en el cuerpo, sin crear sesión', async () => {
+  const { client, calls } = backend({ '/api/auth/correo/verificar/': () => new Response(null, { status: 204 }) });
+  await client.submitEmailVerification('confirmar', 'A'.repeat(43));
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].path, '/api/auth/correo/verificar/');
+  assert.equal(calls[1].headers.get('X-CSRFToken'), 'proteccion-inicial');
+  assert.equal(calls[1].headers.get('Authorization'), null);
+  assert.deepEqual(JSON.parse(calls[1].body), { token: 'A'.repeat(43) });
+  assert.equal(client.getSnapshot().user, null);
+});
+
 test('cliente autenticado soporta multipart sin forzar Content-Type y respuesta Blob en mismas rutas API', async () => {
   const calls = [];
   const client = createAuthClient({ fetchImpl: async (path, options) => {

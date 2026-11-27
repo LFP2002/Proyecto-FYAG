@@ -332,10 +332,19 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     }
   }
 
+  async function submitEmailVerification(action, value) {
+    const paths = { enviar: ['/api/auth/correo/reenviar/', 'email'], confirmar: ['/api/auth/correo/verificar/', 'token'] };
+    if (!Object.hasOwn(paths, action)) throw new ApiError(400, 'Operación no válida.');
+    const [path, field] = paths[action];
+    const protection = await csrfToken({ force: true });
+    return http(path, { method: 'POST', body: { [field]: value }, csrfToken: protection });
+  }
+
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
+    submitEmailVerification,
   });
 }
 

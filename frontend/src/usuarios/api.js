@@ -31,6 +31,13 @@ export function readUser(data) {
     throw new ApiError(502, 'Respuesta de usuario inesperada.');
   }
   const account=Object.fromEntries(['id','username','email','first_name','last_name','rol','is_active','date_joined'].map(key=>[key,data[key]]));
+  if (Object.hasOwn(data, 'correo_verificado_en') || Object.hasOwn(data, 'correo_pendiente')) {
+    if ((data.correo_verificado_en !== null && typeof data.correo_verificado_en !== 'string') || typeof data.correo_pendiente !== 'string') {
+      throw new ApiError(502, 'Estado de correo inesperado.');
+    }
+    account.correo_verificado_en = data.correo_verificado_en;
+    account.correo_pendiente = data.correo_pendiente;
+  }
   if(Object.hasOwn(data,'estado_credencial')){
     if(!['PERSONAL','INICIAL','RECUPERACION','NO_DISPONIBLE'].includes(data.estado_credencial)||typeof data.cambio_obligatorio!=='boolean'||data.cambio_obligatorio!==(data.estado_credencial!=='PERSONAL'))throw new ApiError(502,'Estado de credencial inesperado.');
     account.estado_credencial=data.estado_credencial;
@@ -56,7 +63,7 @@ export function readHistory(data, pk) {
   const page = validatePage(data, `${userPath(pk)}historial/`);
   const fields = new Set(['email', 'username', 'first_name', 'last_name', 'rol', 'is_active']);
   const snapshot = (data) => Object.fromEntries(Object.entries(data || {}).filter(([key, value]) => fields.has(key) && typeof value === (key === 'is_active' ? 'boolean' : 'string')));
-  const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'];
+  const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL', 'CORREO_SOLICITADO', 'CORREO_VERIFICADO', 'CORREO_CAMBIADO'];
   for (const e of page.results) {
     if (!e || !Number.isSafeInteger(e.id) || e.id <= 0 || !Number.isSafeInteger(e.actor) || e.actor <= 0
         || !types.includes(e.tipo) || typeof e.motivo !== 'string' || typeof e.creado_en !== 'string') throw new ApiError(502, 'Historial de usuarios inesperado.');

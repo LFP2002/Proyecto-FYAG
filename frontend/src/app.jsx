@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import ModuleBoundary, { ModuleLoading } from './components/ModuleBoundary.jsx';
 import { useAuth } from './auth/AuthContext';
 import Login from './components/login.jsx';
+import VerificacionCorreo from './components/VerificacionCorreo.jsx';
 import DesktopLayout from './components/layouts/DesktopLayout';
 import PendingIntegration from './components/PendingIntegration';
 import { useApp } from './context/AppContext';
@@ -34,6 +35,7 @@ const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 export default function App() {
   const { status, user } = useAuth();
   const { mod } = useApp();
+  if (globalThis.location?.pathname === '/verificar-correo') return <VerificacionCorreo />;
   if (status === 'restoring') {
     return <main className="login-page"><div className="login-card" role="status">Restaurando sesión…</div></main>;
   }

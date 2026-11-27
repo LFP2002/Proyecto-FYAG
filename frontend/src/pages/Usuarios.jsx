@@ -131,7 +131,7 @@ const timestamp=v=>typeof v==='string'&&Number.isFinite(Date.parse(v))?new Intl.
 const roleTone = { ADMINISTRADOR_TI: 'ti', GERENCIA: 'gerencia', ADMINISTRATIVO_FINANZAS: 'finanzas', SUPERVISOR_OBRAS: 'supervisor', TECNICO: 'tecnico' };
 const HIDDEN_ACCOUNT_CREATION_REASON = 'Aprovisionamiento manual inicial de TI mediante comando Django';
 // Textos del historial de la cuenta, en lenguaje simple (solo presentación).
-const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada', CREACION_CREDENCIAL_TEMPORAL: 'Credencial temporal emitida', REEMISION: 'Credencial temporal reemitida', CAMBIO_INICIAL: 'Contraseña personal establecida' };
+const eventLabel = { CREACION: 'Cuenta creada', EDICION: 'Perfil editado', ACTIVACION: 'Cuenta activada', DESACTIVACION: 'Cuenta desactivada', CAMBIO_ROL: 'Rol cambiado', ESTABLECER_CLAVE: 'Contraseña restablecida', CAMBIO_CLAVE_PROPIA: 'Contraseña cambiada', CREACION_CREDENCIAL_TEMPORAL: 'Credencial temporal emitida', REEMISION: 'Credencial temporal reemitida', CAMBIO_INICIAL: 'Contraseña personal establecida', CORREO_SOLICITADO: 'Cambio de correo solicitado', CORREO_VERIFICADO: 'Correo verificado', CORREO_CAMBIADO: 'Nuevo correo confirmado' };
 const fieldLabel = { username: 'Usuario', email: 'Correo', rol: 'Rol', is_active: 'Estado', first_name: 'Nombres', last_name: 'Apellidos' };
 const showValue = (key, value) => (key === 'rol' ? ROLES[value]?.short ?? String(value) : key === 'is_active' ? (value ? 'Activa' : 'Inactiva') : value === '' ? 'sin dato' : String(value));
 const hasValue = (value) => value !== undefined && value !== null && value !== '';
@@ -157,8 +157,8 @@ function Field({ name, label, form, setForm, disabled, type = 'text', options, r
 }
 
 function AccountForm({ mode, account, api, onSaved, onCancel }) {
-  const { user: authenticatedUser, logout, sessionInvalidatedByEmailChange } = useAuth();
-  const [form, setForm] = useState({ ...empty, ...(account || {}) });
+  const { logout } = useAuth();
+  const [form, setForm] = useState({ ...empty, ...(account || {}), ...(mode === 'editar' && account?.correo_pendiente ? { email: account.correo_pendiente } : {}) });
   const busy = api.busy || api.loading || api.locked;
   const titles = { crear: 'Crear cuenta inactiva', editar: 'Editar perfil', activar: 'Activar cuenta', desactivar: 'Desactivar cuenta', rol: 'Cambiar rol', clave: 'Restablecer acceso ajeno', propia: 'Cambiar mi contraseña' };
   async function submit(event) {
@@ -186,12 +186,6 @@ function AccountForm({ mode, account, api, onSaved, onCancel }) {
       await api.write(path, method, body, async (result) => {
         if (mode === 'propia') { await logout(); return; }
         const saved = readUser(result);
-        if (mode === 'editar' && account?.id === authenticatedUser?.id && saved.email !== account.email) {
-          // La API confirmó la nueva identidad: el token ya no es válido.
-          // Mostrar el login con aviso explícito, sin provocar refresh ni relecturas 401.
-          sessionInvalidatedByEmailChange();
-          return;
-        }
         const temporaryCredential = mode === 'crear'
           && typeof result?.credencial_temporal === 'string'
           && result.credencial_temporal.length === 43
@@ -273,7 +267,10 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
 
       <div className="ti-tabs" role="group" aria-label="Secciones de la cuenta">{['Perfil','Acceso y seguridad','Historial'].map(item=><button key={item} type="button" aria-pressed={tab===item} disabled={api.busy||api.locked||!!mode} onClick={()=>setTab(item)}>{item}</button>)}</div>
       {own&&<p className="detalle-aviso">Por seguridad, no puedes desactivar tu propia cuenta ni cambiar tu propio rol. Si cambias tu correo o tu contraseña, tendrás que iniciar sesión de nuevo.</p>}
-      {tab==='Perfil'&&<><section className="card-fyag ti-panel"><div className="ti-head"><h2>Información personal</h2><button className="btn btn-outline-secondary" disabled={disabled||!!mode} onClick={()=>setMode('editar')}>Editar perfil</button></div><dl className="ti-facts">{[['Nombres',account.first_name],['Apellidos',account.last_name],['Nombre de usuario',account.username],['Correo electrónico',account.email],['Identificador',account.id],['Fecha de creación',timestamp(account.date_joined)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value||'Sin registrar'}</dd></div>)}</dl></section><section className="card-fyag ti-panel"><div className="ti-head"><h2>Rol y permisos</h2><button className="btn btn-outline-secondary" disabled={disabled||own||!!mode} onClick={()=>setMode('rol')}>Cambiar rol</button></div><strong>{ROLES[account.rol].short}</strong><p>{ROLE_NOTE[account.rol]}</p></section></>}
+      {tab==='Perfil'&&<><section className="card-fyag ti-panel"><div className="ti-head"><h2>Información personal</h2><button className="btn btn-outline-secondary" disabled={disabled||!!mode} onClick={()=>setMode('editar')}>Editar perfil</button></div><dl className="ti-facts">{[['Nombres',account.first_name],['Apellidos',account.last_name],['Nombre de usuario',account.username],['Correo electrónico',account.email],['Identificador',account.id],['Fecha de creación',timestamp(account.date_joined)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value||'Sin registrar'}</dd></div>)}</dl>
+        {Object.hasOwn(account,'correo_verificado_en') && <p>Correo de acceso: {account.correo_verificado_en ? 'Verificado' : 'Sin verificar'}</p>}
+        {account.correo_pendiente && <div role="status"><p>Nueva dirección pendiente: <strong>{account.correo_pendiente}</strong>. El correo anterior sigue vigente. Para solicitar otro enlace, guarda de nuevo esa dirección en Editar perfil.</p></div>}
+      </section><section className="card-fyag ti-panel"><div className="ti-head"><h2>Rol y permisos</h2><button className="btn btn-outline-secondary" disabled={disabled||own||!!mode} onClick={()=>setMode('rol')}>Cambiar rol</button></div><strong>{ROLES[account.rol].short}</strong><p>{ROLE_NOTE[account.rol]}</p></section></>}
       {tab==='Acceso y seguridad'&&<section className="card-fyag ti-panel"><h2>Estado del acceso</h2><dl className="ti-facts"><div><dt>Estado de la cuenta</dt><dd>{account.is_active?'Activa':'Inactiva'}</dd></div><div><dt>Credencial</dt><dd>{credentialLabel[account.estado_credencial]||'No disponible'}</dd></div>{account.estado_acceso&&<div><dt>Estado de acceso</dt><dd>{({NORMAL:'Normal',BLOQUEO_TEMPORAL:'Bloqueo temporal',REQUIERE_TI:'Requiere intervención de TI',NO_DISPONIBLE:'No disponible'})[account.estado_acceso]||account.estado_acceso}{account.bloqueado_hasta&&' · Hasta '+timestamp(account.bloqueado_hasta)}</dd></div>}</dl>
       <div className="ti-action"><div><strong>{own?'Cambiar mi contraseña':'Restablecer acceso'}</strong><p>{own?'Actualiza tu contraseña personal.':'Emite una credencial temporal de recuperación.'}</p></div><button className="btn btn-outline-secondary" disabled={disabled||!!mode} onClick={()=>setMode(own?'propia':'clave')}>{own?'Mi contraseña':'Restablecer acceso'}</button></div>
       <div className="ti-action"><div><strong>{account.is_active?'Desactivar cuenta':'Activar cuenta'}</strong><p>{account.is_active?'Impide el acceso sin eliminar el historial.':'Habilita la cuenta siguiendo las reglas de acceso.'}</p></div><button className={account.is_active?'btn btn-outline-danger':'btn btn-outline-secondary'} disabled={disabled||!!mode||(own&&account.is_active)} onClick={()=>setMode(account.is_active?'desactivar':'activar')}>{account.is_active?'Desactivar':'Activar'}</button></div></section>}
