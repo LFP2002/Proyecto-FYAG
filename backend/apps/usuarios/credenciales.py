@@ -79,14 +79,20 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
     state = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
     if not estado_coherente(state):
         raise ConflictoUsuario("seguridad_no_disponible", "Estado de seguridad no disponible; requiere revisión autorizada.")
-    from .configuracion_c2 import habilitado
+    from .configuracion_c2 import perfil_bloqueos
     access = None
-    if not inicial and habilitado():
+    perfil = perfil_bloqueos()
+    if not inicial and perfil != 'deshabilitado':
         from .autenticacion_c2 import exigir_respaldo_para_temporal_qa
         from .recuperacion_c2 import bloquear_estado_recuperacion
-        exigir_respaldo_para_temporal_qa(user)
+        if perfil == 'qa_c2':
+            exigir_respaldo_para_temporal_qa(user)
         access = bloquear_estado_recuperacion(user)
     emitida = guardar_temporal(user, state, inicial=inicial)
+    if perfil == 'produccion' and not inicial:
+        from .models import DesafioCorreo, DesafioRecuperacionCorreo
+        DesafioCorreo.objects.filter(usuario=user, proposito='CAMBIO').delete()
+        DesafioRecuperacionCorreo.objects.filter(usuario=user).delete()
     event = services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)
     if access is not None:
         from .recuperacion_c2 import confirmar_recuperacion
@@ -147,8 +153,8 @@ def primer_cambio(data):
     identifier = SeguridadCredencial.objects.filter(desafio_digest=digest).values_list("usuario_id", flat=True).first()
     user = Usuario.objects.select_for_update().filter(pk=identifier).first()
     state = SeguridadCredencial.objects.select_for_update().filter(usuario_id=identifier).first() if user else None
-    from .configuracion_c2 import habilitado
-    if user and habilitado():
+    from .configuracion_c2 import bloqueos_activos
+    if user and bloqueos_activos():
         from .models import EstadoAcceso
         from .acceso import acceso_permitido
         access = EstadoAcceso.objects.select_for_update().filter(usuario=user).first()

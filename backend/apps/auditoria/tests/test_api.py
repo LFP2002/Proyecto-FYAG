@@ -11,7 +11,7 @@ from apps.auditoria.adapters import FUENTES
 from apps.auditoria.cursors import SALT
 from apps.auditoria.serializers import inicio_civil, filtros_query
 from apps.obras.models import TurnoObraEvento
-from apps.usuarios.models import RecuperacionCorreoEvento, RecuperacionTIEvento, UsuarioEvento
+from apps.usuarios.models import EventoAcceso, RecuperacionCorreoEvento, RecuperacionTIEvento, UsuarioEvento
 from apps.usuarios.tokens import AccessToken
 from apps.usuarios import services_usuarios
 from .base import AuditoriaBase, URL
@@ -24,7 +24,7 @@ class AuditoriaTests(AuditoriaBase, TestCase):
 
     def test_fuentes_con_esquema_exacto_y_ids_de_origen(self):
         campos = {"id", "evento_id", "fuente", "modulo", "recurso_tipo", "recurso_id", "tipo", "actor", "actor_etiqueta", "actor_username", "actor_identidad_origen", "motivo", "creado_en", "datos_anteriores", "datos_nuevos"}
-        for name in set(FUENTES) - {RecuperacionCorreoEvento.FUENTE, RecuperacionTIEvento.FUENTE}:
+        for name in set(FUENTES) - {RecuperacionCorreoEvento.FUENTE, RecuperacionTIEvento.FUENTE, EventoAcceso.FUENTE}:
             self.autenticar(self.ti if name == "USUARIO_EVENTO" else self.gerencia)
             result = self.client.get(URL, {"fuente": name})
             self.assertEqual(result.status_code, 200, result.data)
@@ -66,7 +66,9 @@ class AuditoriaTests(AuditoriaBase, TestCase):
     def test_cinco_roles_flags_y_denegacion_antes_de_consultar_fuentes(self):
         RecuperacionCorreoEvento.objects.create(usuario=self.ti)
         RecuperacionTIEvento.objects.create(usuario=self.ti, operador='qa', referencia='QA-027', motivo='Prueba')
-        fuentes_ti = {"USUARIO_EVENTO", RecuperacionCorreoEvento.FUENTE, RecuperacionTIEvento.FUENTE}
+        EventoAcceso.objects.create(usuario=self.ti, tipo='BLOQUEO_TEMPORAL', actor_tipo='SISTEMA', version=2,
+                                    creado_en=timezone.now(), cantidad_fallos=5)
+        fuentes_ti = {"USUARIO_EVENTO", RecuperacionCorreoEvento.FUENTE, RecuperacionTIEvento.FUENTE, EventoAcceso.FUENTE}
         expectativas = {"GERENCIA": set(FUENTES) - fuentes_ti,
             "SUPERVISOR_OBRAS": {"OBRA_EVENTO", "PARTICIPANTE_EVENTO", "TURNO_EVENTO", "COSTO_OBRA_EVENTO"},
             "ADMINISTRATIVO_FINANZAS": {"FINANZAS_EVENTO"}, "ADMINISTRADOR_TI": fuentes_ti}

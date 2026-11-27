@@ -5,7 +5,7 @@ import { PageHead, Table } from '../components/ui';
 import { Pager, useCommercial } from '../comercial/ui.jsx';
 import { canManageUsers, userPath, usersPath, historyPath, readUser, readUsers, readHistory } from '../usuarios/api.js';
 import { permissionRoles, permissionRows, permissionLevels } from '../usuarios/permissionMatrix.js';
-import { ACCESS_STATE_LABELS, RECOVERY_TYPE, INFRA_TYPE } from '../integrations/audit.js';
+import { ACCESS_STATE_LABELS, ACCESS_EVENT_LABELS, RECOVERY_TYPE, INFRA_TYPE } from '../integrations/audit.js';
 
 // Bootstrap Icons v1.13.1 (MIT), twbs/icons; SVG originales incorporados localmente.
 const tiIcons={
@@ -280,10 +280,11 @@ function Detail({ id, onBack, temporaryCredential, onHideTemporaryCredential }) 
     {tab==='Historial'&&<section className="card-fyag detalle-historial"><h2>Historial de cambios</h2>
       <p className="detalle-sub">Cambios administrativos y de seguridad registrados en esta cuenta.</p>
       {history && !history.count && <p>Todavía no hay cambios registrados.</p>}
-      <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{event.tipo===INFRA_TYPE ? 'Recuperación TI por infraestructura' : eventLabel[event.tipo] || event.tipo}</strong>
-        <p className="detalle-evento-meta">{timestamp(event.creado_en)} · {event.tipo===INFRA_TYPE ? `Operador de infraestructura · Cuenta objetivo #${event.usuario_objetivo}` : event.tipo===RECOVERY_TYPE ? `Titularidad del correo · Cuenta objetivo #${event.usuario_objetivo}` : `Hecho por la cuenta #${event.actor}`}</p>
+      <ol className="detalle-eventos">{history?.results.map((event) => <li key={event.id}><strong>{event.tipo===INFRA_TYPE ? 'Recuperación TI por infraestructura' : ACCESS_EVENT_LABELS[event.tipo] || eventLabel[event.tipo] || event.tipo}</strong>
+        <p className="detalle-evento-meta">{timestamp(event.creado_en)} · {event.actor_identidad_origen==='SISTEMA' ? `Sistema · Cuenta objetivo #${event.usuario_objetivo}` : event.tipo===INFRA_TYPE ? `Operador de infraestructura · Cuenta objetivo #${event.usuario_objetivo}` : event.tipo===RECOVERY_TYPE ? `Titularidad del correo · Cuenta objetivo #${event.usuario_objetivo}` : `Hecho por la cuenta #${event.actor}`}</p>
         {event.tipo===INFRA_TYPE && <p>Operador: {event.datos_nuevos.operador} · Referencia de autorización: {event.datos_nuevos.referencia}</p>}
         {event.acceso_anterior && <p>Estado de acceso anterior: {ACCESS_STATE_LABELS[event.acceso_anterior]}</p>}
+        {event.acceso_nuevo && <p>Estado de acceso nuevo: {ACCESS_STATE_LABELS[event.acceso_nuevo]}</p>}
         {event.motivo && event.motivo !== HIDDEN_ACCOUNT_CREATION_REASON && <p className="commercial-long-text">{event.motivo}</p>}
         <dl className="detalle-cambios">{changeRows(event).map(([key, value]) => <div key={key}><dt>{fieldLabel[key]}</dt><dd className="commercial-long-text">{value}</dd></div>)}</dl>
       </li>)}</ol>

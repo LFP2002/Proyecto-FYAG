@@ -8,8 +8,8 @@ from .bloqueos import validar_configuracion
 def comprobar_configuracion_bloqueos(app_configs, **kwargs):
     try:
         validar_configuracion()
-        from .configuracion_c2 import habilitado
-        habilitado()
+        from .configuracion_c2 import perfil_bloqueos
+        perfil_bloqueos()
     except ImproperlyConfigured as exc:
         return [Error(str(exc), id="usuarios.E018")]
     return []

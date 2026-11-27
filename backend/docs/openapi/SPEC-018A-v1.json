@@ -477,7 +477,7 @@
                     },
                     "results": {
                       "type": "array",
-                      "items": {"oneOf": [{"$ref": "#/components/schemas/Evento"}, {"$ref": "#/components/schemas/EventoRecuperacionCorreo"}, {"$ref": "#/components/schemas/EventoRecuperacionTI"}]}
+                      "items": {"oneOf": [{"$ref": "#/components/schemas/Evento"}, {"$ref": "#/components/schemas/EventoRecuperacionCorreo"}, {"$ref": "#/components/schemas/EventoRecuperacionTI"}, {"$ref": "#/components/schemas/EventoAccesoSistema"}]}
                     }
                   }
                 }
@@ -574,7 +574,7 @@
           }
         ],
         "summary": "Rotar cookie refresh, revalidar estado PERSONAL/version/hash; nunca usar desafio",
-        "description": "Body {}. Refresh solo desde cookie fyag_refresh, nunca JSON o Authorization. Ausencia, temporal, estado incoherente, version anterior o token usado: 401. Dos renovaciones concurrentes no deben rotar la misma cookie dos veces.",
+        "description": "Body {}. Refresh solo desde cookie fyag_refresh, nunca JSON o Authorization. Ausencia, temporal, estado incoherente, version anterior o token usado: 401. Dos renovaciones concurrentes no deben rotar la misma cookie dos veces. Comparte 30 solicitudes por minuto por IP con primer cambio, mediante Redis.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -611,6 +611,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Limitado"
+          },
+          "503": {
+            "$ref": "#/components/responses/LimitesNoDisponibles"
           }
         }
       }
@@ -815,6 +818,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Limitado"
+          },
+          "503": {
+            "$ref": "#/components/responses/LimitesNoDisponibles"
           }
         }
       }
@@ -828,7 +834,7 @@
             "CSRFCookie": []
           }
         ],
-        "description": "No acepta desafio como Bearer. JSON estricto. Estado, actividad, digest, sesion_version, expiracion y consumo verificados con locks SQL. Rechaza reutilizacion de temporal y valida con Django. Respuesta sin JWT ni sesion automatica. Audita y revoca tokens previos atomicamente.",
+        "description": "No acepta desafio como Bearer. JSON estricto. Estado, actividad, digest, sesion_version, expiracion y consumo verificados con locks SQL. Rechaza reutilizacion de temporal y valida con Django. Respuesta sin JWT ni sesion automatica. Audita y revoca tokens previos atomicamente. Comparte 30 solicitudes por minuto por IP con refresh, mediante Redis.",
         "requestBody": {
           "required": true,
           "content": {
@@ -916,6 +922,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Limitado"
+          },
+          "503": {
+            "$ref": "#/components/responses/LimitesNoDisponibles"
           }
         }
       }
@@ -1062,6 +1071,23 @@
           }
         }
       },
+      "EventoAccesoSistema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "usuario_objetivo", "actor", "actor_identidad_origen", "tipo", "motivo", "datos_anteriores", "datos_nuevos", "creado_en"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^EVENTO_ACCESO:[1-9][0-9]*$"},
+          "usuario_objetivo": {"type": "integer", "minimum": 1},
+          "actor": {"type": "integer", "nullable": true, "enum": [null]},
+          "actor_identidad_origen": {"type": "string", "enum": ["SISTEMA"]},
+          "tipo": {"type": "string", "enum": ["BLOQUEO_TEMPORAL", "BLOQUEO_TI", "EXPIRACION"]},
+          "motivo": {"type": "string", "enum": [""]},
+          "datos_anteriores": {"$ref": "#/components/schemas/SnapshotAcceso"},
+          "datos_nuevos": {"$ref": "#/components/schemas/SnapshotAcceso"},
+          "creado_en": {"type": "string", "format": "date-time"}
+        }
+      },
+      "SnapshotAcceso": {"type": "object", "additionalProperties": false, "required": ["acceso_estado"], "properties": {"acceso_estado": {"type": "string", "enum": ["NORMAL", "BLOQUEO_TEMPORAL", "REQUIERE_TI"]}}},
       "EventoRecuperacionTI": {
         "type": "object",
         "additionalProperties": false,
@@ -1397,6 +1423,10 @@
             }
           }
         }
+      },
+      "LimitesNoDisponibles": {
+        "description": "Límites de seguridad no disponibles. No contabiliza un fallo de contraseña.",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Detalle"}}}
       },
       "Limitado": {
         "description": "429 throttle existente, no bloqueo de cuenta",

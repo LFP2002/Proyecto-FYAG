@@ -225,7 +225,8 @@
           "FINANZAS_EVENTO",
           "USUARIO_EVENTO",
           "RECUPERACION_CORREO_EVENTO",
-          "RECUPERACION_TI_EVENTO"
+          "RECUPERACION_TI_EVENTO",
+          "EVENTO_ACCESO"
         ]
       },
       "RecursoTipo": {
@@ -348,7 +349,8 @@
               "HISTORICA",
               "ACTUAL",
               "TITULARIDAD_CORREO",
-              "INFRAESTRUCTURA"
+              "INFRAESTRUCTURA",
+              "SISTEMA"
             ],
             "description": "HISTORICA: captura al insertar evento. ACTUAL: identidad vigente para eventos antiguos. TITULARIDAD_CORREO e INFRAESTRUCTURA no representan una sesión autenticada. INFRAESTRUCTURA corresponde a RECUPERACION_TI_INFRA (solo TI)."
           }

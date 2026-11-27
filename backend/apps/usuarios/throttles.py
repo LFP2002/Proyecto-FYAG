@@ -40,7 +40,8 @@ class LimitesNoDisponibles(APIException):
 
 @lru_cache(maxsize=4)
 def _client(url):
-    return Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1, retry_on_timeout=False)
+    tls = {'ssl_cert_reqs': 'required', 'ssl_check_hostname': True} if url.startswith('rediss://') else {}
+    return Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1, retry_on_timeout=False, **tls)
 
 
 def _digest(value):
@@ -94,5 +95,12 @@ class LoginIPRateThrottle(SecurityRateThrottle):
     operation = 'login'
 
 
-class RefreshIPRateThrottle(AnonRateThrottle):
+class RefreshIPRateThrottle(SecurityRateThrottle, AnonRateThrottle):
+    # Conservar el presupuesto común que tenían ambos endpoints (mismo scope).
     scope = 'refresh_ip'
+    operation = 'refresh-primer-cambio'
+    identity_field = None
+
+    @property
+    def ip_limit(self):
+        return self.num_requests, self.duration

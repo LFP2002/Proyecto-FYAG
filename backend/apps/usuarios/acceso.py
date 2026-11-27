@@ -1,7 +1,7 @@
 """Lectura compartida de estado operativo; no muta contadores en JWT/permisos."""
 from django.utils import timezone
 
-from .configuracion_c2 import habilitado
+from .configuracion_c2 import bloqueos_activos
 from .models import EstadoAcceso, Usuario
 from .politica_bloqueos import EstadoPolitica, VENTANA, validar_estado
 
@@ -26,7 +26,7 @@ def estado_acceso(user, *, ahora=None):
 
 
 def acceso_permitido(user):
-    return not habilitado() or estado_acceso(user) == "NORMAL"
+    return not bloqueos_activos() or estado_acceso(user) == "NORMAL"
 
 
 def sesion_operativa(user):

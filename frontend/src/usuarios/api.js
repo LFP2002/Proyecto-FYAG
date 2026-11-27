@@ -1,6 +1,6 @@
 import { ApiError, USER_ROLES } from '../auth/client.js';
 import { validatePage } from '../comercial/api.js';
-import { ACCESS_STATE_LABELS, RECOVERY_SOURCE, RECOVERY_TYPE, RECOVERY_AUTHORITY, INFRA_SOURCE, INFRA_TYPE, INFRA_AUTHORITY, validInfraDetails } from '../integrations/audit.js';
+import { ACCESS_STATE_LABELS, ACCESS_EVENT_LABELS, validAccessSnapshot, RECOVERY_SOURCE, RECOVERY_TYPE, RECOVERY_AUTHORITY, INFRA_SOURCE, INFRA_TYPE, INFRA_AUTHORITY, validInfraDetails } from '../integrations/audit.js';
 
 export const canManageUsers = (role) => role === 'ADMINISTRADOR_TI';
 const id = (pk) => {
@@ -66,6 +66,11 @@ export function readHistory(data, pk) {
   const snapshot = (data) => Object.fromEntries(Object.entries(data || {}).filter(([key, value]) => fields.has(key) && typeof value === (key === 'is_active' ? 'boolean' : 'string')));
   const types = ['CREACION', 'EDICION', 'ACTIVACION', 'DESACTIVACION', 'CAMBIO_ROL', 'ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL', 'CORREO_SOLICITADO', 'CORREO_VERIFICADO', 'CORREO_CAMBIADO'];
   for (const e of page.results) {
+    if (e && Object.hasOwn(ACCESS_EVENT_LABELS,e.tipo)) {
+      if (!/^EVENTO_ACCESO:[1-9][0-9]*$/.test(e.id) || e.usuario_objetivo !== pk || e.actor !== null || e.actor_identidad_origen !== 'SISTEMA'
+        || typeof e.creado_en !== 'string' || !validAccessSnapshot(e.datos_anteriores) || !validAccessSnapshot(e.datos_nuevos)) throw new ApiError(502, 'Historial de usuarios inesperado.');
+      continue;
+    }
     if (e?.tipo === RECOVERY_TYPE || e?.tipo === INFRA_TYPE) {
       const infra = e.tipo === INFRA_TYPE;
       if (typeof e.id !== 'string' || !new RegExp(`^${infra ? INFRA_SOURCE : RECOVERY_SOURCE}:[1-9][0-9]*$`).test(e.id)
@@ -79,12 +84,16 @@ export function readHistory(data, pk) {
     if (!e || !Number.isSafeInteger(e.id) || e.id <= 0 || !Number.isSafeInteger(e.actor) || e.actor <= 0
         || !types.includes(e.tipo) || typeof e.motivo !== 'string' || typeof e.creado_en !== 'string') throw new ApiError(502, 'Historial de usuarios inesperado.');
   }
-  return { count: page.count, next: page.next, previous: page.previous, results: page.results.map((e) => [RECOVERY_TYPE, INFRA_TYPE].includes(e.tipo) ? ({
+  return { count: page.count, next: page.next, previous: page.previous, results: page.results.map((e) => Object.hasOwn(ACCESS_EVENT_LABELS,e.tipo) ? ({
+    id:e.id, tipo:e.tipo, actor:null, actor_identidad_origen:'SISTEMA', usuario_objetivo:pk, creado_en:e.creado_en, motivo:'',
+    acceso_anterior:e.datos_anteriores.acceso_estado, acceso_nuevo:e.datos_nuevos.acceso_estado, datos_anteriores:{}, datos_nuevos:{},
+  }) : [RECOVERY_TYPE, INFRA_TYPE].includes(e.tipo) ? ({
     id: e.id, tipo: e.tipo, actor: null, actor_identidad_origen: e.actor_identidad_origen, usuario_objetivo: pk,
     acceso_anterior: e.acceso_anterior, motivo: e.tipo === INFRA_TYPE ? e.motivo : '', creado_en: e.creado_en, datos_anteriores: {},
     datos_nuevos: e.tipo === INFRA_TYPE ? {operador: e.datos_nuevos.operador, referencia: e.datos_nuevos.referencia} : {},
   }) : ({
     id: e.id, tipo: e.tipo, actor: e.actor, motivo: e.motivo, creado_en: e.creado_en,
+    ...(e.tipo === 'REEMISION' && validAccessSnapshot(e.datos_anteriores) && validAccessSnapshot(e.datos_nuevos) ? {acceso_anterior:e.datos_anteriores.acceso_estado, acceso_nuevo:e.datos_nuevos.acceso_estado} : {}),
     datos_anteriores: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_anteriores),
     datos_nuevos: ['ESTABLECER_CLAVE', 'CAMBIO_CLAVE_PROPIA', 'CREACION_CREDENCIAL_TEMPORAL', 'REEMISION', 'CAMBIO_INICIAL'].includes(e.tipo) ? {} : snapshot(e.datos_nuevos),
   })) };

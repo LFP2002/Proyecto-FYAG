@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info:
+  title: FYAG SPEC-027 — Bloqueos productivos
+  version: 1.0.0
+  description: >-
+    Complemento de los contratos de credenciales y recuperación. El perfil productivo es opt-in.
+    Cinco fallos verificados dentro de 15 minutos; bloqueos 15/60/240 minutos, cuarto ciclo dentro de 24 horas hasta recuperación autorizada.
+    Se aplica a los seis roles. El perfil QA conserva sus guardas.
+paths:
+  /api/auth/login/:
+    post:
+      description: Los intentos durante el bloqueo no lo extienden. La respuesta no revela el estado ni el plazo de una cuenta.
+      responses:
+        '200': {description: Sesión emitida o desafío temporal de cambio obligatorio.}
+        '401': {description: Credenciales inválidas (incluye bloqueo).}
+        '429': {description: Límite Redis de IP/identidad; no se contabiliza como contraseña incorrecta.}
+        '503': {description: Límites de seguridad no disponibles; no se contabiliza como contraseña incorrecta.}
+  /api/auth/refresh/:
+    post:
+      description: Cookie refresh y CSRF. Comparte 30 solicitudes por minuto por IP con primer cambio.
+      responses:
+        '200': {description: Sesión renovada.}
+        '401': {description: Sesión inválida o revocada.}
+        '429': {description: Presupuesto Redis compartido agotado.}
+        '503': {description: Límites de seguridad no disponibles.}
+  /api/auth/primer-cambio-clave/:
+    post:
+      description: CSRF y desafío. Comparte 30 solicitudes por minuto por IP con refresh.
+      responses:
+        '200': {description: Contraseña personal confirmada; requiere login.}
+        '401': {description: Desafío no disponible.}
+        '429': {description: Presupuesto Redis compartido agotado.}
+        '503': {description: Límites de seguridad no disponibles.}
+  /api/auth/recuperacion/confirmar/:
+    post:
+      description: El enlace válido de correo verificado permite recuperar el acceso incluso si la cuenta activa está bloqueada.
+      responses:
+        '204': {description: Contraseña personal confirmada; desbloquea y revoca credenciales incompatibles sin iniciar sesión.}
+        '400': {description: Enlace inválido o contraseña que no cumple las reglas.}
+        '429': {description: Límite de recuperación agotado.}
+        '503': {description: Límites de seguridad no disponibles.}

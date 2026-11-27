@@ -117,8 +117,8 @@ class Usuario(AbstractUser):
 
     def _get_session_auth_hash(self, secret=None):
         original = super()._get_session_auth_hash(secret=secret)
-        from .configuracion_c2 import habilitado
-        if not habilitado():
+        from .configuracion_c2 import bloqueos_activos
+        if not bloqueos_activos():
             return original
         from django.utils.crypto import salted_hmac
         return salted_hmac("fyag.c2.sesion_version", f"{original}:{self.sesion_version}",

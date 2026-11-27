@@ -36,7 +36,7 @@ paths:
   /api/auth/recuperacion/confirmar/:
     post:
       summary: Consumir enlace de recuperación de un uso
-      description: Vigencia de 15 minutos por defecto; FYAG_RECUPERACION_MINUTOS permite un entero de 5 a 30. Revoca sesiones anteriores sin crear una nueva. 30 intentos por IP y 5 por valor de token por minuto.
+      description: Vigencia de 15 minutos por defecto; FYAG_RECUPERACION_MINUTOS permite un entero de 5 a 30. Revoca sesiones anteriores sin crear una nueva. En QA C2 y producción opt-in, limpia el bloqueo de una cuenta elegible. 30 intentos por IP y 5 por valor de token por minuto.
       parameters: [{ $ref: '#/components/parameters/CSRF' }]
       requestBody:
         required: true

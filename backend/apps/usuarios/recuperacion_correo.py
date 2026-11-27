@@ -10,7 +10,7 @@ from django.utils.crypto import constant_time_compare, salted_hmac
 from django.views.decorators.debug import sensitive_variables
 from rest_framework.exceptions import ValidationError
 
-from .configuracion_c2 import habilitado
+from .configuracion_c2 import bloqueos_activos
 from .correo import avisar_recuperacion_despues_commit, enviar_desafio_despues_commit
 from .credenciales import estado_coherente, limpiar_desafio
 from .models import DesafioCorreo, DesafioRecuperacionCorreo, RecuperacionCorreoEvento, SeguridadCredencial, Usuario
@@ -92,7 +92,7 @@ def confirmar(token, nueva_clave):
     if credencial is None:
         raise _invalido()
     acceso = None
-    if habilitado():
+    if bloqueos_activos():
         try:
             acceso = bloquear_estado_recuperacion(user)
         except ConflictoUsuario:

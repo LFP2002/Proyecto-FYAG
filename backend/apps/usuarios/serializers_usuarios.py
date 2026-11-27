@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Usuario, UsuarioEvento
+from .models import EventoAcceso, Usuario, UsuarioEvento
 
 
 class ContratoEstrictoSerializer(serializers.Serializer):
@@ -79,8 +79,8 @@ class UsuarioLecturaSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         result = super().to_representation(instance)
-        from .configuracion_c2 import habilitado
-        if habilitado():
+        from .configuracion_c2 import bloqueos_activos
+        if bloqueos_activos():
             from .acceso import estado_acceso
             state = estado_acceso(instance)
             result["estado_acceso"] = state
@@ -110,9 +110,14 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
                 and type(value) is (bool if key == "is_active" else str)}
 
     def get_datos_anteriores(self, obj):
+        recuperacion = getattr(obj, 'recuperacionacceso', None)
+        if recuperacion is not None:
+            return {'acceso_estado': recuperacion.estado_anterior}
         return self._publico(obj, "datos_anteriores")
 
     def get_datos_nuevos(self, obj):
+        if getattr(obj, 'recuperacionacceso', None) is not None:
+            return {'acceso_estado': 'NORMAL'}
         return self._publico(obj, "datos_nuevos")
 
     class Meta:
@@ -130,3 +135,12 @@ class RecuperacionHistorialSerializer(serializers.BaseSerializer):
             'motivo': obj.motivo, 'datos_anteriores': {}, 'datos_nuevos': obj.detalle_infraestructura(),
             'creado_en': serializers.DateTimeField().to_representation(obj.creado_en),
         }
+
+
+class AccesoHistorialSerializer(serializers.BaseSerializer):
+    def to_representation(self, obj):
+        anterior, nuevo = EventoAcceso.ESTADOS[obj.tipo]
+        return {'id': f'{obj.FUENTE}:{obj.pk}', 'usuario_objetivo': obj.usuario_id, 'tipo': obj.tipo,
+                'actor': None, 'actor_identidad_origen': 'SISTEMA', 'motivo': '',
+                'datos_anteriores': {'acceso_estado': anterior}, 'datos_nuevos': {'acceso_estado': nuevo},
+                'creado_en': serializers.DateTimeField().to_representation(obj.creado_en)}

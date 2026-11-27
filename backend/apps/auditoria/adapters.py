@@ -9,7 +9,7 @@ from apps.obras.models import (
     TurnoObraEvento, CostoObraEvento,
 )
 from apps.finanzas.models import FinanzasEvento
-from apps.usuarios.models import RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento, UsuarioEvento
+from apps.usuarios.models import EventoAcceso, RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento, UsuarioEvento
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,8 @@ class Fuente:
 
     @property
     def tipos(self):
+        if self.modelo is EventoAcceso:
+            return EventoAcceso.TIPOS_PUBLICOS
         if self.modelo is PresupuestoEvento:
             return ("CREACION", "CAMBIO_ESTADO")
         if issubclass(self.modelo, RecuperacionEvento):
@@ -30,6 +32,8 @@ class Fuente:
 
     def consulta(self, filtros, inicio, fin, corte):
         qs = self.modelo.objects.filter(creado_en__gte=inicio, creado_en__lt=fin, creado_en__lte=corte)
+        if self.modelo is EventoAcceso:
+            qs = qs.filter(tipo__in=self.tipos, actor_tipo='SISTEMA')
         if "actor" in filtros:
             if self.actor is None:
                 return qs.none()
@@ -59,6 +63,8 @@ class Fuente:
         return qs.filter(Q(creado_en__lt=fecha) | Q(creado_en=fecha, pk__lt=pk))
 
     def columnas(self):
+        if self.modelo is EventoAcceso:
+            return ['id', 'creado_en', 'usuario_id', 'tipo']
         if issubclass(self.modelo, RecuperacionEvento):
             columnas = ['id', 'creado_en', 'usuario_id', 'acceso_anterior']
             return columnas + (['operador', 'referencia', 'motivo'] if self.modelo is RecuperacionTIEvento else [])
@@ -71,6 +77,8 @@ class Fuente:
         relation = self.actor.removesuffix("_id")
         fields += ["actor_nombre_historico", "actor_username_historico",
                    f"{relation}__first_name", f"{relation}__last_name", f"{relation}__username"]
+        if self.modelo is UsuarioEvento:
+            fields.append('recuperacionacceso__estado_anterior')
         return fields
 
     def tipo(self, row):
@@ -98,4 +106,5 @@ FUENTES = {f.nombre: f for f in (
     Fuente("USUARIO_EVENTO", UsuarioEvento, "USUARIOS", "actor_id", (("USUARIO", "usuario_objetivo_id"),)),
     Fuente(RecuperacionCorreoEvento.FUENTE, RecuperacionCorreoEvento, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
     Fuente(RecuperacionTIEvento.FUENTE, RecuperacionTIEvento, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
+    Fuente(EventoAcceso.FUENTE, EventoAcceso, 'USUARIOS', None, (('USUARIO', 'usuario_id'),)),
 )}

@@ -10,7 +10,7 @@ from rest_framework.exceptions import ValidationError
 from django.utils import timezone
 
 from apps.finanzas.serializers_documentos import FinanzasEventoSerializer
-from apps.usuarios.models import RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento
+from apps.usuarios.models import EventoAcceso, RecuperacionCorreoEvento, RecuperacionEvento, RecuperacionTIEvento
 from apps.usuarios.serializers_usuarios import UsuarioEventoSerializer
 from .adapters import FUENTES
 
@@ -126,6 +126,8 @@ def snapshots(fuente, row, rol, recurso):
         return ({} if row["estado_anterior"] is None else {"estado": row["estado_anterior"]}, {"estado": row["estado_nuevo"]})
     obj = SimpleNamespace(**row)
     if fuente.nombre == "USUARIO_EVENTO":
+        if row['recuperacionacceso__estado_anterior']:
+            return {'acceso_estado': row['recuperacionacceso__estado_anterior']}, {'acceso_estado': 'NORMAL'}
         serial = UsuarioEventoSerializer()
         return serial.get_datos_anteriores(obj), serial.get_datos_nuevos(obj)
     if fuente.nombre == "FINANZAS_EVENTO":
@@ -151,7 +153,12 @@ def normalizar_evento(fuente, row, rol):
     recurso, pk = fuente.recurso(row)
     base = {"id": f"{fuente.nombre}:{row['id']}", "evento_id": row["id"], "fuente": fuente.nombre,
             "modulo": fuente.modulo, "recurso_tipo": recurso, "recurso_id": pk, "tipo": fuente.tipo(row),
-            "creado_en": row["creado_en"]}
+             "creado_en": row["creado_en"]}
+    if fuente.modelo is EventoAcceso:
+        anterior, nuevo = EventoAcceso.ESTADOS[row['tipo']]
+        return {**base, 'actor': None, 'actor_etiqueta': 'Sistema', 'actor_username': None,
+                'actor_identidad_origen': 'SISTEMA', 'motivo': '',
+                'datos_anteriores': {'acceso_estado': anterior}, 'datos_nuevos': {'acceso_estado': nuevo}}
     if issubclass(fuente.modelo, RecuperacionEvento):
         registro = fuente.modelo(**row)
         anterior = registro.acceso_publico(registro.acceso_anterior)
@@ -189,7 +196,7 @@ class EventoPublicoSerializer(serializers.Serializer):
     actor = serializers.IntegerField(allow_null=True)
     actor_etiqueta = serializers.CharField(allow_null=True)
     actor_username = serializers.CharField(allow_null=True)
-    actor_identidad_origen = serializers.ChoiceField(choices=['HISTORICA', 'ACTUAL', RecuperacionCorreoEvento.AUTORIDAD, RecuperacionTIEvento.AUTORIDAD])
+    actor_identidad_origen = serializers.ChoiceField(choices=['HISTORICA', 'ACTUAL', 'SISTEMA', RecuperacionCorreoEvento.AUTORIDAD, RecuperacionTIEvento.AUTORIDAD])
     motivo = serializers.CharField(allow_blank=True)
     creado_en = FechaSantiago()
     datos_anteriores = serializers.JSONField()

@@ -70,6 +70,19 @@ test('Auditoría TI: filtro y detalle de recuperación por titularidad del corre
   assert.match(text(r.toJSON()),/Fuente: Recuperaciones por correo/);
  }finally{await ui.close();}
 });
+test('Auditoría TI: vencimiento del sistema y desbloqueo administrativo',async()=>{
+ const common={...base,modulo:'USUARIOS',recurso_tipo:'USUARIO',recurso_id:27,datos_anteriores:{acceso_estado:'BLOQUEO_TEMPORAL'},datos_nuevos:{acceso_estado:'NORMAL'}};
+ const expiration={...common,id:'EVENTO_ACCESO:8',fuente:'EVENTO_ACCESO',tipo:'EXPIRACION',actor:null,actor_etiqueta:'Sistema',actor_username:null,actor_identidad_origen:'SISTEMA',motivo:''};
+ const reset={...common,id:'USUARIO_EVENTO:9',evento_id:9,fuente:'USUARIO_EVENTO',tipo:'REEMISION',actor_etiqueta:'TI QA',actor_username:'ti'};
+ const ui=await mount({role:'ADMINISTRADOR_TI',rows:[expiration,reset]}),r=ui.renderer;
+ try{
+  await openDetail(r,'Ver detalle de Vencimiento del bloqueo Usuario #27');
+  assert.match(text(r.toJSON()),/AutoridadSistema.*Estado de acceso anteriorBloqueo temporal.*Estado de acceso nuevoNormal/);
+  await click(r,'Volver al historial');
+  await openDetail(r,'Ver detalle de Reemisión de credencial Usuario #27');
+  assert.match(text(r.toJSON()),/Estado de accesoBloqueo temporalNormal/);
+ }finally{await ui.close();}
+});
 test('Auditoría AF: filtros reales, detalle de reversión y retorno a consulta',async()=>{
  const ui=await mount(),r=ui.renderer,body=()=>text(r.toJSON());
  try{

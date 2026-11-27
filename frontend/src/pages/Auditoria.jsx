@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui';
 import { useApi } from '../integrations/useApi.js';
 import { AUDIT_MODULES as ROLES, AUDIT_SOURCES as SOURCES, auditSources, validAuditRange,
-  ACCESS_STATE_LABELS, RECOVERY_SOURCE, RECOVERY_AUTHORITY, RECOVERY_TYPE, INFRA_SOURCE, INFRA_AUTHORITY, INFRA_TYPE, validInfraDetails } from '../integrations/audit.js';
+  ACCESS_STATE_LABELS, ACCESS_SOURCE, ACCESS_EVENT_LABELS, validAccessSnapshot, RECOVERY_SOURCE, RECOVERY_AUTHORITY, RECOVERY_TYPE, INFRA_SOURCE, INFRA_AUTHORITY, INFRA_TYPE, validInfraDetails } from '../integrations/audit.js';
 
 import { formatCompactCLP, formatCivilDate } from '../utils/format.js';
 
@@ -13,9 +13,10 @@ const FIELDS = {tecnico:'Técnico',tecnico_responsable:'Técnico responsable',ca
 const MONEY = new Set(['monto','monto_neto','monto_impuesto','monto_total','costo_hora_neto','costo_unitario_neto']);
 const ENUM = new Set(['estado','estado_revision','tipo','tipo_documento','rol','role','modo_cierre','origen_registro','materiales_estado','otros_estado','medio']);
 const RECOVERY_LABELS = {[RECOVERY_SOURCE]:'Recuperaciones por correo', [RECOVERY_TYPE]:'Recuperación por correo', [INFRA_SOURCE]:'Recuperaciones por infraestructura', [INFRA_TYPE]:'Recuperación TI por infraestructura', USUARIO:'Usuario'};
-const pretty = v => (Object.hasOwn(LABELS,v)?LABELS[v]:null) || (Object.hasOwn(RECOVERY_LABELS,v)?RECOVERY_LABELS[v]:null) || (typeof v==='string'&&v ? v.charAt(0).toUpperCase()+v.slice(1).toLowerCase().replaceAll('_',' ') : '—');
+const pretty = v => v===ACCESS_SOURCE?'Seguridad de acceso':v==='ACCESO_ESTADO'?'Estado de acceso':(Object.hasOwn(ACCESS_EVENT_LABELS,v)?ACCESS_EVENT_LABELS[v]:null) || (Object.hasOwn(LABELS,v)?LABELS[v]:null) || (Object.hasOwn(RECOVERY_LABELS,v)?RECOVERY_LABELS[v]:null) || (typeof v==='string'&&v ? v.charAt(0).toUpperCase()+v.slice(1).toLowerCase().replaceAll('_',' ') : '—');
 const stamp = v => typeof v==='string'&&Number.isFinite(Date.parse(v)) ? new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(v)).replaceAll('-','/') : v;
 function display(key,value){
+ if(key==='acceso_estado'&&Object.hasOwn(ACCESS_STATE_LABELS,value))return ACCESS_STATE_LABELS[value];
  if(value===null)return 'Sin valor';
  if(value==='')return 'Vacío';
  if(typeof value==='boolean')return value?'Sí':'No';
@@ -36,6 +37,7 @@ const TYPES = {
  USUARIO_EVENTO:['CREACION','EDICION','ACTIVACION','DESACTIVACION','CAMBIO_ROL','ESTABLECER_CLAVE','CAMBIO_CLAVE_PROPIA','REEMISION','CAMBIO_INICIAL'],
  [RECOVERY_SOURCE]:[RECOVERY_TYPE],
  [INFRA_SOURCE]:[INFRA_TYPE],
+ [ACCESS_SOURCE]:Object.keys(ACCESS_EVENT_LABELS),
 };
 function Icon({name}){
  const icons={filter:'M6 11.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5m-2-4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-4a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5',back:'M15 8a.5.5 0 0 0-.5-.5H2.707l3.647-3.646a.5.5 0 1 0-.708-.708l-4.5 4.5a.5.5 0 0 0 0 .708l4.5 4.5a.5.5 0 1 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8',refresh:'M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2zM8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466',chevron:'M6.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L12.293 8 6.646 2.354a.5.5 0 0 1 0-.708'};
@@ -44,6 +46,7 @@ function Icon({name}){
 function ActorIdentity({event,detail=false}){
  if(event.actor_identidad_origen===RECOVERY_AUTHORITY) return <strong>Titularidad del correo</strong>;
  if(event.actor_identidad_origen===INFRA_AUTHORITY) return <strong>Operador de infraestructura</strong>;
+ if(event.actor_identidad_origen==='SISTEMA') return <strong>Sistema</strong>;
  const label=event.actor_etiqueta||'Usuario #'+event.actor;
  const username=event.actor_username;
  return <div className="audit-actor"><strong>{label}</strong>{username&&username!==label&&<span className="audit-secondary">{username}</span>}{event.actor_identidad_origen==='ACTUAL'&&<small className="audit-secondary">Identidad actual</small>}{detail&&<span className="audit-secondary">Usuario #{event.actor}{event.actor_identidad_origen==='HISTORICA'?' · Identidad registrada en el evento':''}</span>}</div>;
@@ -82,7 +85,7 @@ function EventDetail({event,onBack,finance=false,supervisor=false}){
  const heading=useRef(null);
  useEffect(()=>{heading.current?.focus();},[]);
   const infra=event.fuente===INFRA_SOURCE;
-  const recovery=event.fuente===RECOVERY_SOURCE || infra;
+  const recovery=event.fuente===RECOVERY_SOURCE || infra || event.fuente===ACCESS_SOURCE;
   const keys=[...new Set([...Object.keys(event.datos_anteriores),...Object.keys(event.datos_nuevos)])];
   if(recovery) return <div className="audit-detail">
     <button type="button" className="audit-back" onClick={onBack}><Icon name="back"/>Volver al historial</button>
@@ -93,6 +96,7 @@ function EventDetail({event,onBack,finance=false,supervisor=false}){
       <div><dt>Autoridad</dt><dd><ActorIdentity event={event}/></dd></div>
       {infra && <><div><dt>Operador</dt><dd>{event.datos_nuevos.operador}</dd></div><div><dt>Referencia de autorización</dt><dd>{event.datos_nuevos.referencia}</dd></div><div><dt>Motivo</dt><dd>{event.motivo}</dd></div></>}
       {event.datos_anteriores.acceso_estado && <div><dt>Estado de acceso anterior</dt><dd>{ACCESS_STATE_LABELS[event.datos_anteriores.acceso_estado]}</dd></div>}
+      {event.datos_nuevos.acceso_estado && <div><dt>Estado de acceso nuevo</dt><dd>{ACCESS_STATE_LABELS[event.datos_nuevos.acceso_estado]}</dd></div>}
     </dl></section>
   </div>;
  const visibleKeys=supervisor&&!showAll?keys.filter(k=>changedField(event,k)):keys;
@@ -116,7 +120,10 @@ function validEvent(event) {
       || (event.actor_username !== null && typeof event.actor_username !== 'string')
       || typeof event.motivo !== 'string' || typeof event.creado_en !== 'string'
       || !event.datos_anteriores || !event.datos_nuevos || typeof event.datos_anteriores !== 'object' || typeof event.datos_nuevos !== 'object') throw new Error('Evento de auditoría inválido.');
-  if (recovery ? (event.actor !== null || event.actor_username !== null || event.actor_identidad_origen !== (infra ? INFRA_AUTHORITY : RECOVERY_AUTHORITY)
+  if (event.fuente===ACCESS_SOURCE) {
+    if (event.actor !== null || event.actor_username !== null || event.actor_identidad_origen !== 'SISTEMA' || event.modulo !== 'USUARIOS' || event.recurso_tipo !== 'USUARIO'
+      || !Object.hasOwn(ACCESS_EVENT_LABELS,event.tipo) || !validAccessSnapshot(event.datos_anteriores) || !validAccessSnapshot(event.datos_nuevos) || event.motivo !== '') throw new Error('Evento de auditoría inválido.');
+  } else if (recovery ? (event.actor !== null || event.actor_username !== null || event.actor_identidad_origen !== (infra ? INFRA_AUTHORITY : RECOVERY_AUTHORITY)
       || event.tipo !== (infra ? INFRA_TYPE : RECOVERY_TYPE) || event.modulo !== 'USUARIOS' || event.recurso_tipo !== 'USUARIO'
       || Object.keys(event.datos_anteriores).some(key => key !== 'acceso_estado' || !Object.hasOwn(ACCESS_STATE_LABELS, event.datos_anteriores[key]))
       || (infra ? !validInfraDetails(event.datos_nuevos) || !event.motivo.trim() : Object.keys(event.datos_nuevos).length !== 0))

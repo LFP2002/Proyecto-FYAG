@@ -1,0 +1,15 @@
+{
+  "info": {
+    "name": "FYAG SPEC-027 — Bloqueos (solo laboratorio aislado)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Uso manual con cuentas sintéticas de un entorno aislado. No ejecutar contra cuentas institucionales. Obtener CSRF antes de los POST y mantener cookies. El quinto fallo da el mismo 401; Redis puede devolver 429/503 sin contar fallos. No se guardan credenciales ni tokens en esta colección."
+  },
+  "item": [
+    {"name":"CSRF", "request":{"method":"GET", "url":"{{baseUrl}}/api/auth/csrf/"}},
+    {"name":"Login genérico: 401 / 429 / 503", "request":{"method":"POST", "url":"{{baseUrl}}/api/auth/login/", "header":[{"key":"Content-Type","value":"application/json"},{"key":"X-CSRFToken","value":"{{csrfToken}}"}], "body":{"mode":"raw","raw":"{\"email\":\"{{correoSintetico}}\",\"password\":\"{{claveSintetica}}\"}"}}},
+    {"name":"Refresh: presupuesto compartido con primer cambio", "request":{"method":"POST", "url":"{{baseUrl}}/api/auth/refresh/", "header":[{"key":"X-CSRFToken","value":"{{csrfToken}}"}]}},
+    {"name":"Primer cambio después de reset TI", "request":{"method":"POST", "url":"{{baseUrl}}/api/auth/primer-cambio-clave/", "header":[{"key":"Content-Type","value":"application/json"},{"key":"X-CSRFToken","value":"{{csrfToken}}"}], "body":{"mode":"raw","raw":"{\"desafio\":\"{{desafioTemporal}}\",\"nueva_clave\":\"{{nuevaClaveSintetica}}\"}"}}},
+    {"name":"Auditoría TI: bloqueos y vencimientos", "request":{"method":"GET", "url":"{{baseUrl}}/api/auditoria/eventos/?fuente=EVENTO_ACCESO&recurso_tipo=USUARIO&recurso_id={{usuarioId}}", "header":[{"key":"Authorization","value":"Bearer {{tiAccessToken}}"}]}},
+    {"name":"Historial TI de la cuenta objetivo", "request":{"method":"GET", "url":"{{baseUrl}}/api/usuarios/{{usuarioId}}/historial/", "header":[{"key":"Authorization","value":"Bearer {{tiAccessToken}}"}]}}
+  ]
+}

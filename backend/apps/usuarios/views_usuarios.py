@@ -12,12 +12,12 @@ from django.db.models.functions import Concat
 from django.views.decorators.debug import sensitive_post_parameters, sensitive_variables
 
 from . import services_usuarios as services
-from .models import RecuperacionCorreoEvento, RecuperacionTIEvento, Usuario
+from .models import EventoAcceso, RecuperacionCorreoEvento, RecuperacionTIEvento, Usuario
 from .permissions import EsAdministradorTIActivo
 from .serializers_usuarios import (
     CambiarClavePropiaSerializer, CrearUsuarioSerializer, EstablecerClaveSerializer,
     MotivoUsuarioSerializer, PerfilUsuarioSerializer, RolUsuarioSerializer,
-    RecuperacionHistorialSerializer, UsuarioEventoSerializer, UsuarioLecturaSerializer,
+    AccesoHistorialSerializer, RecuperacionHistorialSerializer, UsuarioEventoSerializer, UsuarioLecturaSerializer,
 )
 from .services import delete_refresh_cookie, sin_cache
 
@@ -149,15 +149,16 @@ class UsuarioViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     def historial(self, request, pk=None):
         target = self.get_object()
         validar_query(request.query_params, set())
-        fuentes = (target.eventos_administrativos.all(), RecuperacionCorreoEvento.objects.filter(usuario=target),
-                   RecuperacionTIEvento.objects.filter(usuario=target))
+        fuentes = (target.eventos_administrativos.select_related('recuperacionacceso'), RecuperacionCorreoEvento.objects.filter(usuario=target),
+                   RecuperacionTIEvento.objects.filter(usuario=target),
+                   target.eventos_acceso.filter(tipo__in=EventoAcceso.TIPOS_PUBLICOS, actor_tipo='SISTEMA'))
         # Una única paginación SQL; el discriminador solo desempata IDs de distintas fuentes.
         refs, *otros = [fuente.order_by().annotate(origen=Value(i)).values_list('creado_en', 'id', 'origen')
                         for i, fuente in enumerate(fuentes)]
         page = self.paginate_queryset(refs.union(*otros, all=True).order_by('creado_en', 'id', 'origen'))
         filas = [fuente.in_bulk([pk for _, pk, origen in page if origen == i]) for i, fuente in enumerate(fuentes)]
-        return self.get_paginated_response([(RecuperacionHistorialSerializer if origen else UsuarioEventoSerializer)(
-            filas[origen][pk]).data for _, pk, origen in page])
+        serializadores = (UsuarioEventoSerializer, RecuperacionHistorialSerializer, RecuperacionHistorialSerializer, AccesoHistorialSerializer)
+        return self.get_paginated_response([serializadores[origen](filas[origen][pk]).data for _, pk, origen in page])
 
 
 class CambiarClavePropiaView(APIView):

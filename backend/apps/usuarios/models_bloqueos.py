@@ -62,6 +62,10 @@ class EventosAccesoQuerySet(models.QuerySet):
 class EventoAcceso(models.Model):
     """Sin JSON, texto libre, IP, hashes, contraseñas o tokens. Separado de TI."""
     objects = EventosAccesoQuerySet.as_manager()
+    FUENTE = 'EVENTO_ACCESO'
+    TIPOS_PUBLICOS = ('BLOQUEO_TEMPORAL', 'BLOQUEO_TI', 'EXPIRACION')
+    ESTADOS = {'BLOQUEO_TEMPORAL': ('NORMAL', 'BLOQUEO_TEMPORAL'),
+               'BLOQUEO_TI': ('NORMAL', 'REQUIERE_TI'), 'EXPIRACION': ('BLOQUEO_TEMPORAL', 'NORMAL')}
 
     class Tipo(models.TextChoices):
         BLOQUEO_TEMPORAL = "BLOQUEO_TEMPORAL", "Ciclo temporal (cinco fallos)"

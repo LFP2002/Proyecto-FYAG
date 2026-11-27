@@ -27,8 +27,8 @@ class CredencialesModelBackend(ModelBackend):
         identifier = username if username is not None else kwargs.get(User.USERNAME_FIELD)
         if identifier is None or password is None:
             return None
-        from .configuracion_c2 import habilitado
-        if habilitado():
+        from .configuracion_c2 import bloqueos_activos
+        if bloqueos_activos():
             from .autenticacion_c2 import verificar_acceso
             return verificar_acceso(identifier, password, request)
         try:
