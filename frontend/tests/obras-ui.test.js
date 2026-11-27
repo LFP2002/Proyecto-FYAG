@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { createServer } from 'vite';
+import { waitForModule } from './helpers/wait-for-module.js';
 import { ApiError } from '../src/auth/client.js';
 import { AF, G, S, T } from '../src/obras/domain.js';
 import { obrasBackend } from './helpers/obras-backend.js';
@@ -315,6 +316,7 @@ test('logout durante escritura aborta el scope y descarta una respuesta tardía 
   const client = { getSnapshot: () => session, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); }, restore: async () => {}, request };
   let renderer;
   await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, React.createElement(AppProvider, null, React.createElement(App)))); await flush(); });
+   await waitForModule(renderer);
   try {
     await click(renderer, 'Ver obra'); await click(renderer, 'Cambiar responsable'); await input(renderer, 'tecnico_responsable', '8'); await input(renderer, 'motivo', 'Relevo');
     let pending;
@@ -490,6 +492,7 @@ test('T: navegación propia, consulta global y cierre desde turno actual',async(
  let renderer;
  try{
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(AppProvider,null,React.createElement(App))));await flush();});
+   await waitForModule(renderer);
   assert.deepEqual(renderer.root.findByProps({id:'fyag-modules-nav'}).findAllByType('button').map(text),['Mis obras','Mis turnos','Solicitudes','Mermas','Chat interno']);
   assert.equal(renderer.root.findAllByProps({className:'tec-work'}).length,1);
   assert.equal(renderer.root.findAllByType('table').length,0);
@@ -497,6 +500,7 @@ test('T: navegación propia, consulta global y cierre desde turno actual',async(
   await submit(renderer);
   assert.equal(new URL(b.calls.at(-1).path,'http://localhost').searchParams.get('buscar'),'Cliente operativo');
   await click(renderer,'Mis turnos');
+   await waitForModule(renderer);
   assert.ok(b.calls.some(c=>c.path==='/api/obras/mis-turnos/?page=1'));
   assert.match(text(renderer.root),/Turno actual.*OB-000001/);
   assert.equal(buttons(renderer,'Finalizar turno').length,1);

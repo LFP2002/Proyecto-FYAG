@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
 import { createServer } from 'vite';
+import { waitForModule } from './helpers/wait-for-module.js';
 import { ApiError } from '../src/auth/client.js';
 import { OTHER_UNIT } from '../src/comercial/units.js';
 import { PRE_E } from '../src/data/constants.js';
@@ -344,13 +345,16 @@ test('cambio de usuario/rol y logout desmontan Comercial y abortan respuestas ta
   let renderer;
   await act(async () => { renderer = Renderer.create(React.createElement(AuthProvider, { client }, React.createElement(AppProvider, null, React.createElement(App)))); });
   try {
+    await waitForModule(renderer);
     assert.equal(calls.length, 2);
     await act(async () => { session = { status: 'authenticated', user: { id: 2, username: 'Supervisor', role: 'SUPERVISOR_OBRAS' } }; listeners.forEach((fn) => fn()); });
+    await waitForModule(renderer);
     assert.ok(calls.slice(0, 2).every((c) => c.options.signal.aborted));
     assert.equal(calls.at(-1).path, '/api/obras/?page=1');
     await act(async () => { pending.splice(0).forEach((resolve) => resolve()); await flush(); });
     assert.doesNotMatch(text(renderer.root), /Nuevo presupuesto/); assert.equal(calls.length, 3);
     await act(async () => { session = { status: 'authenticated', user: { id: 3, username: 'Técnico', role: 'TECNICO' } }; listeners.forEach((fn) => fn()); });
+    await waitForModule(renderer);
     assert.equal(calls.length, 4); assert.equal(calls.at(-1).path, '/api/obras/mis-obras/?page=1');
     await act(async () => { session = { status: 'anonymous', user: null }; listeners.forEach((fn) => fn()); });
     assert.match(text(renderer.root), /Correo electrónico/); assert.doesNotMatch(text(renderer.root), /Supervisor|Nuevo presupuesto/);

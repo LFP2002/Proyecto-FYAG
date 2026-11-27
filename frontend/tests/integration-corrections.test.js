@@ -60,6 +60,19 @@ test('Auditoría: matriz coincide con permissions.POR_ROL, Supervisor no hereda 
         assert.equal(query.get('tipo'),'DOCUMENTO_REVERTIDO');
         assert.ok(!query.has('fuente')||query.get('fuente')==='FINANZAS_EVENTO');
         assert.ok(!query.has('modulo')||query.get('modulo')==='FINANZAS');
+      }else if(role==='SUPERVISOR_OBRAS'){
+        assert.equal(root.findAllByType('label').some(node=>node.children[0]==='Fuente'||node.children[0]==='Módulo'),false);
+        assert.deepEqual(control(root,'Recurso').findAllByType('option').slice(1).map(node=>node.props.value),['OBRA','PARTICIPANTE','TURNO','GASTO','CONTROL_COSTOS','CORTESIA']);
+        for(const [resource,event] of [['OBRA','CREACION'],['PARTICIPANTE','ASIGNACION'],['TURNO','INICIO'],['GASTO','ALTA'],['CONTROL_COSTOS','VALIDACION']]){
+          await change(root,'Recurso',resource);
+          const types=control(root,'Tipo de evento').findAllByType('option').map(node=>node.props.value);
+          assert.ok(types.includes(event));assert.ok(!types.includes('DOCUMENTO_REVERTIDO'));
+          await change(root,'Tipo de evento',event);await submit(root,'Filtrar eventos de obras');
+          const query=new URL(calls.at(-1),'http://localhost').searchParams;
+          assert.equal(query.get('recurso_tipo'),resource);assert.equal(query.get('tipo'),event);
+          assert.ok(!query.has('modulo')||query.get('modulo')==='OBRAS');
+          assert.ok(!query.has('fuente')||sources.includes(query.get('fuente')));
+        }
       }else assert.deepEqual(control(root,'Fuente').findAllByType('option').slice(1).map(node=>node.props.value),sources);
     }finally{await ui.close();}
   }
