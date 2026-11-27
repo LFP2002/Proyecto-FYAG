@@ -395,3 +395,33 @@ test('correo propio confirmado invalida sesión local sin refresh y comunica nue
   assert.equal(calls.length, before, 'no se utiliza access ni refresh revocados');
   assert.equal(client.sessionInvalidatedByEmailChange(), false);
 });
+
+test('aprobación comercial conserva errores públicos 400 y 409 solo en su ruta', async () => {
+  const path = '/api/presupuestos/12/aprobar-finanzas/';
+  let status = 400;
+  const payload = () => status === 400
+    ? {version_comercial_esperada:['Revise la versión comercial.'], monto_neto:['El monto neto debe ser positivo.'], interno:['No público']}
+    : {code:'version_comercial_obsoleta', detail:'Los datos comerciales cambiaron.'};
+  const {client,calls} = backend({
+    [path]: () => json(payload(), status),
+    '/api/presupuestos/12/': () => json(payload(), status),
+  });
+  await client.login(credentials);
+  await assert.rejects(client.request(path,{method:'POST',body:{}}), error => {
+    assert.equal(error.status,400);
+    assert.deepEqual(error.fieldErrors,{version_comercial_esperada:['Revise la versión comercial.'],monto_neto:['El monto neto debe ser positivo.']});
+    return true;
+  });
+  await assert.rejects(client.request('/api/presupuestos/12/'), error => {
+    assert.deepEqual(error.fieldErrors,{}); return true;
+  });
+  status = 409;
+  await assert.rejects(client.request(path,{method:'POST',body:{}}), error => {
+    assert.equal(error.status,409); assert.equal(error.code,'version_comercial_obsoleta');
+    assert.deepEqual(error.fieldErrors,{detail:['Los datos comerciales cambiaron.']}); return true;
+  });
+  await assert.rejects(client.request('/api/presupuestos/12/'), error => {
+    assert.equal(error.code,null); return true;
+  });
+  assert.equal(calls.filter(c=>c.path===path).length,2);
+});

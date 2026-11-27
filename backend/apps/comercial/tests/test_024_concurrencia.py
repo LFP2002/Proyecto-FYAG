@@ -9,7 +9,9 @@ from django.test import TransactionTestCase
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 
 from apps.comercial import services_presupuestos as servicios
-from apps.comercial.exceptions import EstadoIncompatible, RecursoNoEncontrado
+from apps.comercial.exceptions import EstadoIncompatible, RecursoNoEncontrado, VersionComercialObsoleta
+from apps.comercial.version_comercial import version_comercial
+from apps.inventario.services import crear_articulo
 from apps.comercial.models import Presupuesto
 from apps.usuarios.models import Usuario
 from . import test_presupuesto_concurrencia as carreras
@@ -120,3 +122,41 @@ class Concurrencia024(ServiciosPresupuestoMixin, TransactionTestCase):
                 continuar.set()
             self.assertIsInstance(futuro.result(timeout=15), AuthenticationFailed)
         self.assertEqual(p.items.count(), 1); self.assertEqual(p.eventos.count(), 1)
+
+    def _presupuesto_material_para_carrera(self):
+        bodega = Usuario.objects.create_user(username='bodega_precio', email='bodega_precio@qa.test', rol='BODEGUERO')
+        otro = Usuario.objects.create_user(username='af_precio', email='af_precio@qa.test', rol='ADMINISTRATIVO_FINANZAS')
+        articulo = crear_articulo({'codigo':'qa-precio', 'nombre':'Material QA', 'unidad':'m', 'activo':True}, bodega)
+        p = servicios.crear_presupuesto(cliente=self.cliente, descripcion='Cotización QA', usuario=self.supervisor)
+        item = servicios.crear_item(p, {'articulo':articulo.pk, 'cantidad':Decimal('2.500'), 'orden':1}, self.supervisor)
+        p = servicios.enviar_finanzas(p, self.supervisor)
+        item = servicios.fijar_precio_comercial(p, item, Decimal('500.00'), self.usuario)
+        return p, item, otro, version_comercial(p, p.items.all())
+
+    def test_fijacion_precio_antes_de_aprobacion_rechaza_huella_obsoleta(self):
+        p, item, otro, version = self._presupuesto_material_para_carrera()
+        uno, dos = self.ejecutar_en_orden(
+            lambda: servicios.fijar_precio_comercial(p, item, Decimal('900.00'), self.usuario),
+            lambda: servicios.aprobar_finanzas(p, otro, version_comercial_esperada=version), p)
+        self.assertEqual(uno.precio_unitario, Decimal('900.00'))
+        self.assertIsInstance(dos, VersionComercialObsoleta)
+        p.refresh_from_db()
+        self.assertEqual(p.estado, 'PENDIENTE_FINANZAS')
+        self.assertEqual(p.eventos.count(), 2)
+        self.assertEqual(p.eventos_precio.count(), 2)
+        actual = version_comercial(p, p.items.all())
+        self.assertEqual(servicios.aprobar_finanzas(p, otro, version_comercial_esperada=actual).estado, 'APROBADO_FINANZAS')
+
+    def test_aprobacion_antes_de_fijacion_congela_precio(self):
+        p, item, otro, version = self._presupuesto_material_para_carrera()
+        uno, dos = self.ejecutar_en_orden(
+            lambda: servicios.aprobar_finanzas(p, otro, version_comercial_esperada=version),
+            lambda: servicios.fijar_precio_comercial(p, item, Decimal('900.00'), self.usuario), p)
+        self.assertEqual(uno.estado, 'APROBADO_FINANZAS')
+        self.assertIsInstance(dos, EstadoIncompatible)
+        p.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(p.estado, 'APROBADO_FINANZAS')
+        self.assertEqual(item.precio_unitario, Decimal('500.00'))
+        self.assertEqual(p.eventos.count(), 3)
+        self.assertEqual(p.eventos_precio.count(), 1)

@@ -1253,7 +1253,7 @@
         "description": "404 inexistente o ajeno al Supervisor, indistinguibles; antes de body/ítem"
       },
       "Estado": {
-        "description": "409 estado_incompatible o presupuesto_utilizado. Transiciones no idempotentes; repetición no añade evento"
+        "description": "409 estado_incompatible, presupuesto_utilizado o version_comercial_obsoleta (aprobación con huella desactualizada). Transiciones no idempotentes; repetición no añade evento"
       },
       "Datos": {
         "description": "400 campos inválidos/desconocidos/administrados, cliente no elegible, motivo, Decimal, orden o salida inválida; sin SQL/datos ajenos"

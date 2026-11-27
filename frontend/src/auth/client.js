@@ -96,6 +96,12 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
            const revisionObra = cierreObra || /^\/api\/obras\/\d+\/costos\/validar\/$/.test(path);
            if (inicioObra && response.status === 400) allowed.add('materiales');
            if (revisionObra) allowed.add('version_costos_esperada');
+           const aprobarPresupuesto = /^\/api\/presupuestos\/\d+\/aprobar-finanzas\/$/.test(path);
+           if (aprobarPresupuesto && response.status === 400) {
+             allowed.add('version_comercial_esperada');
+             allowed.add('monto_neto');
+           }
+           if (aprobarPresupuesto && response.status === 409 && data?.code === 'version_comercial_obsoleta') code = data.code;
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
             for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]', 'buscar', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'justificacion', 'costo_unitario_neto', 'fecha_gasto', 'fecha_devolucion']) allowed.add(field);
           }
