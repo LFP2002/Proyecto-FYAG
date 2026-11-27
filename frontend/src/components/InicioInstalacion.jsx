@@ -7,13 +7,29 @@ const loginOptions = { restoreSession: false };
 const createdOptions = { ...loginOptions, setupCreated: true };
 const replaceDocumentPath = (url) => globalThis.history.replaceState(null, '', url);
 
-function preference(key, fallback) {
-  try { return globalThis.localStorage?.getItem(key) ?? fallback; }
-  catch { return fallback; }
+function initialDark() {
+  const fallback = globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  try {
+    const saved = globalThis.localStorage?.getItem('fyag.theme');
+    return saved === 'dark' ? true : saved === 'light' ? false : fallback;
+  } catch { return fallback; }
 }
 
-function savePreference(key, value) {
-  try { globalThis.localStorage?.setItem(key, value); }
+function initialFont() {
+  try {
+    const saved = globalThis.localStorage?.getItem('fyag.font-level') ?? '0';
+    return /^[0-4]$/.test(saved) ? String(Math.min(Number(saved), 3)) : '0';
+  } catch { return '0'; }
+}
+
+function saveTheme(dark) {
+  try { globalThis.localStorage?.setItem('fyag.theme', dark ? 'dark' : 'light'); }
+  catch { /* Preferencia opcional. */ }
+}
+
+function saveFont(level) {
+  if (!/^[0-3]$/.test(level)) return;
+  try { globalThis.localStorage?.setItem('fyag.font-level', level); }
   catch { /* Preferencia opcional. */ }
 }
 
@@ -22,12 +38,8 @@ export default function InicioInstalacion({ children }) {
   const [phase, setPhase] = useState('loading');
   const [attempt, setAttempt] = useState(0);
   const request = useRef(null);
-  const [dark, setDark] = useState(() => preference('fyag.theme',
-    globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') === 'dark');
-  const [font, setFont] = useState(() => {
-    const saved = preference('fyag.font-level', '0');
-    return /^[0-4]$/.test(saved) ? String(Math.min(Number(saved), 3)) : '0';
-  });
+  const [dark, setDark] = useState(initialDark);
+  const [font, setFont] = useState(initialFont);
 
   useEffect(() => {
     let active = true;
@@ -81,14 +93,16 @@ export default function InicioInstalacion({ children }) {
     }} />}
     <div className="d-flex flex-wrap align-items-end gap-2 mt-3">
       <button type="button" className="btn btn-outline-secondary" aria-pressed={dark} onClick={() => {
-        savePreference('fyag.theme', dark ? 'light' : 'dark');
+        saveTheme(!dark);
         setDark(!dark);
       }}>Tema oscuro</button>
       <div>
         <label htmlFor="setup-font">Tamaño de letra</label>
         <select id="setup-font" className="form-select" value={font} onChange={event => {
-          savePreference('fyag.font-level', event.target.value);
-          setFont(event.target.value);
+          const level = event.target.value;
+          if (!/^[0-3]$/.test(level)) return;
+          saveFont(level);
+          setFont(level);
         }}>
           {['100%', '112,5%', '125%', '137,5%'].map((label, i) => <option key={i} value={i}>{label}</option>)}
         </select>

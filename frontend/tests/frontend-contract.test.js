@@ -29,6 +29,23 @@ function fontPreferenceOnly(text) {
   return text;
 }
 
+// El asistente inicial solo persiste las mismas dos preferencias no sensibles.
+// Comprobar también la validación del valor, sin excluir el archivo del análisis.
+function setupPreferenceOnly(text) {
+  const accesses = [
+    "globalThis.localStorage?.getItem('fyag.theme')",
+    "globalThis.localStorage?.getItem('fyag.font-level')",
+    "globalThis.localStorage?.setItem('fyag.theme', dark ? 'dark' : 'light')",
+    "globalThis.localStorage?.setItem('fyag.font-level', level)",
+  ];
+  assert.match(text, /function saveFont\(level\) \{\s*if \(!\/\^\[0-3\]\$\/\.test\(level\)\) return;/);
+  for (const access of accesses) {
+    assert.equal(text.split(access).length, 2, 'Acceso autorizado a preferencia del asistente');
+    text = text.replace(access, '');
+  }
+  return text;
+}
+
 async function allSource(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   return (await Promise.all(entries.map(async (entry) => {
@@ -36,8 +53,9 @@ async function allSource(directory) {
     if (entry.isDirectory()) return allSource(path);
     if (!/\.[jt]sx?$/.test(entry.name)) return '';
     const text = await readFile(path, 'utf8');
-    return path === join(root, 'components', 'layouts', 'DesktopLayout.jsx')
-      ? fontPreferenceOnly(text) : text;
+    if (path === join(root, 'components', 'layouts', 'DesktopLayout.jsx')) return fontPreferenceOnly(text);
+    if (path === join(root, 'components', 'InicioInstalacion.jsx')) return setupPreferenceOnly(text);
+    return text;
   }))).join('\n');
 }
 
@@ -80,6 +98,30 @@ test('excepción de almacenamiento visual es estricta y no permite tokens', asyn
   const unsafeWrite = layout.replace(allowedWrite, 'globalThis.localStorage?.setItem(FONT_KEY,accessToken)');
   assert.notEqual(unsafeWrite, layout, 'La mutación debe afectar la escritura en localStorage');
   assert.throws(() => fontPreferenceOnly(unsafeWrite));
+});
+
+test('el asistente inicial solo guarda preferencias visuales y rechaza persistencia de tokens', async () => {
+  const setup = await source('components/InicioInstalacion.jsx');
+  const forbidden = /localStorage|sessionStorage|indexedDB|document\.cookie/;
+  assert.doesNotMatch(setupPreferenceOnly(setup), forbidden);
+  for (const unsafe of [
+    "localStorage.setItem('token', accessToken);",
+    "sessionStorage.setItem('token', accessToken);",
+    "indexedDB.open('tokens');",
+    "document.cookie = token;",
+  ]) assert.match(setupPreferenceOnly(setup + '\n' + unsafe), forbidden);
+  const themeWrite = "globalThis.localStorage?.setItem('fyag.theme', dark ? 'dark' : 'light')";
+  const fontWrite = "globalThis.localStorage?.setItem('fyag.font-level', level)";
+  for (const [before, after] of [
+    [themeWrite, "globalThis.localStorage?.setItem('fyag.theme', accessToken)"],
+    [fontWrite, "globalThis.localStorage?.setItem('token', level)"],
+    [fontWrite, "globalThis.localStorage?.setItem('fyag.font-level', accessToken)"],
+    ["if (!/^[0-3]$/.test(level)) return;", ""],
+  ]) {
+    const mutated = setup.replace(before, after);
+    assert.notEqual(mutated, setup);
+    assert.throws(() => setupPreferenceOnly(mutated));
+  }
 });
 
 test('imports respetan exactamente las mayúsculas de app y login en Linux', async () => {
