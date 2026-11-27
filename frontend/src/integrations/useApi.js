@@ -84,6 +84,7 @@ export function safePage(link, path, filters = null) {
              : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
              : path === '/api/inventario/mermas-bodega/' ? ['vista','buscar','estado','tipo','articulo']
+             : path === '/api/inventario/mermas-supervisor/' ? ['estado','buscar','tipo']
              : path === '/api/inventario/solicitudes-supervisor/' ? ['estado','buscar']
              : path === '/api/inventario/disponibilidad/' ? ['seccion','buscar','stock','vista']
              : path === '/api/inventario/finanzas/' ? ['seccion','buscar','filtro','tipo','desde','hasta']
@@ -128,6 +129,7 @@ export function safePage(link, path, filters = null) {
     if(path==='/api/inventario/mermas-bodega/'){
       if((value('vista')&&value('vista')!=='finanzas')||(value('buscar')&&(value('vista')!=='finanzas'||value('buscar').length>150))||(value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('tipo')&&!['DANO','VENCIMIENTO','EXTRAVIO','DIFERENCIA_CONTEO','OTRA'].includes(value('tipo')))||(value('articulo')&&!validId(value('articulo'))))throw new Error('invalid');
     }
+    if(path==='/api/inventario/mermas-supervisor/' && ((value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('buscar')||'').length>150||(value('tipo')&&!['CORTE_NO_REUTILIZABLE','DANO_EN_OBRA','EXTRAVIO_EN_OBRA','OTRA'].includes(value('tipo')))))throw new Error('invalid');
     if(path==='/api/inventario/solicitudes-supervisor/' && ((value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('buscar')||'').length>150))throw new Error('invalid');
     if(path==='/api/inventario/disponibilidad/'){
       const section=value('seccion')||'disponibilidad';

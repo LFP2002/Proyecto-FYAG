@@ -96,3 +96,7 @@ Sustituye las seis consultas del Supervisor por tres pestañas operativas, menú
 
 ## Supervisor — Solicitudes de materiales
 Bandeja inicial pendiente, indicadores globales, búsqueda compacta por material/obra/solicitante y acciones Aprobar/Rechazar visibles por fila. Ficha independiente con nombres, saldo físico consultivo y confirmación explícita; cantidad aprobada no supera la solicitada, motivo obligatorio, historial completo. Volver descarta el formulario no enviado; una decisión enviada conserva UUID y datos para reintento exacto si no se confirma. No se despacha ni reserva stock. Nueva lectura exclusiva, contrato de escritura 019C-1 intacto. Pendientes pruebas y revisión visual.
+
+
+## Supervisor — Mermas de obra
+Bandeja pendiente por defecto, contadores globales, búsqueda y filtro de tipo en línea, sin selector de ámbito. Reutiliza la bandeja de decisiones de Solicitudes; ficha independiente, material/obra/técnico, motivo/actividad, cantidades entregada/devuelta/mermas aprobadas/remanente, importe informativo no aditivo e historial. Aprobar/rechazar con motivo obligatorio, sin modificar cantidad, reintento exacto y navegación segura. No cambia stock ni costo; el servicio 019C-2 conserva autoridad. Lectura exclusiva sin migración. Pruebas y revisión visual pendientes.

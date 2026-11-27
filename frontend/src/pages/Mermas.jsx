@@ -5,6 +5,7 @@ import { PageHead } from '../components/ui/index.js';
 import { useCommercial, Pager, Errors } from '../comercial/ui.jsx';
 import { fm } from '../utils/format.js';
 import FinanzasMermas from '../integrations/FinanzasMermas.jsx';
+import SupervisorSolicitudes from '../integrations/SupervisorSolicitudes.jsx';
 
 const ROOT = '/api/inventario/';
 const uuid = () => crypto.randomUUID();
@@ -40,7 +41,7 @@ const valid = (value) => {
 
 export default function Mermas() {
   const { user } = useAuth();
-  return user.role === 'ADMINISTRATIVO_FINANZAS' ? <FinanzasMermas key={user.id}/> : <MermasOperativas key={user.id+':'+user.role}/>;
+  return user.role === 'ADMINISTRATIVO_FINANZAS' ? <FinanzasMermas key={user.id}/> : user.role==='SUPERVISOR_OBRAS'?<SupervisorSolicitudes merma key={user.id+':merma'}/>: <MermasOperativas key={user.id+':'+user.role}/>;
 }
 
 function MermasOperativas() {
@@ -119,7 +120,7 @@ function MermasOperativas() {
     <Errors error={api.error} />
     {msg && <p className="alert alert-info" role="status">{msg}</p>}
     <div className="commercial-toolbar mermas-toolbar">
-      <div className="commercial-filter mermas-scope"><label className="form-label" htmlFor="mermas-scope">Ámbito</label><select id="mermas-scope" className="form-select" value={scope} onChange={(event) => { setScope(event.target.value); setPage(1); setSelected(null); }}>
+      <div className="commercial-filter mermas-scope"><label className="form-label" htmlFor="mermas-scope">Ámbito</label><select id="mermas-scope" className="form-select" value={scope} onChange={(event) => { setScope(event.target.value); setPage(1); setSelected(null); setDecision(null); }}>
         {scopes.map((value) => <option key={value}>{value}</option>)}
       </select></div>
       {canCreate && <button className="btn btn-fyag-primary" disabled={api.busy} onClick={() => setForm({ tipo: types[0], articulo: '', entrega: '', cantidad: '', motivo: '', referencia: '', actividad: '', clave_idempotencia: uuid() })}>Informar merma</button>}
@@ -142,13 +143,13 @@ function MermasOperativas() {
     {selected && <article className="card-fyag commercial-detail mermas-detail">
       <div className="mermas-detail-head"><h2>Merma #{selected.id} <EstadoChip estado={selected.estado} /></h2><div className="commercial-actions">
         {canDecide && selected.estado === 'PENDIENTE' && <button className="btn btn-fyag-primary btn-sm" onClick={() => setDecision({ decision: 'APROBAR', motivo: '', clave_idempotencia: uuid() })}>Decidir</button>}
-        <button className="btn btn-outline-secondary btn-sm" onClick={() => setSelected(null)}>Cerrar</button>
+        <button className="btn btn-outline-secondary btn-sm" onClick={() => {setDecision(null);setSelected(null);}}>Cerrar</button>
       </div></div>
       <dl className="commercial-facts">{factKeys.map((key) => <div key={key} className={LONG_KEYS.includes(key) ? 'mermas-fact-wide' : undefined}><dt>{FACT_LABEL[key] || key.replaceAll('_', ' ')}</dt><dd className={LONG_KEYS.includes(key) ? 'commercial-long-text' : undefined}>{factValue(key)}</dd></div>)}</dl>
       {selected.historial?.length > 0 && <div className="commercial-history"><h3>Historial</h3><ol className="commercial-timeline">{selected.historial.map((event) => <li key={event.id}><div className="commercial-history-states"><span className="chip blue">{event.tipo}</span></div><div className="commercial-help">{new Date(event.creado_en).toLocaleString('es-CL')} · {event.motivo}</div></li>)}</ol></div>}
     </article>}
 
-    {decision && <form className="card-fyag commercial-form mermas-form" onSubmit={decide}>
+    {decision && selected && <form className="card-fyag commercial-form mermas-form" onSubmit={decide}>
       <h2>Decisión irreversible</h2>
       <div className="mb-3"><label className="form-label" htmlFor="merma-decision">Decisión</label><select id="merma-decision" className="form-select" value={decision.decision} onChange={(event) => setDecision({ ...decision, decision: event.target.value, clave_idempotencia: uuid() })}><option>APROBAR</option><option>RECHAZAR</option></select></div>
       <div className="mb-3"><label className="form-label" htmlFor="merma-decision-motivo">Motivo</label><textarea id="merma-decision-motivo" className="form-control" required maxLength="2000" rows="3" value={decision.motivo} onChange={(event) => setDecision({ ...decision, motivo: event.target.value })} /></div>
