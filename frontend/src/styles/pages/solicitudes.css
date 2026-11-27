@@ -32,10 +32,11 @@
 .ss-kpi[data-state=PENDIENTE]{border-left-color:#a66b0d}
 .ss-kpi[data-state=APROBADA]{border-left-color:#287751}
 .ss-kpi[data-state=RECHAZADA]{border-left-color:#b34747}
-.supervisor-requests .ss-kpi[aria-pressed=true]{background-color:color-mix(in srgb,currentColor 3%,transparent)}
-.supervisor-requests .ss-kpi[aria-pressed=true][data-state=PENDIENTE]{background-color:color-mix(in srgb,#a66b0d 7%,var(--fyag-card,transparent))}
-.supervisor-requests .ss-kpi[aria-pressed=true][data-state=APROBADA]{background-color:color-mix(in srgb,#287751 7%,var(--fyag-card,transparent))}
-.supervisor-requests .ss-kpi[aria-pressed=true][data-state=RECHAZADA]{background-color:color-mix(in srgb,#b34747 7%,var(--fyag-card,transparent))}
+.supervisor-requests .ss-kpi[data-state=PENDIENTE]{--ss-selection-tone:#a66b0d}
+.supervisor-requests .ss-kpi[data-state=APROBADA]{--ss-selection-tone:#287751}
+.supervisor-requests .ss-kpi[data-state=RECHAZADA]{--ss-selection-tone:#b34747}
+.supervisor-requests .ss-kpi[aria-pressed=true]{background-color:color-mix(in srgb,var(--ss-selection-tone) 7%,#fff)}
+:root[data-fyag-theme='dark'] .app-root .supervisor-requests .ss-kpi[aria-pressed=true]{background-color:color-mix(in srgb,var(--ss-selection-tone) 16%,#1b2633) !important}
 .supervisor-requests .ss-kpi:focus-visible{outline:2px solid var(--fyag-blue);outline-offset:2px}
 .ss-table{margin:0;min-width:700px}
 .ss-table :is(th,td){padding:12px;vertical-align:middle}

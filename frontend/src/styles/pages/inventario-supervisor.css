@@ -48,7 +48,12 @@
 .supervisor-inventory .si-kpi[data-tone=green]{border-left-color:#287751}
 .supervisor-inventory .si-kpi[data-tone=red]{border-left-color:#b34747}
 .supervisor-inventory .si-kpi[data-tone=amber]{border-left-color:#a66b0d}
-.supervisor-inventory .si-kpi[aria-pressed=true]{outline:2px solid var(--fyag-blue);outline-offset:1px}
+.supervisor-inventory .si-kpi[data-tone=green]{--si-selection-tone:#287751}
+.supervisor-inventory .si-kpi[data-tone=red]{--si-selection-tone:#b34747}
+.supervisor-inventory .si-kpi[data-tone=amber]{--si-selection-tone:#a66b0d}
+.supervisor-inventory .si-kpi[aria-pressed=true]{background-color:color-mix(in srgb,var(--si-selection-tone) 7%,#fff)}
+.supervisor-inventory .si-kpi:focus-visible{outline:2px solid var(--fyag-blue);outline-offset:2px}
+:root[data-fyag-theme='dark'] .app-root .supervisor-inventory .si-kpi[aria-pressed=true]{background-color:color-mix(in srgb,var(--si-selection-tone) 16%,#1b2633) !important}
 .supervisor-inventory .si-kpi[data-tone=green] strong{color:#287751}
 .supervisor-inventory .si-kpi[data-tone=red] strong{color:#b34747}
 .supervisor-inventory .si-kpi[data-tone=amber] strong,.supervisor-inventory .si-blockage{color:#966014}
