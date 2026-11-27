@@ -13,6 +13,8 @@ Los workflows validan cambios; **no realizan despliegues** ni certifican por sí
 
 ## Documentación
 
+- **Manual de implementacion empresarial:** [`MANUAL-IMPLEMENTACION.md`](MANUAL-IMPLEMENTACION.md).
+- **Manual de usuario por rol:** [`MANUAL-USUARIO.md`](MANUAL-USUARIO.md).
 - **Especificaciones funcionales y contratos:** [`specs/`](specs/).
 - **Implementación y operación del backend:** [`backend/docs/`](backend/docs/).
 - **Operación, autenticación, reconciliación y respaldo de MongoDB:** [`database/README.md`](database/README.md).
