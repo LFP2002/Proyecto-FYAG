@@ -11,6 +11,8 @@
 
 ## Arranque ordinario y recuperación
 
+Con Compose productivo no ejecutar el preflight desde `backend`: usar `docker compose … run --rm --no-deps operaciones_seguridad python -m config.security_cli validar_bloqueos_productivos` y añadir `--registrar` solo en el paso 4. Usar el mismo proyecto, entorno y overlay SMTP de web. La constancia se registra con el rol operativo, pero queda vinculada a la identidad SQL de web.
+
 ASGI/WSGI comprueban el esquema, la seguridad de la configuración y su correspondencia con la última constancia; no conectan con SMTP o Redis ni comprueban el estado de acceso de la TI. Una caída SMTP o una TI bloqueada no impiden reiniciar. Cuando se restablezca SMTP, la TI bloqueada puede solicitar recuperación por correo verificado sin sesión. Una temporal vigente permite llegar al primer cambio obligatorio después del reinicio. Si Redis falla, las operaciones que necesitan sus límites o su cola devuelven `503`; el fallo no cuenta como contraseña incorrecta y no desactiva los bloqueos. Mantener disponible el [procedimiento excepcional de infraestructura](SPEC-027-RECUPERACION-TI.md) si fallan las otras vías.
 
 El `compose.yaml` de desarrollo fija un Redis sin TLS: no sirve para activar este perfil. Una instalación autorizada debe proporcionar `FYAG_SECURITY_REDIS_URL` con TLS tanto al backend como a los procesos de correo que usan Redis; en Compose se debe sustituir el valor de `environment`, no solo editar `.env`. La separación física y operativa de Redis se verifica en la revisión de infraestructura, además de la comprobación de endpoint que hace el preflight.

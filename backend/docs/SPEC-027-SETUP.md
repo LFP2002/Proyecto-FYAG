@@ -6,6 +6,11 @@ Solo para instalaciones que nunca tuvieron usuarios. Aplicar `usuarios.0014_vers
    ```bash
    docker compose exec backend python manage.py emitir_clave_instalacion --operador operador-ti --referencia CAMBIO-027
    ```
+   En Compose productivo, usar el proyecto, archivo de entorno y overlays del backend, pero ejecutar en el servicio efímero de seguridad (sin `-T`):
+   ```bash
+   docker compose … run --rm --no-deps operaciones_seguridad python -m config.security_cli emitir_clave_instalacion --operador operador-ti --referencia CAMBIO-027
+   ```
+   Usar ese mismo servicio para la alternativa `crear_primera_ti`.
    `--operador` y `--referencia` son identificadores no secretos. La clave de 256 bits se muestra una vez, vence en 30 minutos y queda almacenada solo por digest. Si se pierde, caduca o se sospecha exposición, volver a ejecutar el comando: la clave anterior queda invalidada. No ponerla en URLs, argumentos, registros ni archivos compartidos.
 2. Entregar la clave por un canal privado autorizado. El responsable abre FYAG en su origen habitual, usando HTTPS fuera de QA local. FYAG consulta `GET /api/auth/setup/estado/` antes de mostrar el login o restaurar una sesión. Si `pendiente` es `true`, abre `/configuracion-inicial`. Introducir nombre, apellidos, usuario, correo, contraseña, confirmación y clave. No se elige rol.
 3. Tras confirmar el alta (`201`), FYAG muestra el login en `/`. Iniciar sesión manualmente: el alta no crea ni restaura una sesión, ni exige cambiar la contraseña personal. Confirmar el enlace si llega; si SMTP falla, el alta no se revierte. Solicitar reenvío según la [guía de verificación](SPEC-027-VERIFICACION.md), sin intentar reabrir la instalación.

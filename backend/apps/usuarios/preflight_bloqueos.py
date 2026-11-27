@@ -32,6 +32,7 @@ def _huella_configuracion():
     datos = {clave: getattr(settings, clave) for clave in _CONFIG_AUTORIZADA}
     db = settings.DATABASES['default']
     datos['postgres'] = {clave: db.get(clave) for clave in ('ENGINE', 'NAME', 'HOST', 'PORT', 'USER', 'OPTIONS')}
+    datos['postgres']['USER'] = getattr(settings, 'FYAG_ACTIVACION_SQL_USER', db.get('USER'))
     return salted_hmac('fyag.spec027.activacion.v1', json.dumps(datos, sort_keys=True), algorithm='sha256').hexdigest()
 
 

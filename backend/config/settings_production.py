@@ -18,7 +18,7 @@ def secret(name, *, minimum=1):
 
 
 role = os.environ.get('FYAG_PROD_ROLE')
-if role not in {'web', 'migration', 'alerts', 'documents', 'attachments', 'chat', 'mail'}:
+if role not in {'web', 'migration', 'security', 'alerts', 'documents', 'attachments', 'chat', 'mail'}:
     raise ImproperlyConfigured('Rol de proceso FYAG no válido.')
 host = os.environ.get('FYAG_PUBLIC_HOST', '')
 label = r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
@@ -29,7 +29,8 @@ if (len(host) > 253 or not re.fullmatch(rf'{label}(?:\.{label})+', host)
 origin = f'https://{host}' + (f':{port}' if port != '443' else '')
 os.environ.update(DJANGO_DEBUG='False', DJANGO_ALLOWED_HOSTS=host, FYAG_PUBLIC_BASE_URL=origin,
                   FYAG_CHAT_WS_ALLOWED_ORIGINS=origin, DJANGO_CSRF_TRUSTED_ORIGINS=origin,
-                  DJANGO_CORS_ALLOWED_ORIGINS='', FYAG_BLOQUEOS_C2='', POSTGRES_PASSWORD=secret('postgres_password'))
+                  DJANGO_CORS_ALLOWED_ORIGINS='', FYAG_BLOQUEOS_C2='', POSTGRES_USER=f'fyag_sql_{role}',
+                  POSTGRES_PASSWORD=secret(f'postgres_{role}_password', minimum=64))
 if role == 'web':
     os.environ['DJANGO_SECRET_KEY'] = secret('django_secret', minimum=50)
     os.environ['JWT_SIGNING_KEY'] = secret('jwt_signing_key', minimum=50)
@@ -38,15 +39,17 @@ if role == 'web':
 else:
     # Los comandos de mantenimiento no emiten ni validan sesiones. Nunca cargar ASGI con este rol.
     from secrets import token_urlsafe
-    os.environ.update(DJANGO_SECRET_KEY=token_urlsafe(64), JWT_SIGNING_KEY=token_urlsafe(64),
-                      FYAG_BLOQUEOS_PERFIL='deshabilitado')
+    os.environ.update(DJANGO_SECRET_KEY=secret('django_secret', minimum=50) if role == 'security' else token_urlsafe(64),
+                      JWT_SIGNING_KEY=token_urlsafe(64))
+    if role != 'security':
+        os.environ['FYAG_BLOQUEOS_PERFIL'] = 'deshabilitado'
 
 if role in {'web', 'documents', 'attachments'}:
     os.environ['FYAG_MONGO_PASSWORD'] = secret('mongo_app_password')
 if role == 'web':
     os.environ['FYAG_CHAT_REDIS_PASSWORD'] = secret('redis_chat_password', minimum=32)
 recovery_key = None
-if role in {'web', 'mail'}:
+if role in {'web', 'mail', 'security'}:
     password = quote(secret('redis_security_password', minimum=32), safe='')
     os.environ['FYAG_SECURITY_REDIS_URL'] = f'rediss://:{password}@redis-seguridad:6379/0'
     FYAG_SECURITY_REDIS_CA = '/run/secrets/redis_ca'
@@ -55,8 +58,9 @@ if role in {'web', 'mail'}:
     profile = os.environ.get('FYAG_EMAIL_PROFILE', 'deshabilitado')
     if profile == 'smtp':
         os.environ['EMAIL_HOST_PASSWORD'] = secret('smtp_password')
-        recovery_key = secret('recovery_hmac_key')
-        if (not re.fullmatch(r'[0-9a-f]{64}', recovery_key)
+        if role != 'security':
+            recovery_key = secret('recovery_hmac_key')
+        if recovery_key is not None and (not re.fullmatch(r'[0-9a-f]{64}', recovery_key)
                 or recovery_key in {os.environ['DJANGO_SECRET_KEY'], os.environ['JWT_SIGNING_KEY']}):
             raise ImproperlyConfigured('La clave HMAC de recuperación debe ser independiente y tener 64 caracteres hexadecimales minúsculos.')
     elif profile != 'deshabilitado' or role == 'mail':
@@ -67,6 +71,7 @@ from .settings import *  # noqa: E402,F403
 FYAG_RECUPERACION_HMAC_KEY = recovery_key
 del recovery_key
 FYAG_PRODUCTION_ROLE = role
+FYAG_ACTIVACION_SQL_USER = 'fyag_sql_web'  # La constancia autoriza el usuario ASGI, no el operador que la registra.
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'Strict'

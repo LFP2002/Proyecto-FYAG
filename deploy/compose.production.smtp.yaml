@@ -14,13 +14,17 @@ services:
     environment: *smtp-env
     secrets: [smtp_password, recovery_hmac_key]
     networks: [correo-egress]
+  operaciones_seguridad:
+    environment: *smtp-env
+    secrets: [smtp_password]
+    networks: [correo-egress]
   verificacion_correo:
     extends: {file: compose.production.yaml, service: alertas_reconciliador}
     environment:
       <<: *smtp-env
       FYAG_PROD_ROLE: mail
     networks: [sql, seguridad, correo-egress]
-    secrets: [postgres_password, redis_security_password, redis_ca, smtp_password, recovery_hmac_key]
+    secrets: !override [postgres_mail_password, redis_security_password, redis_ca, smtp_password, recovery_hmac_key]
 
 networks:
   correo-egress: {}

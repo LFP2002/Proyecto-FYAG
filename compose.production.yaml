@@ -16,11 +16,18 @@ x-app: &app
   stop_grace_period: 30s
 x-db-env: &db-env
   POSTGRES_DB: ${FYAG_POSTGRES_DB:-fyag}
-  POSTGRES_USER: ${FYAG_POSTGRES_USER:-fyag}
 x-app-env: &app-env
   <<: *db-env
   FYAG_PUBLIC_HOST: ${FYAG_PUBLIC_HOST:?DNS público requerido}
   FYAG_HTTPS_PORT: ${FYAG_HTTPS_PORT:-443}
+x-security-env: &security-env
+  FYAG_EMAIL_PROFILE: deshabilitado
+  FYAG_BLOQUEOS_PERFIL: ${FYAG_BLOQUEOS_PERFIL:-deshabilitado}
+  FYAG_BLOQUEOS_AUTORIZACION: ${FYAG_BLOQUEOS_AUTORIZACION:-}
+  FYAG_BLOQUEOS_ENTREGA_SMTP: ${FYAG_BLOQUEOS_ENTREGA_SMTP:-}
+  FYAG_BLOQUEOS_AUTORIZACION_REMITENTE: ${FYAG_BLOQUEOS_AUTORIZACION_REMITENTE:-}
+  FYAG_BLOQUEOS_CORREO_TI: ${FYAG_BLOQUEOS_CORREO_TI:-}
+  FYAG_BLOQUEOS_DOMINIO: ${FYAG_BLOQUEOS_DOMINIO:-}
 x-worker-env: &worker-env
   <<: *app-env
   FYAG_WORKER_TIMEOUT: ${FYAG_WORKER_TIMEOUT:-900}
@@ -72,19 +79,12 @@ services:
   backend:
     <<: *app
     environment:
-      <<: [*app-env, *mongo-env]
+      <<: [*app-env, *mongo-env, *security-env]
       FYAG_PROD_ROLE: web
-      FYAG_EMAIL_PROFILE: deshabilitado
-      FYAG_BLOQUEOS_PERFIL: ${FYAG_BLOQUEOS_PERFIL:-deshabilitado}
-      FYAG_BLOQUEOS_AUTORIZACION: ${FYAG_BLOQUEOS_AUTORIZACION:-}
-      FYAG_BLOQUEOS_ENTREGA_SMTP: ${FYAG_BLOQUEOS_ENTREGA_SMTP:-}
-      FYAG_BLOQUEOS_AUTORIZACION_REMITENTE: ${FYAG_BLOQUEOS_AUTORIZACION_REMITENTE:-}
-      FYAG_BLOQUEOS_CORREO_TI: ${FYAG_BLOQUEOS_CORREO_TI:-}
-      FYAG_BLOQUEOS_DOMINIO: ${FYAG_BLOQUEOS_DOMINIO:-}
       FYAG_EVIDENCIAS_ROOT: /var/lib/fyag/evidencias
       FYAG_CHAT_RETENCION_DIAS: ${FYAG_CHAT_RETENCION_DIAS:-30}
     networks: [sql, documentos, seguridad, chat, scanner]
-    secrets: [postgres_password, mongo_app_password, django_secret, jwt_signing_key, redis_security_password, redis_chat_password, redis_ca]
+    secrets: [postgres_web_password, mongo_app_password, django_secret, jwt_signing_key, redis_security_password, redis_chat_password, redis_ca]
     volumes:
       - proxy_socket:/run/fyag
       - evidencias:/var/lib/fyag/evidencias
@@ -99,15 +99,28 @@ services:
       retries: 4
       start_period: 15s
 
+  operaciones_seguridad:
+    <<: *app
+    restart: 'no'
+    profiles: [operacion-seguridad]
+    environment:
+      <<: [*app-env, *security-env]
+      FYAG_PROD_ROLE: security
+    command: [python, -m, config.security_cli]
+    networks: [sql, seguridad]
+    secrets: [postgres_security_password, django_secret, redis_security_password, redis_ca]
+    depends_on:
+      migraciones: {condition: service_completed_successfully}
+
   migraciones:
     <<: *app
     restart: 'no'
     environment:
       <<: *app-env
       FYAG_PROD_ROLE: migration
-    command: [python, manage.py, migrate, --noinput]
+    command: [python, -m, config.production_migrate]
     networks: [sql]
-    secrets: [postgres_password]
+    secrets: [postgres_migration_password]
     depends_on:
       postgres: {condition: service_healthy}
 
@@ -118,7 +131,7 @@ services:
       FYAG_PROD_ROLE: alerts
       FYAG_ALERTAS_INTERVALO_SEGUNDOS: ${FYAG_ALERTAS_INTERVALO_SEGUNDOS:-60}
     networks: [sql]
-    secrets: [postgres_password]
+    secrets: [postgres_alerts_password]
 
   documentos_reconciliador:
     <<: *worker
@@ -127,7 +140,7 @@ services:
       FYAG_PROD_ROLE: documents
       FYAG_DOCUMENTOS_INTERVALO: ${FYAG_DOCUMENTOS_INTERVALO:-60}
     networks: [sql, documentos]
-    secrets: [postgres_password, mongo_app_password]
+    secrets: [postgres_documents_password, mongo_app_password]
     depends_on:
       migraciones: {condition: service_completed_successfully}
       mongodb: {condition: service_healthy}
@@ -139,7 +152,7 @@ services:
       FYAG_PROD_ROLE: attachments
       FYAG_ADJUNTOS_INTERVALO: ${FYAG_ADJUNTOS_INTERVALO:-60}
     networks: [sql, documentos]
-    secrets: [postgres_password, mongo_app_password]
+    secrets: [postgres_attachments_password, mongo_app_password]
     depends_on:
       migraciones: {condition: service_completed_successfully}
       mongodb: {condition: service_healthy}
@@ -153,17 +166,21 @@ services:
       FYAG_CHAT_RETENCION_DIAS: ${FYAG_CHAT_RETENCION_DIAS:-30}
       FYAG_CHAT_PURGA_INTERVALO: ${FYAG_CHAT_PURGA_INTERVALO:-3600}
     networks: [sql]
-    secrets: [postgres_password]
+    secrets: [postgres_chat_password]
     volumes: [archivos_chat:/var/lib/fyag/chat]
 
   postgres:
     <<: *restart
-    image: postgres:18
+    image: fyag/postgres-production:${FYAG_RELEASE:-local}
+    build: {context: ./deploy, dockerfile: postgres.Dockerfile}
     environment:
       <<: *db-env
+      POSTGRES_USER: ${FYAG_POSTGRES_USER:-fyag}
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     networks: [sql]
-    secrets: [postgres_password]
+    secrets: [postgres_password, postgres_migration_password, postgres_web_password, postgres_security_password,
+              postgres_alerts_password, postgres_documents_password, postgres_attachments_password,
+              postgres_chat_password, postgres_mail_password]
     volumes: [postgres:/var/lib/postgresql]
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h 127.0.0.1']
@@ -283,6 +300,14 @@ volumes:
 
 secrets:
   postgres_password: {file: '${FYAG_SECRET_DIR:?Directorio externo requerido}/postgres-password'}
+  postgres_migration_password: {file: '${FYAG_SECRET_DIR}/postgres-migration-password'}
+  postgres_web_password: {file: '${FYAG_SECRET_DIR}/postgres-web-password'}
+  postgres_security_password: {file: '${FYAG_SECRET_DIR}/postgres-security-password'}
+  postgres_alerts_password: {file: '${FYAG_SECRET_DIR}/postgres-alerts-password'}
+  postgres_documents_password: {file: '${FYAG_SECRET_DIR}/postgres-documents-password'}
+  postgres_attachments_password: {file: '${FYAG_SECRET_DIR}/postgres-attachments-password'}
+  postgres_chat_password: {file: '${FYAG_SECRET_DIR}/postgres-chat-password'}
+  postgres_mail_password: {file: '${FYAG_SECRET_DIR}/postgres-mail-password'}
   mongo_app_password: {file: '${FYAG_SECRET_DIR}/mongo-app-password'}
   mongo_root_password: {file: '${FYAG_SECRET_DIR}/mongo-root-password'}
   django_secret: {file: '${FYAG_SECRET_DIR}/django-secret'}

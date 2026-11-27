@@ -10,8 +10,9 @@
 | Archivos en `FYAG_SECRET_DIR` | Consumidores |
 | --- | --- |
 | `web-fullchain.pem`, `web-key.pem` | Solo Nginx, UID 10001. PEM del dominio público, hoja seguida de intermediarias, clave sin passphrase legible solo por el proxy. |
-| `django-secret`, `jwt-signing-key` | Solo backend web, UID 10001. Valores aleatorios independientes, ≥50 caracteres. |
-| `postgres-password` | PostgreSQL y los procesos Django que usan SQL. No separa roles SQL: AUD-025 es independiente. |
+| `django-secret`, `jwt-signing-key` | Backend web, UID 10001. La CLI efímera de seguridad recibe además `django-secret` para la constancia de activación, pero nunca la clave JWT. Valores aleatorios independientes, ≥50 caracteres. |
+| `postgres-password` | Solo PostgreSQL. Credencial del administrador `FYAG_POSTGRES_USER`, que no puede ser un rol `fyag_sql_*`. |
+| `postgres-{migration,web,security,alerts,documents,attachments,chat,mail}-password` | PostgreSQL los lee para aprovisionar las cuentas. Cada servicio Django recibe únicamente el suyo. Se requieren los ocho archivos aun con perfiles opcionales apagados. Generar valores independientes de 32 bytes (`openssl rand -hex 32`, 64 hexadecimales minúsculos). |
 | `mongo-root-password`, `mongo-app-password` | Root solo bootstrap Mongo; contraseña de aplicación en Mongo, web y reconciliadores documentales. La inicialización del volumen nuevo usa el rol documental existente. |
 | `redis-security-password`, `redis-ca.pem` | Redis seguridad, web y consumidor de correo si se habilita. Contraseña aleatoria de 64 hex. CA dedicada, sin modificar la confianza global de Python ni del host. |
 | `redis-cert.pem`, `redis-key.pem` | Solo Redis seguridad (UID 999 en la imagen probada). SAN DNS `redis-seguridad`, cadena PEM con intermedias si corresponde. Sin listener en claro; el cliente exige CA, hostname y contraseña. |
@@ -27,7 +28,7 @@ Ejemplo con rutas externas y un nombre de proyecto propio:
 
 ```sh
 docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml config --quiet
-docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml build backend proxy mongodb
+docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml build backend proxy mongodb postgres
 docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml up -d --wait
 docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml ps -a
 docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.production.yaml exec backend python -m config.production_server ready
@@ -39,6 +40,23 @@ docker compose -p fyag-prod --env-file /srv/fyag/production.env -f compose.produ
 - Monitorizar HTTPS desde fuera, `live` y `ready` desde el contenedor, estado de motores/ClamAV y ciclos de los workers. `live` no depende de SMTP/Redis/Mongo; `ready` comprueba SQL. Los reconciliadores de Alertas, Documentos y Adjuntos corren por defecto. Se reintentan por la política de reinicio ante error/timeout; el healthcheck exige un ciclo exitoso reciente. Ajustar cadencia/timeout al tamaño del inventario. Docker no reinicia por `unhealthy` por sí solo: alertar por estado/edad del ciclo y seguir el runbook de incidente. ClamAV obtiene firmas por egress separado; exigir frescura de firmas y permitir únicamente destinos aprobados. El purgador Chat usa `--profile chat-mantenimiento` solo tras revisión `purgar_chat --dry-run` y aprobación de retención.
 - Correo apagado por defecto. Para SMTP autorizado, añadir `-f deploy/compose.production.smtp.yaml` **después** del Compose base en todos los comandos operativos. Configurar `FYAG_SMTP_HOST`, `FYAG_SMTP_USER`, `FYAG_SMTP_FROM`, `FYAG_SMTP_PORT` (587 por defecto) y exactamente uno entre `FYAG_SMTP_STARTTLS=true` o `FYAG_SMTP_IMPLICIT_TLS=true`; añadir `smtp-password`. Habilitar egress restringido al proveedor. El overlay arranca el consumidor de verificación/recuperación y añade egress al web por los envíos tras commit. No habilita SPEC-027 productivo por sí mismo.
 - `FYAG_BLOQUEOS_PERFIL=deshabilitado` es el valor por defecto; C2 QA no se admite en el perfil runtime. Cualquier cambio a `produccion` sigue sujeto a la [constancia y preflight SPEC-027](../backend/docs/SPEC-027-BLOQUEOS.md) y a referencias TI/SMTP/remitente. No introducir bypasses para arrancar ni usar certificados de laboratorio institucionalmente.
+
+## Roles PostgreSQL (AUD-025)
+
+El administrador sigue siendo propietario de la base. `fyag_sql_migration` posee el esquema y los objetos de aplicación, sin superusuario ni creación de bases o roles. `migraciones` ejecuta Django y aplica la [matriz explícita de ACL](../backend/config/production_migrate.py). Revisar la matriz al añadir tablas, funciones o secuencias. No se conceden privilegios por defecto a runtime.
+
+Web no posee objetos ni puede hacer DDL, asumir otro rol, deshabilitar triggers o truncar. La auditoría es de solo lectura o anexado según el rol; web no puede insertar constancias de activación ni eventos de recuperación TI. El purgador Chat conserva solo la caducidad prevista por sus triggers. Documentos y Adjuntos consultan sus fuentes SQL; Alertas lee orígenes y mantiene su proyección; Correo mantiene desafíos pero no puede modificar usuarios. Estas restricciones no convierten al administrador o propietario de migraciones en identidades no privilegiadas.
+
+Para emitir una clave de primera instalación, crear la primera TI por terminal, recuperar acceso TI o registrar una activación, usar `docker compose … run --rm --no-deps operaciones_seguridad python -m config.security_cli <comando> [opciones]` con el mismo conjunto de ficheros Compose del backend. Comandos: `emitir_clave_instalacion`, `crear_primera_ti`, `recuperar_acceso_ti`, `validar_bloqueos_productivos`. Conservar terminal privada e interactiva cuando se requiera. Nunca montar el secreto SQL operativo en web.
+
+### Conversión de un volumen PostgreSQL 18 existente
+
+1. Aprobar una ventana sin tráfico. Conservar el proyecto Compose, base, propietario actual (`FYAG_POSTGRES_DB` / `FYAG_POSTGRES_USER`), versión mayor y volumen. Tener un respaldo verificado e inventariar tablas, migraciones, triggers, propietarios, ACL y conteos. Se presupone un clúster dedicado FYAG, sin otras bases de aplicación, extensiones adicionales o esquemas de terceros; no forzar la conversión si el inventario difiere.
+2. Detener proxy, web, workers y todos los clientes SQL. Provisionar los ocho secretos nuevos. Construir `postgres` y recrear **solo el contenedor** PostgreSQL con `docker compose … up -d --no-deps --wait postgres`, conservando el volumen. Los hooks de `initdb` no se ejecutan en volúmenes existentes.
+3. Con la ventana cerrada, ejecutar `docker compose … exec --user postgres postgres bash /opt/fyag/provision.sh`, que crea los roles y transfiere transaccionalmente solo objetos del esquema de aplicación. Rotar la antigua credencial compartida del administrador con `\password` en una sesión `psql` privada; actualizar `postgres-password` y recrear el contenedor para actualizar su montaje. Cambiar el archivo por sí solo no cambia la contraseña del motor. Para rotar los roles SQL, parar clientes, reemplazar archivos, recrear PostgreSQL y volver a ejecutar el aprovisionamiento antes de recrear los consumidores.
+4. Ejecutar `docker compose … run --rm --no-deps migraciones` antes de admitir tráfico. Verificar conteos, roles, auditoría, permisos y conectividad. Si falla una comprobación, mantener la ventana cerrada; no volver a un runtime administrador. Si había bloqueos productivos activos, la identidad web cambia y requiere nueva constancia autorizada mediante la CLI antes de arrancar web. No deshabilitar bloqueos para sortear la guarda.
+
+No usar `down -v`, `initdb`, `REASSIGN OWNED` global ni eliminar objetos de aplicación. La restauración coordinada corresponde a AUD-023 y no se aborda aquí.
 
 ## Rotación de la clave de recuperación (OBS-007)
 
@@ -52,4 +70,4 @@ Pruebas dirigidas: `PYTHONPATH=backend python -m unittest discover -s deploy/tes
 
 Para repetir OBS-007, usar `python deploy/tests/smoke_recovery.py <env-lab> <overlay-lab> <ca-lab>` exclusivamente con el proyecto desechable `fyag-obs007-lab`. Preparar PostgreSQL nuevo `fyag_obs007_lab`, Nginx en `127.0.0.1:18497` con SAN `fyag-obs007.example.org` (dominio de ejemplo, sin DNS público), Redis TLS y un Mailpit privado con SMTP autenticado y STARTTLS; publicar solo su API de laboratorio en `127.0.0.1:18098`. El overlay de laboratorio declara el receptor y permite usar la CA efímera mediante `SSL_CERT_FILE` en web y correo, sin instalarla en el host. Crear una TI de referencia y las dos cuentas activas y verificadas `normal` y `locked` en ese dominio, con la contraseña sintética `OLD` del script. Registrar la constancia por la CLI de SPEC-027 con referencias sintéticas y arrancar web con `FYAG_BLOQUEOS_PERFIL=produccion`. El script detiene y reinicia el consumidor, genera un bloqueo real por HTTPS y respeta el límite de login sin alterar Redis. No ejecutar con cuentas ni certificados institucionales.
 
-Pendientes institucionales: asignación del host y DNS, firewall/egress real, aprovisionamiento y renovación de certificados, pin de digests aprobados y escaneo de imágenes, monitoreo/SLO y dimensionamiento, SMTP autorizado, prueba de red real para IP de origen, continuidad operativa y aprobaciones. No cubre auditoría de roles del motor (AUD-025), restauración coordinada (AUD-023), HA ni despliegue. Volúmenes persistentes no equivalen a un respaldo validado.
+Pendientes institucionales: asignación del host y DNS, firewall/egress real, aprovisionamiento y renovación de certificados, pin de digests aprobados y escaneo de imágenes, monitoreo/SLO y dimensionamiento, SMTP autorizado, prueba de red real para IP de origen, continuidad operativa y aprobaciones. No cubre restauración coordinada (AUD-023), HA ni despliegue. Volúmenes persistentes no equivalen a un respaldo validado.
