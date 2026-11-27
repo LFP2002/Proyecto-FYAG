@@ -6,7 +6,7 @@ Sistema de gestión empresarial con backend **Django REST Framework** y frontend
 
 Los workflows se ejecutan en pull requests hacia `main` y en pushes a `main`, sujetos a sus filtros de archivos:
 
-- **Backend CI:** Python 3.13.18, PostgreSQL 18 limpio, MongoDB QA autenticado y efímero, y ClamAV QA aislado. Verifica Django, migraciones, aplica las migraciones y ejecuta las pruebas del backend.
+- **Backend CI:** Python 3.13.18, PostgreSQL 18 limpio, MongoDB QA autenticado y efímero, y ClamAV QA aislado. Verifica Django, migraciones y pruebas del backend. El job de auditoría Python conserva el inventario efectivo de runtime y su informe; no instala dependencias de pruebas en ese entorno.
 - **Frontend CI:** Node.js 22. Ejecuta `npm ci`, `npm test`, `npm run build` y `npm audit --omit=dev` desde `frontend/`.
 
 Los workflows validan cambios; **no realizan despliegues** ni certifican por sí solos una instalación productiva.
@@ -14,6 +14,8 @@ Los workflows validan cambios; **no realizan despliegues** ni certifican por sí
 ## Documentación
 
 - **Especificaciones funcionales y contratos:** [`specs/`](specs/).
+- **Precedencia OpenAPI:** [índice de contratos](backend/docs/openapi/README.md).
+- **Auditoría final:** [avance y evidencia](docs/AUDITORIA-TECNICA-FINAL.md). [SPEC-027](specs/027-aprovisionamiento-recuperacion-seguridad.md) es un diseño; no describe endpoints implementados ni autorización productiva.
 - **Implementación y operación del backend:** [`backend/docs/`](backend/docs/).
 - **Operación, autenticación, reconciliación y respaldo de MongoDB:** [`database/README.md`](database/README.md).
 - **Operación de adjuntos privados:** [`backend/docs/SPEC-012B-OPERACION.md`](backend/docs/SPEC-012B-OPERACION.md).
@@ -43,10 +45,11 @@ El riesgo de tooling picomatch permanece abierto: ver
 [`SPEC-014`](specs/014-frontend-cobranzas.md); la auditoría runtime no sustituye
 la auditoría completa ni una decisión formal de riesgo.
 
-**Decisión vigente (17-11-2026):** el responsable aceptó temporalmente picomatch
+**Decisión histórica (17-11-2026):** el responsable aceptó temporalmente picomatch
 solo para desarrollo y QA, con revisión semanal y caducidad propuesta de 30 días
 (17-12-2026), sujeta a nueva evaluación. La vulnerabilidad y las cuatro alertas
-siguen vigentes; no es aprobación de seguridad para producción. TLS con cadena
+correspondían a esa revisión; consultar el resultado de auditoría actual, no asumir
+la vigencia de la excepción. No fue aprobación de seguridad para producción. TLS con cadena
 confiable sigue pendiente de despliegue: no se autoriza instalar CA, cambiar
 confianza Windows ni desactivar verificaciones. La publicación autorizada es
 exclusivamente para auditoría en el PR#44 Draft, sin merge ni promoción a Ready.
@@ -58,5 +61,23 @@ revocación/auditoría: [informe técnico](backend/docs/SPEC-018-FASE-A-IMPLEMEN
 [contrato React/API](backend/docs/SPEC-018-FASE-A-CONTRATO.md) y
 [OpenAPI](backend/docs/openapi/SPEC-018A-v1.json). TTL temporal de 24 h y desafío de
 5 min configurables, **NO RATIFICADOS PARA PRODUCCIÓN**; entrega manual solo entre
-cuentas sintéticas QA. El frontend actual requiere integración posterior; bloqueos
-escalonados y despliegue siguen fuera de esta fase. SPEC-018 no está completada.
+cuentas sintéticas QA. La Fase A tiene [integración frontend](backend/docs/SPEC-018-INTEGRACION-FRONTEND.md);
+el bloqueo C2 sigue restringido a [QA aislado](backend/docs/SPEC-018C-C2-IMPLEMENTACION.md).
+
+## Disponibilidad local y dependencias Python
+
+Compose enlaza PostgreSQL, MongoDB y backend al loopback del host; Redis y ClamAV
+no publican puertos. El backend comprueba `/health/live/` (sin dependencias) y
+`/health/ready/` comprueba SQL, sin consultar MongoDB, ClamAV, SMTP ni Redis de chat.
+Incluir `127.0.0.1` en los hosts permitidos del backend local para el probe interno.
+Docker aplica `restart: unless-stopped` si el proceso sale; `unhealthy` por sí
+solo no reinicia el contenedor. Los endpoints no certifican migraciones, entrega
+SMTP ni disponibilidad de módulos auxiliares.
+
+Para actualizar Python: usar una imagen limpia Python 3.13.18/Linux del mismo
+tipo que CI, revisar los cambios propuestos a `backend/requirements.txt` y
+`backend/constraints-runtime.txt`, reconstruir instalando runtime, comparar
+`pip freeze` y ejecutar `pip check` y `pip-audit` en un entorno separado desde
+el inventario resuelto. Instalar `requirements-test.txt` en otro entorno para
+pruebas dirigidas y regresión. Revisar cambios transitivos en el mismo commit;
+no trasladar la herramienta de auditoría ni los clientes de pruebas al runtime.

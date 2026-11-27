@@ -97,7 +97,7 @@ test('login vacío sin selector y con estados de envío y error accesibles', asy
   assert.match(login, /role="alert"/);
   assert.match(login, /disabled=\{busy\}/);
   assert.doesNotMatch(login, /<select|selectedRole/);
-  assert.doesNotMatch(await source('components/Shell/RoleSwitch.jsx'), /<select|switchRole/);
+  assert.doesNotMatch(await source('components/Shell/SideNav.jsx'), /switchRole|selectedRole/);
 });
 
 test('sesión separada de navegación y sin acciones de negocio locales', async () => {
@@ -122,7 +122,8 @@ test('sesión separada de navegación y sin acciones de negocio locales', async 
   assert.match(app, /mod === 'dashboard'.*GERENCIA/s);
   assert.match(app, /mod === 'reportes'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
   assert.match(app, /mod === 'cobranzas'.*GERENCIA.*ADMINISTRATIVO_FINANZAS/s);
-  assert.doesNotMatch(await source('pages/TecnicoApp.jsx'), /saveNota|addAvance|Guardar registro/);
+  assert.match(app, /mod\s*===\s*'mis_turnos'\s*&&\s*user.role\s*===\s*'TECNICO'\s*\?\s*MisTurnos/);
+  assert.doesNotMatch(await source('pages/Obras.jsx'), /saveNota|addAvance|Guardar registro/);
 });
 
 test('menús usan seis roles; solo TI ofrece Usuarios y Técnico no ofrece módulos privilegiados', () => {
