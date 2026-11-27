@@ -8,6 +8,8 @@ on:
       - 'database/**'
       - 'compose.yaml'
       - 'compose.adjuntos-qa.yaml'
+      - 'compose.premerge-qa.yaml'
+      - 'compose.mailpit.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
   push:
@@ -17,6 +19,8 @@ on:
       - 'database/**'
       - 'compose.yaml'
       - 'compose.adjuntos-qa.yaml'
+      - 'compose.premerge-qa.yaml'
+      - 'compose.mailpit.yaml'
       - '.env.example'
       - '.github/workflows/backend-ci.yml'
 

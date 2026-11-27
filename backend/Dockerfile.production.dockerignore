@@ -13,3 +13,6 @@
 **/.env*
 **/*.pem
 **/*.key
+**/*.gpg
+**/production.env
+**/recovery.env

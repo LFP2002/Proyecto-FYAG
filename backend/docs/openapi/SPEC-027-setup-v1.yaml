@@ -47,7 +47,10 @@ paths:
                 email: {type: string, format: email, maxLength: 254}
                 password: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
                 password_confirm: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
-                clave_instalacion: {type: string, pattern: '^[A-Za-z0-9_-]{43}$', writeOnly: true}
+                clave_instalacion:
+                  type: string
+                  writeOnly: true
+                  description: La clave emitida tiene 43 caracteres Base64URL sin relleno; una cadena vacía o de formato incorrecto se rechaza como no autorizada, no como error de esquema.
       responses:
         '201':
           description: Inicialización confirmada y clave consumida. Sin JWT ni cookie de sesión.
@@ -62,7 +65,7 @@ paths:
         '400': {description: Campos inválidos, no permitidos o confirmación de contraseña distinta}
         '403': {description: CSRF inválido}
         '409':
-          description: No autorizado; misma respuesta para instalación cerrada y clave incorrecta, vencida, renovada o usada.
+          description: No autorizado; misma respuesta para instalación cerrada y clave vacía, incorrecta, vencida, renovada o usada.
           content:
             application/json:
               schema:

@@ -1,0 +1,144 @@
+name: Production Compose CI
+
+on:
+  pull_request:
+    branches: [main, reajustes-visuales-frontend]
+    paths:
+      - 'compose.production.yaml'
+      - 'deploy/**'
+      - 'backend/**'
+      - 'database/**'
+      - 'frontend/**'
+      - '.github/workflows/production-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'compose.production.yaml'
+      - 'deploy/**'
+      - 'backend/**'
+      - 'database/**'
+      - 'frontend/**'
+      - '.github/workflows/production-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      LAB: ${{ runner.temp }}/fyag-production-ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13.18'
+      - name: Preparar entornos sintéticos y validar ambos Compose
+        run: |
+          umask 077
+          mkdir -p "$LAB"/{gpg,stage}
+          openssl rand -hex 32 | tr -d '\r\n' > "$LAB/archive.key"
+          for side in acl source target; do
+            secrets="$LAB/$side"
+            mkdir -p "$secrets"/{redis,web}
+            for secret in postgres-password postgres-{migration,web,security,alerts,documents,attachments,chat,mail}-password \
+              mongo-{root,app}-password django-secret jwt-signing-key redis-{security,chat}-password smtp-password recovery-hmac-key; do
+              openssl rand -hex 32 | tr -d '\r\n' > "$secrets/$secret"
+            done
+            sh backend/scripts/generar_tls_redis_qa.sh "$secrets/redis" redis-seguridad
+            sh backend/scripts/generar_tls_redis_qa.sh "$secrets/web" fyag-ci.example.test
+            cp "$secrets/redis/server.crt" "$secrets/redis-cert.pem"
+            cp "$secrets/redis/server.key" "$secrets/redis-key.pem"
+            cp "$secrets/redis/ca.crt" "$secrets/redis-ca.pem"
+            cp "$secrets/web/server.crt" "$secrets/web-fullchain.pem"
+            cp "$secrets/web/server.key" "$secrets/web-key.pem"
+            # Solo fixtures: el padre es 0700 en el runner y Compose monta los ficheros por separado.
+            chmod 644 "$secrets/"{*-password,django-secret,jwt-signing-key,recovery-hmac-key,*.pem}
+            db="fyag_aud027_$side"
+            if [[ "$side" == acl ]]; then db=fyag_aud025_lab; fi
+            cat > "$LAB/$side.env" <<EOF
+          FYAG_SECRET_DIR=$secrets
+          FYAG_PUBLIC_HOST=fyag-ci.example.test
+          FYAG_BIND_ADDRESS=127.0.0.1
+          FYAG_HTTP_PORT=18027
+          FYAG_HTTPS_PORT=18427
+          FYAG_RELEASE=production-ci
+          FYAG_POSTGRES_DB=$db
+          FYAG_POSTGRES_USER=fyag_ci_bootstrap
+          FYAG_SMTP_HOST=smtp.example.test
+          FYAG_SMTP_USER=ci@example.test
+          FYAG_SMTP_FROM=ci@example.test
+          FYAG_SMTP_STARTTLS=true
+          EOF
+          done
+          docker compose --env-file "$LAB/source.env" -f compose.production.yaml --profile '*' config --quiet
+          docker compose --env-file "$LAB/source.env" -f compose.production.yaml -f deploy/compose.production.smtp.yaml --profile '*' config --quiet
+      - name: Construir imágenes y comprobar ACL de web (AUD-025)
+        run: |
+          c=(docker compose -p fyag-ci-acl --env-file "$LAB/acl.env" -f compose.production.yaml)
+          "${c[@]}" build backend proxy postgres mongodb
+          "${c[@]}" up -d --wait --wait-timeout 100 postgres
+          "${c[@]}" run --rm --no-deps -T migraciones
+          "${c[@]}" run --rm --no-deps -T backend python - < deploy/tests/smoke_sql_privileges.py
+          "${c[@]}" down --volumes
+      - name: Comprobar HTTPS, readiness e integridad del respaldo (AUD-009/023)
+        run: |
+          c=(docker compose -p fyag-aud027-source --env-file "$LAB/source.env" -f compose.production.yaml)
+          "${c[@]}" up -d --no-build --wait --wait-timeout 120 proxy mongodb redis redis-seguridad
+          "${c[@]}" exec -T backend python -m config.production_server ready
+          curl --fail --silent --show-error --noproxy '*' --connect-timeout 5 --max-time 10 \
+            --resolve fyag-ci.example.test:18427:127.0.0.1 --cacert "$LAB/source/web/ca.crt" \
+            https://fyag-ci.example.test:18427/ >/dev/null
+          "${c[@]}" exec -T backend python - seed < deploy/tests/smoke_chat_aud027.py
+          export GNUPGHOME="$LAB/gpg"
+          args=(--stage "$LAB/stage" --key "$LAB/archive.key" --archive "$LAB/chat.gpg")
+          python deploy/aud023/backup.py backup --project fyag-aud027-source --confirm fyag-aud027-source --env "$LAB/source.env" "${args[@]}"
+          python deploy/aud023/backup.py verify "${args[@]}"
+          python deploy/aud023/check_negative.py --synthetic-only CONFIRMED "${args[@]}"
+      - name: Comprobar purga puntual, fallo recuperable y contención SQL (OBS-008)
+        run: |
+          c=(docker compose -p fyag-aud027-source --env-file "$LAB/source.env" -f compose.production.yaml)
+          "${c[@]}" up -d --no-build --wait --wait-timeout 100 backend redis redis-seguridad
+          # Verificar que es el rechazo explícito de la guarda, no un error de Docker.
+          rc=0
+          output=$("${c[@]}" run --rm --no-deps -T chat_purgador python -m config.worker 2>&1) || rc=$?
+          test "$rc" -eq 1
+          grep -F 'Purga automática de Chat no autorizada.' <<< "$output"
+          "${c[@]}" run --rm --no-deps -T chat_purgador python manage.py purgar_chat --dry-run --lote 2
+          "${c[@]}" exec -T backend python - partial < deploy/tests/smoke_chat_aud027.py
+          rc=0
+          output=$("${c[@]}" run --rm --no-deps -T chat_purgador python manage.py purgar_chat --once --lote 2 2>&1) || rc=$?
+          test "$rc" -eq 1
+          grep -F 'Purga incompleta' <<< "$output"
+          "${c[@]}" exec -T backend python - repair < deploy/tests/smoke_chat_aud027.py
+          "${c[@]}" run --rm --no-deps -T chat_purgador python manage.py purgar_chat --once --lote 2
+          "${c[@]}" exec -T backend python - verify < deploy/tests/smoke_chat_aud027.py
+          python deploy/tests/smoke_chat_obs008.py "$LAB/source.env"
+          "${c[@]}" down --volumes
+      - name: Comprobar restauración offline y purga previa (AUD-023/027)
+        run: |
+          d=(docker compose -p fyag-dr-ci --env-file "$LAB/target.env" -f compose.production.yaml)
+          export GNUPGHOME="$LAB/gpg"
+          python deploy/aud023/backup.py restore --project fyag-dr-ci --confirm fyag-dr-ci --env "$LAB/target.env" \
+            --stage "$LAB/stage" --key "$LAB/archive.key" --archive "$LAB/chat.gpg"
+          ingress=$("${d[@]}" ps -q --status running proxy backend)
+          test -z "$ingress"
+          "${d[@]}" run --rm --no-deps -T backend python - verify < deploy/tests/smoke_chat_aud027.py
+      - name: Retirar laboratorios efímeros del runner
+        if: always()
+        run: |
+          rc=0
+          for pair in acl:fyag-ci-acl source:fyag-aud027-source target:fyag-dr-ci; do
+            envfile="$LAB/${pair%:*}.env"
+            if [[ -f "$envfile" ]]; then
+              docker compose -p "${pair#*:}" --env-file "$envfile" -f compose.production.yaml --profile '*' down --volumes --remove-orphans || rc=1
+            fi
+          done
+          exit "$rc"

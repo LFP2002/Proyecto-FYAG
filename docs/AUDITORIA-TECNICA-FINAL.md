@@ -2,6 +2,47 @@
 
 Base auditada: `87d564bba6d18b274cb7ed009c767e89071b6aec`. Rama local: `fix/auditoria-tecnica-final`. Sin autorización de publicación, merge ni despliegue.
 
+## Matriz vigente de consolidación
+
+Corte de partida: `a1543eefe41fe7018e31489f0b7913808e9e6c21`. Los apartados posteriores conservan los cortes y su evidencia, no son instrucciones vigentes. «Resuelto» significa corrección o contrato confirmado dentro del alcance documentado; no certifica producción. «Riesgo aceptado» identifica una decisión técnica previa de conservar un contrato, **no** aceptación institucional. Para entrega, riesgos transversales y puesta en producción ver la [lista de verificación](ENTREGA-PRODUCCION.md).
+
+| Hallazgo | Estado vigente | Evidencia y límite residual |
+| --- | --- | --- |
+| AUD-001 | Resuelto | Runtime Python fijado en requirements/constraints y comprobado en imagen limpia en el corte inicial; AUD-026 verifica resolución efectiva. Falta regresión global sobre el candidato. |
+| AUD-002 | Resuelto | Eliminación previa de `RoleSwitch`, `TecnicoApp` y `MATRIX`, con traslado de las pruebas contractuales. No se acreditan otros candidatos a eliminación. |
+| AUD-003 | Mejora diferida | Hooks separados; no se unifican implementaciones con ciclos de vida distintos sin cobertura equivalente. |
+| AUD-004 | Mejora diferida | Mantener los acoplamientos actuales; no hay revisión exhaustiva ni refactorización transversal autorizada. |
+| AUD-005 | Resuelto | README, [arquitectura](ARQUITECTURA.md), OpenAPI y runbooks distinguen desarrollo, QA, operación y cortes históricos. |
+| AUD-006 | Mejora diferida | No dividir componentes solo por tamaño; medir mantenimiento y validar consumidores antes de cambiar. |
+| AUD-007 | Pendiente institucional | [Bloqueos SPEC-027](../backend/docs/SPEC-027-BLOQUEOS.md) implementados con opt-in y validados en QA, incluida recuperación excepcional TI. Requiere referencias, constancia y entrega SMTP reales; apagado por defecto. |
+| AUD-008 | Resuelto | Redis de seguridad dedicado; login, refresh y flujos públicos SPEC-027 usan límites centralizados. Redis autenticado/TLS y degradación cerrada verificados en laboratorio. Vigilar capacidad, disponibilidad y la IP real. |
+| AUD-009 | Resuelto | Compose independiente, Nginx/Daphne por socket Unix, TLS/WSS, segmentación y reinicio ensayados. DNS, certificados, egress y topología real siguen en la puerta institucional. |
+| AUD-010 | Riesgo aceptado | Se conserva logout que invalida refresh; el access previo puede durar hasta 10 min. Recuperación y cambios relevantes de seguridad revocan por versión de sesión. No se promete cierre inmediato por logout. |
+| AUD-011 | Resuelto | Los hooks descartan conciliaciones e informes de otra sesión/rol. Pruebas dirigidas históricas; ampliar cobertura por módulo/navegador queda fuera de este corte. |
+| AUD-012 | Resuelto | Revalidación después de esperas revisadas y carreras PostgreSQL en el [apartado específico](#aud-012--revalidación-después-de-esperas-sql), sin afirmar serialización universal ni atomicidad SQL/Mongo. |
+| AUD-013 | Riesgo aceptado | Se conserva el contrato de gasto manual: conciliar un resultado incierto antes de reintentar. El guard de UI no deduplica entre clientes. |
+| AUD-014 | Resuelto | El cierre conserva solicitudes y mermas históricas; no se alteran la trazabilidad ni las reglas de conservación. |
+| AUD-015 | Mejora diferida | No se aloja IBM Plex Sans localmente. Desarrollo referencia Google Fonts; el CSP productivo no admite esa hoja externa y se usa el fallback de sistema. Verificar licencia/fuente antes de distribuirla y aprobar cualquier dependencia externa. |
+| AUD-016 | Pendiente institucional | [SPEC-027](../backend/docs/SPEC-027-CIERRE.md) registra Matriz Firefox QA de seis roles; no cubre todos los flujos, navegadores ni el entorno institucional. Falta revisión del candidato con perfiles y dispositivos aprobados. |
+| AUD-017 | Mejora diferida | Sin introducir React Router; no es requisito de cierre de las correcciones. |
+| AUD-018 | Mejora diferida | Se conserva CSS global; sin migración transversal. |
+| AUD-019 | Resuelto | [Índice OpenAPI](../backend/docs/openapi/README.md), cuatro contratos de SPEC-027 y evidencia histórica de Postman QA. No existe un contrato monolítico ni un endpoint para la CLI excepcional TI. |
+| AUD-020 | Resuelto | Se documenta la proyección histórica de Gerencia sin reasignar actor, alterar estado persistido ni cambiar las decisiones de Finanzas. |
+| AUD-021 | Mejora diferida | Navegación por rol conservada; no se rediseña en la consolidación. |
+| AUD-022 | Mejora diferida | Medir seguimiento comercial con volumen representativo antes de tocar consultas; no hay nueva medición ni objetivo aprobado. |
+| AUD-023 | Resuelto | Respaldo nativo cifrado, inventario y recuperación offline en proyecto nuevo; RPO/RTO simulados, no SLA. Custodia, retención, capacidad y objetivos requieren acuerdo institucional. |
+| AUD-024 | Resuelto | Exclusiones y revisión acotada de archivos rastreados; no prueba ausencia de secretos en el historial. Mantener custodia externa y escaneo del candidato. |
+| AUD-025 | Resuelto | Roles independientes y denegaciones ensayadas, instalación limpia y conversión de laboratorio; CLI sensible en `operaciones_seguridad`. La conversión institucional no se ha ejecutado. |
+| AUD-026 | Resuelto | Job `pip-audit` del runtime efectivo con artefactos, sin exclusiones. No sustituye auditoría npm completa, de imágenes o del candidato aprobado. |
+| AUD-027 | Resuelto | Purga recuperable, `--dry-run` SQL no mutante y purga puntual antes de reabrir un destino; OBS-008 distingue contención de fallos. Programación apagada y aprobación de retención independiente de las copias históricas. |
+| AUD-028 | Resuelto | `live` mide proceso, `ready` verifica SQL; Nginx no expone los probes y el Compose comprueba `live` por socket. No certifica migraciones, SMTP ni servicios auxiliares. |
+
+Totales: **16 resueltos, 2 riesgos aceptados como decisión técnica, 2 pendientes institucionales y 8 mejoras diferidas**. Hay puertas institucionales adicionales sobre hallazgos técnicamente resueltos. La excepción histórica de tooling picomatch, separada de estos 28 ítems, no se ratifica aquí.
+
+## Registro histórico
+
+**PR #44 y tooling (17-11-2026):** el README del corte anterior registraba una aceptación de picomatch solo para desarrollo/QA, revisión semanal y vencimiento propuesto de 30 días (17-12-2026), sujeto a reevaluación. Las cuatro alertas correspondían a esa revisión. La publicación de aquel corte se autorizó únicamente para PR #44 Draft, sin merge, promoción a Ready, CA instalada ni cambios de confianza Windows. Se conserva el [detalle y la evidencia](../specs/014-frontend-cobranzas.md) y la [matriz histórica de navegador](../backend/docs/SPEC-012B-OPERACION.md); no son permisos operativos vigentes.
+
 ## Orden de trabajo
 
 1. Acordar precedencia y modelo en [SPEC-027](../specs/027-aprovisionamiento-recuperacion-seguridad.md).
