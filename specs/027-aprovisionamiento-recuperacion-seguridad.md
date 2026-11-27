@@ -4,7 +4,7 @@
 > **Rama:** `fix/auditoria-tecnica-final`, base `87d564bba6d18b274cb7ed009c767e89071b6aec`.
 > **Dependencias:** SPEC-002A/002B, 006B, 006C, 018, 018C (C1–C3) y contrato vigente de chat.
 
-**Incremento implementado:** verificación voluntaria y confirmación de cambio de correo. Consultar [operación y contrato](../backend/docs/SPEC-027-VERIFICACION.md). La obligatoriedad, la recuperación de contraseña, el setup web y el bloqueo productivo quedan fuera de este incremento.
+**Incrementos implementados:** [verificación voluntaria y confirmación de cambio de correo](../backend/docs/SPEC-027-VERIFICACION.md) y [asistente web de primera TI](../backend/docs/SPEC-027-SETUP.md). La obligatoriedad, la recuperación de contraseña y el bloqueo productivo siguen fuera del alcance implementado.
 
 ## 1. Objetivo y alcance
 

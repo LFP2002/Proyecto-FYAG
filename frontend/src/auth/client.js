@@ -112,9 +112,10 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
           if (path.startsWith('/api/chat/')) {
             for (const field of ['archivo','texto','body','clave_idempotencia','ultimo_mensaje_id','participantes','destinatario','titulo']) allowed.add(field);
           }
-          if (path.startsWith('/api/usuarios/')) {
-            for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
-          }
+           if (path.startsWith('/api/usuarios/')) {
+             for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
+           }
+           if (path === '/api/auth/setup/') allowed.add('password');
           const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
           for (const [key, value] of Object.entries(data || {})) {
             const values = Array.isArray(value) ? value : [value];
@@ -340,11 +341,18 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     return http(path, { method: 'POST', body: { [field]: value }, csrfToken: protection });
   }
 
+  async function submitInitialSetup(body) {
+    const protection = await csrfToken({ force: true });
+    return http('/api/auth/setup/', { method: 'POST', body, csrfToken: protection });
+  }
+
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
     restore, login, logout, request, completeFirstPasswordChange, sessionInvalidatedByEmailChange,
     submitEmailVerification,
+    initialSetupStatus: () => http('/api/auth/setup/estado/'),
+    submitInitialSetup,
   });
 }
 
