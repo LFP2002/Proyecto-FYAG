@@ -2,6 +2,7 @@ import re
 
 from rest_framework import serializers
 
+from apps.comercial.proyecciones import neto_aprobado
 from .models import DocumentoCobro, FinanzasEvento, SNAPSHOT_FIELDS, tipo_snapshot
 from .validaciones import hoy_santiago, validar_montos
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -100,7 +101,7 @@ def origen_financiero(obra):
                     "numero_identificacion": cliente.numero_identificacion,
                     "pais_identificacion": cliente.pais_identificacion,
                     "tipo_documento_extranjero": cliente.tipo_documento_extranjero},
-        "moneda": "CLP", "monto_neto_aprobado": format(presupuesto.monto_neto, ".2f"),
+        "moneda": "CLP", "monto_neto_aprobado": format(neto_aprobado(presupuesto), ".2f"),
         "finalizado_en": serializers.DateTimeField().to_representation(obra.finalizado_en),
         "cortesia": {"id": cortesia.pk, "tipo": cortesia.tipo} if cortesia else None,
     }

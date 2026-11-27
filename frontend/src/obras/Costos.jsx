@@ -1,4 +1,5 @@
 import WarehouseAuthorization from './WarehouseAuthorization.jsx';
+import MaterialPlan from './MaterialPlan.jsx';
 import {quantityInput,unitCostInput,quantityHint,moneyHint} from '../utils/decimalInput.js';
 import SupervisorCostHistory from './SupervisorCostHistory.jsx';
 import SupervisorCostReview, {SupervisorEmpty} from './SupervisorCostReview.jsx';
@@ -34,6 +35,7 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
   useEffect(()=>{onOperationalLock?.(api.busy||api.locked||!!warehouseForm);return()=>onOperationalLock?.(false);},[api.busy,api.locked,warehouseForm,onOperationalLock]);
   const [form, setForm] = useState(null), [issue, setIssue] = useState(''), [busyAction, setBusyAction] = useState(false);
   const [motive, setMotive] = useState('');
+  const [requirements, setRequirements] = useState(null);
   const canManage = user.role === S, canRead = [G, S, AF].includes(user.role), canSeeDetail = [G, S].includes(user.role);
   const expensesView = section === 'expenses', costsView = section === 'costs';
   const expensesPath = `${base}gastos/?page=${page}`, historyPath = `${base}costos/historial/?page=${historyPage}`;
@@ -42,19 +44,30 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
   function loadControl() { return api.load('control', `${base}costos/control/`, (data) => { const keys = ['id', 'obra', 'materiales_estado', 'materiales_justificacion', 'otros_estado', 'otros_justificacion', 'version_actual', 'version_validada', 'validado_por', 'validado_en', 'costos_validados', 'creado_en', 'actualizado_en']; if (!strictKeys(data, keys) || !Number.isSafeInteger(data.version_actual) || typeof data.costos_validados !== 'boolean' || !['PENDIENTE', 'CON_REGISTROS', 'NO_APLICA'].includes(data.materiales_estado) || !['PENDIENTE', 'CON_REGISTROS', 'NO_APLICA'].includes(data.otros_estado)) throw new Error('Control de costos inesperado.'); setControl(Object.fromEntries(keys.map((key) => [key, data[key]]))); }); }
   function loadSummary() { return api.load('summary', `${base}costos/resumen/`, (data) => { const keys = user.role === AF ? ['obra', 'materiales_total', 'otros_total', 'mano_obra_total', 'costo_total', 'costos_validados', 'cortesia_sin_cobro'] : ['obra', 'materiales_total', 'otros_total', 'mano_obra_total', 'costo_total', 'costos_validados', 'cortesia_sin_cobro', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'version_actual', 'version_validada', 'validado_por', 'validado_en', 'cortesia_justificacion', 'provisional']; if (!strictKeys(data, keys) || !['materiales_total', 'otros_total', 'mano_obra_total', 'costo_total'].every((key) => typeof data[key] === 'string' && decimal(data[key], 2)) || typeof data.costos_validados !== 'boolean' || typeof data.cortesia_sin_cobro !== 'boolean') throw new Error('Resumen de costos inesperado.'); setSummary(Object.fromEntries(keys.map((key) => [key, data[key]]))); }); }
   function loadHistory() { return api.load('history', historyPath, (data) => { const result = readPage(data, `${base}costos/historial/`); const keys = ['id', 'obra', 'gasto', 'control', 'cortesia', 'tipo', 'registrado_por', 'motivo', 'datos_anteriores', 'datos_nuevos', 'creado_en']; if (result.results.some((event) => !strictKeys(event, keys) || typeof event.tipo !== 'string' || typeof event.motivo !== 'string' || !object(event.datos_nuevos))) throw new Error('Historial de costos inesperado.'); setHistory(result); }); }
+  function loadRequirements() {
+    setRequirements(null);
+    return api.load('requirements', `${base}requisitos-cierre/`, data => {
+      const valid = data && ['validacion','finalizacion','devoluciones','despachos'].every(key=>Array.isArray(data[key])) &&
+        Number.isSafeInteger(data.version_actual) && data.version_actual>=0 &&
+        (data.version_validada===null || (Number.isSafeInteger(data.version_validada) && data.version_validada===data.version_actual)) &&
+        data.evidencias_archivo_verificadas===false &&
+        (data.confirmacion_remanente===null || /^[0-9a-f]{64}$/.test(data.confirmacion_remanente)) &&
+        !!data.confirmacion_remanente===!!data.despachos.length;
+      if(!valid) throw new Error('No se pudieron comprobar los requisitos de cierre.');
+      setRequirements(data);
+    });
+  }
   useEffect(() => { setExpenses(null); if (canSeeDetail && expensesView) void loadExpenses(); }, [obra.id, page, user.id, user.role, expensesView]);
   useEffect(() => { setHistory(null); if (canSeeDetail && costsView) void loadHistory(); }, [obra.id, historyPage, user.id, user.role, costsView]);
-  useEffect(() => { setControl(null); setSummary(null); if (costsView && canRead) void loadSummary(); if (costsView && canSeeDetail) void loadControl(); }, [obra.id, user.id, user.role, costsView]);
+  useEffect(() => { setControl(null); setSummary(null); setRequirements(null); if (costsView && canRead) void loadSummary(); if (costsView && canSeeDetail && !canManage) void loadControl(); if(costsView&&canManage&&['EN_PROCESO','SUSPENDIDA'].includes(obra.estado)) void loadRequirements(); }, [obra.id, obra.estado, user.id, user.role, costsView]);
 
   async function afterWrite() {
-    const results = [await api.requiredLoad('summary', `${base}costos/resumen/`, (data) => { if (!object(data) || !['materiales_total', 'otros_total', 'mano_obra_total', 'costo_total'].every((key) => typeof data[key] === 'string' && decimal(data[key], 2)) || typeof data.costos_validados !== 'boolean') throw new Error('Resumen de costos inesperado.'); setSummary(data); })];
     if (canSeeDetail) {
-      results.push(await api.requiredLoad('control', `${base}costos/control/`, (data) => setControl(data)));
-      if (expensesView) results.push(await api.requiredLoad('expenses', expensesPath, (data) => { const result = readPage(data, `${base}gastos/`); setExpenses({ ...result, results: result.results.map(projectExpense) }); }));
-      if (costsView) results.push(await api.requiredLoad('history', historyPath, (data) => setHistory(readPage(data, `${base}costos/historial/`))));
+      if(costsView) await api.requiredLoad('summary', `${base}costos/resumen/`, (data) => { if (!object(data) || !['materiales_total', 'otros_total', 'mano_obra_total', 'costo_total'].every((key) => typeof data[key] === 'string' && decimal(data[key], 2)) || typeof data.costos_validados !== 'boolean') throw new Error('Resumen de costos inesperado.'); setSummary(data); });
+      if (expensesView) await api.requiredLoad('expenses', expensesPath, (data) => { const result = readPage(data, `${base}gastos/`); setExpenses({ ...result, results: result.results.map(projectExpense) }); });
+      if (costsView) await api.requiredLoad('history', historyPath, (data) => setHistory(readPage(data, `${base}costos/historial/`)));
     }
-    // requiredLoad resolves only after each refresh applies successfully; it throws on failure.
-    if (results.length) { setForm(null); setIssue(''); setMotive(''); setExpenseOpen(false); }
+    setForm(null); setIssue(''); setMotive(''); setExpenseOpen(false);
   }
 
   async function saveExpense(event) {
@@ -78,21 +91,20 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
   async function action(path, body, method = 'POST') {
     if (!canManage || !['EN_PROCESO','SUSPENDIDA'].includes(obra.estado) || busyAction || api.busy || api.loading || api.locked) return false;
     setIssue(''); setBusyAction(true);
-    try { return await api.write(path, method, body, afterWrite); }
+    try { const ok=await api.write(path, method, body, afterWrite); if(costsView){if(!ok)setRefreshEpoch(v=>v+1);void loadRequirements();} return ok; }
     finally { setBusyAction(false); }
   }
-  async function finalize(reason) {
-    if (!canManage || obra.estado !== 'EN_PROCESO' || !reason.trim() || !summary?.costos_validados || !control?.costos_validados || api.busy || api.loading || api.locked || busyAction) { setIssue('La finalización requiere validación vigente, un motivo y una obra en proceso.'); return false; }
-    if (!globalThis.confirm?.('¿Finalizar esta obra? La finalización operativa es terminal.')) return false;
+  async function finalize(reason, confirmation, version) {
+    if (!canManage || obra.estado !== 'EN_PROCESO' || !reason.trim() || !summary?.costos_validados || !requirements || requirements.finalizacion.length || requirements.devoluciones.length || api.busy || api.loading || api.locked || busyAction) return false;
     setBusyAction(true); setIssue('');
-    try { return await api.write(`${base}finalizar/`, 'POST', { motivo: reason.trim() }, async () => { await onFinalized(); await afterWrite(); }); }
+    try { const ok=await api.write(`${base}finalizar/`, 'POST', { motivo: reason.trim(), version_costos_esperada:version, ...(confirmation?{confirmacion_remanente:confirmation}:{}) }, async () => { await onFinalized(); }); if(!ok){setRefreshEpoch(v=>v+1);void loadRequirements();} return ok; }
     finally { setBusyAction(false); }
   }
 
   async function reconsult() {
     if(api.busy||api.loading||warehouseForm)return;
     await api.reconcile(async()=>{
-      const reads=costsView?[loadSummary(),loadControl(),loadHistory()]:[loadExpenses(),loadSummary(),loadControl()];
+      const reads=costsView?[loadSummary(),loadHistory(),...(canManage?(['EN_PROCESO','SUSPENDIDA'].includes(obra.estado)?[loadRequirements()]:[]):[loadControl()])]:[loadExpenses()];
       const ok=(await Promise.all(reads)).every(Boolean);
       if(!ok)return false;
       if(onFinalized){try{await onFinalized();}catch{api.setError(new Error('No se pudo actualizar el estado de la obra. Reconsulta antes de continuar.'));return false;}}
@@ -107,7 +119,8 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
     {notice&&<p className="alert alert-success" role="status">{notice}</p>}
     {expensesView&&canManage&&warehouseForm&&<WarehouseAuthorization obra={obra} delivery={warehouseForm.delivery} onClose={()=>setWarehouseForm(null)} onConfirmed={message=>{setWarehouseForm(null);setNotice(message);void loadExpenses();}}/>}
     {issue && <p className="alert alert-warning" role="alert">{issue}</p>}
-    {costsView&&canManage&&<SupervisorCostReview obra={obra} summary={summary} control={control} api={api} busyAction={busyAction} refreshEpoch={refreshEpoch} onAction={(suffix,body,method)=>action(base+suffix,body,method)} onFinalize={finalize} onTab={onTab}/>}
+    {expensesView&&canSeeDetail&&!warehouseForm&&!expenseOpen&&!form&&<MaterialPlan obra={obra} revision={refreshEpoch} disabled={api.busy||api.locked}/>}
+    {costsView&&canManage&&<SupervisorCostReview obra={obra} summary={summary} requirements={requirements} api={api} busyAction={busyAction} refreshEpoch={refreshEpoch} onAction={(suffix,body)=>action(base+suffix,body)} onFinalize={finalize} onTab={onTab}/>}
     {costsView && !canManage && summary && <section className="card-fyag p-3 mb-3" aria-label="Resumen de costos">
       <h3>Resumen económico</h3>
       <dl className="commercial-facts">

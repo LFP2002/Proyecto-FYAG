@@ -90,7 +90,18 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
       if ([400, 409].includes(response.status) && !path.startsWith('/api/auth/')) {
         try {
           const data = await response.json();
-          const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+           const allowed = new Set(['tipo_cliente', 'tipo_identificacion', 'numero_identificacion', 'pais_identificacion', 'tipo_documento_extranjero', 'nombre_legal', 'nombre_contacto', 'correo', 'telefono', 'cliente', 'descripcion', 'cantidad', 'unidad', 'precio_unitario', 'orden', 'motivo', 'non_field_errors', 'detail']);
+           const inicioObra = /^\/api\/obras\/\d+\/iniciar\/$/.test(path);
+           const cierreObra = /^\/api\/obras\/\d+\/finalizar\/$/.test(path);
+           const revisionObra = cierreObra || /^\/api\/obras\/\d+\/costos\/validar\/$/.test(path);
+           if (inicioObra && response.status === 400) allowed.add('materiales');
+           if (revisionObra) allowed.add('version_costos_esperada');
+           const aprobarPresupuesto = /^\/api\/presupuestos\/\d+\/aprobar-finanzas\/$/.test(path);
+           if (aprobarPresupuesto && response.status === 400) {
+             allowed.add('version_comercial_esperada');
+             allowed.add('monto_neto');
+           }
+           if (aprobarPresupuesto && response.status === 409 && data?.code === 'version_comercial_obsoleta') code = data.code;
           if (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')) {
             for (const field of ['presupuesto', 'categoria_servicio', 'tecnico_responsable', 'tecnico', 'fecha_programada', 'nombre', 'estado', 'activo', 'ordering', 'fecha_programada_desde', 'fecha_programada_hasta', 'page', 'decision', 'costo_hora_neto', 'duracion_ajustada_segundos', 'fotos[]', 'buscar', 'materiales_estado', 'otros_estado', 'materiales_justificacion', 'otros_justificacion', 'justificacion', 'costo_unitario_neto', 'fecha_gasto', 'fecha_devolucion']) allowed.add(field);
           }
@@ -109,8 +120,10 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
             const values = Array.isArray(value) ? value : [value];
             if (allowed.has(key) && values.length <= 10 && values.every(safe)) fields[key] = values;
           }
-          if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
-          if (response.status===409 && /^\/api\/obras\/\d+\/(?:costos\/validar|finalizar)\/$/.test(path) && data?.code==='costos_incompletos') {
+           if (['presupuesto_utilizado', 'estado_incompatible'].includes(data?.code) || (data?.code === 'sin_cambios' && (path.startsWith('/api/obras/') || path.startsWith('/api/categorias-servicio/')))) code = data.code;
+           if (response.status===409 && ((revisionObra && data?.code==='version_costos_obsoleta') ||
+             (cierreObra && ['devolucion_pendiente','confirmacion_remanente_requerida'].includes(data?.code)))) code=data.code;
+           if (response.status===409 && revisionObra && data?.code==='costos_incompletos') {
             code=data.code;
             const known=new Set(['responsable_no_elegible','responsable_sin_membresia','sin_turno_acreditado','turnos_sin_acreditar','turno_inconsistente','turnos_abiertos','turnos_pendientes_revision','turnos_observados','turnos_sin_tarifa','duracion_administrativa_sin_verificar','ejecutor_inconsistente','duracion_inconsistente','evidencia_inconsistente','gasto_inconsistente','materiales_sin_declarar_o_incoherente','otros_sin_declarar_o_incoherente','costo_total_no_positivo','control_inexistente','validacion_obsoleta_o_ausente']);
             if(Array.isArray(data.pendientes))fields.pendientes=[...new Set(data.pendientes.filter(value=>known.has(value)))];

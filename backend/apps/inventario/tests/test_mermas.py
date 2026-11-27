@@ -184,6 +184,14 @@ class MermasDominioTests(MermasBase, TestCase):
         self.assertEqual(self.client.get(ruta, {'entrega': e.pk}).data['results'][0]['cantidad_recibible_efectiva'], '0.000')
         e.gasto.refresh_from_db()
         self.assertEqual(e.gasto.cantidad_devuelta, 4)
+        self.autenticar(self.supervisor)
+        self.acreditar()
+        self.validar()
+        requisitos = self.client.get(f'/api/obras/{self.obra.pk}/requisitos-cierre/')
+        self.assertEqual(requisitos.status_code, 200, requisitos.data)
+        self.assertEqual(requisitos.data['devoluciones'], [])
+        self.assertEqual(self.finalizar(requisitos.data['confirmacion_remanente']).estado, 'FINALIZADA')
+        self.assertEqual(GastoObra.objects.filter(obra=self.obra).count(), 1)
 
     def test_nuevas_autorizaciones_descuentan_todas_las_previas_y_mo(self):
         self.preparar_entrega()

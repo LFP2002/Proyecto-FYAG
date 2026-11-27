@@ -7,6 +7,7 @@ import re
 from rest_framework import serializers
 
 from .calculos import sumar_monto_neto
+from .version_comercial import version_comercial
 
 
 class ContratoPresupuestoSerializer(serializers.Serializer):
@@ -69,21 +70,35 @@ class PresupuestoEscrituraSerializer(ContratoPresupuestoSerializer):
 
 class PresupuestoItemEscrituraSerializer(ContratoPresupuestoSerializer):
     articulo = EnteroEstrictoField(min_value=1, max_value=9223372036854775807, required=False, allow_null=True)
-    descripcion = StringEstrictoField(max_length=2000)
+    descripcion = StringEstrictoField(max_length=2000, required=False)
     cantidad = DecimalTextoField(
         max_digits=12, decimal_places=3, min_value=Decimal("0.001")
     )
-    unidad = StringEstrictoField(max_length=30)
+    unidad = StringEstrictoField(max_length=30, required=False)
     precio_unitario = DecimalTextoField(
-        max_digits=15, decimal_places=2, min_value=Decimal("0.00")
+        max_digits=15, decimal_places=2, min_value=Decimal("0.00"), required=False,
     )
     orden = EnteroEstrictoField(min_value=1, max_value=2147483647)
+
+
+class PrecioComercialSerializer(ContratoPresupuestoSerializer):
+    precio_unitario = DecimalTextoField(max_digits=15, decimal_places=2, min_value=Decimal("0.00"))
 
 
 class PresupuestoAccionSerializer(ContratoPresupuestoSerializer):
     motivo = StringEstrictoField(
         max_length=2000, required=False, allow_blank=True, default=""
     )
+
+
+class AprobarFinanzasSerializer(PresupuestoAccionSerializer):
+    version_comercial_esperada = serializers.RegexField(r"\A[0-9a-f]{64}\Z", required=False, trim_whitespace=False)
+
+    def validate_version_comercial_esperada(self, value):
+        # RegexField admite coerción de números; la huella es estrictamente textual.
+        if not isinstance(self.initial_data.get("version_comercial_esperada"), str):
+            raise serializers.ValidationError("Indique una huella textual.")
+        return value
 
 
 class PresupuestoMotivoObligatorioSerializer(ContratoPresupuestoSerializer):
@@ -121,11 +136,11 @@ class PresupuestoItemSerializer(serializers.Serializer):
     )
     unidad = serializers.CharField(read_only=True)
     precio_unitario = serializers.DecimalField(
-        max_digits=15, decimal_places=2, coerce_to_string=True, read_only=True
+        max_digits=15, decimal_places=2, coerce_to_string=True, read_only=True, allow_null=True,
     )
     orden = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(
-        max_digits=24, decimal_places=2, coerce_to_string=True, read_only=True
+        max_digits=24, decimal_places=2, coerce_to_string=True, read_only=True, allow_null=True,
     )
 
 
@@ -151,10 +166,15 @@ class PresupuestoListadoSerializer(serializers.Serializer):
 
     def get_monto_neto(self, obj):
         neto = sumar_monto_neto(item.subtotal for item in obj.lineas_respuesta)
-        return format(neto, ".2f")
+        return format(neto, ".2f") if neto is not None else None
 
 
 class PresupuestoDetalleSerializer(PresupuestoListadoSerializer):
+    version_comercial = serializers.SerializerMethodField()
+
+    def get_version_comercial(self, obj):
+        return version_comercial(obj, obj.lineas_respuesta)
+
     items = PresupuestoItemSerializer(
         source="lineas_respuesta", many=True, read_only=True
     )

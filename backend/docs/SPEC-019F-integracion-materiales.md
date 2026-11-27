@@ -1,0 +1,21 @@
+# SPEC-019F — Operación y compatibilidad
+
+La previsión de la obra se lee de las líneas con artículo del presupuesto aprobado. El nombre es la descripción congelada de la línea, no el nombre actual del catálogo. Las líneas sin vínculo no se interpretan como inventario. La conciliación usa acumulados físicos por línea/autorización, nunca precios comerciales. Neto imputado = despachado menos devuelto; no representa consumo. Las autorizaciones de solicitud se distinguen de las que carecen de vínculo verificable (pueden ser directas o históricas).
+
+`inventario.0009_origen_material_presupuestado` añade una FK opcional, única por línea (el presupuesto de la obra es único), y un trigger de inserción que comprueba el tipo de operación, la exclusión del origen por solicitud y la coincidencia de obra, artículo, unidad y cantidad. El libro ya impide mutar las autorizaciones. La migración no rellena ni reclasifica registros; las obras que ya se iniciaron muestran la previsión sin autorización asociada. No se modifican las rutas, permisos ni tablas de Comercial.
+
+El inicio ejecuta la creación en la misma transacción, después de `Presupuesto → Obra → responsable` y con artículos ordenados por PK. Usa el núcleo de 019B con UUID nuevos, no locks asesores de operaciones públicas. Un reintento conserva el `409` histórico sin duplicar filas. Un bloqueo de catálogo revierte también el inicio. Stock y valoración se vuelven a comprobar solo al despachar; ni crear la obra ni autorizar reserva existencias.
+
+El preflight de cierre no escribe. La confirmación se firma con la clave de Django y abarca obra, Supervisor, estado y lista ordenada de autorizaciones con remanente. La cantidad se vuelve a consultar bajo el lock de Obra, igual que el remanente recibible 019C-2. Las escrituras 019B/C y los costos mantienen su invalidación y orden existentes. Una devolución autorizada sin remanente recibible efectivo no bloquea; una devolución efectivamente pendiente devuelve `409 devolucion_pendiente`. Si el remanente cambia, consultar y confirmar el nuevo estado, no reenviar la escritura automáticamente. El cierre deja constancia de la confirmación en el evento, conserva el snapshot económico y la cola de Bodega omite autorizaciones terminales.
+
+El `PATCH …/costos/control/` sigue disponible con los permisos e invalidación históricos: no es requisito de la nueva validación. El `POST …/costos/validar/` deriva los rubros de gastos vigentes, guarda la justificación automática de ausencia y registra actor, motivo y versión en el evento de validación. No sustituye los históricos ni la comprobación de evidencia, responsable, turnos, integridad o total positivo. La cortesía permanece separada.
+
+La proyección Bodega 019D añade `origen` a las cuatro operaciones físicas/operativas y `inhabilitada` a las autorizaciones. No expone ID de línea comercial ni importes. Ver [OpenAPI 019F](openapi/SPEC-019F-v1.yaml) y [Postman](postman/SPEC-019F.postman_collection.json). Los laboratorios de migración se deben ejecutar con `compose.premerge-qa.yaml` de manera independiente del Compose principal.
+
+### Revisión 1.1 del contrato
+
+La preparación comercial de estos materiales se rige por [SPEC-025B](openapi/SPEC-025B-v1.json): Finanzas fija el precio de venta antes de aprobar. La autorización de inicio sigue usando artículo, unidad y cantidad; la imputación ocurre al confirmar el despacho a costo de inventario, no al cotizar.
+
+Los clientes de validar y finalizar deben enviar `version_costos_esperada`: el entero mostrado por `version_actual` de la revisión que se confirma. Antes de habilitar la acción, compare también `version_validada` entre resumen y preflight. Si hay `409 version_costos_obsoleta`, relea ambos recursos y solicite una nueva confirmación. No use la versión de una lectura posterior para reenviar una confirmación anterior. Las peticiones sin la versión requerida reciben `400`; el cambio no requiere migración.
+
+El preflight no abre fotos ni calcula sus hashes y declara `evidencias_archivo_verificadas: false`; los POST conservan la verificación definitiva. Los tres servicios de escritura 019F contrastan usuario y JWT originales con sesión, credenciales y rol persistidos después de esperar a las raíces y de nuevo antes de consolidar efectos. Las revocaciones no se sustituyen con datos de una sesión más reciente.

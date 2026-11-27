@@ -21,13 +21,16 @@ from .exceptions import (
     OrdenDuplicado,
     RecursoNoEncontrado,
     PresupuestoUtilizado,
+    VersionComercialObsoleta,
 )
 from .models import Cliente, Presupuesto, PresupuestoItem
 from .permissions import PuedeOperarPresupuestos
 from .permissions_presupuestos import presupuestos_visibles, revalidar_presupuestos
 from .serializers_presupuestos import (
+    AprobarFinanzasSerializer,
     ClienteElegibleSerializer,
     MaterialElegibleSerializer,
+    PrecioComercialSerializer,
     PresupuestoAccionSerializer,
     PresupuestoDetalleSerializer,
     PresupuestoEscrituraSerializer,
@@ -49,7 +52,7 @@ class ConflictoPresupuesto(APIException):
 
 def traducir_error_presupuesto(error):
     """Traduce errores conocidos sin ocultar fallos internos."""
-    if isinstance(error, (EstadoIncompatible, PresupuestoUtilizado)):
+    if isinstance(error, (EstadoIncompatible, PresupuestoUtilizado, VersionComercialObsoleta)):
         return ConflictoPresupuesto(error)
     if isinstance(error, RecursoNoEncontrado):
         return NotFound(str(error))
@@ -130,12 +133,13 @@ class PresupuestoViewSet(
             "partial_update": PresupuestoEscrituraSerializer,
             "items": PresupuestoItemEscrituraSerializer,
             "item_detalle": PresupuestoItemEscrituraSerializer,
+            "precio_comercial": PrecioComercialSerializer,
             "historial": PresupuestoEventoSerializer,
             "crear_revision": PresupuestoRevisionSerializer,
             "rechazar_gerencia": PresupuestoMotivoObligatorioSerializer,
             "rechazar_finanzas": PresupuestoMotivoObligatorioSerializer,
             "enviar_finanzas": PresupuestoAccionSerializer,
-            "aprobar_finanzas": PresupuestoAccionSerializer,
+            "aprobar_finanzas": AprobarFinanzasSerializer,
             "registrar_rechazo_cliente": (
                 PresupuestoMotivoObligatorioSerializer
             ),
@@ -251,6 +255,14 @@ class PresupuestoViewSet(
             presupuesto, item, self._entrada(partial=True), request.user
         )
         return Response(PresupuestoItemSerializer(actualizado).data)
+
+    @action(detail=True, methods=["patch"], url_path=r"items/(?P<item_id>[0-9]+)/precio-comercial")
+    def precio_comercial(self, request, pk=None, item_id=None):
+        presupuesto = self.get_object()
+        item = get_object_or_404(PresupuestoItem, presupuesto_id=presupuesto.pk, pk=item_id)
+        datos = self._entrada()
+        linea = servicios.fijar_precio_comercial(presupuesto, item, datos['precio_unitario'], request.user)
+        return Response(PresupuestoItemSerializer(linea).data)
 
     @action(detail=True, methods=["get"])
     def historial(self, request, pk=None):

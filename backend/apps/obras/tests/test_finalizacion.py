@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.exceptions import AuthenticationFailed
 
 from apps.comercial import services_presupuestos as comercial
 from apps.comercial.exceptions import PresupuestoUtilizado
@@ -28,8 +29,11 @@ class FinalizacionBase(CostosBase):
         self.validar()
         return turno, gasto
 
-    def finalizar(self):
-        return cierre.finalizar_obra(self.obra, {"motivo": "Trabajo terminado y costos revisados"}, self.supervisor)
+    def finalizar(self, confirmacion=None):
+        datos = self.revision('Trabajo terminado y costos revisados')
+        if confirmacion is not None:
+            datos['confirmacion_remanente'] = confirmacion
+        return cierre.finalizar_obra(self.obra, datos, self.supervisor)
 
     def estado_persistido(self):
         return {modelo.__name__: list(modelo.objects.order_by("pk").values()) for modelo in (
@@ -38,7 +42,7 @@ class FinalizacionBase(CostosBase):
 
     def rechazar_sin_cambios(self):
         antes = self.estado_persistido()
-        respuesta = self.client.post(self.finalizar_url, {"motivo": "Intento de cierre"}, format="json")
+        respuesta = self.client.post(self.finalizar_url, self.revision('Intento de cierre'), format="json")
         self.assertEqual(respuesta.status_code, 409, respuesta.data)
         self.assertEqual(self.estado_persistido(), antes)
         return respuesta
@@ -53,7 +57,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
         control_antes = costos.snapshot(self.control())
         ficha = self.client.get(f"/api/obras/{self.obra.pk}/").data
         antes = timezone.now()
-        respuesta = self.client.post(self.finalizar_url, {"motivo": "  Trabajo y costos verificados  "}, format="json")
+        respuesta = self.client.post(self.finalizar_url, self.revision('  Trabajo y costos verificados  '), format="json")
         self.assertEqual(respuesta.status_code, 200, respuesta.data)
         self.assertEqual(set(respuesta.data), set(ficha))
         self.assertEqual(respuesta.data["estado"], "FINALIZADA")
@@ -106,7 +110,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
         self.finalizar()
         otra = self.otra_obra()
         self.cambiar_estado(otra, "PLANIFICADA")
-        self.assertEqual(self.client.post(f"/api/obras/{otra.pk}/finalizar/", {"motivo": "X"}, format="json").status_code, 409)
+        self.assertEqual(self.client.post(f"/api/obras/{otra.pk}/finalizar/", self.revision('X', otra), format="json").status_code, 409)
 
     def test_responsable_inactivo_rol_incorrecto_y_membresia_no_vigente(self):
         self.completa()
@@ -224,7 +228,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
             username="supervisor_cierre", email="cierre@fyag.test", rol=services.SUPERVISOR,
         )
         self.autenticar(otro_supervisor)
-        respuesta = self.client.post(self.finalizar_url, {"motivo": "Revisión final"}, format="json")
+        respuesta = self.client.post(self.finalizar_url, self.revision('Revisión final'), format="json")
         self.assertEqual(respuesta.status_code, 200, respuesta.data)
         fotografia = CierreCostosObra.objects.get(obra=self.obra)
         self.assertEqual(fotografia.validado_por_id, self.supervisor.pk)
@@ -263,7 +267,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
             self.assertEqual(self.client.post(self.finalizar_url, {"motivo": "Intento"}, format="json").status_code, 403)
             self.assertEqual(self.client.post("/api/obras/999999/finalizar/", {}, format="json").status_code, 403)
         self.autenticar(self.supervisor)
-        self.assertEqual(self.client.post(self.finalizar_url, {"motivo": "Correcto"}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(self.finalizar_url, self.revision('Correcto'), format="json").status_code, 200)
 
     def test_rol_persistido_del_actor_no_del_caller(self):
         self.completa()
@@ -274,7 +278,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
     def test_actor_desactivado_no_puede_finalizar_desde_servicio(self):
         self.completa()
         type(self.supervisor).objects.filter(pk=self.supervisor.pk).update(is_active=False)
-        with self.assertRaises(PermisoDenegado):
+        with self.assertRaises(AuthenticationFailed):
             self.finalizar()
         self.assertFalse(CierreCostosObra.objects.exists())
 
@@ -303,7 +307,7 @@ class FinalizacionTests(FinalizacionBase, TestCase):
             "participantes/": {"tecnico": self.otro_tecnico.pk, "motivo": "X"},
             f"participantes/{miembro.pk}/desasignar/": {"motivo": "X"},
             "gastos/": self.entrada(), f"gastos/{gasto.pk}/devolver/": {"cantidad": "1.000", "fecha_devolucion": timezone.localdate().isoformat(), "motivo": "X"},
-            f"gastos/{gasto.pk}/anular/": {"motivo": "X"}, "costos/validar/": {"motivo": "X"},
+            f"gastos/{gasto.pk}/anular/": {"motivo": "X"}, "costos/validar/": self.revision('X'),
             "cortesia-sin-cobro/": {"justificacion": "X"},
             f"turnos/{turno.pk}/revisar/": {"decision": "VALIDAR", "costo_hora_neto": "8000.00", "motivo": "X"},
             f"turnos/{turno.pk}/corregir/": {"duracion_ajustada_segundos": 1800, "motivo": "X"},

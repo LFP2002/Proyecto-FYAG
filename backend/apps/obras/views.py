@@ -8,7 +8,7 @@ from django.db.models import Case, Exists, F, IntegerField, OuterRef, Q, Value, 
 from django.utils import timezone
 from django.db.models.functions import Concat, Lower
 from django.shortcuts import get_object_or_404
-from rest_framework import mixins, status, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -46,6 +46,7 @@ from .serializers import (
     CambioTecnicoSerializer, CategoriaServicioEventoSerializer,
     CategoriaServicioSerializer, MotivoCategoriaSerializer,
     MotivoObligatorioSerializer, NombreCategoriaSerializer,
+    EnteroEstrictoField,
     ObraCrearSerializer, ObraEditarSerializer, ObraEventoSerializer,
     ObraFinanzasSerializer, ObraLecturaSerializer,
     PresupuestoDisponibleSerializer, RenombrarCategoriaSerializer,
@@ -82,6 +83,14 @@ def traducir_error_obras(error):
 class ObrasPaginacion(PageNumberPagination):
     page_size = 25
     page_size_query_param = None
+
+
+class RevisionEconomicaSerializer(MotivoObligatorioSerializer):
+    version_costos_esperada = EnteroEstrictoField(min_value=0, max_value=9223372036854775807)
+
+
+class FinalizarObraSerializer(RevisionEconomicaSerializer):
+    confirmacion_remanente = serializers.RegexField(r'\A[0-9a-f]{64}\Z', required=False, trim_whitespace=False)
 
 
 def _entero_query(query, nombre):
@@ -142,7 +151,7 @@ class ObraViewSet(
             "devolver_gasto": DevolucionSerializer,
             "anular_gasto": MotivoObligatorioSerializer,
             "historial_costos": CostoObraEventoSerializer,
-            "validar_costos": MotivoObligatorioSerializer,
+            "validar_costos": RevisionEconomicaSerializer,
             "cortesia_sin_cobro": CortesiaEntradaSerializer,
             "create": ObraCrearSerializer,
             "partial_update": ObraEditarSerializer,
@@ -150,7 +159,7 @@ class ObraViewSet(
             "iniciar": MotivoObligatorioSerializer,
             "suspender": MotivoObligatorioSerializer,
             "reanudar": MotivoObligatorioSerializer,
-            "finalizar": MotivoObligatorioSerializer,
+            "finalizar": FinalizarObraSerializer,
             "historial": ObraEventoSerializer,
             "presupuestos_disponibles": PresupuestoDisponibleSerializer,
             "tecnicos_disponibles": TecnicoDisponibleSerializer,
@@ -187,8 +196,31 @@ class ObraViewSet(
     @action(detail=True, methods=["post"], parser_classes=[JSONParser])
     def finalizar(self, request, pk=None):
         obra = self.get_object()
-        actual = services_finalizacion.finalizar_obra(obra, self._datos(), request.user)
+        actual = services_finalizacion.finalizar_obra(obra, self._datos(), request.user, token=request.auth)
         return self._detalle(actual)
+
+    @action(detail=True, methods=['get'], url_path='requisitos-cierre')
+    def requisitos_cierre(self, request, pk=None):
+        obra = self.get_object()
+        if request.query_params:
+            raise ValidationError('Esta consulta no admite parámetros.')
+        return Response(services_finalizacion.requisitos_cierre(obra, request.user, token=request.auth),
+                        headers={'Cache-Control': 'private, no-store'})
+
+    @action(detail=True, methods=['get'], url_path='conciliacion-materiales')
+    def conciliacion_materiales(self, request, pk=None):
+        from . import materials_plan, services_costos
+
+        services_costos._lector(request.user)
+        obra = self.get_object()
+        _validar_query_params(request.query_params, {'origen'})
+        origen = request.query_params.get('origen', 'PRESUPUESTO')
+        if origen not in {'PRESUPUESTO', 'ADICIONAL'}:
+            raise ValidationError({'origen': ['Use PRESUPUESTO o ADICIONAL.']})
+        pagina = self.paginate_queryset(materials_plan.conciliacion(obra, origen))
+        response = self.get_paginated_response([materials_plan.fila(obj, obra, origen == 'PRESUPUESTO') for obj in pagina])
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
     def _paginado(self, queryset, serializer_class):
         pagina = self.paginate_queryset(queryset)
@@ -292,7 +324,8 @@ class ObraViewSet(
 
     @action(detail=True, methods=["post"])
     def iniciar(self, request, pk=None):
-        return self._transicion(services.iniciar_obra)
+        obra = self.get_object()
+        return self._detalle(services.iniciar_obra(obra, request.user, **self._datos(), token=request.auth))
 
     @action(detail=True, methods=["post"])
     def suspender(self, request, pk=None):

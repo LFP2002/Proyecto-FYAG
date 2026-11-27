@@ -45,7 +45,22 @@ test('fuentes productivas sin credenciales demo, selector de roles ni almacenami
   const text = await allSource(root);
   assert.doesNotMatch(text, /DEMO_USERS|demo1234|Perfil de prueba|localStorage|sessionStorage|indexedDB|document\.cookie/);
   const pages = await Promise.all(['Alertas.jsx','Cobranzas.jsx','Dashboard.jsx','Reportes.jsx'].map((name) => source(`pages/${name}`)));
-  assert.ok(pages.every((page) => !/useApp|obrasC|alertasAll|Exportación generada|estado de desviación/.test(page)));
+  // Cobranzas usa exclusivamente el contexto de navegación, no datos ni
+  // mutaciones de negocio simuladas. Mantener el resto de prohibiciones.
+  let cobranzas = pages[1];
+  for (const fragment of [
+    "import { useApp } from '../context/AppContext.jsx';",
+    'const target=useApp()?.navigationTarget;',
+    'const app=useApp();',
+    'useEffect(()=>{app?.setNavigationBlocked?.(financialBlocked);return ()=>app?.setNavigationBlocked?.(false);},[financialBlocked,app?.setNavigationBlocked]);',
+  ]) {
+    assert.equal(cobranzas.split(fragment).length,2,'Uso explícito de navegación de Cobranzas');
+    cobranzas=cobranzas.replace(fragment,'');
+  }
+  assert.doesNotMatch(cobranzas,/\b(?:app|useApp)\b/);
+  for (const page of [pages[0],cobranzas,pages[2],pages[3]]) {
+    assert.doesNotMatch(page,/useApp|obrasC|alertasAll|Exportación generada|estado de desviación/);
+  }
   assert.doesNotMatch(pages[0], /markAtendida/);
   assert.doesNotMatch(pages[1], /pagoChange|showPagoForm|savePago/);
   assert.doesNotMatch(pages[2], /pctTxt|margen proyectado|Math\.round\([^)]*(?:presupuesto|costo)/);
@@ -114,9 +129,9 @@ test('menús usan seis roles; solo TI ofrece Usuarios y Técnico no ofrece módu
   assert.deepEqual(Object.keys(NAV).sort(), ['ADMINISTRADOR_TI', 'ADMINISTRATIVO_FINANZAS', 'BODEGUERO', 'GERENCIA', 'SUPERVISOR_OBRAS', 'TECNICO']);
   assert.deepEqual(NAV.ADMINISTRADOR_TI, ['usuarios', 'auditoria', 'chat']);
   assert.equal(NAV.GERENCIA.includes('usuarios'), false);
-  assert.deepEqual(NAV.TECNICO, ['obras', 'solicitudes', 'mermas', 'chat']);
+  assert.deepEqual(NAV.TECNICO, ['obras', 'mis_turnos', 'solicitudes', 'mermas', 'chat']);
   assert.deepEqual(NAV.SUPERVISOR_OBRAS, ['obras', 'presupuestos', 'alertas', 'auditoria', 'inventario', 'solicitudes', 'mermas', 'chat']);
-  assert.deepEqual(NAV.BODEGUERO, ['inventario', 'mermas', 'chat']);
+  assert.deepEqual(NAV.BODEGUERO, ['bodega_resumen', 'inventario', 'bodega_movimientos', 'bodega_entregas', 'bodega_devoluciones', 'mermas', 'chat']);
   assert.ok(NAV.ADMINISTRATIVO_FINANZAS.includes('egresos'));
   assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('inventario'), true);
   assert.equal(NAV.ADMINISTRATIVO_FINANZAS.includes('alertas'), true);

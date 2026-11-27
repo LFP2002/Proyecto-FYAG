@@ -16,19 +16,23 @@ def listado(actor, tipo, params):
     qs = OperacionMaterial.objects.filter(tipo=tipo).order_by('id')
     for campo in permitidos & set(params):
         qs = qs.filter(**{campo + '_id': articulo_filtro({'articulo': params[campo]})})
-    if tipo == 'AUTORIZACION_DEVOLUCION':
-        decimal = DecimalField(max_digits=12, decimal_places=3)
-        cero = Value(Decimal('0.000'), output_field=decimal)
-        def suma(model, grupo, **filtros):
-            sub = model.objects.filter(**filtros).order_by().values(grupo).annotate(q=Sum('cantidad')).values('q')
-            return Coalesce(Subquery(sub, output_field=decimal), cero)
-        qs = qs.annotate(
-            _recibida=suma(OperacionMaterial, 'autorizacion_id', autorizacion_id=OuterRef('pk'), tipo='DEVOLUCION'),
-            _total_recibida=suma(OperacionMaterial, 'entrega_id', entrega_id=OuterRef('entrega_id'), tipo='DEVOLUCION'),
-            _mermada=suma(Merma, 'entrega_id', entrega_id=OuterRef('entrega_id'), ambito='OBRA', estado='APROBADA'),
-        ).annotate(cantidad_recibible_efectiva=Greatest(cero, Least(F('cantidad')-F('_recibida'),
-            F('entrega__cantidad')-F('_total_recibida')-F('_mermada')), output_field=decimal))
-    return qs
+    return con_recibible(qs) if tipo == 'AUTORIZACION_DEVOLUCION' else qs
+
+
+def con_recibible(qs):
+    decimal = DecimalField(max_digits=12, decimal_places=3)
+    cero = Value(Decimal('0.000'), output_field=decimal)
+
+    def suma(model, grupo, **filtros):
+        sub = model.objects.filter(**filtros).order_by().values(grupo).annotate(q=Sum('cantidad')).values('q')
+        return Coalesce(Subquery(sub, output_field=decimal), cero)
+
+    return qs.annotate(
+        _recibida=suma(OperacionMaterial, 'autorizacion_id', autorizacion_id=OuterRef('pk'), tipo='DEVOLUCION'),
+        _total_recibida=suma(OperacionMaterial, 'entrega_id', entrega_id=OuterRef('entrega_id'), tipo='DEVOLUCION'),
+        _mermada=suma(Merma, 'entrega_id', entrega_id=OuterRef('entrega_id'), ambito='OBRA', estado='APROBADA'),
+    ).annotate(cantidad_recibible_efectiva=Greatest(cero, Least(F('cantidad')-F('_recibida'),
+        F('entrega__cantidad')-F('_total_recibida')-F('_mermada')), output_field=decimal))
 
 
 def estados(actor, params):

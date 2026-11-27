@@ -98,14 +98,23 @@ class CarrerasSolicitudesTests(SolicitudesBase, CarrerasPostgreSQL, TransactionT
         self.assertTrue(CierreCostosObra.objects.filter(obra=self.obra).exists())
         self.assertFalse(Op.objects.filter(solicitud_material=s).exists())
 
-    def test_aprobacion_no_invalida_costos_ni_bloquea_finalizacion(self):
+    def test_aprobacion_no_invalida_costos_pero_exige_confirmar_nuevo_remanente(self):
         self.completa()
         s = self.solicitar()
         version = self.control().version_actual
-        one, two = self.race(lambda: self.decidir(s), self.finalizar)
+        def finalizar():
+            from apps.obras.exceptions import CierreMaterialesPendientes
+            from apps.inventario.services_materiales import conflicto
+            try:
+                return self.finalizar()
+            except CierreMaterialesPendientes as exc:
+                conflicto(exc.codigo)
+
+        one, two = self.race(lambda: self.decidir(s), finalizar)
         self.assertEqual(one.estado, 'APROBADA')
-        self.assertEqual(two.estado, 'FINALIZADA')
+        self.assertEqual(two.detail['code'], 'confirmacion_remanente_requerida')
         self.assertEqual(self.control().version_actual, version)
+        self.assertEqual(self.finalizar(self.confirmacion_cierre()).estado, 'FINALIZADA')
         foto = list(CierreCostosObra.objects.filter(obra=self.obra).values())
         from rest_framework.exceptions import APIException
         with self.assertRaises(APIException):

@@ -27,8 +27,8 @@ class MigracionPagosTests(PagosBase, TransactionTestCase):
             self.assertEqual(apps.get_model("finanzas", "PagoDocumento").objects.count(), 0)
             self.assertEqual(apps.get_model("finanzas", "DocumentoCobro").objects.values().get(pk=self.doc.pk), original)
             current_events = list(apps.get_model("finanzas", "FinanzasEvento").objects.values())
-            self.assertEqual([{key: value for key, value in event.items() if key != "pago_id"} for event in current_events], old_events)
-            self.assertTrue(all(event["pago_id"] is None for event in current_events))
+            self.assertEqual(current_events, [dict(event, pago_id=None, actor_nombre_historico=None,
+                                                   actor_username_historico=None) for event in old_events])
             self.assertEqual(resumen_documento(con_cobranza(DocumentoCobro.objects.filter(pk=self.doc.pk)).get())["saldo"], "2180.35")
             self.assertEqual(self.estado_persistido(), before)
         finally:

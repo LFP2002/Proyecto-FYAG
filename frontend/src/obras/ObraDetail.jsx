@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {useApp} from '../context/AppContext.jsx';
 import {SupervisorEmpty} from './SupervisorCostReview.jsx';
+import MaterialPlan from './MaterialPlan.jsx';
 import { useAuth } from '../auth/AuthContext';
 import { Chip } from '../components/ui';
 import { collectionPath, memberPath, obraPath, readPage } from './api.js';
@@ -150,6 +151,7 @@ export default function ObraDetail({ id, onBack, initialTab = 'resumen' }) {
       {tab === 'turnos' && <Turnos obraId={id} obraState={obra.estado} onOperationalLock={supervisor?setChildLocked:undefined}/>}
       {tab === 'documentos' && <>{team && <EvidenceMetadata obraId={id} supervisorPresentation={supervisor} sharedRefresh={supervisor?evidenceRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setEvidenceLocked:undefined}/>}{[G, S, T].includes(user.role) && <Adjuntos type="INFORME_TECNICO" destinationId={id} compactActions={supervisor} obraCode={obra.codigo} sharedRefresh={supervisor?attachmentsRefresh:undefined} externalRefreshing={supervisor&&documentsRefreshing} onOperationalLock={supervisor?setChildLocked:undefined} canUpload={user.role === S && ['EN_PROCESO','SUSPENDIDA','FINALIZADA'].includes(obra.estado) || user.role === T && obra.estado === 'EN_PROCESO'} />}</>}
       {tab === 'gastos' && team && <Costos section="expenses" obra={obra} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
+      {tab === 'resumen' && supervisor && obra.estado==='PLANIFICADA' && <MaterialPlan obra={obra} disabled={api.busy||api.locked}/>}
       {tab === 'costos' && user.role !== T && <Costos section="costs" obra={obra} onTab={supervisor?setTab:undefined} onOperationalLock={supervisor?setChildLocked:undefined} onFinalized={async () => { await api.requiredLoad('detail', base, (result) => setObra(projectObra(result, user.role))); }} />}
       {form && (!supervisor||form.type!=='suspender') && <form className={supervisor?"card-fyag so-panel commercial-form obras-action-form":"commercial-form obras-action-form"} noValidate onSubmit={submit}><h2>{actionLabels[form.type]}</h2>
         {form.type === 'editar' ? <ObraFields form={form.data} setForm={(data) => setForm({ ...form, data })} original={obra} errors={errors} disabled={api.busy || !editable} /> : <div className="obras-form-grid">

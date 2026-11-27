@@ -2,11 +2,12 @@ import {quantityInput,unitCostInput} from '../utils/decimalInput.js';
 export const AF = 'ADMINISTRATIVO_FINANZAS';
 export const G = 'GERENCIA';
 export const canRead = (role, module) => (role === AF || (role === G && module !== 'clientes')) || (role === 'SUPERVISOR_OBRAS' && module === 'presupuestos');
-export const actionsFor = (role, state) => {
+export const actionsFor = (role, state, pricesPending = false) => {
   if (role === G) return [];
   if (role === 'SUPERVISOR_OBRAS') return state === 'BORRADOR' ? ['enviar-finanzas'] : state === 'RECHAZADO_FINANZAS' ? ['crear-revision'] : [];
   if (role !== AF) return [];
-  const actions = ({ BORRADOR: ['enviar-finanzas'], PENDIENTE_FINANZAS: ['aprobar-finanzas', 'rechazar-finanzas'], PENDIENTE_GERENCIA: ['aprobar-finanzas', 'rechazar-finanzas'], APROBADO_FINANZAS: ['enviar-cliente'], APROBADO_GERENCIA: ['enviar-cliente'], ENVIADO_CLIENTE: ['registrar-aprobacion-cliente', 'registrar-rechazo-cliente'] })[state] || [];
+  const actions = (({ BORRADOR: ['enviar-finanzas'], PENDIENTE_FINANZAS: ['aprobar-finanzas', 'rechazar-finanzas'], PENDIENTE_GERENCIA: ['aprobar-finanzas', 'rechazar-finanzas'], APROBADO_FINANZAS: ['enviar-cliente'], APROBADO_GERENCIA: ['enviar-cliente'], ENVIADO_CLIENTE: ['registrar-aprobacion-cliente', 'registrar-rechazo-cliente'] })[state] || [])
+    .filter(action => !pricesPending || !['aprobar-finanzas','enviar-cliente','registrar-aprobacion-cliente'].includes(action));
   return [...actions, ...(['RECHAZADO_FINANZAS', 'RECHAZADO_GERENCIA', 'RECHAZADO_CLIENTE', 'ANULADO'].includes(state) ? ['crear-revision'] : []), ...(['BORRADOR', 'PENDIENTE_FINANZAS', 'PENDIENTE_GERENCIA', 'APROBADO_FINANZAS', 'APROBADO_GERENCIA', 'ENVIADO_CLIENTE', 'APROBADO_CLIENTE'].includes(state) ? ['anular'] : [])];
 };
 export const needsReason = (action) => ['rechazar-finanzas', 'rechazar-gerencia', 'registrar-rechazo-cliente', 'anular'].includes(action);
@@ -52,12 +53,17 @@ export function validateClient(form) {
 export function validDecimal(value, integers, scale, positive = false) {
   return typeof value === 'string' && new RegExp(`^[0-9]{1,${integers}}(?:\\.[0-9]{1,${scale}})?$`).test(value) && (!positive || /[1-9]/.test(value));
 }
-export function itemPayload(form, original) {
-  const data = { descripcion: form.descripcion.trim(), cantidad: quantityInput(form.cantidad), unidad: form.unidad.trim(), precio_unitario: unitCostInput(form.precio_unitario), orden: Number(form.orden) };
+export function itemPayload(form, original, role = AF) {
+  const price = unitCostInput(form.precio_unitario);
+  const linked = form.articulo != null;
+  const data = { cantidad: quantityInput(form.cantidad), orden: Number(form.orden) };
+  if (!linked) Object.assign(data, {descripcion: form.descripcion.trim(), unidad: form.unidad.trim()});
+  if (!linked || (role === AF && price !== null)) data.precio_unitario = price;
   if (Object.hasOwn(form, 'articulo') && (form.articulo !== null || original?.articulo != null)) {
     data.articulo = form.articulo;
   }
-  return original ? Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== original[k])) : data;
+  const identityChanged = (original?.articulo ?? null) !== (form.articulo ?? null);
+  return original ? Object.fromEntries(Object.entries(data).filter(([k, v]) => v !== original[k] || (identityChanged && k === 'precio_unitario'))) : data;
 }
 export function nextItemOrder(items) {
   const used = new Set(items.map(item => item.orden));
@@ -67,13 +73,16 @@ export function nextItemOrder(items) {
   while (used.has(next)) next += 1;
   return String(next);
 }
-export function validateItem(form) {
+export function validateItem(form, role = AF) {
   const errors = {};
-  for (const k of ['descripcion', 'unidad']) if (!form[k].trim()) errors[k] = ['Campo obligatorio.'];
-  if (form.descripcion.trim().length > 2000) errors.descripcion = ['La descripción debe tener como máximo 2000 caracteres.'];
-  if (form.unidad.trim().length > 30) errors.unidad = ['La unidad debe tener como máximo 30 caracteres.'];
+  const linked = form.articulo != null;
+  if (!linked) {
+    for (const k of ['descripcion', 'unidad']) if (!form[k].trim()) errors[k] = ['Campo obligatorio.'];
+    if (form.descripcion.trim().length > 2000) errors.descripcion = ['La descripción debe tener como máximo 2000 caracteres.'];
+    if (form.unidad.trim().length > 30) errors.unidad = ['La unidad debe tener como máximo 30 caracteres.'];
+  }
   if (quantityInput(form.cantidad)===null) errors.cantidad = ['Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma.'];
-  if (unitCostInput(form.precio_unitario)===null) errors.precio_unitario = ['Ingresa un precio válido, sin separadores de miles.'];
+  if ((!linked || (role === AF && String(form.precio_unitario ?? '').trim())) && unitCostInput(form.precio_unitario)===null) errors.precio_unitario = ['Ingresa un precio válido, sin separadores de miles.'];
   if (!/^[1-9][0-9]*$/.test(String(form.orden)) || Number(form.orden) > 2147483647) errors.orden = ['Orden entero positivo hasta 2147483647.'];
   return errors;
 }

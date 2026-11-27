@@ -43,7 +43,7 @@ function listEmptyState(section,filters){
  const receive=section==='devoluciones';
  return filters.vista==='historial'?(receive?'returnHistory':'deliveryHistory'):filters.vista==='autorizaciones'?(receive?'returnAuth':'deliveryAuth'):(receive?'returns':'deliveries');
 }
-export function Material({row}){return <div className="bodega-material"><strong>{row.nombre}</strong><small>{row.codigo}</small></div>;}
+export function Material({row}){return <div className="bodega-material"><strong>{row.nombre}</strong><small>{row.codigo}{row.origen==='PRESUPUESTO'?' · Previsto del presupuesto':row.origen==='SOLICITUD'?' · Solicitud aprobada':row.origen==='SIN_VINCULO_PRESUPUESTARIO'?' · Sin vínculo presupuestario':''}</small></div>;}
 export function Fact({label,children}){return <div className="bodega-fact"><small>{label}</small><strong>{children}</strong></div>;}
 export function Header({title,sub,children,detail=false}){return <header className={'bodega-heading'+(detail?' fyag-detail-heading':'')}><div><h1>{title}</h1>{sub&&<p>{sub}</p>}</div><div className="bodega-actions">{children}</div></header>;}
 export function Tabs({items,value,onChange,disabled=false,label}){return <div className="bodega-tabs" role="group" aria-label={label}>{items.map(([key,title])=><button key={key} type="button" aria-pressed={value===key} disabled={disabled} onClick={()=>onChange(key)}>{title}</button>)}</div>;}

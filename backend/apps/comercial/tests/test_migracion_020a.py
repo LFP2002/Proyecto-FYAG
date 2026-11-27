@@ -58,6 +58,7 @@ class Historia020AMigracionTests(TransactionTestCase):
         from apps.comercial.models import Presupuesto, PresupuestoItem, PresupuestoEvento
         self.assertEqual(list(Presupuesto.objects.order_by('pk').values()), [dict(p, politica_aprobacion='GERENCIA_LEGADA') for p in cabeceras])
         self.assertEqual(list(PresupuestoItem.objects.order_by('pk').values()), [dict(i, articulo_id=None, codigo_articulo='') for i in items])
-        self.assertEqual(list(PresupuestoEvento.objects.order_by('pk').values()), eventos)
+        self.assertEqual(list(PresupuestoEvento.objects.order_by('pk').values()),
+                         [dict(e, actor_nombre_historico=None, actor_username_historico=None) for e in eventos])
         from apps.obras.models import Obra
         self.assertEqual(list(Obra.objects.order_by('pk').values()), obras)

@@ -6,7 +6,7 @@
 
 - Bodeguero administra catálogo e ingresos físicos. La valorización sigue bajo las atribuciones actuales de Finanzas (SPEC-019B). Bodega no define ni consulta precios de venta por esta integración.
 - Supervisor de Obras elabora sus propios borradores; Finanzas elabora y gestiona borradores, y decide su aprobación. Gerencia conserva lectura de presupuestos; no elabora ni aprueba. No se amplían permisos de Clientes ni de Inventario.
-- El precio unitario de venta es un dato comercial por línea, ingresado explícitamente por el usuario autorizado. Nunca copiar costo de adquisición, costo promedio ni valorizaciones como precio de venta.
+- El precio unitario de venta de una línea vinculada es exclusivo de Administrativo/Finanzas. Nunca copiar costo de adquisición, costo promedio ni valorizaciones como precio de venta.
 - Cotizar no depende de existencias y no reserva, consume, compra, despacha, genera faltantes ni registra gastos. La ejecución real de Obras mantiene los flujos SPEC-019B/C.
 - Los importes conservan Decimal exacto, restricciones, cálculos, estados, alcance por autor, congelamiento y revisión de SPEC-003B/024.
 
@@ -23,8 +23,8 @@ GET /api/presupuestos/materiales-elegibles/
 ## 3. Incremento B — Vínculo persistente
 
 - FK nullable `articulo` a ArticuloInventario, PROTECT; `codigo_articulo` es una instantánea administrada por servidor. Líneas históricas conservan todos sus campos y quedan con referencia nula y código vacío. Constraint exige coherencia entre FK y código. Reversión bloqueada si existen vínculos.
-- POST de ítem conserva los cinco campos obligatorios previos y admite `articulo` opcional (entero positivo estricto o null). Si se selecciona un artículo nuevo, el servidor comprueba que está activo y toma nombre, unidad y código vigentes bajo bloqueo de fila; los valores de descripción/unidad recibidos deben coincidir con el catálogo. Precio comercial y cantidad siempre explícitos.
-- PATCH: omitir articulo conserva vínculo. Reenviar el mismo id conserva la instantánea, incluso si el artículo está inactivo. Descripción y unidad de una línea vinculada no se editan libremente: para cambiar material seleccionar otro activo con datos coincidentes, o desvincular explícitamente con null (conserva descripción/unidad salvo cambios explícitos y borra código de referencia). Ningún cambio fuera de BORRADOR.
+- POST de ítem libre conserva los cinco campos obligatorios. Para vincular un `articulo` activo, se exigen artículo, cantidad y orden; el servidor toma nombre, unidad y código bajo bloqueo de fila. Si se envían valores de descripción/unidad deben coincidir con el catálogo. El precio de una línea vinculada es opcional al crear y exclusivo de Finanzas.
+- PATCH: omitir articulo conserva vínculo. Reenviar el mismo id conserva la instantánea, incluso si el artículo está inactivo. Descripción y unidad de una línea vinculada no se editan libremente: para cambiar material seleccionar otro activo con datos coincidentes, o desvincular explícitamente con null (conserva descripción/unidad salvo cambios explícitos y borra código de referencia). El CRUD general se limita a BORRADOR.
 - La lectura añade articulo (id o null) y codigo_articulo (string, vacío para libre). No consultar catálogo al serializar; conservar instantáneas en revisiones incluso si el material fue desactivado o renombrado. No se permite escribir codigo_articulo directamente.
 - Locks: Presupuesto -> artículo seleccionado (NO KEY UPDATE) -> revalidación de usuario existente; nunca bloquear existencias, movimientos, obras o gastos por la cotización. La selección de un artículo y su desactivación/edición se serializan por la fila del artículo. No se reserva stock. El vínculo describe la cotización, no una entrega.
 - La escritura masiva/idempotente sigue fuera de B; la UI puede seleccionar materiales y guardar cada línea mediante su operación actual, sin prometer atomicidad de múltiples líneas. No se incorpora tarifario.
@@ -35,3 +35,15 @@ GET /api/presupuestos/materiales-elegibles/
 A: matriz de seis roles, JWT ausente, proyección exacta, artículo inactivo excluido, búsqueda, paginación, parámetros inválidos y métodos denegados; sin escrituras de inventario. Django check, makemigrations --check, tests dirigidos Comercial/Inventario, regresión completa. B requiere además pruebas de migración, historia, concurrencia, revocación, permisos por propietario, estados y ausencia de movimientos/gastos.
 
 Actualizar OpenAPI por incremento y probar UI con API real, incluyendo catálogo vacío, errores y material sin existencias. No crear PR ni merge sin autorización expresa y validación. Estado de esta SPEC: A y B definidos; implementación en rama de trabajo, pendiente de pruebas y revisión de integración.
+
+## Corrección del flujo de precios en materiales vinculados
+
+- Supervisor indica artículo y cantidad; el servidor toma código, descripción y unidad del catálogo al vincular. Sin cambio de artículo se conserva la instantánea, incluso si el catálogo cambia. Los campos libres conservan su contrato.
+- Omitir el precio de venta de un nuevo vínculo lo deja pendiente (`null` en lectura). Un cambio de artículo invalida el precio anterior; desvincular exige un precio explícito para el ítem libre. Una revisión copia vínculo, instantánea y precio tal como están, sin tocar el original.
+- Con al menos una línea válida y cliente activo se puede enviar a Finanzas con precios pendientes. En revisión, solo Finanzas puede fijar o corregir el precio mediante `PATCH /api/presupuestos/{id}/items/{item_id}/precio-comercial/`; no se reabre ninguna otra edición. La fijación queda registrada con actor, artículo, línea, fecha y valores anterior/nuevo. En borrador Finanzas también puede fijar el precio mediante el CRUD de ítems.
+- Un pendiente deja el subtotal de la línea y el monto neto completo en `null`. Seguimiento gerencial tampoco publica un agregado parcial para un estado con presupuestos incompletos; cuenta esos presupuestos en `sin_precio`. Cero explícito no significa pendiente; el flujo vigente exige neto positivo antes de aprobar. La aprobación y el envío no admiten pendientes bajo bloqueo del presupuesto.
+- `comercial.0009` solo cambia el esquema y agrega el rastro de fijaciones; no transforma precios, vínculos ni eventos previos. La SPEC-019F sigue valorizando al despacho/devolución, no al cotizar.
+
+### Control de concurrencia de la aprobación comercial
+
+El detalle devuelve `version_comercial`, huella SHA-256 del contenido comercial exacto mostrado. `aprobar-finanzas` exige `version_comercial_esperada` cuando existen ítems vinculados (los únicos editables durante revisión); para presupuestos exclusivamente libres se conserva la compatibilidad y se valida la huella si se proporciona. La comparación ocurre bajo el mismo bloqueo de Presupuesto que usa la fijación de precios. Si difiere, 409 `version_comercial_obsoleta`, sin transición ni evento. No reintentar automáticamente: refrescar y confirmar nuevamente. Las aprobaciones de pendientes legados también exigen neto positivo sin cambiar la política histórica de cliente inactivo. No requiere otra migración.

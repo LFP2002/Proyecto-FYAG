@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "FYAG — Presupuestos SPEC-024",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Contrato vigente 003B + 020A + 024. Supervisor (S): propios en SQL, elaborar/enviar borradores y revisar propios RECHAZADO_FINANZAS. Administrativo/Finanzas (AF): todos, decisiones exclusivas. Gerencia (G): lectura. Otros perfiles: 403, sin bypass staff/superuser. Clientes CRUD permanece AF-only. JWT, actividad, versión, contraseña, PERSONAL y bloqueo operativo vigentes. Edición solo BORRADOR para S/AF. Sin Bodega, impuestos ni envío real de correo. PresupuestoEvento registra estados, no cada edición."
   },
   "servers": [
@@ -239,7 +239,7 @@
       ],
       "post": {
         "operationId": "crearItem024",
-        "description": "S propio / AF todos, solo BORRADOR. Línea comercial libre, sin artículo/stock/compra/reserva/gasto. Bloquea Presupuesto antes del ítem.",
+        "description": "S propio / AF todos, solo BORRADOR. Línea libre o vinculada; sin stock, compra, reserva ni gasto. Si es vinculada, solo Finanzas puede enviar precio. Bloquea Presupuesto antes del ítem.",
         "requestBody": {
           "required": true,
           "content": {
@@ -251,12 +251,26 @@
                   }
                 ],
                 "required": [
-                  "descripcion",
                   "cantidad",
-                  "unidad",
-                  "precio_unitario",
                   "orden"
-                ]
+                ],
+                "if": {
+                  "required": [
+                    "articulo"
+                  ],
+                  "properties": {
+                    "articulo": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "descripcion",
+                    "unidad",
+                    "precio_unitario"
+                  ]
+                }
               }
             }
           }
@@ -443,7 +457,7 @@
       ],
       "post": {
         "operationId": "enviarFinanzas024",
-        "description": "S propio o AF. BORRADOR -> PENDIENTE_FINANZAS; cliente activo, >=1 ítem válido y neto positivo. Congela cabecera/ítems incluso para AF. Alerta existente solo para AF tras commit, sin notificación operacional nueva para G. No correo.",
+        "description": "S propio o AF. BORRADOR -> PENDIENTE_FINANZAS; cliente activo, >=1 ítem válido y neto positivo si no hay precios pendientes. Congela cabecera/ítems salvo la fijación exclusiva del precio comercial por Finanzas (SPEC-025B). No correo.",
         "requestBody": {
           "$ref": "#/components/requestBodies/Accion"
         },
@@ -477,9 +491,28 @@
       ],
       "post": {
         "operationId": "aprobarFinanzas024",
-        "description": "AF exclusivo, también sobre creación propia. PENDIENTE_FINANZAS o PENDIENTE_GERENCIA legado -> APROBADO_FINANZAS, sin cambiar política/historia anterior. No crea Obra.",
+        "description": "AF exclusivo. PENDIENTE_FINANZAS o PENDIENTE_GERENCIA legado -> APROBADO_FINANZAS. Neto positivo y completo; huella obligatoria si contiene ítems vinculados. Huella obsoleta: 409 version_comercial_obsoleta. No crea Obra.",
         "requestBody": {
-          "$ref": "#/components/requestBodies/Accion"
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "version_comercial_esperada": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "Obligatoria para presupuestos con líneas vinculadas."
+                  }
+                }
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -545,7 +578,7 @@
       ],
       "post": {
         "operationId": "enviarCliente024",
-        "description": "AF exclusivo. APROBADO_FINANZAS o APROBADO_GERENCIA legado -> ENVIADO_CLIENTE. No correo real.",
+        "description": "AF exclusivo. APROBADO_FINANZAS o APROBADO_GERENCIA legado -> ENVIADO_CLIENTE. Precios pendientes: 400. No correo real.",
         "requestBody": {
           "$ref": "#/components/requestBodies/Accion"
         },
@@ -904,7 +937,15 @@
       "ItemEntrada": {
         "type": "object",
         "additionalProperties": false,
+        "description": "Para vinculados, ver SPEC-025B-v1.json. Supervisor no envía precio; Finanzas puede fijarlo durante la revisión mediante la acción dedicada.",
         "properties": {
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
           "descripcion": {
             "type": "string",
             "minLength": 1,
@@ -948,9 +989,12 @@
         ]
       },
       "Dinero": {
-        "type": "string",
+        "type": [
+          "string",
+          "null"
+        ],
         "pattern": "^[0-9]+\\.[0-9]{2}$",
-        "description": "Decimal neto exacto en CLP, HALF_UP por línea"
+        "description": "Decimal neto exacto en CLP, HALF_UP por línea; null cuando hay precios pendientes. No se aprueba ni se envía al cliente con pendientes."
       },
       "Item": {
         "type": "object",
@@ -958,6 +1002,8 @@
         "required": [
           "id",
           "presupuesto",
+          "articulo",
+          "codigo_articulo",
           "descripcion",
           "cantidad",
           "unidad",
@@ -971,6 +1017,17 @@
           },
           "presupuesto": {
             "$ref": "#/components/schemas/Id"
+          },
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "codigo_articulo": {
+            "type": "string",
+            "maxLength": 50
           },
           "descripcion": {
             "type": "string",
@@ -1079,6 +1136,11 @@
           "cliente_nombre": {
             "type": "string",
             "description": "Nombre legal del cliente asociado, sin datos de contacto."
+          },
+          "version_comercial": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Huella del contenido comercial; presente en el detalle."
           }
         }
       },
@@ -1174,7 +1236,8 @@
                 }
               ],
               "required": [
-                "items"
+                "items",
+                "version_comercial"
               ]
             }
           }
@@ -1190,7 +1253,7 @@
         "description": "404 inexistente o ajeno al Supervisor, indistinguibles; antes de body/ítem"
       },
       "Estado": {
-        "description": "409 estado_incompatible o presupuesto_utilizado. Transiciones no idempotentes; repetición no añade evento"
+        "description": "409 estado_incompatible, presupuesto_utilizado o version_comercial_obsoleta (aprobación con huella desactualizada). Transiciones no idempotentes; repetición no añade evento"
       },
       "Datos": {
         "description": "400 campos inválidos/desconocidos/administrados, cliente no elegible, motivo, Decimal, orden o salida inválida; sin SQL/datos ajenos"

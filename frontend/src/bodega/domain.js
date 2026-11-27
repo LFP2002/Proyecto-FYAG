@@ -15,6 +15,7 @@ export const recordCount=n=>n===1?'1 registro':`${n} registros`;
 export function authorizationStatus(row){
  const pending=milli(row.pendiente),executed=milli(row.ejecutada),total=milli(row.cantidad);
  if(pending===null||executed===null||total===null)return ['No disponible','neutral'];
+ if(row.inhabilitada)return ['Inhabilitada por cierre','neutral'];
  if(pending===0n)return executed>=total?['Completada','good']:['Sin saldo pendiente','neutral'];
  if(row.bloqueo)return ['Bloqueada','warn'];
  return executed>0n?['Parcial','warn']:['Pendiente','warn'];

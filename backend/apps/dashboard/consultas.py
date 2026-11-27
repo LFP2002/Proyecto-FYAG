@@ -53,7 +53,10 @@ def rentabilidad(qs):
             cantidad += len(lote)
             costo += sum((importe for _, importe in lote), Decimal("0.00"))
             items = PresupuestoItem.objects.filter(presupuesto_id__in=[pk for pk, _ in lote]).order_by("pk").values_list("cantidad", "precio_unitario").iterator(chunk_size=LOTE)
-            presupuesto += sumar_monto_neto(calcular_subtotal(c, p) for c, p in items)
+            neto = sumar_monto_neto(calcular_subtotal(c, p) for c, p in items)
+            if neto is None:
+                raise OrigenInconsistente("presupuesto_inconsistente", "Una Obra tiene precios comerciales pendientes.")
+            presupuesto += neto
         margen = presupuesto - costo
     return {"obras_con_cierre": cantidad, "presupuesto_neto": format(presupuesto, ".2f"),
             "costo_real_neto": format(costo, ".2f"), "margen_real_neto": format(margen, ".2f")}

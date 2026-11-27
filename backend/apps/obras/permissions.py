@@ -16,7 +16,7 @@ class PuedeOperarObras(BasePermission):
 
     acciones_supervisor = frozenset({
         "create", "partial_update", "cambiar_tecnico", "iniciar", "suspender",
-            "reanudar", "finalizar", "presupuestos_disponibles", "tecnicos_disponibles",
+        "reanudar", "finalizar", "presupuestos_disponibles", "tecnicos_disponibles", "requisitos_cierre",
     })
 
     def has_permission(self, request, view):
@@ -41,7 +41,7 @@ class PuedeOperarObras(BasePermission):
             return usuario.rol == S if request.method == "POST" else usuario.rol in {G, S}
         if accion in {"editar_gasto", "devolver_gasto", "anular_gasto"}:
             return usuario.rol == S
-        if accion == "historial_costos":
+        if accion in {"historial_costos", "conciliacion_materiales"}:
             return usuario.rol in {G, S}
         if accion == "control_costos":
             return usuario.rol == S if request.method == "PATCH" else usuario.rol in {G, S}

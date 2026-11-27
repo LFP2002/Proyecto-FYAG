@@ -2,7 +2,7 @@ import {quantityInput,unitCostInput,quantityHint,moneyHint} from '../utils/decim
 import React, { useRef, useState } from 'react';
 import UnitField from './UnitField.jsx';
 import MaterialPicker from './MaterialPicker.jsx';
-import { money, validateItem, nextItemOrder } from './domain.js';
+import { AF, money, validateItem, nextItemOrder } from './domain.js';
 import { Errors } from './ui.jsx';
 
 // Estimación exacta en centavos; el servidor confirma los importes definitivos.
@@ -17,16 +17,16 @@ export function estimateSubtotal(quantity, price) {
   return money((cents / 100n).toString() + '.' + (cents % 100n).toString().padStart(2, '0')).replace(/,00 CLP$/, '').replace(/ CLP$/, '');
 }
 
-export function itemRowErrors(form, items, original) {
+export function itemRowErrors(form, items, original, role) {
   const order = original ? original.orden : nextItemOrder(items);
-  const errors = validateItem({ ...form, orden: order });
+  const errors = validateItem({ ...form, orden: order }, role);
   const messages = { descripcion: 'Máximo 2000 caracteres', cantidad: 'Ingresa una cantidad mayor que cero, con hasta tres cifras después de la coma', unidad: 'Máximo 30 caracteres', precio_unitario: 'Ingresa un precio válido, sin separadores de miles', orden: 'Ingresa un entero positivo válido' };
   for (const name of Object.keys(errors)) errors[name] = [String(form[name]).trim() ? messages[name] : 'Campo obligatorio'];
   if (items.some((item) => item.id !== original?.id && item.orden === Number(order))) errors.orden = ['Orden ya utilizado'];
   return errors;
 }
 
-export default function ItemEditRow({ line, items, onChange, onSave, onCancel, disabled, busy, editable, error }) {
+export default function ItemEditRow({ line, items, onChange, onSave, onCancel, disabled, busy, editable, error, role }) {
   const [attempted, setAttempted] = useState(false);
   const [picker, setPicker] = useState(line.mode === 'material');
   const linked = line.form.articulo != null;
@@ -37,12 +37,12 @@ export default function ItemEditRow({ line, items, onChange, onSave, onCancel, d
     setPicker(false);
   };
   const row = useRef(null);
-  const errors = attempted ? itemRowErrors(line.form, items, line.original) : {};
+  const errors = attempted ? itemRowErrors(line.form, items, line.original, role) : {};
   const blocked = disabled || !editable;
   const save = (event) => {
     if (blocked || picker || needsMaterial) return;
     setAttempted(true);
-    const validation = itemRowErrors(line.form, items, line.original);
+    const validation = itemRowErrors(line.form, items, line.original, role);
     const first = ['descripcion', 'cantidad', 'unidad', 'precio_unitario'].find((name) => validation[name]);
     if (first) {
       const control = first === 'unidad' && row.current?.querySelector('#com-unidad-otra')
@@ -57,10 +57,20 @@ export default function ItemEditRow({ line, items, onChange, onSave, onCancel, d
   const field = (name, label, options = {}) => <>
     <label className="form-label commercial-cell-label" htmlFor={`com-${name}`}>{label}</label>
     <input id={`com-${name}`} className={`form-control form-control-sm${errors[name] ? ' is-invalid' : ''}`} required
-      disabled={blocked} value={line.form[name]} aria-invalid={!!errors[name]} aria-describedby={errors[name] ? `com-${name}-error` : undefined}
+      disabled={blocked} value={line.form[name] ?? ''} aria-invalid={!!errors[name]} aria-describedby={errors[name] ? `com-${name}-error` : undefined}
       onChange={(event) => change(name, event.target.value)} {...options} />
     {errors[name] && <div id={`com-${name}-error`} className="invalid-feedback">{errors[name][0]}</div>}
   </>;
+  if (line.mode === 'price') return <tr className="commercial-item-editor"><td colSpan={6}>
+    <form className="budget-item-form" aria-label="Fijar precio comercial" onSubmit={onSave}>
+      <h3>{line.original.descripcion} · {line.original.codigo_articulo}</h3>
+      <p>{line.original.cantidad} {line.original.unidad} · La cantidad y la unidad no se modifican en revisión.</p>
+      {field('precio_unitario','Precio unitario de venta (CLP)',{inputMode:'decimal',title:moneyHint,autoFocus:true})}
+      <p className="commercial-help">No es el costo de inventario: ese costo se registra al confirmar el despacho.</p>
+      <Errors error={error}/>
+      <div className="budget-item-footer"><button type="button" className="btn btn-outline-secondary" disabled={busy} onClick={onCancel}>Cancelar</button><button type="submit" className="btn btn-fyag-primary" disabled={blocked||unitCostInput(line.form.precio_unitario)===null}>Guardar precio comercial</button></div>
+    </form>
+  </td></tr>;
   return <>
     <tr ref={row} className="commercial-item-editor" aria-label="Edición de ítem" aria-busy={busy} onKeyDown={(event) => {
       if (picker || event.isComposing || event.nativeEvent?.isComposing) return;
@@ -79,12 +89,12 @@ export default function ItemEditRow({ line, items, onChange, onSave, onCancel, d
             </div>
             <div>{field('cantidad','Cantidad',{inputMode:'decimal',placeholder:'Ej.: 2,5',title:quantityHint})}</div>
             <div>{linked?<><label className="form-label commercial-cell-label" htmlFor="com-unidad">Unidad de medida</label><input id="com-unidad" className="form-control form-control-sm" readOnly value={line.form.unidad}/></>:<UnitField value={line.form.unidad} onChange={value=>change('unidad',value)} disabled={blocked} error={errors.unidad?.[0]}/>}</div>
-            <div>{field('precio_unitario','Precio unitario (CLP)',{inputMode:'decimal',placeholder:'Ej.: 55000',title:moneyHint})}</div>
+            <div>{linked && role !== AF ? <p className="commercial-help">Finanzas define el precio comercial.</p> : field('precio_unitario','Precio unitario de venta (CLP)',{required:!linked,inputMode:'decimal',placeholder:'Ej.: 55000',title:moneyHint})}</div>
           </div>
           <div className="budget-item-subtotal"><span className="commercial-help">Subtotal estimado</span><strong data-testid="item-estimated-subtotal">{estimateSubtotal(line.form.cantidad,line.form.precio_unitario)}</strong></div>
           {errors.orden&&<p role="alert" className="commercial-help">No se pudo asignar una posición. Actualiza los datos y vuelve a intentar.</p>}
           <div className="budget-item-footer">
-            {linked&&line.original&&<button type="button" className="btn btn-outline-secondary btn-sm me-auto" disabled={blocked} onClick={()=>onChange({...line.form,articulo:null,codigo_articulo:''})}>Convertir en ítem manual</button>}
+            {linked&&line.original&&<button type="button" className="btn btn-outline-secondary btn-sm me-auto" disabled={blocked} onClick={()=>onChange({...line.form,articulo:null,codigo_articulo:'',precio_unitario:''})}>Convertir en ítem manual</button>}
             <button className="btn btn-outline-secondary" type="button" aria-label="Cancelar edición de ítem" title="Cancelar (Escape)" disabled={busy} onClick={onCancel}>Cancelar</button>
             <button className="btn btn-fyag-primary" type="button" aria-label="Guardar ítem" title="Guardar ítem (Enter)" disabled={blocked||needsMaterial} onClick={save}>Guardar ítem</button>
           </div>{busy&&<span role="status" className="commercial-help">Guardando…</span>}

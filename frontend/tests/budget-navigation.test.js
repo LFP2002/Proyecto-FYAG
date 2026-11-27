@@ -22,7 +22,10 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
       const url=new URL(path,'http://localhost'),all=[...firstPage,budget],group={PENDIENTE_GERENCIA:'PENDIENTE_FINANZAS',APROBADO_GERENCIA:'APROBADO_FINANZAS',RECHAZADO_GERENCIA:'RECHAZADO_FINANZAS'};
       const states=['BORRADOR','PENDIENTE_FINANZAS','APROBADO_FINANZAS','RECHAZADO_FINANZAS','ENVIADO_CLIENTE','APROBADO_CLIENTE','RECHAZADO_CLIENTE','ANULADO'];
       const rows=all.map(b=>({...b,cliente_nombre:'Cliente de prueba',estado_original:b.estado,estado:group[b.estado]||b.estado,sin_actualizar:b.sin_actualizar===true}));
-      const estados=Object.fromEntries(states.map(k=>[k,{cantidad:rows.filter(r=>r.estado===k).length,monto_neto:(rows.filter(r=>r.estado===k).length*45300).toFixed(2)}]));
+      const estados=Object.fromEntries(states.map(k=>{
+        const matching=rows.filter(r=>r.estado===k),sin_precio=matching.filter(r=>r.monto_neto===null).length;
+        return [k,{cantidad:matching.length,sin_precio,monto_neto:sin_precio?null:(matching.length*45300).toFixed(2)}];
+      }));
       const filtered=rows.filter(r=>(!url.searchParams.has('estado')||r.estado===url.searchParams.get('estado'))&&(!url.searchParams.has('sin_actualizar')||r.sin_actualizar));
       const accepted=estados.APROBADO_CLIENTE.cantidad,answered=accepted+estados.RECHAZADO_CLIENTE.cantidad;
       const page=Number(url.searchParams.get('page')),size=firstPage.length>1?25:1;
@@ -33,6 +36,7 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
     if(path==='/api/presupuestos/?page=1')return {count:2,previous:null,next:'/api/presupuestos/?page=2',results:firstPage};
     if(path==='/api/presupuestos/?page=2')return {count:2,previous:'/api/presupuestos/',next:null,results:[budget]};
     if(path==='/api/presupuestos/66/')return budget;
+    if(path==='/api/presupuestos/65/')return firstPage.find(b=>b.id===65);
     if(path==='/api/presupuestos/66/historial/?page=1')return {count:0,previous:null,next:null,results:[]};
     throw Error('Ruta inesperada '+path);
   };
@@ -42,6 +46,16 @@ async function mount(role,firstPage=[{...budget,id:65,codigo:'PRE-000065'}]){
   await act(async()=>{renderer=Renderer.create(React.createElement(AuthProvider,{client},React.createElement(Presupuestos)));await flush();});
   return {renderer,calls};
 }
+test('Gerencia distingue precios pendientes del cero en cartera y detalle',async()=>{
+  const {renderer}=await mount('GERENCIA',[{...budget,id:65,codigo:'PRE-000065',estado:'PENDIENTE_FINANZAS',monto_neto:null,items:[{id:1,descripcion:'Material',cantidad:'1.000',unidad:'kg',precio_unitario:null,subtotal:null}]}]);
+  try {
+    assert.match(text(renderer.root),/1 con precios pendientes/);
+    assert.match(text(renderer.root),/PRE-000065.*Precios pendientes/);
+    await click(renderer.root,'Ver presupuesto');
+    assert.match(text(renderer.root),/Total neto · CLPPrecios pendientes/);
+    assert.match(text(renderer.root),/Material1.000kgPendiente—/);
+  } finally {await act(async()=>renderer.unmount());}
+});
 async function click(root,label){
   const button=root.findAllByType('button').find(b=>text(b)===label);
   assert.ok(button,label);assert.ok(!button.props.disabled,label);
@@ -61,7 +75,7 @@ test('Presupuestos: detalle sustituye listado y conserva página y filtro al vol
     assert.ok(root.findByProps({className:'commercial-page budgets-page'}));
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,false);
     assert.equal(root.findByProps({id:'budget-history'}).props.hidden,true);
-    assert.equal(root.findAllByType('button').some(b=>text(b)==='Editar cabecera'),false);
+    assert.equal(root.findAllByType('button').some(b=>text(b)==='Editar datos generales'),false);
     const before=calls.length;
     await click(root,'Historial comercial');
     assert.equal(root.findByProps({id:'budget-items'}).props.hidden,true);
@@ -78,10 +92,19 @@ test('Presupuestos: Finanzas conserva edición y puede cancelar antes de volver'
   try{
     const root=renderer.root;
     await click(root,'Siguiente');await click(root,'Ver presupuesto');
-    await click(root,'Editar cabecera');
-    assert.ok(root.findAllByType('form').length);
-    assert.equal(root.findAllByType('button').find(b=>text(b)==='Volver al listado').props.disabled,true);
-    await click(root,'Cancelar');await click(root,'Volver al listado');
+    await click(root,'Editar datos generales');
+    assert.ok(root.findByProps({className:'card-fyag commercial-form budget-header-form'}));
+    assert.equal(root.findAllByType('button').some(b=>text(b)==='Volver al listado'),false);
+    assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,0);
+    const description=root.findByProps({id:'com-descripcion'});
+    assert.equal(description.props.value,'Servicio');
+    await act(async()=>description.props.onChange({target:{value:'Borrador que se cancela'}}));
+    assert.equal(root.findByProps({id:'com-descripcion'}).props.value,'Borrador que se cancela');
+    await click(root,'Cancelar');
+    assert.equal(root.findAllByType('form').length,0);
+    assert.match(text(renderer.toJSON()),/Servicio/);
+    assert.doesNotMatch(text(renderer.toJSON()),/Borrador que se cancela/);
+    await click(root,'Volver al listado');
     assert.equal(root.findAllByProps({'aria-label':'Listado de presupuestos'}).length,1);
   }finally{await act(async()=>renderer.unmount());}
 });
