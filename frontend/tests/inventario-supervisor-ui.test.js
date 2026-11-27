@@ -36,6 +36,7 @@ test('Supervisor: tres consultas, indicadores globales, remanentes y detalle de 
  try{
   assert.match(body(),/Disponibilidad de materiales/);assert.match(body(),/Aceite para compresor/);
   assert.match(body(),/Materiales disponibles24/);assert.match(body(),/Materiales sin stock3/);
+  const query=r.root.findByType('form');assert.equal(query.findByType('select').props['aria-label'],'Disponibilidad');assert.equal(query.findByProps({'aria-label':'Buscar material'}).type,'input');
   assert.match(body(),/Despachos pendientes5/);
   assert.doesNotMatch(body(),/Autorizar entrega|Autorizar devolución|Registrar ingreso|Valorizar ingreso|Movimientos|Costo unitario/);
   await click(r,'Ver detalle');assert.match(body(),/Existencias físicas/);assert.match(body(),/10,5 litro/);
@@ -43,6 +44,7 @@ test('Supervisor: tres consultas, indicadores globales, remanentes y detalle de 
   assert.match(body(),/Despacho parcial/);assert.match(body(),/2,5 litro/);
   await click(r,'Ver detalle');assert.match(body(),/Cantidad autorizada/);assert.match(body(),/Pendiente de despacho/);
   await click(r,'Volver al listado');await click(r,'Entregas y devoluciones');assert.match(body(),/Entregado/);
+  assert.equal(r.root.findByType('form').findByType('select').props['aria-label'],'Tipo de registro');
   await act(async()=>{r.root.findByType('select').props.onChange({target:{value:'por_recibir'}});await flush();});
   assert.match(body(),/1,5 litro/);assert.ok(ui.calls.some(c=>c.path.includes('vista=por_recibir')));
   assert.ok(ui.calls.every(c=>c.method==='GET'&&c.path.startsWith(ROOT)));

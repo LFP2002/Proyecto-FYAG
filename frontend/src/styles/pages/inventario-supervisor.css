@@ -58,3 +58,12 @@
 :root[data-fyag-theme=dark] .supervisor-inventory .si-kpi[data-tone=red] strong{color:#ea9691}
 :root[data-fyag-theme=dark] .supervisor-inventory .si-kpi[data-tone=amber] strong,:root[data-fyag-theme=dark] .supervisor-inventory .si-blockage{color:#e7b66b}
 @media(max-width:650px){.supervisor-inventory .si-kpis{grid-template-columns:1fr}.supervisor-inventory .si-kpi{padding:12px}.supervisor-inventory .si-field{width:100%}}
+
+/* Una sola barra de búsqueda y filtros, adaptable al ancho y tamaño de letra. */
+.supervisor-inventory .si-query{align-items:center;gap:8px;}
+.supervisor-inventory .si-search-group{display:flex;align-items:center;gap:8px;flex:1 1 280px;max-width:590px;min-width:0;}
+.supervisor-inventory .si-search-group .si-search{flex:1 1 0;width:0;max-width:none;min-width:0;}
+.supervisor-inventory .si-query .si-field{flex:0 1 auto;width:auto;max-width:100%;min-width:0;}
+.supervisor-inventory .si-query .si-field .form-select{width:auto;max-width:100%;min-height:38px;}
+.supervisor-inventory .si-query :is(.si-search,.si-button,.form-select){min-height:40px;}
+@media(max-width:540px){.supervisor-inventory .si-query .si-search-group{flex-basis:100%;max-width:100%;}.supervisor-inventory .si-query .si-field{flex:1 1 180px;}.supervisor-inventory .si-query .si-field .form-select{width:100%;}}
