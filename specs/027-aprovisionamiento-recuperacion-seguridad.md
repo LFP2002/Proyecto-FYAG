@@ -4,7 +4,7 @@
 > **Rama:** `fix/auditoria-tecnica-final`, base `87d564bba6d18b274cb7ed009c767e89071b6aec`.
 > **Dependencias:** SPEC-002A/002B, 006B, 006C, 018, 018C (C1–C3) y contrato vigente de chat.
 
-**Incrementos implementados:** [verificación voluntaria y confirmación de cambio de correo](../backend/docs/SPEC-027-VERIFICACION.md) y [asistente web de primera TI](../backend/docs/SPEC-027-SETUP.md). La obligatoriedad, la recuperación de contraseña y el bloqueo productivo siguen fuera del alcance implementado.
+**Incrementos implementados:** [verificación voluntaria](../backend/docs/SPEC-027-VERIFICACION.md), [primera TI](../backend/docs/SPEC-027-SETUP.md) y [recuperación por correo verificado](../backend/docs/SPEC-027-RECUPERACION.md). No se habilitan la obligatoriedad, la recuperación TI por infraestructura ni los bloqueos productivos.
 
 ## 1. Objetivo y alcance
 
@@ -42,7 +42,7 @@ Permitir la entrega de una instalación vacía, demostrar la titularidad del cor
 | Instalación | TTY autorizada o clave válida, solo instalación nueva | TI activa, `PERSONAL`, correo pendiente, sin sesión. |
 | Verificación actual | Token de la dirección vigente | Marca correo verificado; conserva `INICIAL`/`RECUPERACION`/`PERSONAL`. |
 | Confirmación de nuevo correo | Token emitido por cambio autorizado | Sustituye correo, confirma titularidad, invalida desafíos incompatibles, revoca sesión y notifica anterior; no desbloquea. |
-| Recuperación por correo | Titular con acceso a correo actual verificado; cuenta activa | `INICIAL`, `RECUPERACION` o `PERSONAL` → `PERSONAL` solo después de fijar clave nueva validada. Limpia bloqueos, revoca sesiones, desafíos, tickets y conexiones previas; notifica y exige login nuevo. |
+| Recuperación por correo | Titular con acceso a correo actual verificado; cuenta activa | `PERSONAL` o `RECUPERACION` con evidencia de contraseña personal previa → `PERSONAL` tras elegir y validar la nueva. No reemplaza el primer cambio de `INICIAL` ni de reemisiones sin esa evidencia. Limpia bloqueos en QA C2, revoca sesiones y desafíos incompatibles; notifica y exige login nuevo. |
 | Reset por TI o infraestructura | TI autorizada según RBAC o `recuperar_acceso_ti` en TTY | Reemite `RECUPERACION` y exige primer cambio. Nunca activa, eleva, crea ni adopta sesión del objetivo. |
 
 Verificación obligatoria separada de la fase de adopción: proteger sesiones operativas, sin bloquear verificación/reenvío ni el primer cambio autorizado. Comprobar TI activa, verificada y recuperable antes de activar. Mantener `NORMAL`, `BLOQUEO_TEMPORAL`, `REQUIERE_TI` (valor persistido de compatibilidad) y `NO_DISPONIBLE`. Cinco fallos dentro de 15 min; bloqueos 15/60/240 min y cuarto ciclo dentro de 24 h hasta confirmación autorizada. Vencimiento y éxito conservan las fronteras de la política vigente; el éxito limpia racha, no ciclos vigentes. Intentos durante bloqueo no cambian vencimiento. Toda transición efectiva revoca sesiones; el login bloqueado no obstaculiza confirmación por correo.

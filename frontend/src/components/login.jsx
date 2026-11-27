@@ -63,6 +63,7 @@ export default function Login() {
           <button type="button" className="btn btn-outline-secondary w-100 mt-2" onClick={() => void logout()}>Reintentar cierre de sesión</button>
         )}
         <p className="login-foot"><a href="/verificar-correo">Verificar mi correo electrónico</a></p>
+        <p className="login-foot"><a href="/restablecer-clave">¿Olvidaste tu contraseña?</a></p>
       </form>
     </main>
   );

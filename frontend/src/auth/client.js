@@ -116,6 +116,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
              for (const field of ['email', 'username', 'first_name', 'last_name', 'rol', 'password', 'nueva_clave', 'activo', 'page']) allowed.add(field);
            }
            if (path === '/api/auth/setup/') allowed.add('password');
+           if (path === '/api/auth/recuperacion/confirmar/') allowed.add('nueva_clave');
           const safe = (v) => typeof v === 'string' && v.length <= 500 && !/[<>\x00-\x1f]|traceback|bearer|token|password|sql|constraint/i.test(v);
           for (const [key, value] of Object.entries(data || {})) {
             const values = Array.isArray(value) ? value : [value];
@@ -346,6 +347,12 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     return http('/api/auth/setup/', { method: 'POST', body, csrfToken: protection });
   }
 
+  async function submitPasswordRecovery(action, body) {
+    if (!['solicitar', 'confirmar'].includes(action)) throw new ApiError(400, 'Operación no válida.');
+    const protection = await csrfToken({ force: true });
+    return http(`/api/auth/recuperacion/${action}/`, { method: 'POST', body, csrfToken: protection });
+  }
+
   return Object.freeze({
     getSnapshot: () => snapshot,
     subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
@@ -353,6 +360,7 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
     submitEmailVerification,
     initialSetupStatus: () => http('/api/auth/setup/estado/'),
     submitInitialSetup,
+    submitPasswordRecovery,
   });
 }
 

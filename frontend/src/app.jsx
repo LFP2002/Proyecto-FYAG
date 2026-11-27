@@ -4,6 +4,7 @@ import { useAuth } from './auth/AuthContext';
 import Login from './components/login.jsx';
 import VerificacionCorreo from './components/VerificacionCorreo.jsx';
 import InstalacionInicial from './components/InstalacionInicial.jsx';
+import RecuperarClave from './components/RecuperarClave.jsx';
 import DesktopLayout from './components/layouts/DesktopLayout';
 import PendingIntegration from './components/PendingIntegration';
 import { useApp } from './context/AppContext';
@@ -36,6 +37,7 @@ const TecnicoMermas=()=> <TecnicoMateriales loss/>;
 export default function App() {
   const { status, user } = useAuth();
   const { mod } = useApp();
+  if (globalThis.location?.pathname === '/restablecer-clave') return <RecuperarClave />;
   if (globalThis.location?.pathname === '/configuracion-inicial') return <InstalacionInicial />;
   if (globalThis.location?.pathname === '/verificar-correo') return <VerificacionCorreo />;
   if (status === 'restoring') {

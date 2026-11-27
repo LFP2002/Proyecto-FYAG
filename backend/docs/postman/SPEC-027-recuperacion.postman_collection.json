@@ -1,0 +1,10 @@
+{
+  "info": {"name": "FYAG SPEC-027 — Recuperación QA", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "variable": [{"key":"api","value":"http://127.0.0.1:8000"},{"key":"csrf","value":""},{"key":"email_qa","value":"recuperacion@qa.test"}],
+  "item": [
+    {"name":"01 CSRF","request":{"method":"GET","url":"{{api}}/api/auth/csrf/"},"event":[{"listen":"test","script":{"exec":["pm.test('CSRF 200', () => pm.response.to.have.status(200));","pm.collectionVariables.set('csrf', pm.response.json().csrfToken);"]}}]},
+    {"name":"02 Solicitar","request":{"method":"POST","header":[{"key":"X-CSRFToken","value":"{{csrf}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{api}}/api/auth/recuperacion/solicitar/","body":{"mode":"raw","raw":"{\"email\":\"{{email_qa}}\"}"}},"event":[{"listen":"test","script":{"exec":["pm.test('202 genérico', () => { pm.response.to.have.status(202); pm.expect(pm.response.json()).to.have.all.keys('detail'); });"]}}]},
+    {"name":"03 Confirmar enlace Mailpit","request":{"method":"POST","header":[{"key":"X-CSRFToken","value":"{{csrf}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{api}}/api/auth/recuperacion/confirmar/","body":{"mode":"raw","raw":"{\"token\":\"{{token_qa}}\",\"nueva_clave\":\"{{clave_qa}}\",\"confirmacion\":\"{{clave_qa}}\"}"}},"event":[{"listen":"test","script":{"exec":["pm.test('204 sin cookie de sesión', () => { pm.response.to.have.status(204); pm.expect(pm.response.headers.has('Set-Cookie')).to.eql(false); });"]}}]},
+    {"name":"04 Reutilización denegada","request":{"method":"POST","header":[{"key":"X-CSRFToken","value":"{{csrf}}"},{"key":"Content-Type","value":"application/json"}],"url":"{{api}}/api/auth/recuperacion/confirmar/","body":{"mode":"raw","raw":"{\"token\":\"{{token_qa}}\",\"nueva_clave\":\"{{clave_qa}}\",\"confirmacion\":\"{{clave_qa}}\"}"}},"event":[{"listen":"test","script":{"exec":["pm.test('400 token consumido', () => pm.response.to.have.status(400));","pm.collectionVariables.unset('csrf');"]}}]}
+  ]
+}
