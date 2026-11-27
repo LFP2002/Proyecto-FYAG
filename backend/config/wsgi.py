@@ -15,6 +15,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 application = get_wsgi_application()
 
-from apps.usuarios.preflight_bloqueos import preflight_si_productivo
+from apps.usuarios.preflight_bloqueos import validar_arranque_si_productivo
 
-preflight_si_productivo()
+validar_arranque_si_productivo()

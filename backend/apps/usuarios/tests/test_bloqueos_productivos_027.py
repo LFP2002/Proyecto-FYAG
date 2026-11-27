@@ -1,12 +1,19 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from io import StringIO
+import os
+from runpy import run_module
 from threading import Barrier
+from unittest import skipUnless
 from unittest.mock import patch
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.db import connection
+from django.core.management import call_command
+from django.db import DatabaseError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 from redis.exceptions import ConnectionError
@@ -14,29 +21,36 @@ from rest_framework.test import APIClient
 
 from apps.chat import tickets
 from apps.usuarios import recuperacion_correo, throttles
-from apps.usuarios.models import DesafioRecuperacionCorreo, EstadoAcceso, EventoAcceso, SeguridadCredencial, Usuario
-from apps.usuarios.preflight_bloqueos import preflight_si_productivo
+from apps.usuarios.models import ActivacionBloqueos, DesafioRecuperacionCorreo, EstadoAcceso, EventoAcceso, Usuario
+from apps.usuarios.preflight_bloqueos import preflight_activacion, registrar_activacion, validar_arranque_si_productivo
 from apps.usuarios.recuperacion_ti import recuperar
 from apps.usuarios.tokens import AccessToken, RefreshToken
 from .test_administracion import NEW_PASSWORD, PASSWORD
 
 
+@skipUnless(os.getenv('FYAG_QA_REDIS_TLS_URL'), 'Requiere Redis TLS aislado y CA de laboratorio.')
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'],
     FYAG_BLOQUEOS_PERFIL='produccion', SECURE_SSL_REDIRECT=True, SESSION_COOKIE_SECURE=True,
     CSRF_COOKIE_SECURE=True, JWT_REFRESH_COOKIE_SECURE=True, FYAG_BLOQUEOS_DOMINIO='institucion.example.org',
     FYAG_BLOQUEOS_CORREO_TI='admin@institucion.example.org', FYAG_BLOQUEOS_AUTORIZACION='AUT-QA-027',
     FYAG_BLOQUEOS_ENTREGA_SMTP='SMTP-QA-027', FYAG_PUBLIC_BASE_URL='https://fyag.example.org',
+    FYAG_BLOQUEOS_AUTORIZACION_REMITENTE='REMITENTE-QA-027',
     FYAG_EMAIL_PROFILE='smtp', EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend',
     EMAIL_HOST='smtp.example.org', EMAIL_HOST_USER='qa', EMAIL_HOST_PASSWORD='sintetica', EMAIL_USE_TLS=True,
-    EMAIL_USE_SSL=False, DEFAULT_FROM_EMAIL='avisos@institucion.example.org')
+    EMAIL_USE_SSL=False, DEFAULT_FROM_EMAIL='avisos@proveedor.example.net')
 class BloqueosProductivosTests(TransactionTestCase):
     def setUp(self):
-        redis = throttles._client(settings.FYAG_SECURITY_REDIS_URL)
-        self.enterContext(override_settings(FYAG_SECURITY_REDIS_URL='rediss://:sintetica@redis-prueba:6380/0',
+        self.enterContext(override_settings(FYAG_SECURITY_REDIS_URL=os.environ['FYAG_QA_REDIS_TLS_URL'],
                                             FYAG_SECURITY_REDIS_PREFIX=f'qa:prod:{uuid4().hex}'))
-        # En el laboratorio se usa Redis efímero real, no el transporte productivo.
-        self.enterContext(patch.object(throttles, '_client', return_value=redis))
         self.ti = self.cuenta('ADMINISTRADOR_TI', email=settings.FYAG_BLOQUEOS_CORREO_TI)
+
+    def activar(self):
+        with patch('apps.usuarios.preflight_bloqueos.get_connection'):
+            return registrar_activacion()
+
+    def reiniciar(self):
+        for modulo in ('config.asgi', 'config.wsgi'):
+            self.assertTrue(callable(run_module(modulo)['application']))
 
     def cuenta(self, rol, email=None):
         alias = uuid4().hex
@@ -62,6 +76,7 @@ class BloqueosProductivosTests(TransactionTestCase):
         return EstadoAcceso.objects.get(usuario=user)
 
     def test_seis_roles_incluida_ultima_ti_y_recuperacion_excepcional(self):
+        self.activar()
         access, refresh = AccessToken.for_user(self.ti), RefreshToken.for_user(self.ti)
         socket, _ = tickets.emitir(self.ti)
         canal = tickets.admitir('127.0.0.1')
@@ -74,15 +89,11 @@ class BloqueosProductivosTests(TransactionTestCase):
         self.assertEqual(self.post('refresh/', cookie=str(refresh)).status_code, 401)
         with self.assertRaises(tickets.Denegado):
             tickets.verificar(identity, canal)
-        with self.assertRaisesMessage(ImproperlyConfigured, 'TI institucional'):
-            preflight_si_productivo()
         with patch.object(throttles, '_client', side_effect=ConnectionError), patch('django.core.mail.backends.smtp.EmailBackend.open', side_effect=OSError):
             temporal = recuperar(self.ti.pk, self.ti.sesion_version + 1, operador='qa', referencia='AUT-027', motivo='Prueba').credencial_temporal
-        with patch('apps.usuarios.preflight_bloqueos.get_connection'):
-            self.assertTrue(preflight_si_productivo())
-            vence_en = SeguridadCredencial.objects.get(usuario=self.ti).vence_en
-            with patch('apps.usuarios.preflight_bloqueos.timezone.now', return_value=vence_en), self.assertRaisesMessage(ImproperlyConfigured, 'TI institucional'):
-                preflight_si_productivo()
+        with patch('apps.usuarios.preflight_bloqueos.get_connection', side_effect=OSError) as smtp:
+            self.reiniciar()
+            smtp.assert_not_called()
         login = self.login(self.ti, temporal)
         self.assertEqual(login.data['estado'], 'CAMBIO_OBLIGATORIO')
         self.assertEqual(self.post('primer-cambio-clave/', {'desafio': login.data['desafio'], 'nueva_clave': NEW_PASSWORD}).status_code, 200)
@@ -126,6 +137,7 @@ class BloqueosProductivosTests(TransactionTestCase):
                     self.assertEqual((audit.status_code, history.status_code), (403, 403))
 
     def test_limite_compartido_y_fallo_redis_no_cuentan(self):
+        self.activar()
         for _ in range(30):
             self.assertEqual(self.post('refresh/').status_code, 401)
         self.assertEqual(self.post('primer-cambio-clave/').status_code, 429)
@@ -133,7 +145,8 @@ class BloqueosProductivosTests(TransactionTestCase):
             self.assertEqual(self.login(self.ti).status_code, 200)
         self.assertEqual(self.login(self.ti, 'incorrecta').status_code, 429)
         with patch.object(throttles, '_client', side_effect=ConnectionError):
-            for path in ('login/', 'refresh/', 'primer-cambio-clave/'):
+            self.reiniciar()
+            for path in ('login/', 'refresh/', 'primer-cambio-clave/', 'recuperacion/solicitar/', 'recuperacion/confirmar/'):
                 self.assertEqual(self.post(path, {'email':self.ti.email, 'password':'incorrecta'}).status_code, 503)
         self.assertEqual(EstadoAcceso.objects.get(usuario=self.ti).intentos, 0)
 
@@ -161,15 +174,96 @@ class BloqueosProductivosTests(TransactionTestCase):
                          ('REEMISION', {'acceso_estado':'BLOQUEO_TEMPORAL'}, {'acceso_estado':'NORMAL'}))
 
     def test_preflight_y_configuraciones_invalidas(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, 'no hay constancia'):
+            self.reiniciar()
         with patch('apps.usuarios.preflight_bloqueos.get_connection') as smtp:
-            self.assertTrue(preflight_si_productivo())
+            call_command('validar_bloqueos_productivos', stdout=StringIO())
             smtp.assert_called_once()
+        self.assertFalse(ActivacionBloqueos.objects.exists())
         for override in ({'FYAG_BLOQUEOS_AUTORIZACION':''}, {'FYAG_BLOQUEOS_ENTREGA_SMTP':''}, {'JWT_REFRESH_COOKIE_SECURE':False},
                          {'EMAIL_USE_TLS':False}, {'FYAG_SECURITY_REDIS_URL':'redis://redis-prueba:6379/0'},
-                         {'FYAG_BLOQUEOS_CORREO_TI':'ausente@institucion.example.org'}):
+                         {'FYAG_BLOQUEOS_CORREO_TI':'ausente@institucion.example.org'},
+                         {'FYAG_BLOQUEOS_AUTORIZACION_REMITENTE':''}, {'DEFAULT_FROM_EMAIL':'invalido@@example.net'}):
             with override_settings(**override), self.assertRaises(ImproperlyConfigured):
-                preflight_si_productivo()
+                preflight_activacion()
+        self.ti.correo_verificado_en = None
+        self.ti.save(update_fields=['correo_verificado_en'])
+        with self.assertRaisesMessage(ImproperlyConfigured, 'TI institucional'):
+            preflight_activacion()
+        self.ti.correo_verificado_en = timezone.now()
+        self.ti.save(update_fields=['correo_verificado_en'])
         with patch('apps.usuarios.preflight_bloqueos.get_connection', side_effect=OSError), self.assertRaisesMessage(ImproperlyConfigured, 'SMTP'):
-            preflight_si_productivo()
+            registrar_activacion()
         with patch.object(throttles, '_client', side_effect=ConnectionError), self.assertRaisesMessage(ImproperlyConfigured, 'Redis'):
-            preflight_si_productivo()
+            registrar_activacion()
+        self.assertFalse(ActivacionBloqueos.objects.exists())
+
+    def test_reinicio_ti_bloqueada_con_smtp_caido_y_recuperacion_posterior(self):
+        self.activar()
+        self.assertEqual(self.fallar(self.ti).estado, 'BLOQUEO_TEMPORAL')
+        with patch('apps.usuarios.preflight_bloqueos.get_connection', side_effect=OSError) as smtp:
+            self.reiniciar()
+            smtp.assert_not_called()
+        self.assertEqual(self.login(self.ti).status_code, 401)
+        self.assertEqual(self.post('recuperacion/solicitar/', {'email': self.ti.email}).status_code, 202)
+        with patch.object(recuperacion_correo, 'enviar_desafio_despues_commit') as entrega:
+            self.assertTrue(recuperacion_correo.procesar_recuperacion())
+            proposito, destino, token, _ = entrega.call_args.args
+            self.assertEqual((proposito, destino), ('recuperacion', self.ti.email))
+        with patch('apps.usuarios.correo.EmailMultiAlternatives.send', return_value=1):
+            self.assertEqual(self.post('recuperacion/confirmar/', {
+                'token': token, 'nueva_clave': NEW_PASSWORD, 'confirmacion': NEW_PASSWORD,
+            }).status_code, 204)
+        self.assertEqual(self.login(self.ti, NEW_PASSWORD).status_code, 200)
+
+    def test_constancia_inmutable_vinculada_y_solo_la_ultima_habilita_arranque(self):
+        out = StringIO()
+        with patch('apps.usuarios.preflight_bloqueos.get_connection'):
+            call_command('validar_bloqueos_productivos', '--registrar', stdout=out)
+        primera = ActivacionBloqueos.objects.get()
+        self.assertIn(f'#{primera.pk}', out.getvalue())
+        self.assertEqual(self.activar().pk, primera.pk)
+        self.assertTrue(validar_arranque_si_productivo())
+        for sql in ('UPDATE usuarios_activacionbloqueos SET entrega_smtp = entrega_smtp',
+                    'DELETE FROM usuarios_activacionbloqueos'):
+            with self.assertRaises(DatabaseError), transaction.atomic(), connection.cursor() as cursor:
+                cursor.execute(sql)
+        with patch.object(MigrationExecutor, 'migration_plan', return_value=[object()]):
+            with self.assertRaisesMessage(ImproperlyConfigured, 'migraciones pendientes'):
+                validar_arranque_si_productivo()
+        for cambios in ({'DEFAULT_FROM_EMAIL': 'nuevo@otro.example.net'}, {'EMAIL_HOST_PASSWORD': 'nuevo-secreto'},
+                        {'FYAG_BLOQUEOS_ENTREGA_SMTP': 'SMTP-OTRO-027'}, {'FYAG_BLOQUEOS_AUTORIZACION': 'AUT-OTRA-027'}):
+            with override_settings(**cambios), self.assertRaisesMessage(ImproperlyConfigured, 'no hay constancia'):
+                self.reiniciar()
+        with override_settings(DEFAULT_FROM_EMAIL='nuevo@otro.example.net'):
+            with self.assertRaisesMessage(ImproperlyConfigured, 'nueva referencia'):
+                self.activar()
+            with override_settings(FYAG_BLOQUEOS_AUTORIZACION='AUT-QA-027-2',
+                                   FYAG_BLOQUEOS_AUTORIZACION_REMITENTE='REMITENTE-QA-027-2',
+                                   FYAG_BLOQUEOS_ENTREGA_SMTP='SMTP-QA-027-2'):
+                self.assertNotEqual(self.activar().pk, primera.pk)
+                self.reiniciar()
+        with self.assertRaisesMessage(ImproperlyConfigured, 'no hay constancia'):
+            validar_arranque_si_productivo()
+
+    def test_redis_tls_real_ca_y_nombre(self):
+        url = settings.FYAG_SECURITY_REDIS_URL
+        host = urlsplit(url).hostname
+        incorrecto = os.environ['FYAG_QA_REDIS_TLS_HOST_INCORRECTO']
+        self.assertNotEqual(host, incorrecto)
+        self.assertTrue(os.environ['SSL_CERT_FILE'])
+
+        def conectar(destino):
+            # Cliente nuevo: no puede reutilizar una conexión ya autenticada del pool.
+            return throttles._client.__wrapped__(destino)
+
+        with conectar(url) as redis:
+            self.assertTrue(redis.ping())
+        with conectar(url.replace(f'@{host}:', f'@{incorrecto}:', 1)) as redis:
+            with self.assertRaisesRegex(ConnectionError, r'(?i)certificate verify failed.*hostname mismatch'):
+                redis.ping()
+        with patch.dict(os.environ):
+            del os.environ['SSL_CERT_FILE']
+            with conectar(url) as redis:
+                with self.assertRaisesRegex(ConnectionError, r'(?i)certificate verify failed.*(?:issuer|self.signed)'):
+                    redis.ping()

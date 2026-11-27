@@ -15,9 +15,9 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 django_application = get_asgi_application()
 
-from apps.usuarios.preflight_bloqueos import preflight_si_productivo
+from apps.usuarios.preflight_bloqueos import validar_arranque_si_productivo
 
-preflight_si_productivo()
+validar_arranque_si_productivo()
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.urls import path

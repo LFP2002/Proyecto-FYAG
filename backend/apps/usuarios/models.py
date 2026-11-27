@@ -312,4 +312,4 @@ class SeguridadCredencial(models.Model):
 
 
 # Registro Django del agregado independiente SPEC-018C; sin hooks de autenticación.
-from .models_bloqueos import EstadoAcceso, EventoAcceso, RecuperacionAcceso  # noqa: E402,F401
+from .models_bloqueos import ActivacionBloqueos, EstadoAcceso, EventoAcceso, RecuperacionAcceso  # noqa: E402,F401
