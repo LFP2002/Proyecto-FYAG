@@ -82,12 +82,9 @@ def emitir_temporal(user, actor, *, inicial=False, motivo=""):
     from .configuracion_c2 import habilitado
     access = None
     if not inicial and habilitado():
-        from .autenticacion_c2 import recuperadoras_qa
+        from .autenticacion_c2 import exigir_respaldo_para_temporal_qa
         from .recuperacion_c2 import bloquear_estado_recuperacion
-        disponibles = recuperadoras_qa()
-        if (user.pk in settings.BLOQUEOS_C2_TI_QA_IDS
-            and not any(ti.pk != user.pk for ti in disponibles)):
-            raise ConflictoUsuario("recuperacion_qa_protegida", "Debe permanecer otra recuperadora QA personal disponible.")
+        exigir_respaldo_para_temporal_qa(user)
         access = bloquear_estado_recuperacion(user)
     emitida = guardar_temporal(user, state, inicial=inicial)
     event = services._event(user, actor, UsuarioEvento.Tipo.CREACION_CREDENCIAL_TEMPORAL if inicial else UsuarioEvento.Tipo.REEMISION, motivo)

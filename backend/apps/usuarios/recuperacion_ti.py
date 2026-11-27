@@ -5,6 +5,7 @@ from django.db import connection, transaction
 from django.views.decorators.debug import sensitive_variables
 from rest_framework.exceptions import ValidationError
 
+from .autenticacion_c2 import exigir_respaldo_para_temporal_qa
 from .configuracion_c2 import habilitado
 from .credenciales import estado_coherente, guardar_temporal
 from .models import DesafioCorreo, DesafioRecuperacionCorreo, RecuperacionTIEvento, SeguridadCredencial, Usuario
@@ -43,7 +44,10 @@ def recuperar(pk, version_confirmada, *, operador, referencia, motivo):
     state = SeguridadCredencial.objects.select_for_update().filter(usuario=user).first()
     if not estado_coherente(state):
         raise ConflictoUsuario('seguridad_no_disponible', 'Estado de credencial no disponible; no se modificó la cuenta.')
-    access = bloquear_estado_recuperacion(user) if habilitado() else None
+    access = None
+    if habilitado():
+        access = bloquear_estado_recuperacion(user)
+        exigir_respaldo_para_temporal_qa(user)
     emitida = guardar_temporal(user, state)
     DesafioRecuperacionCorreo.objects.filter(usuario=user).delete()
     DesafioCorreo.objects.filter(usuario=user, proposito=DesafioCorreo.Proposito.CAMBIO).delete()

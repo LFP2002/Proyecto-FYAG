@@ -13,6 +13,7 @@ from rest_framework.exceptions import APIException
 
 from apps.usuarios.models import Usuario
 from apps.usuarios.recuperacion_ti import cuenta_elegible, metadatos, recuperar
+from apps.usuarios.services_usuarios import ConflictoUsuario
 
 
 def abrir_terminal(command):
@@ -57,7 +58,12 @@ class Command(BaseCommand):
                     raise CommandError('Recuperación cancelada; no se realizaron cambios.')
                 # Verificar que la salida sigue disponible antes de modificar la cuenta.
                 tty.flush()
-                emitida = recuperar(cuenta.pk, cuenta.sesion_version, operador=operador, referencia=referencia, motivo=motivo)
+                try:
+                    emitida = recuperar(cuenta.pk, cuenta.sesion_version, operador=operador, referencia=referencia, motivo=motivo)
+                except ConflictoUsuario as error:
+                    if error.detail['code'] == 'recuperacion_qa_protegida':
+                        raise CommandError('Recuperación no realizada: debe permanecer otra TI QA con contraseña personal y acceso operativo.') from None
+                    raise
                 try:
                     tty.write(f'Credencial temporal (se muestra una vez): {emitida.credencial_temporal}\n'
                               f'Vence: {emitida.vence_en.isoformat()}. Requiere cambio al ingresar.\n')

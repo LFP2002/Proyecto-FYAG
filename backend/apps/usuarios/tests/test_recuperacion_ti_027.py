@@ -26,6 +26,15 @@ from .test_administracion import NEW_PASSWORD, PASSWORD
 MOD = 'apps.usuarios.management.commands.recuperar_acceso_ti'
 META = dict(operador='operador.qa', referencia='AUT-027', motivo='Recuperación autorizada')
 AUDIT = '/api/auditoria/eventos/'
+requiere_c2 = skipUnless(settings.DATABASES['default']['NAME'] in {'fyag_spec018c_c2_qa', 'test_fyag_spec018c_c2_qa'}
+                         and settings.DATABASES['default']['HOST'] == 'postgres', 'requiere laboratorio C2 aislado')
+
+
+def laboratorio_c2(user, otra):
+    return override_settings(BLOQUEOS_C1_SIMULACION_HABILITADA=True, BLOQUEOS_C2_HABILITADO=True,
+                             BLOQUEOS_C2_ENTORNO='QA_AISLADO_C2', BLOQUEOS_C2_TI_QA_IDS=(user.pk, otra.pk),
+                             BLOQUEOS_C2_RECUPERACION_QA_CONFIRMADA=True, BLOQUEOS_C2_RIESGO_DOS_QA_ACEPTADO=True,
+                             BLOQUEOS_C2_RESPUESTAS='401_GENERICO', BLOQUEOS_C2_SESIONES_TEMPORALES='REVOCAR_TODAS_QA')
 
 
 class Terminal(StringIO):
@@ -172,16 +181,63 @@ class RecuperacionTITests(TransactionTestCase):
                     self.assertNotIn(emitida.credencial_temporal, str(item))
                 self.assertEqual(client.get(AUDIT, {**filters, 'actor': actor.pk}).data['results'], [])
 
-    @skipUnless(settings.DATABASES['default']['NAME'] in {'fyag_spec018c_c2_qa', 'test_fyag_spec018c_c2_qa'}
-                and settings.DATABASES['default']['HOST'] == 'postgres', 'requiere laboratorio C2 aislado')
+    def login_c2(self, user, password):
+        client = APIClient(enforce_csrf_checks=True)
+        csrf = client.get('/api/auth/csrf/').data['csrfToken']
+        return client, client.post('/api/auth/login/', {'email': user.email, 'password': password},
+                                   format='json', HTTP_X_CSRFTOKEN=csrf)
+
+    def completar_c2(self, user, temporal):
+        client, login = self.login_c2(user, temporal)
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(login.data['estado'], 'CAMBIO_OBLIGATORIO')
+        self.assertNotIn('access', login.data)
+        changed = client.post('/api/auth/primer-cambio-clave/',
+                              {'desafio': login.data['desafio'], 'nueva_clave': NEW_PASSWORD},
+                              format='json', HTTP_X_CSRFTOKEN=login.data['csrfToken'])
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(SeguridadCredencial.objects.get(usuario=user).estado, 'PERSONAL')
+        self.assert_login_personal_c2(user, NEW_PASSWORD)
+
+    def assert_login_personal_c2(self, user, password):
+        client, login = self.login_c2(user, password)
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(client.get('/api/auth/me/', HTTP_AUTHORIZATION=f"Bearer {login.data['access']}").status_code, 200)
+
+    @requiere_c2
+    def test_c2_cli_rechaza_segunda_hasta_completar_primera_sin_interrumpir_login(self):
+        primera, segunda = self.cuenta(), self.cuenta(nombre='otra')
+        tecnico = self.cuenta('TECNICO', nombre='tecnico')
+        with laboratorio_c2(primera, segunda):
+            temporal = self.cli(primera)
+            self.assertEqual(SeguridadCredencial.objects.get(usuario=primera).estado, 'RECUPERACION')
+
+            # Capturar el resultado antes de comprobar la autenticación real: en la
+            # regresión ambas TI quedan temporales y también falla el login del técnico.
+            rechazo = None
+            try:
+                self.cli(segunda)
+            except CommandError as error:
+                rechazo = str(error)
+            self.assert_login_personal_c2(tecnico, PASSWORD)
+            self.assertIn('debe permanecer otra TI QA', rechazo or '')
+            self.assertEqual(RecuperacionTIEvento.objects.count(), 1)
+            segunda.refresh_from_db()
+            self.assertEqual(segunda.sesion_version, 1)
+            self.assert_login_personal_c2(segunda, PASSWORD)
+
+            self.completar_c2(primera, temporal)
+            temporal_segunda = self.cli(segunda)
+            self.assert_login_personal_c2(tecnico, PASSWORD)
+            self.completar_c2(segunda, temporal_segunda)
+            self.assertEqual(RecuperacionTIEvento.objects.count(), 2)
+
+    @requiere_c2
     def test_c2_bloqueos_y_estado_ausente_sin_excepcion_permanente(self):
         self.assertEqual(connection.settings_dict['NAME'], 'test_fyag_spec018c_c2_qa')
         user, otra = self.cuenta(), self.cuenta(nombre='otra')
         now = timezone.now() + timedelta(seconds=1)
-        with override_settings(BLOQUEOS_C1_SIMULACION_HABILITADA=True, BLOQUEOS_C2_HABILITADO=True,
-                               BLOQUEOS_C2_ENTORNO='QA_AISLADO_C2', BLOQUEOS_C2_TI_QA_IDS=(user.pk, otra.pk),
-                               BLOQUEOS_C2_RECUPERACION_QA_CONFIRMADA=True, BLOQUEOS_C2_RIESGO_DOS_QA_ACEPTADO=True,
-                               BLOQUEOS_C2_RESPUESTAS='401_GENERICO', BLOQUEOS_C2_SESIONES_TEMPORALES='REVOCAR_TODAS_QA'), \
+        with laboratorio_c2(user, otra), \
                 patch('apps.usuarios.bloqueos.timezone.now', side_effect=lambda: now):
             for target, estado, saltos in ((user, 'BLOQUEO_TEMPORAL', (0,)), (otra, 'REQUIERE_TI', (0, 15, 60, 240))):
                 for salto in saltos:
@@ -190,10 +246,11 @@ class RecuperacionTITests(TransactionTestCase):
                         registrar_verificacion(target.pk, Senal.CLAVE_INCORRECTA)
                 before = EstadoAcceso.objects.get(usuario=target)
                 self.assertEqual(before.estado, estado)
-                recuperar(target.pk, target.sesion_version, **META)
+                temporal = self.cli(target)
                 final = EstadoAcceso.objects.get(usuario=target)
                 self.assertEqual((final.estado, final.intentos, final.version), ('NORMAL', 0, before.version + 1))
                 self.assertEqual(RecuperacionTIEvento.objects.get(usuario=target).acceso_anterior, estado)
+                self.completar_c2(target, temporal)
             otra.refresh_from_db()
             EstadoAcceso.objects.filter(usuario=otra).delete()
             with self.assertRaises(APIException):

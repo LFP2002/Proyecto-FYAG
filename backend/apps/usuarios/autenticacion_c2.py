@@ -49,6 +49,13 @@ def preflight_qa():
     recuperadoras_qa(exigir_dos=True)
 
 
+def exigir_respaldo_para_temporal_qa(user):
+    """Caller ya validó habilitado() y mantiene ADMIN_MUTEX hasta el commit."""
+    disponibles = recuperadoras_qa()
+    if user.pk in settings.BLOQUEOS_C2_TI_QA_IDS and not any(ti.pk != user.pk for ti in disponibles):
+        raise ConflictoUsuario("recuperacion_qa_protegida", "Debe permanecer otra recuperadora QA personal disponible.")
+
+
 def _snapshot_vigente(snapshot, user, credential):
     previous = getattr(snapshot, "seguridad_credencial", None)
     return (constant_time_compare(user.password, snapshot.password)
