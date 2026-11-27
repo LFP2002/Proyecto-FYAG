@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { createScope } from './scope.js';
 import { ApiError } from '../auth/client.js';
@@ -6,50 +6,48 @@ import { Chip } from '../components/ui';
 import { PRE_E } from '../data/constants';
 
 export function useCommercial() {
-  const { request, user } = useAuth();
+  const { request, user, sessionEpoch } = useAuth();
+  const identity = useMemo(() => ({}), [request, user?.id, user?.role, sessionEpoch]);
   const ref = useRef(null);
-  const reads = useRef(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
-  useEffect(() => {
-    const scope = createScope(); ref.current = scope;
-    return () => { scope.dispose(); if (ref.current === scope) ref.current = null; };
-  }, [user.id, user.role]);
+  useLayoutEffect(() => {
+    const entry = { scope: createScope(), identity, reads: 0 }; ref.current = entry;
+    setError(null); setBusy(false); setLoading(false); setLocked(false);
+    return () => { entry.scope.dispose(); if (ref.current === entry) ref.current = null; };
+  }, [identity]);
+  const current = () => ref.current?.identity === identity ? ref.current : null;
   async function load(key, path, apply) {
-    const scope = ref.current;
-    if (!scope) return false;
-    reads.current += 1; setLoading(true);
-    try { return await scope.read(key, (signal) => request(path, { signal }), apply); }
-    catch (e) { if (ref.current === scope) setError(e); return false; }
-    finally { reads.current -= 1; if (ref.current === scope) setLoading(reads.current > 0); }
+    const entry = current();
+    if (!entry) return false;
+    entry.reads += 1; setLoading(true);
+    try { return await entry.scope.read(key, (signal) => request(path, { signal }), apply); }
+    catch (e) { if (ref.current === entry) setError(e); return false; }
+    finally { entry.reads -= 1; if (ref.current === entry) setLoading(entry.reads > 0); }
   }
   async function requiredLoad(key, path, apply) {
     if (!await load(key, path, apply)) throw new ApiError(502, 'La escritura pudo aplicarse, pero falta confirmar los datos. Reconsulta antes de continuar.');
     return true;
   }
   async function write(path, method, body, apply) {
-    const scope = ref.current;
+    const entry = current(), scope = entry?.scope;
     if (!scope || scope.locked) return false;
     setBusy(true); setError(null);
     try { return await scope.write((signal) => request(path, { method, body, signal }), apply); }
-    catch (e) { if (ref.current === scope) setError(e); return false; }
-    finally { if (ref.current === scope) { setBusy(false); setLocked(scope.locked); } }
-  }
-  async function writeResult(path, method, body, apply) {
-    const scope = ref.current;
-    if (!scope || scope.locked) return false;
-    setBusy(true); setError(null);
-    try { return await scope.write((signal) => request(path, { method, body, signal }), apply); }
-    catch (e) { if (ref.current === scope) setError(e); return false; }
-    finally { if (ref.current === scope) { setBusy(false); setLocked(scope.locked); } }
+    catch (e) { if (ref.current === entry) setError(e); return false; }
+    finally { if (ref.current === entry) { setBusy(false); setLocked(scope.locked); } }
   }
   async function reconcile(operation) {
+    const entry = current();
+    if (!entry) return false;
     setError(null);
-    if (await operation()) { ref.current?.reconciled(); setLocked(false); }
+    if (!await entry.scope.reconcile(operation) || ref.current !== entry) return false;
+    setLocked(entry.scope.locked);
+    return true;
   }
-  return { load, requiredLoad, write, writeResult, error, setError, busy, loading, locked, reconcile };
+  return { load, requiredLoad, write, writeResult: write, error, setError, busy, loading, locked, reconcile };
 }
 export function Errors({ error }) {
   if (!error) return null;

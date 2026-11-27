@@ -135,7 +135,7 @@ test('recarga: CSRF + refresh de cookie + /me, sin refresh en JSON', async () =>
 test('sin cookie de sesión: termina restauración sin entrar ni mostrar error de credenciales', async () => {
   const { client } = backend({ '/api/auth/refresh/': () => json({}, 401) });
   await client.restore();
-  assert.deepEqual(client.getSnapshot(), { status: 'anonymous', user: null, notice: null });
+  assert.deepEqual(client.getSnapshot(), { status: 'anonymous', user: null, notice: null, sessionEpoch: 1 });
 });
 
 test('CSRF no disponible impide enviar login y no intenta relajar protección', async () => {

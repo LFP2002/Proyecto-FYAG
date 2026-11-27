@@ -40,11 +40,11 @@ export function createAuthClient({ fetchImpl = (...args) => fetch(...args), apiO
   let loginFlight = null;
   let logoutFlight = null;
   let restoreFlight = null;
-  let snapshot = Object.freeze({ status: 'restoring', user: null, notice: null });
+  let snapshot = Object.freeze({ status: 'restoring', user: null, notice: null, sessionEpoch: epoch });
   const listeners = new Set();
 
   function emit(status, user = null, notice = null) {
-    snapshot = Object.freeze({ status, user, notice });
+    snapshot = Object.freeze({ status, user, notice, sessionEpoch: epoch });
     listeners.forEach((listener) => listener());
   }
 

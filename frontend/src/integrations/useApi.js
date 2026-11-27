@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../auth/client.js';
 import { createScope } from '../comercial/scope.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -6,27 +6,29 @@ import { paginationURL, samePageFilters } from './pagination.js';
 import { civilRange } from './dates.js';
 
 export function useApi() {
-  const { request, user } = useAuth();
+  const { request, user, sessionEpoch } = useAuth();
+  const identity = useMemo(() => ({}), [request, user?.id, user?.role, sessionEpoch]);
   const scopeRef = useRef(null);
-  const reads = useRef(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
 
-  useEffect(() => {
-    const scope = createScope();
-    scopeRef.current = scope;
-    return () => { scope.dispose(); if (scopeRef.current === scope) scopeRef.current = null; };
-  }, [user?.id, user?.role]);
+  useLayoutEffect(() => {
+    const entry = { scope: createScope(), identity, reads: 0 };
+    scopeRef.current = entry;
+    setError(null); setBusy(false); setLoading(false); setLocked(false);
+    return () => { entry.scope.dispose(); if (scopeRef.current === entry) scopeRef.current = null; };
+  }, [identity]);
+  const current = () => scopeRef.current?.identity === identity ? scopeRef.current : null;
 
   async function load(key, path, apply, options = {}) {
-    const scope = scopeRef.current;
-    if (!scope) return false;
-    reads.current += 1; setLoading(true);
-    try { return await scope.read(key, (signal) => request(path, { ...options, signal }), apply); }
-    catch (cause) { if (scopeRef.current === scope) setError(cause); return false; }
-    finally { reads.current -= 1; if (scopeRef.current === scope) setLoading(reads.current > 0); }
+    const entry = current();
+    if (!entry) return false;
+    entry.reads += 1; setLoading(true);
+    try { return await entry.scope.read(key, (signal) => request(path, { ...options, signal }), apply); }
+    catch (cause) { if (scopeRef.current === entry) setError(cause); return false; }
+    finally { entry.reads -= 1; if (scopeRef.current === entry) setLoading(entry.reads > 0); }
   }
 
   async function requiredLoad(key, path, apply, options = {}) {
@@ -34,22 +36,24 @@ export function useApi() {
   }
 
   async function write(path, method, body, apply, requestOptions = {}) {
-    const scope = scopeRef.current;
+    const entry = current(), scope = entry?.scope;
     if (!scope || scope.locked) return false;
     setBusy(true); setError(null);
     try { return await scope.write((signal) => request(path, { ...requestOptions, method, body, signal }), apply); }
-    catch (cause) { if (scopeRef.current === scope) setError(cause); return false; }
-    finally { if (scopeRef.current === scope) { setBusy(false); setLocked(scope.locked); } }
+    catch (cause) { if (scopeRef.current === entry) setError(cause); return false; }
+    finally { if (scopeRef.current === entry) { setBusy(false); setLocked(scope.locked); } }
   }
 
   async function reconcile(operation) {
-    const scope = scopeRef.current;
+    const entry = current();
+    if (!entry) return false;
     setError(null);
-    if (await operation() && scope && scopeRef.current === scope) { scope.reconciled(); setLocked(false); return true; }
-    return false;
+    if (!await entry.scope.reconcile(operation) || scopeRef.current !== entry) return false;
+    setLocked(entry.scope.locked);
+    return true;
   }
 
-  const cancelRead = (key) => scopeRef.current?.cancelRead(key);
+  const cancelRead = (key) => current()?.scope.cancelRead(key);
   return { load, requiredLoad, write, reconcile, cancelRead, error, setError, busy, loading, locked };
 }
 
