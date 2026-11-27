@@ -132,7 +132,10 @@ function PresupuestosOperativos() {
   const editable = [AF, 'SUPERVISOR_OBRAS'].includes(user.role) && selected?.estado === 'BORRADOR';
   const canPrice = user.role === AF && filterState(selected?.estado) === 'PENDIENTE_FINANZAS';
   const pricesPending = selected?.monto_neto === null;
-  const actions = actionsFor(user.role, selected?.estado, pricesPending);
+  const versionCommercial = selected?.version_comercial;
+  const versionRequired = selected?.items?.some(i => i.articulo != null);
+  const validVersion = typeof versionCommercial === 'string' && /^[0-9a-f]{64}$/.test(versionCommercial);
+  const actions = actionsFor(user.role, selected?.estado, pricesPending).filter(a => a !== 'aprobar-finanzas' || !versionRequired || validVersion);
   const historical = selected ? {id:selected.cliente,nombre_legal:selected.cliente_nombre || clients.find(c=>c.id===selected.cliente)?.nombre_legal || 'Cliente #'+selected.cliente, historical:true} : null;
   const currentChoices = clients.filter(c=>user.role==='SUPERVISOR_OBRAS'||c.activo||c.id===selected?.cliente).filter(c=>user.role==='SUPERVISOR_OBRAS'||!clientSearch||c.nombre_legal.toLocaleLowerCase('es-CL').includes(clientSearch.toLocaleLowerCase('es-CL')));
   const retained = [chosenClient,historical].filter(c=>c&&String(c.id)===header?.cliente&&!currentChoices.some(x=>x.id===c.id));
@@ -182,9 +185,15 @@ function PresupuestosOperativos() {
     if (disabled || !actions.includes(action)) return;
     if (needsReason(action) && !reason.trim()) { api.setError({ message: 'El motivo es obligatorio.' }); return; }
     if (!window.confirm(`¿${ACTION_LABELS[action]} para ${selected.codigo}?`)) return;
-    await api.write(`${budgetPath(selected.id)}${action}/`, 'POST', action === 'crear-revision' ? {} : { motivo: reason.trim() }, async (data) => {
+    const body = action === 'crear-revision' ? {} : { motivo: reason.trim() };
+    if (action === 'aprobar-finanzas' && versionRequired && validVersion) body.version_comercial_esperada = versionCommercial;
+    const ok = await api.write(`${budgetPath(selected.id)}${action}/`, 'POST', body, async (data) => {
       await refreshedDetail(data.id); setAction(null); setReason(''); setHistoryPage(1);
     });
+    if (!ok && action === 'aprobar-finanzas') {
+      setAction(null);
+      await api.load('detail', budgetPath(selected.id), setSelected);
+    }
   }
   const renderItemEditor = (key, available) => <ItemEditRow key={key} line={line} items={selected.items} role={user.role} onChange={form=>setLine(previous=>previous?{...previous,form}:previous)} onSave={saveLine} onCancel={()=>setLine(null)} disabled={disabled||!available} busy={api.busy} editable={available} error={api.error}/>;
   const headerForm = header && <div className="budget-header-view">

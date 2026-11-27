@@ -239,7 +239,7 @@
       ],
       "post": {
         "operationId": "crearItem024",
-         "description": "S propio / AF todos, solo BORRADOR. Línea libre o vinculada; sin stock, compra, reserva ni gasto. Si es vinculada, solo Finanzas puede enviar precio. Bloquea Presupuesto antes del ítem.",
+        "description": "S propio / AF todos, solo BORRADOR. Línea libre o vinculada; sin stock, compra, reserva ni gasto. Si es vinculada, solo Finanzas puede enviar precio. Bloquea Presupuesto antes del ítem.",
         "requestBody": {
           "required": true,
           "content": {
@@ -250,9 +250,27 @@
                     "$ref": "#/components/schemas/ItemEntrada"
                   }
                 ],
-                 "required": ["cantidad", "orden"],
-                 "if": {"required":["articulo"],"properties":{"articulo":{"type":"integer"}}},
-                 "else": {"required":["descripcion","unidad","precio_unitario"]}
+                "required": [
+                  "cantidad",
+                  "orden"
+                ],
+                "if": {
+                  "required": [
+                    "articulo"
+                  ],
+                  "properties": {
+                    "articulo": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "descripcion",
+                    "unidad",
+                    "precio_unitario"
+                  ]
+                }
               }
             }
           }
@@ -439,7 +457,7 @@
       ],
       "post": {
         "operationId": "enviarFinanzas024",
-         "description": "S propio o AF. BORRADOR -> PENDIENTE_FINANZAS; cliente activo, >=1 ítem válido y neto positivo si no hay precios pendientes. Congela cabecera/ítems salvo la fijación exclusiva del precio comercial por Finanzas (SPEC-025B). No correo.",
+        "description": "S propio o AF. BORRADOR -> PENDIENTE_FINANZAS; cliente activo, >=1 ítem válido y neto positivo si no hay precios pendientes. Congela cabecera/ítems salvo la fijación exclusiva del precio comercial por Finanzas (SPEC-025B). No correo.",
         "requestBody": {
           "$ref": "#/components/requestBodies/Accion"
         },
@@ -473,9 +491,28 @@
       ],
       "post": {
         "operationId": "aprobarFinanzas024",
-         "description": "AF exclusivo, también sobre creación propia. PENDIENTE_FINANZAS o PENDIENTE_GERENCIA legado -> APROBADO_FINANZAS. Precios pendientes: 400. PENDIENTE_FINANZAS exige neto positivo. No crea Obra.",
+        "description": "AF exclusivo. PENDIENTE_FINANZAS o PENDIENTE_GERENCIA legado -> APROBADO_FINANZAS. Neto positivo y completo; huella obligatoria si contiene ítems vinculados. Huella obsoleta: 409 version_comercial_obsoleta. No crea Obra.",
         "requestBody": {
-          "$ref": "#/components/requestBodies/Accion"
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "version_comercial_esperada": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "Obligatoria para presupuestos con líneas vinculadas."
+                  }
+                }
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -541,7 +578,7 @@
       ],
       "post": {
         "operationId": "enviarCliente024",
-         "description": "AF exclusivo. APROBADO_FINANZAS o APROBADO_GERENCIA legado -> ENVIADO_CLIENTE. Precios pendientes: 400. No correo real.",
+        "description": "AF exclusivo. APROBADO_FINANZAS o APROBADO_GERENCIA legado -> ENVIADO_CLIENTE. Precios pendientes: 400. No correo real.",
         "requestBody": {
           "$ref": "#/components/requestBodies/Accion"
         },
@@ -902,7 +939,13 @@
         "additionalProperties": false,
         "description": "Para vinculados, ver SPEC-025B-v1.json. Supervisor no envía precio; Finanzas puede fijarlo durante la revisión mediante la acción dedicada.",
         "properties": {
-          "articulo": {"type":["integer","null"],"minimum":1},
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
           "descripcion": {
             "type": "string",
             "minLength": 1,
@@ -946,7 +989,10 @@
         ]
       },
       "Dinero": {
-        "type": ["string", "null"],
+        "type": [
+          "string",
+          "null"
+        ],
         "pattern": "^[0-9]+\\.[0-9]{2}$",
         "description": "Decimal neto exacto en CLP, HALF_UP por línea; null cuando hay precios pendientes. No se aprueba ni se envía al cliente con pendientes."
       },
@@ -972,8 +1018,17 @@
           "presupuesto": {
             "$ref": "#/components/schemas/Id"
           },
-          "articulo": {"type":["integer","null"],"minimum":1},
-          "codigo_articulo": {"type":"string","maxLength":50},
+          "articulo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "codigo_articulo": {
+            "type": "string",
+            "maxLength": 50
+          },
           "descripcion": {
             "type": "string",
             "minLength": 1,
@@ -1081,6 +1136,11 @@
           "cliente_nombre": {
             "type": "string",
             "description": "Nombre legal del cliente asociado, sin datos de contacto."
+          },
+          "version_comercial": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Huella del contenido comercial; presente en el detalle."
           }
         }
       },
@@ -1176,7 +1236,8 @@
                 }
               ],
               "required": [
-                "items"
+                "items",
+                "version_comercial"
               ]
             }
           }

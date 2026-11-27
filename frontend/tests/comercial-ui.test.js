@@ -77,7 +77,7 @@ function fakeBackend() {
     if (!match) throw new Error(`Ruta inesperada: ${path}`);
     const budget = budgets.find((b) => b.id === Number(match[1])), suffix = match[2];
     if (suffix.startsWith('historial/')) return page(structuredClone(events.filter((e) => e.presupuesto === budget.id)));
-    if (method === 'GET') return structuredClone(budget);
+    if (method === 'GET') return structuredClone({...budget, version_comercial:'a'.repeat(64)});
     if (!suffix) { Object.assign(budget, options.body); return structuredClone(budget); }
     if (suffix.startsWith('items/')) {
       const itemId = Number(suffix.split('/')[1]);
@@ -665,5 +665,8 @@ test('Supervisor envía material sin precio y Finanzas fija solo el precio antes
     await submit(af);
     assert.deepEqual(b.calls.find(c=>c.path.endsWith('/precio-comercial/')).body,{precio_unitario:'8500'});
     assert.match(text(af.root),/Aprobar por Finanzas/);
+    await click(af,'Aprobar por Finanzas');
+    await submit(af);
+    assert.equal(b.calls.find(c=>c.path.endsWith('/aprobar-finanzas/')).body.version_comercial_esperada,'a'.repeat(64));
   } finally {await act(async()=>af.unmount());}
 });

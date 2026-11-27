@@ -21,11 +21,13 @@ from .exceptions import (
     OrdenDuplicado,
     RecursoNoEncontrado,
     PresupuestoUtilizado,
+    VersionComercialObsoleta,
 )
 from .models import Cliente, Presupuesto, PresupuestoItem
 from .permissions import PuedeOperarPresupuestos
 from .permissions_presupuestos import presupuestos_visibles, revalidar_presupuestos
 from .serializers_presupuestos import (
+    AprobarFinanzasSerializer,
     ClienteElegibleSerializer,
     MaterialElegibleSerializer,
     PrecioComercialSerializer,
@@ -50,7 +52,7 @@ class ConflictoPresupuesto(APIException):
 
 def traducir_error_presupuesto(error):
     """Traduce errores conocidos sin ocultar fallos internos."""
-    if isinstance(error, (EstadoIncompatible, PresupuestoUtilizado)):
+    if isinstance(error, (EstadoIncompatible, PresupuestoUtilizado, VersionComercialObsoleta)):
         return ConflictoPresupuesto(error)
     if isinstance(error, RecursoNoEncontrado):
         return NotFound(str(error))
@@ -137,7 +139,7 @@ class PresupuestoViewSet(
             "rechazar_gerencia": PresupuestoMotivoObligatorioSerializer,
             "rechazar_finanzas": PresupuestoMotivoObligatorioSerializer,
             "enviar_finanzas": PresupuestoAccionSerializer,
-            "aprobar_finanzas": PresupuestoAccionSerializer,
+            "aprobar_finanzas": AprobarFinanzasSerializer,
             "registrar_rechazo_cliente": (
                 PresupuestoMotivoObligatorioSerializer
             ),

@@ -147,7 +147,9 @@ class MaterialesPresupuesto025B(PresupuestoAPIBase):
         self.assertIn('monto_neto', r.data)
         self.assertEqual(r.status_code, 400)
         self.assertEqual(self.client.patch(precio, {'precio_unitario':'500.00'}, format='json').data['subtotal'], '1250.00')
-        self.assertEqual(self.client.post(aprobar, {}, format='json').data['monto_neto'], '1250.00')
+        version = self.client.get(base).data['version_comercial']
+        self.assertEqual(self.client.post(aprobar, {}, format='json').status_code, 400)
+        self.assertEqual(self.client.post(aprobar, {'version_comercial_esperada':version}, format='json').data['monto_neto'], '1250.00')
         self.assertEqual(self.client.patch(precio, {'precio_unitario':'600.00'}, format='json').status_code, 409)
         self.assertEqual(self.client.post(base+'enviar-cliente/', {}, format='json').status_code, 200)
         self.assertEqual(list(propio.eventos_precio.order_by('pk').values_list('precio_anterior','precio_nuevo','registrado_por_id')),
@@ -158,7 +160,39 @@ class MaterialesPresupuesto025B(PresupuestoAPIBase):
         from apps.comercial.models import Presupuesto
         linea = self.alta(self.material())
         self.assertEqual(self.accion('enviar-finanzas').status_code, 200)
-        self.assertEqual(self.accion('aprobar-finanzas').status_code, 200)
+        version = self.client.get(self.detalle()).data['version_comercial']
+        self.assertEqual(self.accion('aprobar-finanzas', datos={'version_comercial_esperada': version}).status_code, 200)
         PresupuestoItem.objects.filter(pk=linea['id']).update(precio_unitario=None)
         self.assertEqual(self.accion('enviar-cliente').status_code, 400)
         self.assertEqual(Presupuesto.objects.get(pk=self.presupuesto.pk).estado, 'APROBADO_FINANZAS')
+
+    def test_aprobacion_rechaza_huella_obsoleta_y_exige_revision(self):
+        linea = self.alta(self.material())
+        self.assertEqual(self.accion('enviar-finanzas').status_code, 200)
+        version = self.client.get(self.detalle()).data['version_comercial']
+        precio = self.detalle()+f"items/{linea['id']}/precio-comercial/"
+        self.assertEqual(self.client.patch(precio, {'precio_unitario':'9000.00'}, format='json').status_code, 200)
+        eventos = self.presupuesto.eventos.count()
+        r = self.accion('aprobar-finanzas', datos={'version_comercial_esperada':version})
+        self.assertEqual(r.status_code, 409, r.data)
+        self.assertEqual(r.data['code'], 'version_comercial_obsoleta')
+        self.presupuesto.refresh_from_db()
+        self.assertEqual(self.presupuesto.estado, 'PENDIENTE_FINANZAS')
+        self.assertEqual(self.presupuesto.eventos.count(), eventos)
+        nueva = self.client.get(self.detalle()).data['version_comercial']
+        self.assertNotEqual(version, nueva)
+        self.assertEqual(self.accion('aprobar-finanzas', datos={'version_comercial_esperada':nueva}).status_code, 200)
+
+    def test_aprobacion_legada_impide_total_cero(self):
+        self.alta(self.material())
+        self.presupuesto.items.update(precio_unitario=Decimal('0.00'))
+        self.presupuesto.estado = 'PENDIENTE_GERENCIA'
+        self.presupuesto.politica_aprobacion = 'GERENCIA_LEGADA'
+        self.presupuesto.requiere_aprobacion_gerencia = True
+        self.presupuesto.save()
+        version = self.client.get(self.detalle()).data['version_comercial']
+        r = self.accion('aprobar-finanzas', datos={'version_comercial_esperada':version})
+        self.assertEqual(r.status_code, 400, r.data)
+        self.assertIn('monto_neto', r.data)
+        self.presupuesto.refresh_from_db()
+        self.assertEqual(self.presupuesto.estado, 'PENDIENTE_GERENCIA')

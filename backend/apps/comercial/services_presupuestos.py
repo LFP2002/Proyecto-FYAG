@@ -22,9 +22,11 @@ from .exceptions import (
     OrdenDuplicado,
     RecursoNoEncontrado,
     PresupuestoUtilizado,
+    VersionComercialObsoleta,
 )
 from .models import Cliente, Presupuesto, PresupuestoEvento, PresupuestoItem, PresupuestoPrecioEvento
 from .permissions_presupuestos import revalidar_presupuestos, presupuestos_visibles, S
+from .version_comercial import version_comercial
 
 
 Estado = Presupuesto.Estado
@@ -324,16 +326,21 @@ def recalcular_monto_neto(presupuesto):
 def _validar_salida(presupuesto, *, admitir_pendientes=False):
     _cliente_activo_bloqueado(presupuesto.cliente_id)
     presupuesto.full_clean()
+    return _validar_lineas_salida(presupuesto, admitir_pendientes=admitir_pendientes)
+
+
+def _validar_lineas_salida(presupuesto, *, admitir_pendientes=False):
     lineas, neto = _lineas_y_total(presupuesto)
     if not lineas:
         raise DatosInvalidos({"items": ["Debe existir al menos un ítem."]})
     if neto is None and admitir_pendientes:
-        return
+        return lineas
     _exigir_precios_completos(neto is None)
     if neto <= 0:
         raise DatosInvalidos({
             "monto_neto": ["El monto neto debe ser positivo."],
         })
+    return lineas
 
 
 def _exigir_precios_completos(pendientes):
@@ -355,7 +362,7 @@ def _motivo_normalizado(motivo, obligatorio):
 @_operacion
 def _transicionar(
     presupuesto, usuario, motivo, *, origenes, destino,
-    motivo_obligatorio=False, autorizacion='decision_finanzas',
+    motivo_obligatorio=False, autorizacion='decision_finanzas', version_comercial_esperada=None,
 ):
     _usuario_interno(usuario, autorizacion)
     actual = _presupuesto_bloqueado(presupuesto, usuario)
@@ -372,9 +379,19 @@ def _transicionar(
     motivo = _motivo_normalizado(motivo, motivo_obligatorio)
     if destino == Estado.PENDIENTE_FINANZAS:
         _validar_salida(actual, admitir_pendientes=True)
-    elif destino == Estado.APROBADO_FINANZAS and anterior == Estado.PENDIENTE_FINANZAS:
-        _validar_salida(actual)
-    elif destino in {Estado.APROBADO_FINANZAS, Estado.ENVIADO_CLIENTE, Estado.APROBADO_CLIENTE}:
+    elif destino == Estado.APROBADO_FINANZAS:
+        # El legado conserva la política histórica de cliente inactivo, no la
+        # posibilidad de aprobar importes incompletos o sin valor.
+        # Comparar primero: incluso un cambio a cero debe exigir una nueva revisión.
+        if (version_comercial_esperada is not None
+                and version_comercial_esperada != version_comercial(actual, actual.items.all())):
+            raise VersionComercialObsoleta()
+        lineas = (_validar_salida(actual) if anterior == Estado.PENDIENTE_FINANZAS
+                  else _validar_lineas_salida(actual))
+        # Solo las líneas vinculadas admiten edición durante la revisión.
+        if version_comercial_esperada is None and any(i.articulo_id is not None for i in lineas):
+            raise DatosInvalidos({"version_comercial_esperada": ["Revise la versión comercial antes de aprobar."]})
+    elif destino in {Estado.ENVIADO_CLIENTE, Estado.APROBADO_CLIENTE}:
         # No revalidar cliente/neto de aprobaciones históricas: solo exigir completitud.
         _exigir_precios_completos(actual.items.filter(precio_unitario__isnull=True).exists())
     _usuario_interno(usuario, autorizacion, actual)
@@ -395,11 +412,11 @@ def enviar_finanzas(presupuesto, usuario, motivo=""):
     )
 
 
-def aprobar_finanzas(presupuesto, usuario, motivo=""):
+def aprobar_finanzas(presupuesto, usuario, motivo="", *, version_comercial_esperada=None):
     return _transicionar(
         presupuesto, usuario, motivo,
         origenes={Estado.PENDIENTE_GERENCIA, Estado.PENDIENTE_FINANZAS},
-        destino=Estado.APROBADO_FINANZAS,
+        destino=Estado.APROBADO_FINANZAS, version_comercial_esperada=version_comercial_esperada,
     )
 
 

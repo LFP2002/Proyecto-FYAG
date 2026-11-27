@@ -7,6 +7,7 @@ import re
 from rest_framework import serializers
 
 from .calculos import sumar_monto_neto
+from .version_comercial import version_comercial
 
 
 class ContratoPresupuestoSerializer(serializers.Serializer):
@@ -90,6 +91,16 @@ class PresupuestoAccionSerializer(ContratoPresupuestoSerializer):
     )
 
 
+class AprobarFinanzasSerializer(PresupuestoAccionSerializer):
+    version_comercial_esperada = serializers.RegexField(r"\A[0-9a-f]{64}\Z", required=False, trim_whitespace=False)
+
+    def validate_version_comercial_esperada(self, value):
+        # RegexField admite coerción de números; la huella es estrictamente textual.
+        if not isinstance(self.initial_data.get("version_comercial_esperada"), str):
+            raise serializers.ValidationError("Indique una huella textual.")
+        return value
+
+
 class PresupuestoMotivoObligatorioSerializer(ContratoPresupuestoSerializer):
     motivo = StringEstrictoField(max_length=2000)
 
@@ -159,6 +170,11 @@ class PresupuestoListadoSerializer(serializers.Serializer):
 
 
 class PresupuestoDetalleSerializer(PresupuestoListadoSerializer):
+    version_comercial = serializers.SerializerMethodField()
+
+    def get_version_comercial(self, obj):
+        return version_comercial(obj, obj.lineas_respuesta)
+
     items = PresupuestoItemSerializer(
         source="lineas_respuesta", many=True, read_only=True
     )
