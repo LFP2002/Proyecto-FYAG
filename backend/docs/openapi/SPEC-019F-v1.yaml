@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: FYAG - Integración de materiales previstos y cierre
-  version: 1.0.0
+  version: 1.1.0
 security:
   - bearer: []
 paths:
@@ -23,11 +23,11 @@ paths:
     post:
       description: Solo Supervisor. Deriva los rubros de gastos vigentes y guarda NO_APLICA con justificación automática; no requiere usar el PATCH histórico ni finaliza la obra.
       requestBody:
-        $ref: '#/components/requestBodies/Motivo'
+        $ref: '#/components/requestBodies/RevisionEconomica'
       responses:
         '200': {description: Control de costos con rubros derivados y validación vigente}
         '403': {description: Rol no autorizado}
-        '409': {description: Estado incompatible, requisitos pendientes o validación ya vigente}
+        '409': {description: Estado incompatible, requisitos pendientes, validación ya vigente o version_costos_obsoleta}
   /api/obras/{id}/conciliacion-materiales/:
     parameters:
       - $ref: '#/components/parameters/Obra'
@@ -61,7 +61,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/Obra'
     get:
-      description: Solo Supervisor. No escribe. La evaluación orientativa se revalida bajo bloqueo en POST.
+      description: Solo Supervisor. No escribe ni comprueba archivos físicos. Compare ambas versiones con el resumen; la evaluación definitiva se revalida bajo bloqueo en POST.
       responses:
         '200':
           description: Impedimentos de validación y finalización, devoluciones que bloquean, advertencias de despacho y confirmación vinculada al remanente.
@@ -69,13 +69,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [validacion, finalizacion, devoluciones, despachos, confirmacion_remanente]
+                required: [validacion, finalizacion, devoluciones, despachos, confirmacion_remanente, version_actual, version_validada, evidencias_archivo_verificadas]
                 properties:
                   validacion: {type: array, items: {$ref: '#/components/schemas/Requisito'}}
                   finalizacion: {type: array, items: {$ref: '#/components/schemas/Requisito'}}
                   devoluciones: {type: array, items: {$ref: '#/components/schemas/Pendiente'}}
                   despachos: {type: array, items: {$ref: '#/components/schemas/Pendiente'}}
                   confirmacion_remanente: {type: string, nullable: true, pattern: '^[0-9a-f]{64}$'}
+                  version_actual: {type: integer, format: int64, minimum: 0}
+                  version_validada: {type: integer, format: int64, minimum: 0, nullable: true}
+                  evidencias_archivo_verificadas: {type: boolean, enum: [false]}
         '400': {description: Parámetros no admitidos}
         '401': {description: No autenticado}
         '403': {description: Rol no autorizado}
@@ -92,9 +95,10 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [motivo]
+              required: [motivo, version_costos_esperada]
               properties:
                 motivo: {type: string, maxLength: 2000}
+                version_costos_esperada: {$ref: '#/components/schemas/VersionEsperada'}
                 confirmacion_remanente: {type: string, pattern: '^[0-9a-f]{64}$'}
       responses:
         '200': {description: Ficha existente de Obra con estado FINALIZADA}
@@ -110,7 +114,7 @@ paths:
                 type: object
                 required: [code, detail]
                 properties:
-                  code: {type: string, enum: [devolucion_pendiente, confirmacion_remanente_requerida, costos_incompletos, estado_incompatible]}
+                  code: {type: string, enum: [devolucion_pendiente, confirmacion_remanente_requerida, costos_incompletos, estado_incompatible, version_costos_obsoleta]}
                   detail: {type: string}
                   pendientes: {type: array, items: {type: string}}
 components:
@@ -119,6 +123,17 @@ components:
   parameters:
     Obra: {name: id, in: path, required: true, schema: {type: integer, minimum: 1}}
   requestBodies:
+    RevisionEconomica:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [motivo, version_costos_esperada]
+            properties:
+              motivo: {type: string, maxLength: 2000}
+              version_costos_esperada: {$ref: '#/components/schemas/VersionEsperada'}
     Motivo:
       required: true
       content:
@@ -130,6 +145,7 @@ components:
             properties:
               motivo: {type: string, maxLength: 2000}
   schemas:
+    VersionEsperada: {type: integer, format: int64, minimum: 0, description: Versión observada y confirmada en el resumen y requisitos actuales}
     Fila:
       type: object
       required: [id, articulo, origen, codigo, nombre, unidad, presupuestado, autorizado, despachado, devuelto, neto_imputado, pendiente_despacho, estado]

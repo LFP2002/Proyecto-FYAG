@@ -7,6 +7,7 @@
 - La revisión económica general deriva rubros; el PATCH histórico se mantiene por compatibilidad. El cierre revalida devoluciones recibibles y la confirmación del remanente de despacho en la transacción. No significa cobro ni facturación.
 - QA de esta entrega en laboratorio independiente `fyag-019f`; no retomar automatización Edge Headless/CDP ni scripts dinámicos PowerShell. La validación dirigida local no sustituye CI ni pruebas de despliegue.
 - Resultado dirigido: 183 pruebas backend en PostgreSQL y 5 comprobaciones finales (Bodega, merma sin saldo recibible y tres upgrades históricos), todas aprobadas; 65 pruebas frontend distintas aprobadas; compilación correcta con advertencia de tamaño de Vite. Migración limpia aplicada, sin drift. Sin regresión completa, revisión manual de navegador ni despliegue.
+- Corrección de auditoría 1.1: validar/finalizar requieren una versión esperada; actualizar frontend y demás consumidores al desplegar el cambio. El preflight compara versiones con el resumen y no verifica archivos físicos. Inicio, validación y cierre revalidan identidad de sesión original bajo bloqueo.
 Actualizado: 26-11-2026. Nota de traspaso de desarrollo, no contrato funcional. Retirar o archivar antes del cierre de producción si corresponde; conservar SPEC y OpenAPI.
 
 ## Contexto

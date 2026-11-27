@@ -11,9 +11,12 @@ const cents=value=>BigInt(String(value).split('.')[0])*100n+BigInt((String(value
 export function costReviewState(obra,summary,requirements){
  const editable=['EN_PROCESO','SUSPENDIDA'].includes(obra.estado);
  const validated=summary?.costos_validados===true;
- const canValidate=editable&&!!requirements&&!validated&&requirements.validacion.length===0;
- const canFinalize=obra.estado==='EN_PROCESO'&&validated&&!!requirements&&!requirements.finalizacion.length&&!requirements.devoluciones.length;
- return {editable,validated,canValidate,canFinalize};
+ const consistent=!!summary&&!!requirements&&Number.isSafeInteger(summary.version_actual)&&
+  summary.version_actual===requirements.version_actual&&summary.version_validada===requirements.version_validada&&
+  validated===(requirements.version_validada===requirements.version_actual);
+ const canValidate=editable&&consistent&&!validated&&requirements.validacion.length===0;
+ const canFinalize=obra.estado==='EN_PROCESO'&&validated&&consistent&&!requirements.finalizacion.length&&!requirements.devoluciones.length;
+ return {editable,validated,consistent,canValidate,canFinalize};
 }
 export function SupervisorEmpty({title,description}){
  return <div className="so-empty" role="status"><TecIcon name="inbox"/><strong>{title}</strong>{description&&<p>{description}</p>}</div>;
@@ -30,17 +33,17 @@ export default function SupervisorCostReview({obra,summary,requirements,api,onAc
  useEffect(()=>{setEditor(null);},[refreshEpoch]);
  const state=costReviewState(obra,summary,requirements);
  const blocked=api.busy||api.loading||api.locked||busyAction;
- const open=type=>{api.setError(null);setEditor({type,reason:'',justification:'',accepted:false,token:requirements?.confirmacion_remanente??null});};
+ const open=type=>{api.setError(null);setEditor({type,reason:'',justification:'',accepted:false,token:requirements?.confirmacion_remanente??null,version:summary.version_actual});};
  const change=(name,value)=>setEditor(old=>({...old,[name]:value}));
  const validText=value=>typeof value==='string'&&value.trim().length>0&&value.trim().length<=2000;
- const valid=editor&&(editor.type==='courtesy'?validText(editor.justification)&&(!summary?.cortesia_sin_cobro||(validText(editor.reason)&&editor.reason.trim()!==editor.justification.trim()&&editor.justification.trim()!==summary.cortesia_justificacion)):validText(editor.reason)&&(editor.type!=='finalize'||editor.accepted&&editor.token===requirements?.confirmacion_remanente));
+ const valid=editor&&(editor.type==='courtesy'?validText(editor.justification)&&(!summary?.cortesia_sin_cobro||(validText(editor.reason)&&editor.reason.trim()!==editor.justification.trim()&&editor.justification.trim()!==summary.cortesia_justificacion)):editor.version===summary?.version_actual&&validText(editor.reason)&&(editor.type!=='finalize'||editor.accepted&&editor.token===requirements?.confirmacion_remanente));
  async function submit(e){
   e.preventDefault();if(blocked||!valid||!editor)return;
   let ok=false;
   if(editor.type==='courtesy'&&state.editable&&!window.confirm(summary.cortesia_sin_cobro?'¿Rectificar la justificación del servicio sin cobro? Se registrará el cambio y deberá validarse nuevamente el costo.':'¿Autorizar el servicio sin cobro? Esta autorización no puede retirarse desde el sistema; solo podrás rectificar su justificación. No reduce los costos reales y deja sin efecto la validación anterior.'))return;
   if(editor.type==='courtesy'&&state.editable)ok=await onAction('cortesia-sin-cobro/',{justificacion:editor.justification.trim(),...(summary.cortesia_sin_cobro?{motivo:editor.reason.trim()}:{})});
-  if(editor.type==='validate'&&state.canValidate)ok=await onAction('costos/validar/',{motivo:editor.reason.trim()});
-  if(editor.type==='finalize'&&state.canFinalize)ok=await onFinalize(editor.reason.trim(),editor.token);
+  if(editor.type==='validate'&&state.canValidate)ok=await onAction('costos/validar/',{motivo:editor.reason.trim(),version_costos_esperada:editor.version});
+  if(editor.type==='finalize'&&state.canFinalize)ok=await onFinalize(editor.reason.trim(),editor.token,editor.version);
   if(ok)setEditor(null);
  }
  function editorForm(type){
@@ -76,11 +79,13 @@ export default function SupervisorCostReview({obra,summary,requirements,api,onAc
   <div className="so-section-head"><h3>Validación y cierre operativo</h3></div>
   <div className="so-close-state"><TecIcon name={state.validated?'check':'clock'}/><div className="so-grow"><strong>{obra.estado==='FINALIZADA'?'Obra finalizada':state.validated?'Validación vigente':'Costos pendientes de validación'}</strong>
     {state.validated&&summary.validado_en&&<p className="commercial-help">Validada el {timestamp(summary.validado_en)}</p>}
-    {state.editable&&!requirements&&<p className="commercial-help">{api.loading?'Comprobando requisitos…':'Requisitos no comprobados. Actualiza antes de continuar.'}</p>}
+   {state.editable&&!requirements&&<p className="commercial-help">{api.loading?'Comprobando requisitos…':'Requisitos no comprobados. Actualiza antes de continuar.'}</p>}
+    {requirements&&!state.consistent&&<p role="alert" className="so-warning">El resumen y los requisitos no corresponden a la misma revisión. Actualiza antes de confirmar.</p>}
    {obra.estado==='SUSPENDIDA'&&<p className="commercial-help">Para finalizar, primero reanuda la obra.</p>}
    {state.validated&&obra.estado==='EN_PROCESO'&&<p className="commercial-help">La finalización definitiva requiere una nueva comprobación del servidor.</p>}
    </div>{!editor&&state.editable&&(state.validated?(state.canFinalize&&<button className="btn btn-outline-danger so-danger-action" disabled={blocked} onClick={()=>open('finalize')}>Finalizar obra</button>):<button className="btn btn-outline-success so-positive-action" disabled={blocked||!state.canValidate} onClick={()=>open('validate')}>Validar costos</button>)}</div>
    {requirements&&<>
+    <p className="commercial-help">Comprobación preliminar: los archivos de evidencia se verifican al validar o finalizar.</p>
     <h4>Requisitos para {state.validated?'finalizar':'validar costos'}</h4>
     <ul>{(state.validated?requirements.finalizacion:requirements.validacion).map(({codigo,destino,mensaje})=><li key={codigo}>{mensaje} {onTab&&destino!=='costos'&&<button type="button" className="btn btn-outline-secondary btn-sm" disabled={blocked} onClick={()=>onTab(destino)}>{{turnos:'Ver turnos',tecnicos:'Ver equipo',gastos:'Ver materiales y gastos',resumen:'Ver estado'}[destino]}</button>}</li>)}</ul>
     {!!requirements.devoluciones.length&&<div className="so-warning"><strong>Bodega debe recibir estas devoluciones antes del cierre</strong><ul>{requirements.devoluciones.map((r,i)=><li key={i}>{r.obra} · {r.codigo} · {r.nombre}: {movementAmount(r.cantidad,r.unidad)}</li>)}</ul></div>}

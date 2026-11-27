@@ -7,15 +7,17 @@
   "variable": [
     {"key": "baseUrl", "value": "http://localhost:8000"},
     {"key": "obra", "value": ""},
-    {"key": "confirmacionRemanente", "value": ""}
+    {"key": "confirmacionRemanente", "value": ""},
+    {"key": "versionCostosEsperada", "value": ""}
   ],
   "item": [
     {"name": "Previsión del presupuesto", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/conciliacion-materiales/?origen=PRESUPUESTO&page=1"}},
     {"name": "Autorizaciones sin vínculo presupuestario", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/conciliacion-materiales/?origen=ADICIONAL&page=1"}},
     {"name": "Iniciar y autorizar la previsión", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/iniciar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Inicio de ejecución\"}"}}},
     {"name": "Comprobar requisitos de cierre", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/requisitos-cierre/"}},
-    {"name": "Validar costos sin declarar rubros", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/costos/validar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Revisión económica general\"}"}}},
-    {"name": "Finalizar sin despachos pendientes", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\"}"}}},
-    {"name": "Finalizar confirmando el remanente observado", "request": {"description": "Revise despachos en requisitos-cierre y copie su confirmacion_remanente solo si acepta inhabilitar esas cantidades.", "method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\",\"confirmacion_remanente\":\"{{confirmacionRemanente}}\"}"}}}
+    {"name": "Consultar resumen económico", "request": {"method": "GET", "url": "{{baseUrl}}/api/obras/{{obra}}/costos/resumen/"}},
+    {"name": "Validar costos sin declarar rubros", "request": {"description": "Compare las versiones actual y validada del resumen y los requisitos; copie version_actual a versionCostosEsperada después de revisar.", "method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/costos/validar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Revisión económica general\",\"version_costos_esperada\":{{versionCostosEsperada}}}"}}},
+    {"name": "Finalizar sin despachos pendientes", "request": {"method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\",\"version_costos_esperada\":{{versionCostosEsperada}}}"}}},
+    {"name": "Finalizar confirmando el remanente observado", "request": {"description": "Revise los despachos y la versión económica. Copie confirmacion_remanente solo si acepta inhabilitar esas cantidades.", "method": "POST", "url": "{{baseUrl}}/api/obras/{{obra}}/finalizar/", "header": [{"key": "Content-Type", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\"motivo\":\"Trabajo terminado\",\"version_costos_esperada\":{{versionCostosEsperada}},\"confirmacion_remanente\":\"{{confirmacionRemanente}}\"}"}}}
   ]
 }

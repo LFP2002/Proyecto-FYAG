@@ -20,11 +20,13 @@ def previstos(obra):
     return PresupuestoItem.objects.filter(presupuesto_id=obra.presupuesto_id, articulo__isnull=False)
 
 
-def autorizar_prevision(obra, actor, motivo):
+def autorizar_prevision(obra, usuario, motivo, *, token=None):
     """Solo en el inicio; el caller posee los locks Presupuesto → Obra → técnico."""
     items = list(previstos(obra).order_by('articulo_id', 'id'))
     articulos = {a.pk: a for a in ArticuloInventario.objects.select_for_update().filter(
         pk__in={i.articulo_id for i in items}).order_by('pk')}
+    from .services import _actor_019f
+    _actor_019f(usuario, token)
     errores = []
     for item in items:
         articulo = articulos[item.articulo_id]
@@ -39,8 +41,8 @@ def autorizar_prevision(obra, actor, motivo):
         referencia = f'Previsión {obra.codigo} · {item.codigo_articulo}'
         tipo = 'AUTORIZACION_ENTREGA'
         huella = _huella(tipo, {'item_presupuesto': item.pk, 'obra': obra.pk, 'articulo': item.articulo_id,
-                                'cantidad': item.cantidad, 'referencia': referencia, 'motivo': motivo}, actor)
-        _autorizar_entrega_bloqueada(obra, articulos[item.articulo_id], item.cantidad, actor,
+                                'cantidad': item.cantidad, 'referencia': referencia, 'motivo': motivo}, usuario)
+        _autorizar_entrega_bloqueada(obra, articulos[item.articulo_id], item.cantidad, usuario,
                                     uuid4(), huella, referencia, motivo, item_presupuesto=item)
 
 

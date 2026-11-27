@@ -76,18 +76,22 @@ def _detalles(codigos):
 
 
 @base._operacion
-def requisitos_cierre(referencia, usuario):
-    actor = base._actor_autorizado(usuario, base.SUPERVISOR)
+def requisitos_cierre(referencia, usuario, *, token=None):
+    base._actor_019f(usuario, token)
     obra = base._obra_bloqueada(referencia)
-    if obra.estado not in {Obra.Estado.EN_PROCESO, Obra.Estado.SUSPENDIDA}:
-        return {'validacion': _detalles(['estado_para_validar']), 'finalizacion': _detalles(['estado_para_finalizar']),
-                'devoluciones': [], 'despachos': [], 'confirmacion_remanente': None}
-    responsable = costos._responsable_pendientes(obra)
+    actor = base._actor_019f(usuario, token)
+    operativa = obra.estado in {Obra.Estado.EN_PROCESO, Obra.Estado.SUSPENDIDA}
+    responsable = costos._responsable_pendientes(obra) if operativa else []
     control = costos._consultar_control(obra)
+    revision = {'version_actual': control.version_actual, 'version_validada': control.version_validada,
+                'evidencias_archivo_verificadas': False}
+    if not operativa:
+        return {'validacion': _detalles(['estado_para_validar']), 'finalizacion': _detalles(['estado_para_finalizar']),
+                'devoluciones': [], 'despachos': [], 'confirmacion_remanente': None, **revision}
     gastos, turnos = costos._recursos_revision(obra)
     evaluado = ControlCostosObra(obra=obra)
     costos._derivar_rubros(evaluado, gastos)
-    validacion = responsable + costos._pendientes(obra, evaluado, gastos, turnos)
+    validacion = responsable + costos._pendientes(obra, evaluado, gastos, turnos, verificar_archivos=False)
     finalizacion = validacion + _validacion_pendientes(control)
     # Los rubros persistidos solo son requisito del cierre de una validación vigente.
     if control.costos_validados:
@@ -102,17 +106,19 @@ def requisitos_cierre(referencia, usuario):
     confirmacion, qs = remanentes(obra, actor)
     agrupado = qs.order_by().values('articulo__codigo', 'articulo__nombre', 'unidad').annotate(
         total=Sum('pendiente')).order_by('articulo__codigo', 'unidad')
-    return {'validacion': _detalles(validacion), 'finalizacion': _detalles(finalizacion),
+    return {**revision, 'validacion': _detalles(validacion), 'finalizacion': _detalles(finalizacion),
             'devoluciones': devoluciones, 'confirmacion_remanente': confirmacion,
             'despachos': [_material(obra, d['articulo__codigo'], d['articulo__nombre'], d['unidad'],
                                    d['total'], 'Supervisor') for d in agrupado]}
 
 
 @base._operacion
-def finalizar_obra(referencia, datos, usuario):
-    actor = base._actor_autorizado(usuario, base.SUPERVISOR)
+def finalizar_obra(referencia, datos, usuario, *, token=None):
+    base._actor_019f(usuario, token)
     obra = base._obra_bloqueada(referencia)
-    base._campos_validos(datos, {"motivo", "confirmacion_remanente"}, {"motivo"})
+    actor = base._actor_019f(usuario, token)
+    requeridos = {'motivo', 'version_costos_esperada'}
+    base._campos_validos(datos, requeridos | {'confirmacion_remanente'}, requeridos)
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     if obra.estado != Obra.Estado.EN_PROCESO:
         raise EstadoIncompatible()
@@ -120,6 +126,7 @@ def finalizar_obra(referencia, datos, usuario):
     # bloqueada serializa todas las escrituras económicas y de participantes.
     pendientes = costos._responsable_pendientes(obra)
     control = costos._consultar_control(obra)
+    costos.comprobar_version(control, datos['version_costos_esperada'])
     pendientes.extend(_validacion_pendientes(control))
     if CierreCostosObra.objects.filter(obra=obra).exists():
         raise EstadoIncompatible("La Obra ya tiene una fotografía de cierre.")
@@ -137,6 +144,7 @@ def finalizar_obra(referencia, datos, usuario):
         raise CierreMaterialesPendientes('confirmacion_remanente_requerida',
             'Actualice y confirme las cantidades pendientes que quedarán inhabilitadas al finalizar.')
     totales = costos._totales(gastos, turnos)
+    actor = base._actor_019f(usuario, token)
     CierreCostosObra.objects.create(
         obra=obra, **totales, version_validada=control.version_validada,
         validado_por_id=control.validado_por_id, finalizado_por=actor,

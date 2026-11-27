@@ -48,6 +48,9 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
     setRequirements(null);
     return api.load('requirements', `${base}requisitos-cierre/`, data => {
       const valid = data && ['validacion','finalizacion','devoluciones','despachos'].every(key=>Array.isArray(data[key])) &&
+        Number.isSafeInteger(data.version_actual) && data.version_actual>=0 &&
+        (data.version_validada===null || (Number.isSafeInteger(data.version_validada) && data.version_validada===data.version_actual)) &&
+        data.evidencias_archivo_verificadas===false &&
         (data.confirmacion_remanente===null || /^[0-9a-f]{64}$/.test(data.confirmacion_remanente)) &&
         !!data.confirmacion_remanente===!!data.despachos.length;
       if(!valid) throw new Error('No se pudieron comprobar los requisitos de cierre.');
@@ -88,13 +91,13 @@ export default function Costos({ obra, onFinalized, section = 'costs', onTab, on
   async function action(path, body, method = 'POST') {
     if (!canManage || !['EN_PROCESO','SUSPENDIDA'].includes(obra.estado) || busyAction || api.busy || api.loading || api.locked) return false;
     setIssue(''); setBusyAction(true);
-    try { const ok=await api.write(path, method, body, afterWrite); if(costsView) void loadRequirements(); return ok; }
+    try { const ok=await api.write(path, method, body, afterWrite); if(costsView){if(!ok)setRefreshEpoch(v=>v+1);void loadRequirements();} return ok; }
     finally { setBusyAction(false); }
   }
-  async function finalize(reason, confirmation) {
+  async function finalize(reason, confirmation, version) {
     if (!canManage || obra.estado !== 'EN_PROCESO' || !reason.trim() || !summary?.costos_validados || !requirements || requirements.finalizacion.length || requirements.devoluciones.length || api.busy || api.loading || api.locked || busyAction) return false;
     setBusyAction(true); setIssue('');
-    try { const ok=await api.write(`${base}finalizar/`, 'POST', { motivo: reason.trim(), ...(confirmation?{confirmacion_remanente:confirmation}:{}) }, async () => { await onFinalized(); }); if(!ok){setRefreshEpoch(v=>v+1);void loadRequirements();} return ok; }
+    try { const ok=await api.write(`${base}finalizar/`, 'POST', { motivo: reason.trim(), version_costos_esperada:version, ...(confirmation?{confirmacion_remanente:confirmation}:{}) }, async () => { await onFinalized(); }); if(!ok){setRefreshEpoch(v=>v+1);void loadRequirements();} return ok; }
     finally { setBusyAction(false); }
   }
 

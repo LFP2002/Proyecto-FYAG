@@ -110,7 +110,7 @@ class Integracion019FTests(PrevisionBase, TestCase):
         self.assertEqual(revisada['otros_estado'], 'NO_APLICA')
         self.assertIn('Justificación automática', revisada['otros_justificacion'])
         self.assertEqual(self.preflight()['devoluciones'][0]['cantidad'], '1.000')
-        post = lambda **data: self.client.post(self.finalizar_url, {'motivo':'Cierre', **data}, format='json')
+        post = lambda **data: self.client.post(self.finalizar_url, {**self.revision('Cierre'), **data}, format='json')
         self.assertEqual(post().data['code'], 'devolucion_pendiente')
         self.op('DEVOLUCION', autorizacion=d.pk, cantidad='1.000')
         self.assertFalse(self.control().costos_validados)
@@ -172,6 +172,75 @@ class Carreras019FTests(PrevisionBase, CarrerasPostgreSQL, TransactionTestCase):
         self.setUpTestData()
         self.preparar_materiales()
 
+    def _revocacion_en_espera(self, ruta, datos, cambios, esperado=401):
+        def revocar():
+            services._obra_bloqueada(self.obra.pk)
+            Usuario.objects.filter(pk=self.supervisor.pk).update(**cambios)
+
+        _, respuesta = self.race(revocar, lambda: self.client.post(self.ruta_obra(ruta), datos, format='json'))
+        self.assertEqual(respuesta.status_code, esperado, respuesta.data)
+
+    def test_inicio_rechaza_sesion_revocada_durante_lock(self):
+        self.planificar()
+        self.linea()
+        self._revocacion_en_espera('iniciar', {'motivo':'Inicio'}, {'sesion_version': self.supervisor.sesion_version + 1})
+        self.obra.refresh_from_db()
+        self.assertEqual(self.obra.estado, 'PLANIFICADA')
+        self.assertFalse(Op.objects.exists())
+
+    def test_inicio_revocado_durante_lock_del_articulo_revierte_transicion(self):
+        self.planificar()
+        self.linea()
+
+        def revocar():
+            type(self.article).objects.select_for_update().get(pk=self.article.pk)
+            Usuario.objects.filter(pk=self.supervisor.pk).update(sesion_version=self.supervisor.sesion_version + 1)
+
+        _, respuesta = self.race(revocar, lambda: self.client.post(self.ruta_obra('iniciar'), {'motivo':'Inicio'}, format='json'))
+        self.assertEqual(respuesta.status_code, 401, respuesta.data)
+        self.obra.refresh_from_db()
+        self.assertEqual(self.obra.estado, 'PLANIFICADA')
+        self.assertFalse(Op.objects.exists())
+
+    def test_validacion_rechaza_credencial_cambiada_durante_lock(self):
+        self.acreditar()
+        from django.contrib.auth.hashers import make_password
+        self._revocacion_en_espera('costos/validar', self.revision('Validar'), {'password': make_password(None)})
+        self.assertFalse(self.control().costos_validados)
+
+    def test_finalizacion_rechaza_rol_revocado_durante_lock(self):
+        self.acreditar()
+        self.validar()
+        self._revocacion_en_espera('finalizar', self.revision('Cierre'), {'rol':'GERENCIA'}, esperado=403)
+        self.assertFalse(CierreCostosObra.objects.exists())
+
+    def test_validacion_concurrente_no_acredita_costos_distintos(self):
+        self.acreditar()
+        revisada = self.preflight()['version_actual']
+        datos = {'motivo':'Validar', 'version_costos_esperada': revisada}
+        _, respuesta = self.race(self.crear_ok, lambda: self.client.post(self.validar_url, datos, format='json'))
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertEqual(respuesta.data['code'], 'version_costos_obsoleta')
+        self.assertFalse(self.control().costos_validados)
+        self.assertEqual(self.client.post(self.validar_url, self.revision('Confirmación nueva'), format='json').status_code, 200)
+
+    def test_cierre_concurrente_no_acepta_una_version_nueva_ya_validada(self):
+        self.acreditar()
+        self.validar()
+        datos = self.revision('Cierre revisado')
+
+        def modificar_y_validar():
+            self.crear_ok()
+            return self.validar()
+
+        nueva, respuesta = self.race(modificar_y_validar,
+            lambda: self.client.post(self.finalizar_url, datos, format='json'))
+        self.assertTrue(nueva['costos_validados'])
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertEqual(respuesta.data['code'], 'version_costos_obsoleta')
+        self.assertFalse(CierreCostosObra.objects.exists())
+        self.assertEqual(self.client.post(self.finalizar_url, self.revision('Confirmación nueva'), format='json').status_code, 200)
+
     def test_doble_inicio_serializa_en_postgresql(self):
         self.planificar()
         item = self.linea()
@@ -194,18 +263,20 @@ class Carreras019FTests(PrevisionBase, CarrerasPostgreSQL, TransactionTestCase):
         d = self.op('AUTORIZACION_DEVOLUCION', entrega=e.pk, cantidad='1.000')
         self.acreditar()
         self.validar()
-        previo = self.preflight()['confirmacion_remanente']
+        preflight = self.preflight()
+        previo = preflight['confirmacion_remanente']
 
         def finalizar():
             try:
-                return cierre.finalizar_obra(self.obra.pk, {'motivo': 'Cierre', 'confirmacion_remanente': previo}, self.supervisor)
+                return cierre.finalizar_obra(self.obra.pk, {'motivo': 'Cierre', 'confirmacion_remanente': previo,
+                    'version_costos_esperada': preflight['version_actual']}, self.supervisor)
             except EstadoIncompatible as exc:
                 from apps.inventario.services_materiales import conflicto
                 conflicto(exc.codigo)
 
         uno, dos = self.race(lambda: self.op('DEVOLUCION', autorizacion=d.pk, cantidad='1.000'), finalizar)
         self.assertEqual(uno.tipo, 'DEVOLUCION')
-        self.assertEqual(dos.detail['code'], 'costos_incompletos')
+        self.assertEqual(dos.detail['code'], 'version_costos_obsoleta')
         self.assertFalse(CierreCostosObra.objects.exists())
 
 

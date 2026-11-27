@@ -46,6 +46,7 @@ from .serializers import (
     CambioTecnicoSerializer, CategoriaServicioEventoSerializer,
     CategoriaServicioSerializer, MotivoCategoriaSerializer,
     MotivoObligatorioSerializer, NombreCategoriaSerializer,
+    EnteroEstrictoField,
     ObraCrearSerializer, ObraEditarSerializer, ObraEventoSerializer,
     ObraFinanzasSerializer, ObraLecturaSerializer,
     PresupuestoDisponibleSerializer, RenombrarCategoriaSerializer,
@@ -84,7 +85,11 @@ class ObrasPaginacion(PageNumberPagination):
     page_size_query_param = None
 
 
-class FinalizarObraSerializer(MotivoObligatorioSerializer):
+class RevisionEconomicaSerializer(MotivoObligatorioSerializer):
+    version_costos_esperada = EnteroEstrictoField(min_value=0, max_value=9223372036854775807)
+
+
+class FinalizarObraSerializer(RevisionEconomicaSerializer):
     confirmacion_remanente = serializers.RegexField(r'\A[0-9a-f]{64}\Z', required=False, trim_whitespace=False)
 
 
@@ -146,7 +151,7 @@ class ObraViewSet(
             "devolver_gasto": DevolucionSerializer,
             "anular_gasto": MotivoObligatorioSerializer,
             "historial_costos": CostoObraEventoSerializer,
-            "validar_costos": MotivoObligatorioSerializer,
+            "validar_costos": RevisionEconomicaSerializer,
             "cortesia_sin_cobro": CortesiaEntradaSerializer,
             "create": ObraCrearSerializer,
             "partial_update": ObraEditarSerializer,
@@ -191,7 +196,7 @@ class ObraViewSet(
     @action(detail=True, methods=["post"], parser_classes=[JSONParser])
     def finalizar(self, request, pk=None):
         obra = self.get_object()
-        actual = services_finalizacion.finalizar_obra(obra, self._datos(), request.user)
+        actual = services_finalizacion.finalizar_obra(obra, self._datos(), request.user, token=request.auth)
         return self._detalle(actual)
 
     @action(detail=True, methods=['get'], url_path='requisitos-cierre')
@@ -199,7 +204,7 @@ class ObraViewSet(
         obra = self.get_object()
         if request.query_params:
             raise ValidationError('Esta consulta no admite parámetros.')
-        return Response(services_finalizacion.requisitos_cierre(obra, request.user),
+        return Response(services_finalizacion.requisitos_cierre(obra, request.user, token=request.auth),
                         headers={'Cache-Control': 'private, no-store'})
 
     @action(detail=True, methods=['get'], url_path='conciliacion-materiales')
@@ -319,7 +324,8 @@ class ObraViewSet(
 
     @action(detail=True, methods=["post"])
     def iniciar(self, request, pk=None):
-        return self._transicion(services.iniciar_obra)
+        obra = self.get_object()
+        return self._detalle(services.iniciar_obra(obra, request.user, **self._datos(), token=request.auth))
 
     @action(detail=True, methods=["post"])
     def suspender(self, request, pk=None):

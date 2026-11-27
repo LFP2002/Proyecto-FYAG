@@ -11,3 +11,9 @@ El preflight de cierre no escribe. La confirmación se firma con la clave de Dja
 El `PATCH …/costos/control/` sigue disponible con los permisos e invalidación históricos: no es requisito de la nueva validación. El `POST …/costos/validar/` deriva los rubros de gastos vigentes, guarda la justificación automática de ausencia y registra actor, motivo y versión en el evento de validación. No sustituye los históricos ni la comprobación de evidencia, responsable, turnos, integridad o total positivo. La cortesía permanece separada.
 
 La proyección Bodega 019D añade `origen` a las cuatro operaciones físicas/operativas y `inhabilitada` a las autorizaciones. No expone ID de línea comercial ni importes. Ver [OpenAPI 019F](openapi/SPEC-019F-v1.yaml) y [Postman](postman/SPEC-019F.postman_collection.json). Los laboratorios de migración se deben ejecutar con `compose.premerge-qa.yaml` de manera independiente del Compose principal.
+
+### Revisión 1.1 del contrato
+
+Los clientes de validar y finalizar deben enviar `version_costos_esperada`: el entero mostrado por `version_actual` de la revisión que se confirma. Antes de habilitar la acción, compare también `version_validada` entre resumen y preflight. Si hay `409 version_costos_obsoleta`, relea ambos recursos y solicite una nueva confirmación. No use la versión de una lectura posterior para reenviar una confirmación anterior. Las peticiones sin la versión requerida reciben `400`; el cambio no requiere migración.
+
+El preflight no abre fotos ni calcula sus hashes y declara `evidencias_archivo_verificadas: false`; los POST conservan la verificación definitiva. Los tres servicios de escritura 019F contrastan usuario y JWT originales con sesión, credenciales y rol persistidos después de esperar a las raíces y de nuevo antes de consolidar efectos. Las revocaciones no se sustituyen con datos de una sesión más reciente.

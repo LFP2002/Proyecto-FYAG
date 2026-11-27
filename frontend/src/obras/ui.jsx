@@ -29,7 +29,11 @@ export function OperationalErrors({ error }) {
     <p>{error.message || 'Revisa los datos.'}</p>
     {error.code === 'sin_cambios' && <p>No hay un cambio aplicable. Consulta el estado actual.</p>}
     {error.code === 'presupuesto_utilizado' && <p>El presupuesto ya tiene una Obra asociada.</p>}
-    {Object.entries(error.fieldErrors || {}).filter(([field])=>field!=='pendientes').map(([field, values]) => <p key={field}>{fieldLabels[field] || (field === 'detail' || field === 'non_field_errors' ? 'Detalle' : field)}: {values.join(' ')}</p>)}
+    {error.code === 'devolucion_pendiente' && <p>Coordina la recepción física con Bodega. Después actualiza los requisitos y, si cambió el costo, valida nuevamente antes de finalizar.</p>}
+    {error.code === 'confirmacion_remanente_requerida' && <p>Actualiza la lista de despachos pendientes. Revisa las cantidades actuales y confirma otra vez cuáles quedarán inhabilitadas.</p>}
+    {error.code === 'version_costos_obsoleta' && <p>Los costos cambiaron. Actualiza el resumen y los requisitos, revisa los nuevos datos y confirma otra vez.</p>}
+    {!!error.fieldErrors?.materiales?.length&&<p>Solicita a Bodega revisar la actividad o la unidad del material indicado antes de volver a iniciar.</p>}
+    {Object.entries(error.fieldErrors || {}).filter(([field])=>field!=='pendientes').map(([field, values]) => <p key={field}>{fieldLabels[field] || ({materiales:'Materiales previstos',version_costos_esperada:'Revisión económica',detail:'Detalle',non_field_errors:'Detalle'})[field] || field}: {values.join(' ')}</p>)}
     {!!error.fieldErrors?.pendientes?.some(key=>pendingLabels[key])&&<div><strong>Requisitos pendientes</strong><ul>{error.fieldErrors.pendientes.filter(key=>pendingLabels[key]).map(key=><li key={key}>{pendingLabels[key]}</li>)}</ul></div>}
     {error.retryAfter && <p>Espera indicada por el servidor: {error.retryAfter}.</p>}
   </div>;

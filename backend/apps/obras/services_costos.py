@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.usuarios.models import Usuario
 from . import services as base
-from .exceptions import CostosIncompletos, DatosInvalidos, EstadoIncompatible, PermisoDenegado, SinCambios
+from .exceptions import CostosIncompletos, DatosInvalidos, EstadoIncompatible, PermisoDenegado, SinCambios, VersionCostosObsoleta
 from .evidencias import MAX_BYTES, ruta_privada
 from .models import CierreCostosObra, ControlCostosObra, CortesiaObra, CostoObraEvento, GastoObra, Obra, ObraParticipante, TurnoObra
 
@@ -232,7 +232,7 @@ def _validar_persistido(objeto):
     objeto.full_clean(exclude=fks, validate_unique=False, validate_constraints=False)
 
 
-def _pendientes(obra, control, gastos, turnos):
+def _pendientes(obra, control, gastos, turnos, *, verificar_archivos=True):
     pendientes = []
     miembros = set(ObraParticipante.objects.filter(obra=obra).values_list("tecnico_id", flat=True))
     if not any(_turno_acreditado(turno) for turno in turnos):
@@ -268,6 +268,10 @@ def _pendientes(obra, control, gastos, turnos):
         for evidencia in turno.fotos.all():
             try:
                 _validar_persistido(evidencia)
+                if evidencia.obra_id != obra.pk:
+                    pendientes.append("evidencia_inconsistente")
+                if not verificar_archivos:
+                    continue
                 with ruta_privada(evidencia.nombre_interno).open("rb") as archivo:
                     contenido = archivo.read(MAX_BYTES + 1)
                 if evidencia.obra_id != obra.pk or len(contenido) != evidencia.tamano or hashlib.sha256(contenido).hexdigest() != evidencia.sha256:
@@ -297,8 +301,8 @@ def _pendientes_rubros(control, gastos):
     return pendientes
 
 
-def validar_costos(referencia, datos, usuario):
-    resultado = _validar_costos(referencia, datos, usuario)
+def validar_costos(referencia, datos, usuario, *, token=None):
+    resultado = _validar_costos(referencia, datos, usuario, token=token)
     if isinstance(resultado, CostosIncompletos):
         # Confirmar la retirada de una marca obsoleta antes de responder 409.
         # No crear un evento VALIDACION ni incrementar la versión al rechazar.
@@ -307,19 +311,22 @@ def validar_costos(referencia, datos, usuario):
 
 
 @base._operacion
-def _validar_costos(referencia, datos, usuario):
-    actor = base._actor_autorizado(usuario, base.SUPERVISOR)
+def _validar_costos(referencia, datos, usuario, *, token=None):
+    base._actor_019f(usuario, token)
     obra = base._obra_bloqueada(referencia)
-    base._campos_validos(datos, {"motivo"}, {"motivo"})
+    base._actor_019f(usuario, token)
+    base._campos_validos(datos, {"motivo", "version_costos_esperada"}, {"motivo", "version_costos_esperada"})
     motivo = base._motivo(datos["motivo"], obligatorio=True)
     _editable(obra)
     # Usuario antes de recursos/control, igual que iniciar/reasignar.
     responsable_pendientes = _responsable_pendientes(obra)
     control = _consultar_control(obra)
+    comprobar_version(control, datos['version_costos_esperada'])
     gastos, turnos = _recursos_revision(obra)
     evaluado = ControlCostosObra(obra=obra)
     _derivar_rubros(evaluado, gastos)
     pendientes = sorted(set(responsable_pendientes + _pendientes(obra, evaluado, gastos, turnos)))
+    actor = base._actor_019f(usuario, token)
     if pendientes:
         if control.version_validada is not None:
             control.version_validada = None
@@ -337,6 +344,13 @@ def _validar_costos(referencia, datos, usuario):
     control.save()
     _evento(control, "VALIDACION", actor, motivo, antes)
     return snapshot(control)
+
+
+def comprobar_version(control, esperada):
+    if type(esperada) is not int or not 0 <= esperada <= 9223372036854775807:
+        raise DatosInvalidos({'version_costos_esperada': ['Indique una versión entera no negativa.']})
+    if esperada != control.version_actual:
+        raise VersionCostosObsoleta()
 
 
 def _recursos_revision(obra):

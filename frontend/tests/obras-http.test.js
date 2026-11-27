@@ -26,3 +26,28 @@ test('Obras extiende errores públicos sin alterar Bearer, refresh ni saneamient
   assert.equal(calls.filter((call) => call.path.endsWith('/refresh/')).length, 0);
   assert.equal(calls.at(-1).options.headers.get('Authorization'), 'Bearer access-test');
 });
+
+test('019F admite mensajes públicos solo en las rutas pertinentes y sanea materiales', async () => {
+  const json = (data, status = 200) => new Response(JSON.stringify(data), {status});
+  let body, status;
+  const client = createAuthClient({fetchImpl: async path => {
+    if (path.endsWith('/csrf/')) return json({csrfToken:'csrf-test'});
+    if (path.endsWith('/login/')) return json({access:'access-test',csrfToken:'csrf-test'});
+    if (path.endsWith('/me/')) return json({id:2,username:'S',email:'s@example.test',role:'SUPERVISOR_OBRAS'});
+    return json(body,status);
+  }});
+  await client.login({email:'s@example.test',password:'test-only'});
+  const post = path => client.request(`/api/obras/1/${path}/`,{method:'POST',body:{}});
+  status=400; body={materiales:['MAT-1: material inactivo. Solicite a Bodega regularizar el catálogo.']};
+  await assert.rejects(post('iniciar'), e=>e.fieldErrors.materiales?.[0]===body.materiales[0]);
+  await assert.rejects(post('suspender'), e=>!e.fieldErrors.materiales);
+  body={materiales:['<script>contenido</script>','Bearer privado']};
+  await assert.rejects(post('iniciar'), e=>!e.fieldErrors.materiales);
+  status=409;
+  for (const code of ['devolucion_pendiente','confirmacion_remanente_requerida','version_costos_obsoleta']) {
+    body={code,detail:'password confidencial'};
+    await assert.rejects(post('finalizar'), e=>e.code===code&&!e.fieldErrors.detail);
+    await assert.rejects(post('suspender'), e=>e.code===null);
+  }
+  await assert.rejects(post('costos/validar'), e=>e.code==='version_costos_obsoleta');
+});

@@ -127,7 +127,7 @@ test('Supervisor finaliza solo con validación remota, confirmación y motivo; r
     await act(async()=>renderer.root.findByProps({type:'checkbox'}).props.onChange({target:{checked:true}}));
     await act(async()=>{await renderer.root.findByProps({'aria-label':'Confirmar finalización'}).props.onSubmit({preventDefault(){}});await flush();});
     const call = backend.calls.find((entry) => entry.path === '/api/obras/1/finalizar/' && entry.method === 'POST');
-    assert.deepEqual(call.body, { motivo: 'Trabajo terminado y revisado', confirmacion_remanente:token });
+    assert.deepEqual(call.body, { motivo: 'Trabajo terminado y revisado', confirmacion_remanente:token, version_costos_esperada:0 });
     assert.equal(backend.obras[0].estado, 'FINALIZADA');
     assert.ok(backend.calls.filter((entry) => entry.path === '/api/obras/1/').length >= 2);
     assert.equal(buttons(renderer, 'Finalizar obra').length, 0);
@@ -135,6 +135,24 @@ test('Supervisor finaliza solo con validación remota, confirmación y motivo; r
 });
 
 const submitNamed=async(renderer,label)=>act(async()=>{await renderer.root.findByProps({'aria-label':label}).props.onSubmit({preventDefault(){}});await flush();});
+
+test('019F: no permite validar hasta que resumen y requisitos correspondan a la misma revisión',async()=>{
+ const backend=obrasBackend(S);backend.obras[0].estado='EN_PROCESO';
+ backend.requirements={version_actual:1};
+ const renderer=await mount(backend);
+ try{
+  await openCosts(renderer);
+  assert.equal(buttons(renderer,'Validar costos')[0].props.disabled,true);
+  assert.match(text(renderer.root),/no corresponden a la misma revisión/);
+  assert.match(text(renderer.root),/los archivos de evidencia se verifican al validar o finalizar/);
+  backend.control.version_actual=1;
+  await click(renderer,'Actualizar');await click(renderer,'Validar costos');
+  await input(renderer,'obras-costos-motivo','Confirmo los costos actuales');
+  await submitNamed(renderer,'Confirmar validación');
+  const post=backend.calls.find(c=>c.method==='POST'&&c.path.endsWith('/costos/validar/'));
+  assert.equal(post.body.version_costos_esperada,1);
+ }finally{await unmount(renderer);}
+});
 
 test('019F: la obra planificada muestra líneas vinculadas y distingue adicionales',async()=>{
  const backend=obrasBackend(S),request=backend.request;
@@ -231,8 +249,8 @@ test('Supervisor: rechazo de validación presenta pendientes y no reenvía autom
   await openCosts(renderer);await click(renderer,'Validar costos');await input(renderer,'obras-costos-motivo','Revisión');
   await submitNamed(renderer,'Confirmar validación');
   assert.match(text(renderer.root),/Hay turnos abiertos/);
-  assert.equal(buttons(renderer,'Confirmar validación')[0].props.disabled,true);
-  await submitNamed(renderer,'Confirmar validación');assert.equal(attempted,1);
+   assert.equal(buttons(renderer,'Confirmar validación').length,0);
+   assert.equal(attempted,1);
   await click(renderer,'Reconsultar resultado');assert.equal(attempted,1);
   assert.equal(buttons(renderer,'Finalizar obra').length,0);
  }finally{await unmount(renderer);}
