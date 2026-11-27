@@ -44,3 +44,24 @@
 .finance-alertas .finance-alert-actions {display:flex;justify-content:flex-end;margin-top:12px;}
 .finance-alertas .manager-work-panel {width:100%;max-width:none;min-width:0;}
 @media(max-width:540px){.finance-alertas .finance-alert-actions button {width:100%;}}
+
+/* Supervisor: misma escala que Obras, sin modificar los demás módulos o roles. */
+.supervisor-alertas .page-head h1 {font-size:1.75rem;font-weight:700;line-height:1.25;letter-spacing:0;color:var(--fyag-primary);margin:0;}
+.supervisor-alertas .manager-work-heading h1 {font-size:1.5rem;font-weight:700;line-height:1.3;letter-spacing:0;}
+.supervisor-alertas :is(.portfolio-list-head h2,.manager-work-panel h2,.manager-alert-description h2,.finance-alert-attention h2,.finance-history-head h2) {font-size:1.0625rem;font-weight:700;line-height:1.35;}
+.supervisor-alertas :is(.cobranzas-refresh,.manager-cob-filter-toggle,.manager-budget-back,.manager-cob-filter-form .btn) {display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;min-height:38px;line-height:1.25;white-space:nowrap;}
+.supervisor-alertas .manager-cob-filter-form {align-items:flex-end;}
+.supervisor-alertas .manager-cob-filter-form[hidden] {display:none;}
+.supervisor-alertas .manager-cob-filter-form :is(.form-control,.form-select) {min-height:38px;}
+.supervisor-alertas .manager-work-panel {width:100%;max-width:none;min-width:0;}
+.supervisor-alertas .manager-alert-row.pending.medium {border-left-color:#ECA321;}
+.supervisor-alertas .manager-alert-row.pending.medium .manager-alert-icon {background:#fcf0da;color:#99600a;}
+.supervisor-alertas .manager-alert-row.medium .manager-alert-priority {color:#926018;}
+.supervisor-alertas .finance-alert-attention {border-top:1px solid var(--fyag-line);padding-top:16px;margin-top:16px;}
+.supervisor-alertas .finance-alert-attention p {color:var(--fyag-muted);margin-bottom:12px;}
+.supervisor-alertas .finance-alert-attention label {display:block;font-weight:600;margin-bottom:6px;}
+.supervisor-alertas .finance-alert-actions {display:flex;justify-content:flex-end;margin-top:12px;}
+:root[data-fyag-theme='dark'] .supervisor-alertas .manager-alert-priority {color:#ea9691;}
+:root[data-fyag-theme='dark'] .supervisor-alertas .manager-alert-row.medium .manager-alert-priority {color:#e7b66b;}
+:root[data-fyag-theme='dark'] .supervisor-alertas .manager-alert-title button {color:var(--fyag-text);}
+@media(max-width:540px){.supervisor-alertas .manager-cob-filter-form>div{flex-basis:100%;}.supervisor-alertas .finance-alert-actions button{width:100%;}.supervisor-alertas .manager-work-tabs{flex-wrap:wrap;}}

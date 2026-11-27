@@ -76,3 +76,7 @@ Formularios de materiales y gastos: acciones superiores con altura y tipografía
 
 ### Decisiones ratificadas: integración presupuesto, Bodega y cierre
 Ver specs/019f-integracion-presupuesto-materiales-cierre.md. Autorización automática al inicio, sin reservas, despachos parciales con remanente, cierre confirmado de despachos pendientes, bloqueo por devolución efectiva pendiente, requisitos de cierre accionables y validación económica general sin declaraciones individuales. SPEC funcional ratificada; código pendiente. Mantener Presupuestos, roles e históricos.
+
+
+## Supervisor — Alertas
+Reutiliza la bandeja y ficha de Finanzas/Gerencia, con clase visual exclusiva de Supervisor y escala de Obras (1.75/1.5/1.0625rem). Indicadores interactivos, pestañas incluyendo Todas, filtros plegables aplicados explícitamente (tipo, recurso, referencia y período), fechas civiles, etiquetas humanas, prioridad y estado diferenciados, detalle independiente, historial y atención con motivo. Mantiene todas las lecturas y permisos del contrato original, bloqueo de navegación durante escritura incierta, reconsulta y resolución automática. No se agrega navegación directa a una obra/turno: el contexto de navegación Supervisor aún no soporta destino específico. Sin cambios de backend. Pendientes: prueba dirigida, compilación y validación visual en navegador.
