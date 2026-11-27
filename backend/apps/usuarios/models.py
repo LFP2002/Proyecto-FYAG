@@ -7,9 +7,31 @@ from django.db.models.functions import Lower, Trim
 class InstalacionFYAG(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     inicializada_en = models.DateTimeField(null=True, editable=False)
+    clave_digest = models.CharField(max_length=64, null=True, editable=False)
+    clave_vence_en = models.DateTimeField(null=True, editable=False)
 
     class Meta:
-        constraints = [models.CheckConstraint(condition=models.Q(id=1), name='instalacion_fyag_unica')]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(id=1), name='instalacion_fyag_unica'),
+            models.CheckConstraint(condition=(
+                models.Q(clave_digest__isnull=True, clave_vence_en__isnull=True)
+                | models.Q(inicializada_en__isnull=True, clave_digest__isnull=False,
+                           clave_digest__regex=r'^[0-9a-f]{64}$', clave_vence_en__isnull=False)
+            ), name='instalacion_fyag_clave_coherente'),
+        ]
+
+
+class EventoInstalacionFYAG(models.Model):
+    class Tipo(models.TextChoices):
+        EMISION = 'EMISION', 'Clave emitida'
+        RENOVACION = 'RENOVACION', 'Clave renovada'
+        INICIALIZACION_WEB = 'INICIALIZACION_WEB', 'Inicializada por clave de infraestructura'
+        INICIALIZACION_CLI = 'INICIALIZACION_CLI', 'Inicializada por terminal de infraestructura'
+
+    tipo = models.CharField(max_length=20, choices=Tipo.choices)
+    operador = models.CharField(max_length=64, blank=True)
+    referencia = models.CharField(max_length=64, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
 
 
 class Usuario(AbstractUser):
@@ -128,11 +150,16 @@ class DesafioCorreo(models.Model):
     proposito = models.CharField(max_length=12, choices=Proposito.choices)
     emitido_en = models.DateTimeField()
     vence_en = models.DateTimeField(db_index=True)
+    sesion_version = models.PositiveBigIntegerField(null=True, editable=False)
 
     class Meta:
         constraints = [
             models.CheckConstraint(condition=models.Q(proposito__in=['TITULARIDAD', 'CAMBIO']), name='correo_proposito_valido'),
             models.CheckConstraint(condition=models.Q(vence_en__gt=models.F('emitido_en')), name='correo_vigencia_positiva'),
+            models.CheckConstraint(condition=(
+                models.Q(proposito='TITULARIDAD', sesion_version__isnull=True)
+                | models.Q(proposito='CAMBIO', sesion_version__isnull=False, sesion_version__gte=1)
+            ), name='correo_version_por_proposito'),
         ]
 
 

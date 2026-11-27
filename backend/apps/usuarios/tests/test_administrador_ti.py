@@ -105,9 +105,10 @@ class AprovisionamientoTests(TestCase):
         self.assertEqual(Usuario.objects.count(), 1)
 
     def test_validadores_rollback_y_no_promover_cuenta_existente(self):
-        gerencia = Usuario.objects.create_user(username="g", email="g@example.test", rol="GERENCIA")
         with self.assertRaises(ValidationError):
             services.aprovisionar_primera_ti(self.data(password="123"))
+        self.assertFalse(Usuario.objects.exists())
+        gerencia = Usuario.objects.create_user(username="g", email="g@example.test", rol="GERENCIA")
         with self.assertRaises(services.ConflictoUsuario):
             services.aprovisionar_primera_ti(self.data(email=gerencia.email))
         with self.assertRaises(services.ConflictoUsuario):
@@ -210,7 +211,9 @@ class MigracionTITests(BaseObras, TransactionTestCase):
         executor.migrate(previous)
         try:
             old = executor.loader.project_state(previous).apps
-            self.assertEqual(list(old.get_model("usuarios", "Usuario").objects.order_by("pk").values()), before)
+            old_fields = [field.attname for field in old.get_model("usuarios", "Usuario")._meta.concrete_fields]
+            self.assertTrue(list(old.get_model("usuarios", "Usuario").objects.order_by("pk").values()) ==
+                            [{field: row[field] for field in old_fields} for row in before])
             executor = MigrationExecutor(connection)
             executor.migrate(latest)
             self.assertEqual(list(Usuario.objects.order_by("pk").values()), before)

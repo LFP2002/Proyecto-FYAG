@@ -75,13 +75,16 @@ def emitir(user, purpose):
         return
     now = timezone.now()
     challenges = DesafioCorreo.objects.filter(usuario=user, proposito=purpose)
+    version = user.sesion_version if purpose == CAMBIO else None
+    if purpose == CAMBIO:
+        challenges.exclude(sesion_version=version).delete()
     challenges.filter(vence_en__lte=now).delete()
     if challenges.filter(emitido_en__gt=now - timedelta(minutes=10)).exists() or challenges.count() >= 3:
         return
     token = token_urlsafe(32)
     minutes = settings.FYAG_VERIFICACION_MINUTOS
     DesafioCorreo.objects.create(usuario=user, email=email, proposito=purpose, digest=sha256(token.encode()).hexdigest(),
-                                 emitido_en=now, vence_en=now + timedelta(minutes=minutes))
+                                 emitido_en=now, vence_en=now + timedelta(minutes=minutes), sesion_version=version)
     enviar_desafio_despues_commit('verificacion', email, token, minutes)
 
 
@@ -124,7 +127,7 @@ def confirmar(token):
         DesafioCorreo.objects.filter(usuario=user, proposito=TITULARIDAD).delete()
         _event(user, user, UsuarioEvento.Tipo.CORREO_VERIFICADO, 'Confirmado mediante titularidad del buzón; no autenticó sesión.')
         return
-    if (challenge.email != user.correo_pendiente
+    if (challenge.sesion_version != user.sesion_version or challenge.email != user.correo_pendiente
             or Usuario.objects.exclude(pk=user.pk).filter(email=challenge.email).exists()):
         raise _invalido()
     anterior = user.email

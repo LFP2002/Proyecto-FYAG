@@ -29,7 +29,8 @@ def preparar_cambio_sintetico(user, email, actor):
     value = token_urlsafe(32)
     now = timezone.now()
     DesafioCorreo.objects.create(usuario=user, email=email, proposito=CAMBIO,
-                                 digest=sha256(value.encode()).hexdigest(), emitido_en=now, vence_en=now+timedelta(hours=1))
+                                 digest=sha256(value.encode()).hexdigest(), emitido_en=now, vence_en=now+timedelta(hours=1),
+                                 sesion_version=Usuario.objects.get(pk=user.pk).sesion_version)
     return value
 
 
@@ -111,6 +112,38 @@ class VerificacionTests(TransactionTestCase):
         user.refresh_from_db()
         self.assertEqual(user.email, 'alta0@qa.test')
 
+    def test_transiciones_invalidan_cambio_pero_no_titularidad(self):
+        from apps.usuarios import services_usuarios as services
+        from apps.usuarios.credenciales import restablecer_clave
+
+        password = 'Una-clave-sintetica-394!'
+        actions = [
+            lambda user: services.cambiar_clave_propia({'clave_actual': password, 'nueva_clave': 'Una-contraseña-distinta-52!'}, user),
+            lambda user: services.cambiar_rol(user, {'rol': 'BODEGUERO', 'motivo': 'QA'}, self.ti),
+            lambda user: services.actividad_usuario(user, {'motivo': 'QA'}, self.ti, activo=False),
+            lambda user: restablecer_clave(user, {'motivo': 'QA'}, self.ti),
+            lambda user: Usuario.objects.filter(pk=user.pk).update(sesion_version=user.sesion_version + 1),
+        ]
+        for i, mutate in enumerate(actions):
+            with self.subTest(transition=i):
+                user = Usuario.objects.create_user(username=f'cambio{i}', email=f'vigente{i}@qa.test', rol='TECNICO', password=password)
+                from apps.usuarios.verificacion import emitir, TITULARIDAD
+                from django.db import transaction
+                with transaction.atomic():
+                    emitir(Usuario.objects.select_for_update().get(pk=user.pk), TITULARIDAD)
+                vigente = self.token()
+                nuevo = f'nuevo{i}@qa.test'
+                editar_usuario(user, {'email': nuevo}, self.ti)
+                cambio = self.token()
+                mutate(user)
+                self.assertEqual(self.post('verificar', {'token': cambio}).status_code, 400)
+                self.assertEqual(self.post('verificar', {'token': vigente}).status_code, 204)
+                user.refresh_from_db()
+                self.assertEqual(user.email, f'vigente{i}@qa.test')
+                editar_usuario(user, {'email': nuevo}, self.ti)
+                self.assertNotEqual(self.token(), cambio)
+                self.assertEqual(self.post('verificar', {'token': self.token()}).status_code, 204)
+
     def test_confirmaciones_concurrentes_solo_una_confirma(self):
         user = self.alta()
         value = self.token()
@@ -134,6 +167,27 @@ class VerificacionTests(TransactionTestCase):
 
 
 class MigracionVerificacionTests(TransactionTestCase):
+    def test_0014_descarta_desafios_de_cambio_sin_version(self):
+        from django.db.migrations.executor import MigrationExecutor
+        executor = MigrationExecutor(connection)
+        latest = executor.loader.graph.leaf_nodes()
+        before = [(app, '0013_verificacion_correo' if app == 'usuarios' else name) for app, name in latest]
+        executor.migrate(before)
+        try:
+            apps = executor.loader.project_state(before).apps
+            user = apps.get_model('usuarios', 'Usuario').objects.create(
+                username='historica', email='historica@qa.test', rol='BODEGUERO', correo_pendiente='nuevo@qa.test')
+            now = timezone.now()
+            for i, purpose in enumerate(('TITULARIDAD', 'CAMBIO')):
+                apps.get_model('usuarios', 'DesafioCorreo').objects.create(
+                    usuario_id=user.pk, digest=str(i) * 64, proposito=purpose, email=user.email,
+                    emitido_en=now, vence_en=now + timedelta(hours=1))
+            MigrationExecutor(connection).migrate(latest)
+            self.assertEqual(list(DesafioCorreo.objects.values_list('proposito', 'sesion_version')), [('TITULARIDAD', None)])
+            self.assertEqual(Usuario.objects.get(pk=user.pk).correo_pendiente, 'nuevo@qa.test')
+        finally:
+            MigrationExecutor(connection).migrate(latest)
+
     def test_0012_a_0013_conserva_estado_sin_verificar_historicos(self):
         from django.db.migrations.executor import MigrationExecutor
         executor = MigrationExecutor(connection)
