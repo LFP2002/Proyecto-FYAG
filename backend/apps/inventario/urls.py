@@ -9,6 +9,7 @@ from .views_disponibilidad import DisponibilidadSupervisorView
 from .views_tecnico import TecnicoMaterialesView
 from .views_materiales import OperacionesViewSet, EstadosValoracionViewSet
 from .views_mermas import MermasView, MermaDetalleView, MermaDecidirView
+from .views_solicitudes_supervisor import SolicitudesSupervisorView, SolicitudSupervisorDetalleView
 from .views_solicitudes import ArticulosSolicitablesView, SolicitudesMaterialesView, SolicitudDetalleView, SolicitudDecidirView
 
 router = SimpleRouter()
@@ -24,6 +25,8 @@ for ruta, ambito in [('mermas-bodega', 'BODEGA'), ('mermas-obra', 'OBRA')]:
         path(ruta+'/<str:merma_id>/decidir/', MermaDecidirView.as_view(ambito=ambito), name=ruta+'-decidir'),
     ]
 urlpatterns += [
+    path('solicitudes-supervisor/', SolicitudesSupervisorView.as_view(), name='solicitudes-supervisor'),
+    path('solicitudes-supervisor/<str:solicitud_id>/', SolicitudSupervisorDetalleView.as_view(), name='solicitud-supervisor-detalle'),
     path('articulos-solicitables/', ArticulosSolicitablesView.as_view(), name='articulos-solicitables'),
     path('solicitudes-materiales/', SolicitudesMaterialesView.as_view(), name='solicitudes-materiales'),
     path('solicitudes-materiales/<str:solicitud_id>/', SolicitudDetalleView.as_view(), name='solicitud-material-detalle'),

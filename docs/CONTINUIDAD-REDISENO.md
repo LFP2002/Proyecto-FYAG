@@ -92,3 +92,7 @@ Vista exclusiva del rol con las seis listas originales (materiales, existencias,
 
 ### Refinamiento aprobado: Disponibilidad de materiales
 Sustituye las seis consultas del Supervisor por tres pestañas operativas, menú específico del rol, indicadores globales de stock activo y autorizaciones de despacho pendientes, búsqueda y filtros de estado, historial de despachos y recepciones y vista de devoluciones por recibir. La proyección de solo lectura `/api/inventario/disponibilidad/` usa los saldos efectivos y excluye obras no operativas en pendientes; nunca muestra precios, no reserva stock, no concede escrituras. Los indicadores no dependen de la página ni de los filtros. Sin migración. Pruebas y revisión visual pendientes.
+
+
+## Supervisor — Solicitudes de materiales
+Bandeja inicial pendiente, indicadores globales, búsqueda compacta por material/obra/solicitante y acciones Aprobar/Rechazar visibles por fila. Ficha independiente con nombres, saldo físico consultivo y confirmación explícita; cantidad aprobada no supera la solicitada, motivo obligatorio, historial completo. Volver descarta el formulario no enviado; una decisión enviada conserva UUID y datos para reintento exacto si no se confirma. No se despacha ni reserva stock. Nueva lectura exclusiva, contrato de escritura 019C-1 intacto. Pendientes pruebas y revisión visual.

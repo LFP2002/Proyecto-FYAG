@@ -4,6 +4,8 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { PageHead } from '../components/ui/index.js';
 import { useCommercial, Pager, Errors } from '../comercial/ui.jsx';
 
+import SupervisorSolicitudes from '../integrations/SupervisorSolicitudes.jsx';
+
 const BASE = '/api/inventario/';
 const uuid = () => crypto.randomUUID();
 // Solo presentación: etiquetas y colores; no cambian lo que se envía ni recibe de la API.
@@ -25,6 +27,10 @@ function validPage(value) {
 }
 
 export default function Solicitudes() {
+  const { user } = useAuth();
+  return user.role==='SUPERVISOR_OBRAS'?<SupervisorSolicitudes key={user.id}/>:<SolicitudesOriginal key={user.id+':'+user.role}/>;
+}
+function SolicitudesOriginal() {
   const { user, request } = useAuth();
   const api = useCommercial();
   const [rows, setRows] = useState(null);
@@ -103,12 +109,12 @@ export default function Solicitudes() {
     </form>}
 
     {selected && <article className="card-fyag commercial-detail solicitudes-detail">
-      <div className="solicitudes-detail-head"><h2>Solicitud #{selected.id} <EstadoChip estado={selected.estado} /></h2><div className="commercial-actions">{supervisor && selected.estado === 'PENDIENTE' && <button className="btn btn-fyag-primary btn-sm" onClick={() => setDecision({ decision: 'APROBAR', cantidad_aprobada: selected.cantidad_solicitada, motivo: '', clave_idempotencia: uuid() })}>Decidir</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => setSelected(null)}>Volver</button></div></div>
+      <div className="solicitudes-detail-head"><h2>Solicitud #{selected.id} <EstadoChip estado={selected.estado} /></h2><div className="commercial-actions">{supervisor && selected.estado === 'PENDIENTE' && <button className="btn btn-fyag-primary btn-sm" onClick={() => setDecision({ decision: 'APROBAR', cantidad_aprobada: selected.cantidad_solicitada, motivo: '', clave_idempotencia: uuid() })}>Decidir</button>}<button className="btn btn-outline-secondary btn-sm" onClick={() => {setDecision(null);setSelected(null);}}>Volver</button></div></div>
       <dl className="commercial-facts">{FACTS.map((key) => <div key={key} className={LONG_FACTS.includes(key) ? 'solicitudes-fact-wide' : undefined}><dt>{FACT_LABEL[key]}</dt><dd className={LONG_FACTS.includes(key) ? 'commercial-long-text' : undefined}>{String(selected[key] ?? '—')}</dd></div>)}</dl>
       {selected.historial?.length > 0 && <div className="commercial-history"><h3>Historial</h3><ol className="commercial-timeline">{selected.historial.map((history) => <li key={history.id}><div className="commercial-history-states"><span className="chip blue">{history.tipo}</span></div><div className="commercial-help">{new Date(history.creado_en).toLocaleString('es-CL')} · {history.motivo}</div></li>)}</ol></div>}
     </article>}
 
-    {decision && <form className="card-fyag commercial-form solicitudes-form" onSubmit={decide}>
+    {decision && selected && <form className="card-fyag commercial-form solicitudes-form" onSubmit={decide}>
       <h2>Decidir solicitud #{selected.id}</h2>
       <div className="d-grid commercial-fields">
         <div><label className="form-label" htmlFor="sol-decision">Decisión</label><select id="sol-decision" className="form-select" value={decision.decision} onChange={(event) => setDecision({ ...decision, decision: event.target.value, clave_idempotencia: uuid() })}><option value="APROBAR">Aprobar</option><option value="RECHAZAR">Rechazar</option></select></div>

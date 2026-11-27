@@ -1,0 +1,469 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FYAG — Solicitudes de materiales del Supervisor",
+    "version": "1.0.0",
+    "description": "Lectura exclusiva de SUPERVISOR_OBRAS. Nombres actuales y stock consultivo; no se modifica el contrato de decisión."
+  },
+  "paths": {
+    "/api/inventario/solicitudes-supervisor/": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDIENTE",
+                "APROBADA",
+                "RECHAZADA"
+              ]
+            }
+          },
+          {
+            "name": "buscar",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 150,
+              "minLength": 1
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyección de lectura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "next": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "previous": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "resumen": {
+                      "type": "object",
+                      "properties": {
+                        "pendientes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "aprobadas": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "rechazadas": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "pendientes",
+                        "aprobadas",
+                        "rechazadas"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "results": {
+                      "type": "array",
+                      "maxItems": 25,
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "obra": {
+                            "type": "string"
+                          },
+                          "obra_estado": {
+                            "type": "string"
+                          },
+                          "material": {
+                            "type": "string"
+                          },
+                          "codigo": {
+                            "type": "string"
+                          },
+                          "unidad": {
+                            "type": "string"
+                          },
+                          "solicitante": {
+                            "type": "string"
+                          },
+                          "estado": {
+                            "type": "string",
+                            "enum": [
+                              "PENDIENTE",
+                              "APROBADA",
+                              "RECHAZADA"
+                            ]
+                          },
+                          "cantidad_solicitada": {
+                            "type": "string",
+                            "pattern": "^[0-9]+\\.[0-9]{3}$"
+                          },
+                          "cantidad_aprobada": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "saldo": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[0-9]+\\.[0-9]{3}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "justificacion": {
+                            "type": "string"
+                          },
+                          "motivo_decision": {
+                            "type": "string"
+                          },
+                          "decidido_por": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decidido_en": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "creado_en": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "autorizacion": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "obra",
+                          "obra_estado",
+                          "material",
+                          "codigo",
+                          "unidad",
+                          "solicitante",
+                          "estado",
+                          "cantidad_solicitada",
+                          "cantidad_aprobada",
+                          "saldo",
+                          "justificacion",
+                          "motivo_decision",
+                          "decidido_por",
+                          "decidido_en",
+                          "creado_en",
+                          "autorizacion"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "next",
+                    "previous",
+                    "resumen",
+                    "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "Sesión no disponible"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Registro o página no disponible"
+          }
+        }
+      }
+    },
+    "/api/inventario/solicitudes-supervisor/{id}/": {
+      "get": {
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proyección de lectura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "obra": {
+                      "type": "string"
+                    },
+                    "obra_estado": {
+                      "type": "string"
+                    },
+                    "material": {
+                      "type": "string"
+                    },
+                    "codigo": {
+                      "type": "string"
+                    },
+                    "unidad": {
+                      "type": "string"
+                    },
+                    "solicitante": {
+                      "type": "string"
+                    },
+                    "estado": {
+                      "type": "string",
+                      "enum": [
+                        "PENDIENTE",
+                        "APROBADA",
+                        "RECHAZADA"
+                      ]
+                    },
+                    "cantidad_solicitada": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]{3}$"
+                    },
+                    "cantidad_aprobada": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{3}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "saldo": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9]+\\.[0-9]{3}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "justificacion": {
+                      "type": "string"
+                    },
+                    "motivo_decision": {
+                      "type": "string"
+                    },
+                    "decidido_por": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "decidido_en": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "creado_en": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "autorizacion": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "historial": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "tipo": {
+                            "type": "string",
+                            "enum": [
+                              "CREACION",
+                              "APROBACION",
+                              "RECHAZO"
+                            ]
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "motivo": {
+                            "type": "string"
+                          },
+                          "creado_en": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "tipo",
+                          "actor",
+                          "motivo",
+                          "creado_en"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "obra",
+                    "obra_estado",
+                    "material",
+                    "codigo",
+                    "unidad",
+                    "solicitante",
+                    "estado",
+                    "cantidad_solicitada",
+                    "cantidad_aprobada",
+                    "saldo",
+                    "justificacion",
+                    "motivo_decision",
+                    "decidido_por",
+                    "decidido_en",
+                    "creado_en",
+                    "autorizacion",
+                    "historial"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "401": {
+            "description": "Sesión no disponible"
+          },
+          "403": {
+            "description": "Rol no autorizado"
+          },
+          "404": {
+            "description": "Registro o página no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

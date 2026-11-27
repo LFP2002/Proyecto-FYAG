@@ -84,6 +84,7 @@ export function safePage(link, path, filters = null) {
              : path === '/api/finanzas/egresos/' ? ['buscar','categoria','medio','obra','activo','desde','hasta','resumen']
              : path === '/api/finanzas/egresos/supervision-gerencial/' ? ['vista','buscar','categoria','medio','desde','hasta']
              : path === '/api/inventario/mermas-bodega/' ? ['vista','buscar','estado','tipo','articulo']
+             : path === '/api/inventario/solicitudes-supervisor/' ? ['estado','buscar']
              : path === '/api/inventario/disponibilidad/' ? ['seccion','buscar','stock','vista']
              : path === '/api/inventario/finanzas/' ? ['seccion','buscar','filtro','tipo','desde','hasta']
              : path === '/api/inventario/supervision-gerencial/' ? ['seccion','filtro','buscar','estado','desde','hasta','articulo']
@@ -127,6 +128,7 @@ export function safePage(link, path, filters = null) {
     if(path==='/api/inventario/mermas-bodega/'){
       if((value('vista')&&value('vista')!=='finanzas')||(value('buscar')&&(value('vista')!=='finanzas'||value('buscar').length>150))||(value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('tipo')&&!['DANO','VENCIMIENTO','EXTRAVIO','DIFERENCIA_CONTEO','OTRA'].includes(value('tipo')))||(value('articulo')&&!validId(value('articulo'))))throw new Error('invalid');
     }
+    if(path==='/api/inventario/solicitudes-supervisor/' && ((value('estado')&&!['PENDIENTE','APROBADA','RECHAZADA'].includes(value('estado')))||(value('buscar')||'').length>150))throw new Error('invalid');
     if(path==='/api/inventario/disponibilidad/'){
       const section=value('seccion')||'disponibilidad';
       if(!['disponibilidad','pendientes','historial'].includes(section)||(value('buscar')||'').length>150||(value('stock')&&(section!=='disponibilidad'||!['con_stock','sin_stock'].includes(value('stock'))))||(value('vista')&&(section!=='historial'||!['entregas','devoluciones','por_recibir'].includes(value('vista')))))throw new Error('invalid');
